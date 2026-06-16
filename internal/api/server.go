@@ -90,6 +90,9 @@ func (s *Server) mount(
 
 		jobH := &jobHandler{queue: jobQueue}
 		r.Route("/jobs", jobH.routes)
+
+		cmdH := &commandsHandler{metaSvc: metaSvc, jobQueue: jobQueue}
+		r.Route("/commands", cmdH.routes)
 	})
 
 	// Serve the embedded web UI for all non-API paths.

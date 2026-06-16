@@ -10,6 +10,11 @@ import (
 
 // ── GraphQL response types ────────────────────────────────────────────────────
 
+type gqlBodyMod struct {
+	Location    string `json:"location"`
+	Description string `json:"description"`
+}
+
 type gqlPerformer struct {
 	ID      string     `json:"id"`
 	Name    string     `json:"name"`
@@ -20,12 +25,12 @@ type gqlPerformer struct {
 		Date string `json:"date"`
 	} `json:"birthdate"`
 
-	Height          int    `json:"height"` // centimetres
-	HairColor       string `json:"hair_color"`
-	EyeColor        string `json:"eye_color"`
-	Tattoos         string `json:"tattoos"`
-	Piercings       string `json:"piercings"`
-	CareerStartYear int    `json:"career_start_year"`
+	Height          int          `json:"height"` // centimetres
+	HairColor       string       `json:"hair_color"`
+	EyeColor        string       `json:"eye_color"`
+	Tattoos         []gqlBodyMod `json:"tattoos"`
+	Piercings       []gqlBodyMod `json:"piercings"`
+	CareerStartYear int          `json:"career_start_year"`
 
 	Measurements *struct {
 		CupSize  string `json:"cup_size"`
@@ -52,8 +57,8 @@ query SearchPerformers($name: String!, $limit: Int!) {
       height
       hair_color
       eye_color
-      tattoos
-      piercings
+      tattoos { location description }
+      piercings { location description }
       career_start_year
       measurements { cup_size band_size waist hip }
     }
@@ -112,11 +117,11 @@ func performerMetadata(p *gqlPerformer) map[string]any {
 	if p.Height > 0 {
 		m["height"] = fmt.Sprintf("%d cm", p.Height)
 	}
-	if p.Tattoos != "" {
-		m["tattoos"] = p.Tattoos
+	if s := bodyModString(p.Tattoos); s != "" {
+		m["tattoos"] = s
 	}
-	if p.Piercings != "" {
-		m["piercings"] = p.Piercings
+	if s := bodyModString(p.Piercings); s != "" {
+		m["piercings"] = s
 	}
 	if p.CareerStartYear > 0 {
 		m["career_start"] = fmt.Sprintf("%d", p.CareerStartYear)
@@ -144,4 +149,19 @@ func performerMetadata(p *gqlPerformer) map[string]any {
 		return nil
 	}
 	return m
+}
+
+func bodyModString(mods []gqlBodyMod) string {
+	if len(mods) == 0 {
+		return ""
+	}
+	parts := make([]string, 0, len(mods))
+	for _, mod := range mods {
+		if mod.Description != "" {
+			parts = append(parts, mod.Location+": "+mod.Description)
+		} else if mod.Location != "" {
+			parts = append(parts, mod.Location)
+		}
+	}
+	return strings.Join(parts, "; ")
 }

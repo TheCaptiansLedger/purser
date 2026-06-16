@@ -14,10 +14,11 @@ interface ItemFilter {
   offset?: number
 }
 
-export function useItems(filter: ItemFilter = {}) {
+export function useItems(filter: ItemFilter = {}, refetchInterval?: number | false) {
   return useQuery({
     queryKey: ['items', filter],
     queryFn: () => getPage<Item>('/items', filter as Record<string, string | number | boolean | undefined>),
+    refetchInterval,
   })
 }
 

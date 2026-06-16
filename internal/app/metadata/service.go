@@ -3,6 +3,7 @@ package metadata
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
@@ -11,6 +12,7 @@ import (
 	"slices"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/google/uuid"
 
@@ -24,23 +26,32 @@ import (
 // importing search results into the library as domain entities.
 type Service struct {
 	sources     []ports.MetadataSource
+	jobs        ports.JobQueue
 	entries     ports.LibraryEntryRepository
+	items       ports.ItemRepository
 	people      ports.PersonRepository
+	tags        ports.TagRepository
 	externalIDs ports.ExternalIDRepository
 	mediaPath   string
 }
 
 func New(
 	sources []ports.MetadataSource,
+	jobs ports.JobQueue,
 	entries ports.LibraryEntryRepository,
+	items ports.ItemRepository,
 	people ports.PersonRepository,
+	tags ports.TagRepository,
 	externalIDs ports.ExternalIDRepository,
 	mediaPath string,
 ) *Service {
 	return &Service{
 		sources:     sources,
+		jobs:        jobs,
 		entries:     entries,
+		items:       items,
 		people:      people,
+		tags:        tags,
 		externalIDs: externalIDs,
 		mediaPath:   mediaPath,
 	}
@@ -126,6 +137,7 @@ type ImportStudioRequest struct {
 	ContentType domain.ContentType
 	Monitored   bool
 	MonitorMode domain.MonitorMode
+	AutoImport       bool // when true, enqueue a RefreshStudio job immediately after saving
 	ImageURL         string
 	WebsiteURL       string
 	ParentExternalID string // parent's ID within the same source
@@ -264,6 +276,17 @@ func (s *Service) ImportStudio(ctx context.Context, req *ImportStudioRequest) (*
 		return nil, err
 	}
 	res.Studio = studio
+
+	if req.AutoImport && s.jobs != nil {
+		entryID := studio.ID
+		if _, err := s.jobs.Submit(ctx, "RefreshStudio", map[string]any{"entry_id": entryID},
+			func(ctx context.Context, p ports.ProgressReporter) error {
+				return s.RefreshStudio(ctx, entryID, p)
+			}); err != nil {
+			slog.Warn("auto-import: failed to enqueue RefreshStudio", "entry_id", entryID, "error", err)
+		}
+	}
+
 	return res, nil
 }
 
@@ -320,6 +343,244 @@ func (s *Service) ImportPerson(ctx context.Context, req *ImportPersonRequest) (*
 		return nil, err
 	}
 	return p, nil
+}
+
+// ── Refresh ───────────────────────────────────────────────────────────────────
+
+// RefreshStudio fetches all content for a studio from its external metadata
+// source and creates Item records for any scenes not already in the library.
+// Cover art, performers, and tags are imported alongside each item.
+// Progress is reported through p if non-nil; p is updated once per saved item.
+func (s *Service) RefreshStudio(ctx context.Context, entryID string, p ports.ProgressReporter) error {
+	entry, err := s.entries.Get(ctx, entryID)
+	if err != nil {
+		return fmt.Errorf("refresh studio: load entry: %w", err)
+	}
+
+	src, srcExtID := s.sourceForEntry(entry)
+	if src == nil {
+		return fmt.Errorf("refresh studio %q: no configured metadata source has an external ID for this entry", entry.Name)
+	}
+
+	// Phase 1: page through all content, collecting ExternalItems not yet imported.
+	const perPage = 100
+	var newExtItems []*domain.ExternalItem
+
+	for page := 1; ; page++ {
+		_, extItems, total, err := src.FetchEntryContent(ctx, srcExtID, page, perPage)
+		if err != nil {
+			return fmt.Errorf("refresh studio %q: page %d: %w", entry.Name, page, err)
+		}
+		for _, ei := range extItems {
+			if _, err := s.externalIDs.FindEntity(ctx, "item", string(ei.Source), ei.ExternalID); err == nil {
+				continue // already imported
+			}
+			newExtItems = append(newExtItems, ei)
+		}
+		if len(extItems) == 0 || page*perPage >= total {
+			break
+		}
+	}
+
+	if len(newExtItems) == 0 {
+		slog.Info("studio.refresh.noop", "entry_id", entryID, "name", entry.Name)
+		return nil
+	}
+
+	// Seed caches used across all scenes in this refresh.
+	personCache := map[string]string{} // "source:extID" → internal person ID
+	tagCache := s.loadTagCache(ctx)    // lowercase name → *domain.Tag
+
+	// Pre-scan to find the most recent item index (needed for MonitorLatest).
+	// This is a cheap metadata-only pass — no images or DB ops.
+	latestIdx := 0
+	for i, ei := range newExtItems {
+		if ei.Date.After(newExtItems[latestIdx].Date) {
+			latestIdx = i
+		}
+	}
+
+	// Phase 2+3: build, save, and report each item one at a time so that
+	// scenes appear in the UI as they are imported rather than all at once.
+	now := time.Now().UTC()
+	total := len(newExtItems)
+
+	for i, ei := range newExtItems {
+		itemID := uuid.New().String()
+
+		var coverPath string
+		if ei.ImageURL != "" && s.mediaPath != "" {
+			coverPath = s.fetchImage(ctx, ei.ImageURL, "items", itemID)
+		}
+
+		monitored := monitoredForMode(entry.MonitorMode, entry.AddedAt, ei.Date)
+		if entry.MonitorMode == domain.MonitorLatest {
+			monitored = (i == latestIdx)
+		}
+
+		item := &domain.Item{
+			ID:             itemID,
+			ContentType:    entry.ContentType,
+			LibraryEntryID: entry.ID,
+			Title:          ei.Title,
+			Overview:       ei.Overview,
+			Date:           ei.Date,
+			RuntimeSeconds: ei.RuntimeSecs,
+			Monitored:      monitored,
+			Status:         domain.StatusWanted,
+			CoverPath:      coverPath,
+			People:         s.resolveItemPeople(ctx, ei.People, personCache),
+			Tags:           s.resolveItemTags(ctx, ei.Tags, tagCache),
+			ExternalIDs:    []domain.ExternalID{{Source: ei.Source, Value: ei.ExternalID}},
+			AddedAt:        now,
+		}
+
+		if err := s.items.Save(ctx, item); err != nil {
+			return fmt.Errorf("refresh studio %q: save item %q: %w", entry.Name, item.Title, err)
+		}
+		if p != nil {
+			p.Report(i+1, total, item.Title)
+		}
+	}
+
+	slog.Info("studio.refreshed", "entry_id", entryID, "name", entry.Name, "new_items", total)
+	return nil
+}
+
+// loadTagCache returns a map of lowercase tag name → tag for all existing
+// metadata-scoped tags. Used to deduplicate tag creation within a refresh.
+func (s *Service) loadTagCache(ctx context.Context) map[string]*domain.Tag {
+	cache := map[string]*domain.Tag{}
+	if s.tags == nil {
+		return cache
+	}
+	existing, err := s.tags.List(ctx, ports.TagFilter{Scope: domain.TagScopeMetadata})
+	if err != nil {
+		slog.Warn("refresh studio: load tag cache failed", "error", err)
+		return cache
+	}
+	for _, t := range existing {
+		t := t
+		cache[strings.ToLower(t.Name)] = t
+	}
+	return cache
+}
+
+// resolveItemTags looks up or creates a Tag record for each name and returns
+// a deduplicated slice. tagCache is updated in-place for reuse across scenes.
+func (s *Service) resolveItemTags(ctx context.Context, names []string, tagCache map[string]*domain.Tag) []domain.Tag {
+	if s.tags == nil || len(names) == 0 {
+		return nil
+	}
+	seen := map[string]bool{}
+	var out []domain.Tag
+	for _, name := range names {
+		key := strings.ToLower(name)
+		if seen[key] {
+			continue
+		}
+		seen[key] = true
+		t, ok := tagCache[key]
+		if !ok {
+			t = &domain.Tag{Name: name, Scope: domain.TagScopeMetadata}
+			if err := s.tags.Save(ctx, t); err != nil {
+				slog.Warn("refresh studio: save tag failed", "name", name, "error", err)
+				continue
+			}
+			tagCache[key] = t
+		}
+		out = append(out, *t)
+	}
+	return out
+}
+
+// resolveItemPeople looks up or creates a Person record for each ExternalPerson
+// and returns the ItemPerson slice. personCache (keyed by "source:extID") is
+// updated in-place to avoid redundant DB lookups across scenes.
+func (s *Service) resolveItemPeople(ctx context.Context, external []*domain.ExternalPerson, personCache map[string]string) []domain.ItemPerson {
+	if len(external) == 0 {
+		return nil
+	}
+	var out []domain.ItemPerson
+	for _, ep := range external {
+		personID := s.resolveOrCreatePerson(ctx, ep, personCache)
+		if personID == "" {
+			continue
+		}
+		role := ep.Role
+		if role == "" {
+			role = domain.RolePerformer
+		}
+		out = append(out, domain.ItemPerson{PersonID: personID, Role: role})
+	}
+	return out
+}
+
+// resolveOrCreatePerson returns the internal person ID for ep, creating a new
+// Person record if none exists. Returns "" on unrecoverable error (logged).
+func (s *Service) resolveOrCreatePerson(ctx context.Context, ep *domain.ExternalPerson, cache map[string]string) string {
+	cacheKey := string(ep.Source) + ":" + ep.ExternalID
+	if id, ok := cache[cacheKey]; ok {
+		return id
+	}
+
+	if id, err := s.externalIDs.FindEntity(ctx, "person", string(ep.Source), ep.ExternalID); err == nil {
+		cache[cacheKey] = id
+		return id
+	}
+
+	personID := uuid.New().String()
+	var imagePath string
+	if ep.ImageURL != "" && s.mediaPath != "" {
+		imagePath = s.fetchImage(ctx, ep.ImageURL, "people", personID)
+	}
+
+	person := &domain.Person{
+		ID:          personID,
+		Name:        ep.Name,
+		SortName:    ep.Name,
+		Overview:    ep.Overview,
+		Aliases:     ep.Aliases,
+		Monitored:   false,
+		MonitorMode: domain.MonitorNone,
+		ImagePath:   imagePath,
+		Metadata:    ep.Metadata,
+		ExternalIDs: []domain.ExternalID{{Source: ep.Source, Value: ep.ExternalID}},
+	}
+	if err := s.people.Save(ctx, person); err != nil {
+		slog.Warn("refresh studio: save performer failed", "name", ep.Name, "error", err)
+		return ""
+	}
+
+	cache[cacheKey] = personID
+	return personID
+}
+
+// sourceForEntry returns the first registered MetadataSource whose name matches
+// one of the entry's external IDs, along with that external ID value.
+func (s *Service) sourceForEntry(entry *domain.LibraryEntry) (ports.MetadataSource, string) {
+	for _, extID := range entry.ExternalIDs {
+		for _, src := range s.sources {
+			if src.Name() == string(extID.Source) {
+				return src, extID.Value
+			}
+		}
+	}
+	return nil, ""
+}
+
+// monitoredForMode returns whether a new item should be monitored on import
+// given the studio's monitor mode, when the studio was added, and the item date.
+// MonitorLatest is handled by the caller after all items are built.
+func monitoredForMode(mode domain.MonitorMode, entryAddedAt, itemDate time.Time) bool {
+	switch mode {
+	case domain.MonitorAll:
+		return true
+	case domain.MonitorFuture:
+		return itemDate.After(entryAddedAt)
+	default: // MonitorNone, MonitorLatest — caller sets the latest item for latest mode
+		return false
+	}
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────

@@ -13,9 +13,9 @@ import (
 type gqlScene struct {
 	ID          string     `json:"id"`
 	Title       string     `json:"title"`
-	Description string     `json:"description"`
-	Date        string     `json:"date"` // "YYYY-MM-DD"
-	Duration    int        `json:"duration"` // seconds
+	Description string     `json:"details"`  // StashDB uses "details" not "description"
+	Date        string     `json:"date"`      // "YYYY-MM-DD"
+	Duration    int        `json:"duration"`  // seconds
 	Images      []gqlImage `json:"images"`
 	Tags        []struct {
 		Name string `json:"name"`
@@ -34,7 +34,7 @@ type gqlScene struct {
 
 // sceneFields is the common field set requested on every scene query.
 const sceneFields = `
-    id title description date duration
+    id title details date duration
     images { url }
     tags { name }
     studio { id name parent { id name } }
@@ -42,7 +42,10 @@ const sceneFields = `
       performer {
         id name aliases images { url }
         birthdate { date }
-        height hair_color eye_color tattoos piercings career_start_year
+        height hair_color eye_color
+        tattoos { location description }
+        piercings { location description }
+        career_start_year
         measurements { cup_size band_size waist hip }
       }
     }`
@@ -53,7 +56,7 @@ query FetchStudioScenes($id: ID!, $page: Int!, $perPage: Int!) {
     studios: { value: [$id], modifier: INCLUDES }
     per_page: $perPage
     page: $page
-    sort: "date"
+    sort: DATE
     direction: DESC
   }) {
     count
@@ -67,7 +70,7 @@ query SearchScenes($title: String!, $limit: Int!) {
   queryScenes(input: {
     title: $title
     per_page: $limit
-    sort: "date"
+    sort: DATE
     direction: DESC
   }) {
     scenes {` + sceneFields + `

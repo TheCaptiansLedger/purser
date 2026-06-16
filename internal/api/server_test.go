@@ -39,11 +39,12 @@ func newHandler(t *testing.T) http.Handler {
 		dbadapter.NewItemRepo(database),
 	)
 	peopleSvc := people.New(dbadapter.NewPersonRepo(database))
-	metaSvc := metadata.New(nil, dbadapter.NewLibraryEntryRepo(database), dbadapter.NewPersonRepo(database), dbadapter.NewExternalIDRepo(database), "")
 	tagRepo := dbadapter.NewTagRepo(database)
 
 	jobQueue := jobsadapter.New(1)
 	t.Cleanup(jobQueue.Close)
+
+	metaSvc := metadata.New(nil, jobQueue, dbadapter.NewLibraryEntryRepo(database), dbadapter.NewItemRepo(database), dbadapter.NewPersonRepo(database), dbadapter.NewTagRepo(database), dbadapter.NewExternalIDRepo(database), "")
 
 	uiFS, _ := fs.Sub(web.Dist, "dist")
 	cfg := &config.Config{
@@ -1356,7 +1357,7 @@ func TestJobs_Cancel_SetsStatus(t *testing.T) {
 		dbadapter.NewItemRepo(database),
 	)
 	peopleSvc := people.New(dbadapter.NewPersonRepo(database))
-	metaSvc := metadata.New(nil, dbadapter.NewLibraryEntryRepo(database), dbadapter.NewPersonRepo(database), dbadapter.NewExternalIDRepo(database), "")
+	metaSvc := metadata.New(nil, nil, dbadapter.NewLibraryEntryRepo(database), dbadapter.NewItemRepo(database), dbadapter.NewPersonRepo(database), dbadapter.NewTagRepo(database), dbadapter.NewExternalIDRepo(database), "")
 	tagRepo := dbadapter.NewTagRepo(database)
 	uiFS, _ := fs.Sub(web.Dist, "dist")
 	cfg := &config.Config{
@@ -1390,4 +1391,70 @@ func TestJobs_Cancel_SetsStatus(t *testing.T) {
 		time.Sleep(5 * time.Millisecond)
 	}
 	t.Fatal("job did not reach cancelled status within deadline")
+}
+
+// ── Commands ──────────────────────────────────────────────────────────────────
+
+func TestCommands_RefreshStudio_Returns202(t *testing.T) {
+	h := newHandler(t)
+
+	// Create a studio entry so RefreshStudio has a valid target.
+	w := do(t, h, http.MethodPost, "/api/v1/library-entries", map[string]any{
+		"contentType": "adult", "kind": "studio", "name": "Test Studio",
+	})
+	if w.Code != http.StatusCreated {
+		t.Fatalf("create studio = %d", w.Code)
+	}
+	var studio struct{ ID string `json:"id"` }
+	decodeJSON(t, w, &studio)
+
+	w = do(t, h, http.MethodPost, "/api/v1/commands", map[string]any{
+		"name":    "RefreshStudio",
+		"entryId": studio.ID,
+	})
+	if w.Code != http.StatusAccepted {
+		t.Fatalf("command status = %d, want 202 — body: %s", w.Code, w.Body.String())
+	}
+	var resp struct {
+		ID   string `json:"id"`
+		Name string `json:"name"`
+	}
+	decodeJSON(t, w, &resp)
+	if resp.ID == "" {
+		t.Error("job id should be set")
+	}
+	if resp.Name != "RefreshStudio" {
+		t.Errorf("job name = %q, want RefreshStudio", resp.Name)
+	}
+}
+
+func TestCommands_RefreshStudio_MissingEntryID(t *testing.T) {
+	h := newHandler(t)
+	w := do(t, h, http.MethodPost, "/api/v1/commands", map[string]any{
+		"name": "RefreshStudio",
+		// entryId omitted
+	})
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want 400", w.Code)
+	}
+	var resp struct{ Code string `json:"code"` }
+	decodeJSON(t, w, &resp)
+	if resp.Code != "MISSING_FIELDS" {
+		t.Errorf("code = %q, want MISSING_FIELDS", resp.Code)
+	}
+}
+
+func TestCommands_UnknownCommand(t *testing.T) {
+	h := newHandler(t)
+	w := do(t, h, http.MethodPost, "/api/v1/commands", map[string]any{
+		"name": "NonExistentCommand",
+	})
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want 400", w.Code)
+	}
+	var resp struct{ Code string `json:"code"` }
+	decodeJSON(t, w, &resp)
+	if resp.Code != "UNKNOWN_COMMAND" {
+		t.Errorf("code = %q, want UNKNOWN_COMMAND", resp.Code)
+	}
 }

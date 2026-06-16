@@ -63,19 +63,20 @@ func (h *metadataHandler) search(w http.ResponseWriter, r *http.Request) {
 // ── Import studio ─────────────────────────────────────────────────────────────
 
 type importStudioRequest struct {
-	Source             string `json:"source"`
-	ExternalID         string `json:"externalId"`
-	Name               string `json:"name"`
-	Overview           string `json:"overview"`
-	ContentType        string `json:"contentType"`
-	Monitored          bool   `json:"monitored"`
-	MonitorMode        string `json:"monitorMode"`
-	ParentExternalID   string `json:"parentExternalId"`
-	ParentName         string `json:"parentName"`
-	ParentImageURL     string `json:"parentImageUrl"`
-	ParentWebsiteURL   string `json:"parentWebsiteUrl"`
-	ImageURL           string `json:"imageUrl"`
-	WebsiteURL         string `json:"websiteUrl"`
+	Source           string `json:"source"`
+	ExternalID       string `json:"externalId"`
+	Name             string `json:"name"`
+	Overview         string `json:"overview"`
+	ContentType      string `json:"contentType"`
+	Monitored        bool   `json:"monitored"`
+	MonitorMode      string `json:"monitorMode"`
+	AutoImport       *bool  `json:"autoImport"` // nil = omitted → defaults to true
+	ParentExternalID string `json:"parentExternalId"`
+	ParentName       string `json:"parentName"`
+	ParentImageURL   string `json:"parentImageUrl"`
+	ParentWebsiteURL string `json:"parentWebsiteUrl"`
+	ImageURL         string `json:"imageUrl"`
+	WebsiteURL       string `json:"websiteUrl"`
 }
 
 // POST /api/v1/metadata/studios/import
@@ -90,6 +91,8 @@ func (h *metadataHandler) importStudio(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	autoImport := req.AutoImport == nil || *req.AutoImport
+
 	svcReq := &metadata.ImportStudioRequest{
 		Source:           domain.ExternalIDSource(req.Source),
 		ExternalID:       req.ExternalID,
@@ -98,6 +101,7 @@ func (h *metadataHandler) importStudio(w http.ResponseWriter, r *http.Request) {
 		ContentType:      domain.ContentType(req.ContentType),
 		Monitored:        req.Monitored,
 		MonitorMode:      domain.MonitorMode(req.MonitorMode),
+		AutoImport:       autoImport,
 		ParentExternalID: req.ParentExternalID,
 		ParentName:       req.ParentName,
 		ParentImageURL:   req.ParentImageURL,

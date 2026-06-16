@@ -1,0 +1,12 @@
+# Never send host node_modules into the build context — the COPY web/ . step
+# would overwrite the Linux node_modules installed inside the container.
+web/node_modules/
+web/dist/
+
+# Go build artifacts
+purser
+*.test
+
+# Runtime / dev noise
+.env
+*.log

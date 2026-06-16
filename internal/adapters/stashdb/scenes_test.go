@@ -20,7 +20,7 @@ const fetchStudioFixture = `{
         {
           "id": "scene-001",
           "title": "Scene One",
-          "description": "First test scene",
+          "details": "First test scene",
           "date": "2023-06-15",
           "duration": 3600,
           "images": [{"url": "https://example.com/img1.jpg"}],
@@ -31,7 +31,7 @@ const fetchStudioFixture = `{
         {
           "id": "scene-002",
           "title": "Scene Two",
-          "description": "",
+          "details": "",
           "date": "2023-05-10",
           "duration": 1800,
           "images": [],

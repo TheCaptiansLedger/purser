@@ -3,11 +3,11 @@
 # ──────────────────────────────────────────────────────────────────────────────
 # Stage 1: Build the React UI
 # ──────────────────────────────────────────────────────────────────────────────
-FROM node:22-alpine AS ui-builder
+FROM node:22-slim AS ui-builder
 WORKDIR /app/web
 
-COPY web/package.json web/package-lock.json ./
-RUN npm ci
+COPY web/package.json ./
+RUN npm install
 
 COPY web/ .
 RUN npm run build
@@ -15,7 +15,7 @@ RUN npm run build
 # ──────────────────────────────────────────────────────────────────────────────
 # Stage 2: Build Go binary
 # ──────────────────────────────────────────────────────────────────────────────
-FROM golang:1.26-alpine AS go-builder
+FROM golang:1.26-bookworm AS go-builder
 WORKDIR /app
 
 COPY go.mod go.sum ./
@@ -29,15 +29,15 @@ RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" -o /out/purser 
 # ──────────────────────────────────────────────────────────────────────────────
 # Stage 3: Runtime image
 # ──────────────────────────────────────────────────────────────────────────────
-FROM alpine:3.20
-RUN apk add --no-cache ca-certificates tzdata
+# distroless/static includes ca-certificates and tzdata; no shell, no package
+# manager, no writable filesystem outside mounted volumes.
+FROM gcr.io/distroless/static-debian12
 
-COPY --from=go-builder /out/purser     /usr/local/bin/purser
-COPY --chmod=755 ops/scripts/entry.sh  /usr/local/bin/entry.sh
+COPY --from=go-builder /out/purser /usr/local/bin/purser
 
 VOLUME ["/data", "/media/purser", "/media/content"]
 
 EXPOSE 7474
 
-ENTRYPOINT ["/usr/local/bin/entry.sh"]
+ENTRYPOINT ["/usr/local/bin/purser"]
 CMD ["--config", "/config/purser.yaml"]

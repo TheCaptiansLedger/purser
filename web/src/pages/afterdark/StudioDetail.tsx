@@ -1,7 +1,10 @@
+import { useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
-import { ArrowLeft, Film, Users, ImageIcon } from 'lucide-react'
+import { ArrowLeft, Film, Users, ImageIcon, RefreshCw } from 'lucide-react'
 import { useLibraryEntry } from '../../api/library'
 import { useItems } from '../../api/items'
+import { useActiveJobForEntry } from '../../api/jobs'
+import { refreshStudio } from '../../api/commands'
 import { Hero } from '../../components/layout/Hero'
 import { ItemCard } from '../../components/media/ItemCard'
 import { PersonCard } from '../../components/media/PersonCard'
@@ -14,9 +17,27 @@ const ACCENT = '#f43f5e'
 export function StudioDetail() {
   const { id } = useParams<{ id: string }>()
   const { data: entry, isLoading } = useLibraryEntry(id!)
-  // Fetch all scenes for this studio (up to 200 for performer extraction)
-  const { data: scenesPage } = useItems({ libraryEntryId: id!, limit: 200 })
+
+  const activeJob = useActiveJobForEntry(id!, 'RefreshStudio')
+  const isRefreshing = activeJob !== null
+
+  const { data: scenesPage } = useItems(
+    { libraryEntryId: id!, limit: 200 },
+    isRefreshing ? 2000 : undefined,
+  )
   const scenes = scenesPage?.data ?? []
+
+  const [submitting, setSubmitting] = useState(false)
+
+  const handleRefresh = async () => {
+    if (submitting || isRefreshing) return
+    setSubmitting(true)
+    try {
+      await refreshStudio(id!)
+    } finally {
+      setSubmitting(false)
+    }
+  }
 
   // Derive unique performers from scenes
   const performerMap = new Map<string, Person>()
@@ -50,12 +71,28 @@ export function StudioDetail() {
   )
   if (!entry) return null
 
+  const refreshLabel = isRefreshing
+    ? activeJob.message ?? `${activeJob.current}/${activeJob.total} scenes`
+    : 'Refresh'
+
   return (
     <div>
-      <div className="px-8 pt-6">
+      <div className="px-8 pt-6 flex items-center justify-between">
         <Link to="/afterdark/studios" className="inline-flex items-center gap-1.5 text-sm text-white/40 hover:text-white/70 transition-colors">
           <ArrowLeft size={14} /> Studios
         </Link>
+
+        <button
+          onClick={handleRefresh}
+          disabled={submitting || isRefreshing}
+          className="inline-flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg border border-white/10 text-white/50 hover:text-white/80 hover:border-white/20 transition-colors disabled:opacity-50 disabled:cursor-default"
+        >
+          <RefreshCw
+            size={12}
+            className={isRefreshing || submitting ? 'animate-spin' : ''}
+          />
+          {submitting ? 'Starting…' : refreshLabel}
+        </button>
       </div>
 
       <Hero backdropUrl={entry.imageUrl} accent={ACCENT}>
@@ -85,6 +122,9 @@ export function StudioDetail() {
               )}
               {performers.length > 0 && (
                 <span className="text-sm text-white/40">· {performers.length} performer{performers.length !== 1 ? 's' : ''}</span>
+              )}
+              {isRefreshing && (
+                <span className="text-xs text-white/30 italic">importing…</span>
               )}
             </div>
           </div>

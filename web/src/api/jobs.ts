@@ -13,6 +13,18 @@ export function useJobs() {
   })
 }
 
+export function useActiveJobForEntry(entryId: string, jobName: string): Job | null {
+  const { data } = useJobs()
+  return (
+    (data?.data ?? []).find(
+      j =>
+        j.name === jobName &&
+        (j.status === 'queued' || j.status === 'running') &&
+        j.payload?.entry_id === entryId
+    ) ?? null
+  )
+}
+
 export async function cancelJob(id: string): Promise<void> {
   const res = await fetch(`/api/v1/jobs/${id}`, { method: 'DELETE' })
   if (!res.ok && res.status !== 204) {
