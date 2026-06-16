@@ -1,0 +1,39 @@
+# Build output
+purser
+*.exe
+
+# Web build artifacts and dependencies
+web/dist/
+web/node_modules/
+
+# Downloaded artwork (populated by seed command)
+images/
+
+# Dev data volume
+data/
+
+# Dev data directory (writable DB used by compose.dev.yml)
+data/
+
+# Env with real secrets
+.env
+
+# SQLite database files
+*.db
+*.db-shm
+*.db-wal
+
+# Config with local secrets
+purser.yaml
+
+# OS
+.DS_Store
+
+# IDE
+.idea/
+.vscode/
+
+
+# Temp exlusion until the ducks are in a row
+docs/
+testdata/
