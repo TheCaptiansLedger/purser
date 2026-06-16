@@ -47,6 +47,7 @@ import { PersonDetail } from './pages/people/PersonDetail'
 import { SettingsLayout } from './pages/settings/SettingsLayout'
 import { SettingsPage } from './pages/settings/SettingsPage'
 import { DatabasePage } from './pages/settings/DatabasePage'
+import { JobsPanel } from './pages/settings/JobsPanel'
 
 function AppRoutes() {
   const modules = useModules()
@@ -118,6 +119,7 @@ function AppRoutes() {
           <Route index element={<Navigate to="config" replace />} />
           <Route path="config" element={<SettingsPage />} />
           <Route path="database" element={<DatabasePage />} />
+          <Route path="jobs" element={<JobsPanel />} />
         </Route>
 
         <Route path="*" element={<Navigate to="/" replace />} />

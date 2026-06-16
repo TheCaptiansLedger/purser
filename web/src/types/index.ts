@@ -5,6 +5,22 @@ export interface Page<T> {
   offset: number
 }
 
+export type JobStatus = 'queued' | 'running' | 'completed' | 'failed' | 'cancelled'
+
+export interface Job {
+  id: string
+  name: string
+  payload?: Record<string, unknown>
+  status: JobStatus
+  current: number
+  total: number
+  message?: string
+  error?: string
+  createdAt: string
+  startedAt?: string
+  completedAt?: string
+}
+
 export type ContentType = 'movie' | 'tv' | 'music' | 'adult' | 'jav' | 'book'
 export type Kind = 'network' | 'studio' | 'series' | 'artist' | 'movie' | 'publisher' | 'book'
 export type MonitorMode = 'all' | 'future' | 'none' | 'latest'
