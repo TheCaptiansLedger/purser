@@ -1,0 +1,40 @@
+package domain
+
+import "time"
+
+// PersonRole describes how a person is credited on a particular item.
+type PersonRole string
+
+const (
+	RolePerformer PersonRole = "performer"
+	RoleActress   PersonRole = "actress"
+	RoleDirector  PersonRole = "director"
+	RoleActor     PersonRole = "actor"
+	RoleArtist    PersonRole = "artist"
+	RoleProducer  PersonRole = "producer"
+	RoleAuthor    PersonRole = "author"
+)
+
+// Person is a performer, actor, artist, or actress who appears in or creates content.
+// People are independently monitorable: Person.Monitored=true causes Purser to grab
+// all content featuring that person, regardless of which studio produced it.
+type Person struct {
+	ID          string
+	Name        string
+	SortName    string
+	Overview    string
+	Monitored   bool
+	MonitorMode MonitorMode
+	ImagePath   string
+	Aliases     []string
+	ExternalIDs []ExternalID
+	Metadata    map[string]any
+	AddedAt     time.Time
+}
+
+// ItemPerson links a Person to a specific Item with their credited role.
+type ItemPerson struct {
+	PersonID string
+	Person   *Person // nil unless explicitly loaded
+	Role     PersonRole
+}

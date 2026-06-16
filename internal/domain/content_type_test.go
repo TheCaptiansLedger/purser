@@ -1,0 +1,50 @@
+package domain
+
+import "testing"
+
+func TestContentType_Valid(t *testing.T) {
+	valid := []ContentType{ContentTypeMovie, ContentTypeTV, ContentTypeMusic, ContentTypeAdult, ContentTypeJAV}
+	for _, ct := range valid {
+		if !ct.Valid() {
+			t.Errorf("ContentType(%q).Valid() = false, want true", ct)
+		}
+	}
+	invalid := []ContentType{"", "unknown", "MOVIE"}
+	for _, ct := range invalid {
+		if ct.Valid() {
+			t.Errorf("ContentType(%q).Valid() = true, want false", ct)
+		}
+	}
+}
+
+func TestKind_Valid(t *testing.T) {
+	valid := []Kind{KindNetwork, KindStudio, KindSeries, KindArtist, KindMovie}
+	for _, k := range valid {
+		if !k.Valid() {
+			t.Errorf("Kind(%q).Valid() = false, want true", k)
+		}
+	}
+	invalid := []Kind{"", "unknown", "STUDIO"}
+	for _, k := range invalid {
+		if k.Valid() {
+			t.Errorf("Kind(%q).Valid() = true, want false", k)
+		}
+	}
+}
+
+func TestMonitorMode_Values(t *testing.T) {
+	modes := []struct {
+		mode MonitorMode
+		want string
+	}{
+		{MonitorAll, "all"},
+		{MonitorFuture, "future"},
+		{MonitorNone, "none"},
+		{MonitorLatest, "latest"},
+	}
+	for _, tc := range modes {
+		if string(tc.mode) != tc.want {
+			t.Errorf("MonitorMode value = %q, want %q", tc.mode, tc.want)
+		}
+	}
+}

@@ -1,0 +1,138 @@
+import { useState, useEffect } from 'react'
+import { NavLink, useLocation } from 'react-router-dom'
+import { Film, Tv2, Music2, BookOpen, Sparkles, Users, Settings, ChevronLeft, ChevronRight, Hexagon } from 'lucide-react'
+import { useModules } from '../../context/ModulesContext'
+import type { EnabledModules } from '../../context/ModulesContext'
+
+const NAV: Array<{ path: string; label: string; icon: React.ElementType; accent: string; module: keyof EnabledModules }> = [
+  { path: '/movies',    label: 'Movies',    icon: Film,      accent: '#3b82f6', module: 'movies'    },
+  { path: '/tv',        label: 'TV Shows',  icon: Tv2,       accent: '#8b5cf6', module: 'tv'        },
+  { path: '/music',     label: 'Music',     icon: Music2,    accent: '#10b981', module: 'music'     },
+  { path: '/books',     label: 'Books',     icon: BookOpen,  accent: '#f59e0b', module: 'books'     },
+  { path: '/afterdark', label: 'AfterDark', icon: Sparkles,  accent: '#f43f5e', module: 'afterdark' },
+]
+
+const BOTTOM_NAV = [
+  { path: '/people',   label: 'People',   icon: Users    },
+  { path: '/settings', label: 'Settings', icon: Settings },
+]
+
+export function Sidebar() {
+  const [collapsed, setCollapsed] = useState(() => {
+    return localStorage.getItem('sidebar-collapsed') === 'true'
+  })
+  const location = useLocation()
+  const modules = useModules()
+
+  useEffect(() => {
+    localStorage.setItem('sidebar-collapsed', String(collapsed))
+  }, [collapsed])
+
+  const visibleNav = NAV.filter(n => modules[n.module])
+  const activeAccent = visibleNav.find(n => location.pathname.startsWith(n.path))?.accent ?? '#6366f1'
+
+  return (
+    <aside
+      style={{ '--accent': activeAccent } as React.CSSProperties}
+      className={[
+        'fixed left-0 top-0 h-screen z-40 flex flex-col',
+        'bg-[#05050c] border-r border-white/5',
+        'transition-all duration-300 ease-in-out',
+        collapsed ? 'w-16' : 'w-60',
+      ].join(' ')}
+    >
+      {/* Logo */}
+      <div className={['flex items-center gap-3 h-16 px-4 border-b border-white/5 shrink-0', collapsed ? 'justify-center' : ''].join(' ')}>
+        <div className="shrink-0 w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: 'linear-gradient(135deg, var(--accent), color-mix(in srgb, var(--accent) 60%, #000))' }}>
+          <Hexagon size={16} className="text-white" strokeWidth={2.5} />
+        </div>
+        {!collapsed && (
+          <span className="text-sm font-semibold tracking-widest text-white/90 uppercase">Purser</span>
+        )}
+      </div>
+
+      {/* Main nav */}
+      <nav className="flex-1 flex flex-col gap-0.5 px-2 py-3 overflow-y-auto overflow-x-hidden">
+        {visibleNav.map(({ path, label, icon: Icon, accent }) => (
+          <NavLink
+            key={path}
+            to={path}
+            style={({ isActive }) => isActive ? { '--item-accent': accent } as React.CSSProperties : { '--item-accent': 'transparent' } as React.CSSProperties}
+            className={({ isActive }) => [
+              'group relative flex items-center gap-3 rounded-lg px-3 h-10 text-sm font-medium',
+              'transition-all duration-150 cursor-pointer select-none',
+              isActive
+                ? 'text-white bg-white/8'
+                : 'text-white/50 hover:text-white/80 hover:bg-white/5',
+              collapsed ? 'justify-center' : '',
+            ].join(' ')}
+          >
+            {({ isActive }) => (
+              <>
+                {/* Active indicator bar */}
+                {isActive && (
+                  <span
+                    className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-5 rounded-full"
+                    style={{ background: accent }}
+                  />
+                )}
+                <Icon
+                  size={18}
+                  style={isActive ? { color: accent } : {}}
+                  className="shrink-0 transition-colors duration-150"
+                  strokeWidth={isActive ? 2.5 : 2}
+                />
+                {!collapsed && (
+                  <span className="truncate">{label}</span>
+                )}
+                {collapsed && (
+                  <span className="absolute left-full ml-3 px-2 py-1 rounded-md bg-zinc-800 text-white text-xs font-medium
+                    opacity-0 pointer-events-none group-hover:opacity-100 transition-opacity duration-150 whitespace-nowrap shadow-lg">
+                    {label}
+                  </span>
+                )}
+              </>
+            )}
+          </NavLink>
+        ))}
+      </nav>
+
+      {/* Divider */}
+      <div className="mx-3 border-t border-white/5" />
+
+      {/* Bottom nav */}
+      <nav className="flex flex-col gap-0.5 px-2 py-3 shrink-0">
+        {BOTTOM_NAV.map(({ path, label, icon: Icon }) => (
+          <NavLink
+            key={path}
+            to={path}
+            className={({ isActive }) => [
+              'group relative flex items-center gap-3 rounded-lg px-3 h-10 text-sm font-medium',
+              'transition-all duration-150',
+              isActive ? 'text-white bg-white/8' : 'text-white/40 hover:text-white/70 hover:bg-white/5',
+              collapsed ? 'justify-center' : '',
+            ].join(' ')}
+          >
+            <Icon size={17} className="shrink-0" strokeWidth={2} />
+            {!collapsed && <span className="truncate">{label}</span>}
+            {collapsed && (
+              <span className="absolute left-full ml-3 px-2 py-1 rounded-md bg-zinc-800 text-white text-xs font-medium
+                opacity-0 pointer-events-none group-hover:opacity-100 transition-opacity duration-150 whitespace-nowrap shadow-lg">
+                {label}
+              </span>
+            )}
+          </NavLink>
+        ))}
+      </nav>
+
+      {/* Collapse toggle */}
+      <button
+        onClick={() => setCollapsed(c => !c)}
+        className="flex items-center justify-center h-10 mx-2 mb-3 rounded-lg text-white/30 hover:text-white/60 hover:bg-white/5 transition-all duration-150"
+        aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+      >
+        {collapsed ? <ChevronRight size={16} /> : <ChevronLeft size={16} />}
+      </button>
+    </aside>
+  )
+}

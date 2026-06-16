@@ -1,0 +1,31 @@
+name: purser
+
+volumes:
+  purser-data:      # SQLite database — wipe to reset all library data
+  purser-media:     # Cover art, logos, headshots downloaded by Purser
+  purser-content:   # Your actual media files (movies, scenes, music, etc.)
+
+services:
+  # ── Main application ─────────────────────────────────────────────────────────
+  app:
+    build:
+      context: ..
+      dockerfile: ops/Containerfile
+    command: ["--config", "/config/purser.yaml"]
+    ports:
+      - "7474:7474"
+    volumes:
+      - ./purser.yaml:/config/purser.yaml:ro
+      - purser-data:/data
+      - purser-media:/media/purser
+      - purser-content:/media/content
+    env_file:
+      - path: ../.env
+        required: false
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:7474/api/v1/tags"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
