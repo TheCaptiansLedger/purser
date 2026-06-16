@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"purser/internal/domain"
+	"purser/internal/ports"
 )
 
 // ── GraphQL response types ────────────────────────────────────────────────────
@@ -124,6 +125,17 @@ func (a *Adapter) FindByExternalID(ctx context.Context, id string) (*domain.Exte
 		return nil, nil
 	}
 	return toExternalItem(resp.FindScene, domain.ContentTypeAdult), nil
+}
+
+// FetchEntryContent is implemented in Task 2 (StashDB studio scene pagination).
+func (a *Adapter) FetchEntryContent(_ context.Context, _ string, _, _ int) ([]*domain.ExternalGroup, []*domain.ExternalItem, int, error) {
+	return nil, nil, 0, ports.ErrNotSupported
+}
+
+// FetchGroupContent returns ErrNotSupported — StashDB scenes are flat; there is
+// no intermediate group layer between a studio and its scenes.
+func (a *Adapter) FetchGroupContent(_ context.Context, _ string, _, _ int) ([]*domain.ExternalItem, int, error) {
+	return nil, 0, ports.ErrNotSupported
 }
 
 // ── Mapping ───────────────────────────────────────────────────────────────────

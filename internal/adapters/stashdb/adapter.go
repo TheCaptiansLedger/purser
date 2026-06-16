@@ -11,7 +11,11 @@ import (
 
 	"purser/internal/config"
 	"purser/internal/domain"
+	"purser/internal/ports"
 )
+
+// Compile-time interface check.
+var _ ports.MetadataSource = (*Adapter)(nil)
 
 const (
 	publicURL = "https://stashdb.org/graphql"

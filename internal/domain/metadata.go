@@ -47,3 +47,17 @@ type ExternalPerson struct {
 	Role       PersonRole     // suggested role based on source context
 	Metadata   map[string]any // source-specific: birthdate, hair_color, measurements, etc.
 }
+
+// ExternalGroup carries season, album, or series data returned by a metadata
+// source. It is the intermediate level between a library entry and its items —
+// e.g. a TV season between a show and its episodes, or an album between an
+// artist and its tracks.
+type ExternalGroup struct {
+	Source      ExternalIDSource
+	ExternalID  string
+	Title       string
+	Number      int // season 1, disc 2, volume 3, etc.
+	Year        int
+	Overview    string
+	ImageURL    string
+}

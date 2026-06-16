@@ -42,4 +42,18 @@ type MetadataSource interface {
 	// FindByExternalID fetches a fully-detailed item by its ID in this source's database.
 	// Used to hydrate a search candidate before the metadata edit screen.
 	FindByExternalID(ctx context.Context, id string) (*domain.ExternalItem, error)
+
+	// FetchEntryContent fetches the direct children of a library entry, paginated.
+	// For flat hierarchies (adult/jav studios, book series) groups is nil and items
+	// contains the leaf content directly.
+	// For deep hierarchies (TV shows, music artists) items is nil and groups contains
+	// the intermediate layer (seasons, albums); call FetchGroupContent for each group
+	// to retrieve its items.
+	// Returns ErrNotSupported for content types the source does not handle.
+	FetchEntryContent(ctx context.Context, externalID string, page, perPage int) ([]*domain.ExternalGroup, []*domain.ExternalItem, int, error)
+
+	// FetchGroupContent fetches items within a group (season→episodes, album→tracks),
+	// paginated. Returns ErrNotSupported for sources or content types without this
+	// level of hierarchy.
+	FetchGroupContent(ctx context.Context, groupExternalID string, page, perPage int) ([]*domain.ExternalItem, int, error)
 }
