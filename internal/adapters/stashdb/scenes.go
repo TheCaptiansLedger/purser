@@ -47,6 +47,21 @@ const sceneFields = `
       }
     }`
 
+const fetchStudioScenesQuery = `
+query FetchStudioScenes($id: ID!, $page: Int!, $perPage: Int!) {
+  queryScenes(input: {
+    studios: { value: [$id], modifier: INCLUDES }
+    per_page: $perPage
+    page: $page
+    sort: "date"
+    direction: DESC
+  }) {
+    count
+    scenes {` + sceneFields + `
+    }
+  }
+}`
+
 const searchScenesQuery = `
 query SearchScenes($title: String!, $limit: Int!) {
   queryScenes(input: {
@@ -127,9 +142,30 @@ func (a *Adapter) FindByExternalID(ctx context.Context, id string) (*domain.Exte
 	return toExternalItem(resp.FindScene, domain.ContentTypeAdult), nil
 }
 
-// FetchEntryContent is implemented in Task 2 (StashDB studio scene pagination).
-func (a *Adapter) FetchEntryContent(_ context.Context, _ string, _, _ int) ([]*domain.ExternalGroup, []*domain.ExternalItem, int, error) {
-	return nil, nil, 0, ports.ErrNotSupported
+// FetchEntryContent pages through all scenes for a studio. StashDB scenes are
+// flat — groups is always nil; items contains the page of scenes; total is the
+// scene count across all pages.
+func (a *Adapter) FetchEntryContent(ctx context.Context, externalID string, page, perPage int) ([]*domain.ExternalGroup, []*domain.ExternalItem, int, error) {
+	var resp struct {
+		QueryScenes struct {
+			Count  int        `json:"count"`
+			Scenes []gqlScene `json:"scenes"`
+		} `json:"queryScenes"`
+	}
+	vars := map[string]any{
+		"id":      externalID,
+		"page":    page,
+		"perPage": perPage,
+	}
+	if err := a.gql(ctx, fetchStudioScenesQuery, vars, &resp); err != nil {
+		return nil, nil, 0, err
+	}
+	scenes := resp.QueryScenes.Scenes
+	items := make([]*domain.ExternalItem, len(scenes))
+	for i := range scenes {
+		items[i] = toExternalItem(&scenes[i], domain.ContentTypeAdult)
+	}
+	return nil, items, resp.QueryScenes.Count, nil
 }
 
 // FetchGroupContent returns ErrNotSupported — StashDB scenes are flat; there is
