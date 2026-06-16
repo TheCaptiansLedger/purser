@@ -21,7 +21,8 @@ type Config struct {
 
 // ServerConfig controls the HTTP server.
 type ServerConfig struct {
-	Port int `mapstructure:"port"`
+	Port    int `mapstructure:"port"`
+	Workers int `mapstructure:"workers"` // job queue goroutine pool size (default 4)
 }
 
 // DatabaseConfig controls the storage backend.
@@ -148,6 +149,7 @@ func Load(path string) (*Config, error) {
 	v := viper.New()
 
 	v.SetDefault("server.port", 7474)
+	v.SetDefault("server.workers", 4)
 	v.SetDefault("database.driver", "sqlite")
 	v.SetDefault("database.dsn", "purser.db")
 	v.SetDefault("media.path", "./images")

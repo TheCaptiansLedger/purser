@@ -2,18 +2,22 @@ package api_test
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"io/fs"
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	dbadapter "purser/internal/adapters/db"
+	jobsadapter "purser/internal/adapters/jobs"
 	"purser/internal/api"
 	"purser/internal/app/library"
 	"purser/internal/app/metadata"
 	"purser/internal/app/people"
 	"purser/internal/config"
+	"purser/internal/ports"
 	"purser/web"
 )
 
@@ -38,9 +42,12 @@ func newHandler(t *testing.T) http.Handler {
 	metaSvc := metadata.New(nil, dbadapter.NewLibraryEntryRepo(database), dbadapter.NewPersonRepo(database), dbadapter.NewExternalIDRepo(database), "")
 	tagRepo := dbadapter.NewTagRepo(database)
 
+	jobQueue := jobsadapter.New(1)
+	t.Cleanup(jobQueue.Close)
+
 	uiFS, _ := fs.Sub(web.Dist, "dist")
 	cfg := &config.Config{
-		Server:   config.ServerConfig{Port: 0},
+		Server:   config.ServerConfig{Port: 0, Workers: 1},
 		Database: config.DatabaseConfig{Driver: "sqlite", DSN: dbPath},
 		Media:    config.MediaConfig{Path: ""},
 		Modules: config.ModulesConfig{
@@ -53,7 +60,7 @@ func newHandler(t *testing.T) http.Handler {
 		},
 		Log: config.LogConfig{Level: "info", Format: "text"},
 	}
-	return api.New(0, "", cfg, database, libSvc, peopleSvc, metaSvc, tagRepo, uiFS).Handler()
+	return api.New(0, "", cfg, database, libSvc, peopleSvc, metaSvc, tagRepo, jobQueue, uiFS).Handler()
 }
 
 func do(t *testing.T, h http.Handler, method, path string, body any) *httptest.ResponseRecorder {
@@ -1275,4 +1282,112 @@ func TestItems_Create_WithPeople(t *testing.T) {
 	if item.People[0].Role != "performer" {
 		t.Errorf("role = %q, want performer", item.People[0].Role)
 	}
+}
+
+// ── Jobs ──────────────────────────────────────────────────────────────────────
+
+func TestJobs_ListEmpty(t *testing.T) {
+	h := newHandler(t)
+	w := do(t, h, http.MethodGet, "/api/v1/jobs", nil)
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", w.Code)
+	}
+	var resp struct {
+		Data  []any `json:"data"`
+		Total int   `json:"total"`
+	}
+	decodeJSON(t, w, &resp)
+	if resp.Data == nil {
+		t.Error("data should be [] not null")
+	}
+	if resp.Total != 0 {
+		t.Errorf("total = %d, want 0", resp.Total)
+	}
+}
+
+func TestJobs_Get_NotFound(t *testing.T) {
+	h := newHandler(t)
+	w := do(t, h, http.MethodGet, "/api/v1/jobs/no-such-id", nil)
+	if w.Code != http.StatusNotFound {
+		t.Fatalf("status = %d, want 404", w.Code)
+	}
+	var resp struct{ Code string `json:"code"` }
+	decodeJSON(t, w, &resp)
+	if resp.Code != "NOT_FOUND" {
+		t.Errorf("code = %q, want NOT_FOUND", resp.Code)
+	}
+}
+
+func TestJobs_Cancel_NotFound(t *testing.T) {
+	h := newHandler(t)
+	w := do(t, h, http.MethodDelete, "/api/v1/jobs/no-such-id", nil)
+	if w.Code != http.StatusNotFound {
+		t.Fatalf("status = %d, want 404", w.Code)
+	}
+}
+
+func TestJobs_Cancel_SetsStatus(t *testing.T) {
+	// Build a server backed by a queue we can inject a job into directly.
+	dbPath := t.TempDir() + "/test.db"
+	database, err := dbadapter.Open(dbPath)
+	if err != nil {
+		t.Fatalf("open db: %v", err)
+	}
+	t.Cleanup(func() { database.Close() })
+
+	jobQueue := jobsadapter.New(1)
+	t.Cleanup(jobQueue.Close)
+
+	// Submit a blocking job so we can cancel it via the API.
+	started := make(chan struct{})
+	submitted, err := jobQueue.Submit(t.Context(), "blocker", nil, func(ctx context.Context, _ ports.ProgressReporter) error {
+		close(started)
+		<-ctx.Done()
+		return ctx.Err()
+	})
+	if err != nil {
+		t.Fatalf("Submit: %v", err)
+	}
+	<-started
+
+	libSvc := library.New(
+		dbadapter.NewLibraryEntryRepo(database),
+		dbadapter.NewGroupRepo(database),
+		dbadapter.NewItemRepo(database),
+	)
+	peopleSvc := people.New(dbadapter.NewPersonRepo(database))
+	metaSvc := metadata.New(nil, dbadapter.NewLibraryEntryRepo(database), dbadapter.NewPersonRepo(database), dbadapter.NewExternalIDRepo(database), "")
+	tagRepo := dbadapter.NewTagRepo(database)
+	uiFS, _ := fs.Sub(web.Dist, "dist")
+	cfg := &config.Config{
+		Server:   config.ServerConfig{Port: 0, Workers: 1},
+		Database: config.DatabaseConfig{Driver: "sqlite", DSN: dbPath},
+		Log:      config.LogConfig{Level: "info", Format: "text"},
+	}
+	h := api.New(0, "", cfg, database, libSvc, peopleSvc, metaSvc, tagRepo, jobQueue, uiFS).Handler()
+
+	// DELETE /api/v1/jobs/:id should cancel it.
+	w := do(t, h, http.MethodDelete, "/api/v1/jobs/"+submitted.ID, nil)
+	if w.Code != http.StatusNoContent {
+		t.Fatalf("cancel status = %d, want 204", w.Code)
+	}
+
+	// Poll GET until terminal.
+	deadline, ok := t.Deadline()
+	if !ok {
+		deadline = time.Now().Add(2 * time.Second)
+	}
+	for time.Now().Before(deadline) {
+		w = do(t, h, http.MethodGet, "/api/v1/jobs/"+submitted.ID, nil)
+		var job struct{ Status string `json:"status"` }
+		decodeJSON(t, w, &job)
+		if job.Status == "cancelled" {
+			return
+		}
+		if job.Status != "running" && job.Status != "queued" {
+			t.Fatalf("unexpected status %q", job.Status)
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	t.Fatal("job did not reach cancelled status within deadline")
 }

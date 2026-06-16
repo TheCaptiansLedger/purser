@@ -11,6 +11,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"purser/internal/app/errs"
 	"purser/internal/domain"
 	"purser/internal/ports"
 )
@@ -87,7 +88,7 @@ func (q *Queue) Get(_ context.Context, id string) (*domain.Job, error) {
 	}
 	q.mu.RUnlock()
 	if !ok {
-		return nil, fmt.Errorf("job %s not found", id)
+		return nil, fmt.Errorf("job %s: %w", id, errs.ErrNotFound)
 	}
 	return snap, nil
 }
@@ -111,7 +112,7 @@ func (q *Queue) Cancel(_ context.Context, id string) error {
 	entry, ok := q.jobs[id]
 	q.mu.RUnlock()
 	if !ok {
-		return fmt.Errorf("job %s not found", id)
+		return fmt.Errorf("job %s: %w", id, errs.ErrNotFound)
 	}
 	entry.cancel()
 	return nil

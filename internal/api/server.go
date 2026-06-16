@@ -32,13 +32,14 @@ func New(
 	peopleSvc *people.Service,
 	metaSvc *metadata.Service,
 	tagRepo ports.TagRepository,
+	jobQueue ports.JobQueue,
 	uiFS fs.FS,
 ) *Server {
 	s := &Server{
 		router: chi.NewRouter(),
 		port:   port,
 	}
-	s.mount(mediaPath, cfg, db, libSvc, peopleSvc, metaSvc, tagRepo, uiFS)
+	s.mount(mediaPath, cfg, db, libSvc, peopleSvc, metaSvc, tagRepo, jobQueue, uiFS)
 	return s
 }
 
@@ -50,6 +51,7 @@ func (s *Server) mount(
 	peopleSvc *people.Service,
 	metaSvc *metadata.Service,
 	tagRepo ports.TagRepository,
+	jobQueue ports.JobQueue,
 	uiFS fs.FS,
 ) {
 	r := s.router
@@ -85,6 +87,9 @@ func (s *Server) mount(
 
 		metaH := &metadataHandler{svc: metaSvc}
 		r.Route("/metadata", metaH.routes)
+
+		jobH := &jobHandler{queue: jobQueue}
+		r.Route("/jobs", jobH.routes)
 	})
 
 	// Serve the embedded web UI for all non-API paths.
