@@ -2,14 +2,14 @@ import { useQuery } from '@tanstack/react-query'
 import { getPage } from './client'
 import type { Job } from '../types'
 
+export const JOBS_DISPLAY_LIMIT = 5
+
 export function useJobs() {
   return useQuery({
     queryKey: ['jobs'],
     queryFn: () => getPage<Job>('/jobs'),
-    refetchInterval: (query) => {
-      const jobs = query.state.data?.data ?? []
-      return jobs.some(j => j.status === 'queued' || j.status === 'running') ? 2000 : false
-    },
+    staleTime: 0,
+    refetchInterval: 2000,
   })
 }
 

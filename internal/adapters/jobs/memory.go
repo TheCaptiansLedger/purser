@@ -108,19 +108,35 @@ func (q *Queue) List(_ context.Context) ([]*domain.Job, error) {
 }
 
 func (q *Queue) Cancel(_ context.Context, id string) error {
-	q.mu.RLock()
+	q.mu.Lock()
 	entry, ok := q.jobs[id]
-	q.mu.RUnlock()
 	if !ok {
+		q.mu.Unlock()
 		return fmt.Errorf("job %s: %w", id, errs.ErrNotFound)
 	}
 	entry.cancel()
+	// Flip queued jobs to cancelled immediately so the next poll reflects
+	// reality before the worker drains the channel.
+	if entry.job.Status == domain.JobStatusQueued {
+		now := time.Now().UTC()
+		entry.job.Status = domain.JobStatusCancelled
+		entry.job.CompletedAt = &now
+	}
+	q.mu.Unlock()
 	return nil
 }
 
 func (q *Queue) worker() {
 	defer q.wg.Done()
 	for item := range q.ch {
+		// Skip jobs already terminal (e.g., cancelled while still queued).
+		q.mu.RLock()
+		entry := q.jobs[item.jobID]
+		terminal := entry != nil && entry.job.IsTerminal()
+		q.mu.RUnlock()
+		if terminal {
+			continue
+		}
 		q.setRunning(item.jobID)
 		p := &progressReporter{queue: q, jobID: item.jobID}
 		err := item.fn(item.ctx, p)

@@ -1,6 +1,6 @@
 import { useQueryClient } from '@tanstack/react-query'
 import { X, CheckCircle2, AlertCircle, Clock, Loader2, Ban } from 'lucide-react'
-import { useJobs, cancelJob } from '../../api/jobs'
+import { useJobs, cancelJob, JOBS_DISPLAY_LIMIT } from '../../api/jobs'
 import type { Job, JobStatus } from '../../types'
 
 const STATUS_META: Record<JobStatus, { label: string; color: string; icon: React.ReactNode }> = {
@@ -22,21 +22,38 @@ function StatusBadge({ status }: { status: JobStatus }) {
 }
 
 function ProgressBar({ current, total, status }: { current: number; total: number; status: JobStatus }) {
-  const isActive = status === 'queued' || status === 'running'
-
-  if (!isActive && total === 0) return null
-
+  // indeterminate: job is running but hasn't reported a total yet
   if (total === 0) {
-    return (
-      <div className="w-full h-1 rounded-full bg-white/5 overflow-hidden">
-        <div className="h-full w-full bg-blue-500/40 animate-pulse rounded-full" />
-      </div>
-    )
+    if (status === 'running') {
+      return (
+        <div className="w-full h-1 rounded-full bg-white/5 overflow-hidden">
+          <div className="h-full w-full bg-blue-500/40 animate-pulse rounded-full" />
+        </div>
+      )
+    }
+    if (status === 'completed') {
+      return (
+        <div className="w-full h-1 rounded-full bg-white/5 overflow-hidden">
+          <div className="h-full w-full bg-emerald-500/40 rounded-full" />
+        </div>
+      )
+    }
+    if (status === 'failed') {
+      return (
+        <div className="w-full h-1 rounded-full bg-white/5 overflow-hidden">
+          <div className="h-full w-full bg-red-500/40 rounded-full" />
+        </div>
+      )
+    }
+    // queued or cancelled with no progress — no bar
+    return null
   }
 
+  // determinate bar
   const pct = Math.min(100, Math.round((current / total) * 100))
-  const barColor = status === 'failed' ? 'bg-red-500/50'
+  const barColor = status === 'failed'    ? 'bg-red-500/50'
     : status === 'completed' ? 'bg-emerald-500/50'
+    : status === 'cancelled' ? 'bg-white/10'
     : 'bg-blue-500/50'
 
   return (
@@ -49,9 +66,27 @@ function ProgressBar({ current, total, status }: { current: number; total: numbe
   )
 }
 
+function fmtTime(iso: string): string {
+  const d = new Date(iso)
+  const now = new Date()
+  const sameDay = d.toDateString() === now.toDateString()
+  return sameDay
+    ? d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+    : d.toLocaleDateString([], { month: 'short', day: 'numeric' }) + ' ' +
+      d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+}
+
+function jobTimestamp(job: Job): { label: string; ts: string } | null {
+  if (job.status === 'queued') return { label: 'queued', ts: job.createdAt }
+  if (job.status === 'running' && job.startedAt) return { label: 'started', ts: job.startedAt }
+  if (job.completedAt) return { label: 'finished', ts: job.completedAt }
+  return null
+}
+
 function JobRow({ job, onCancel }: { job: Job; onCancel: (id: string) => void }) {
-  const showCancel = job.status === 'running'
+  const showCancel = job.status === 'running' || job.status === 'queued'
   const pct = job.total > 0 ? Math.min(100, Math.round((job.current / job.total) * 100)) : null
+  const stamp = jobTimestamp(job)
 
   return (
     <div className="flex items-center gap-4 py-3 border-b border-white/5 last:border-0">
@@ -68,22 +103,29 @@ function JobRow({ job, onCancel }: { job: Job; onCancel: (id: string) => void })
         )}
       </div>
 
-      <div className="flex items-center gap-3 shrink-0">
-        {pct !== null && (
-          <span className="text-xs text-white/30 font-mono w-8 text-right">{pct}%</span>
+      <div className="flex flex-col items-end gap-1 shrink-0">
+        <div className="flex items-center gap-3">
+          {pct !== null && (
+            <span className="text-xs text-white/30 font-mono w-8 text-right">{pct}%</span>
+          )}
+          <StatusBadge status={job.status} />
+          {showCancel && (
+            <button
+              onClick={() => onCancel(job.id)}
+              className="flex items-center justify-center w-6 h-6 rounded-md text-white/30
+                hover:text-white/70 hover:bg-white/5 transition-all"
+              title="Cancel job"
+            >
+              <X size={13} />
+            </button>
+          )}
+          {!showCancel && <div className="w-6" />}
+        </div>
+        {stamp && (
+          <span className="text-[10px] text-white/20 font-mono">
+            {stamp.label} {fmtTime(stamp.ts)}
+          </span>
         )}
-        <StatusBadge status={job.status} />
-        {showCancel && (
-          <button
-            onClick={() => onCancel(job.id)}
-            className="flex items-center justify-center w-6 h-6 rounded-md text-white/30
-              hover:text-white/70 hover:bg-white/5 transition-all"
-            title="Cancel job"
-          >
-            <X size={13} />
-          </button>
-        )}
-        {!showCancel && <div className="w-6" />}
       </div>
     </div>
   )
@@ -93,7 +135,14 @@ export function JobsPanel() {
   const { data, isLoading } = useJobs()
   const queryClient = useQueryClient()
 
-  const jobs = data?.data ?? []
+  const allJobs = data?.data ?? []
+  const activeJobs = allJobs
+    .filter(j => j.status === 'running' || j.status === 'queued')
+    .sort((a, b) => (a.status === 'running' ? 0 : 1) - (b.status === 'running' ? 0 : 1))
+  const terminalJobs = allJobs.filter(j => j.status !== 'running' && j.status !== 'queued')
+  // Always show every active job; pad with terminal jobs to reach the minimum display count.
+  const terminalSlots = Math.max(0, JOBS_DISPLAY_LIMIT - activeJobs.length)
+  const jobs = [...activeJobs, ...terminalJobs.slice(0, terminalSlots)]
 
   async function handleCancel(id: string) {
     try {
@@ -109,7 +158,7 @@ export function JobsPanel() {
       <div className="mb-8">
         <h1 className="text-2xl font-semibold text-white">Background Jobs</h1>
         <p className="text-white/40 text-sm mt-1">
-          Long-running tasks like metadata imports and library scans run here.
+          All active jobs + last {JOBS_DISPLAY_LIMIT} completed — updates every 2s.
         </p>
       </div>
 
@@ -129,7 +178,7 @@ export function JobsPanel() {
             <p className="text-sm text-white/25 font-mono">no jobs yet</p>
           </div>
         ) : (
-          <div className="px-4">
+          <div className="px-4 max-h-[32rem] overflow-y-auto">
             {jobs.map(job => (
               <JobRow key={job.id} job={job} onCancel={handleCancel} />
             ))}

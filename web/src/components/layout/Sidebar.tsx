@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react'
 import { NavLink, useLocation } from 'react-router-dom'
-import { Film, Tv2, Music2, BookOpen, Sparkles, Users, Settings, ChevronLeft, ChevronRight, Hexagon } from 'lucide-react'
+import { Film, Tv2, Music2, BookOpen, Sparkles, Users, Settings, ChevronLeft, ChevronRight, Hexagon, Loader2 } from 'lucide-react'
 import { useModules } from '../../context/ModulesContext'
 import type { EnabledModules } from '../../context/ModulesContext'
+import { useJobs } from '../../api/jobs'
 
 const NAV: Array<{ path: string; label: string; icon: React.ElementType; accent: string; module: keyof EnabledModules }> = [
   { path: '/movies',    label: 'Movies',    icon: Film,      accent: '#3b82f6', module: 'movies'    },
@@ -30,6 +31,11 @@ export function Sidebar() {
 
   const visibleNav = NAV.filter(n => modules[n.module])
   const activeAccent = visibleNav.find(n => location.pathname.startsWith(n.path))?.accent ?? '#6366f1'
+
+  const { data: jobsData } = useJobs()
+  const pendingCount = (jobsData?.data ?? []).filter(
+    j => j.status === 'queued' || j.status === 'running'
+  ).length
 
   return (
     <aside
@@ -99,6 +105,42 @@ export function Sidebar() {
 
       {/* Divider */}
       <div className="mx-3 border-t border-white/5" />
+
+      {/* Active jobs indicator */}
+      {pendingCount > 0 && (
+        <nav className="px-2 pt-2">
+          <NavLink
+            to="/settings/jobs"
+            className={({ isActive }) => [
+              'group relative flex items-center gap-3 rounded-lg px-3 h-10 text-sm font-medium',
+              'transition-all duration-150',
+              isActive
+                ? 'text-blue-300 bg-blue-500/10'
+                : 'text-blue-400/80 hover:text-blue-300 hover:bg-blue-500/8',
+              collapsed ? 'justify-center' : '',
+            ].join(' ')}
+          >
+            <div className="relative shrink-0">
+              <Loader2 size={17} className="animate-spin" />
+              <span className="absolute -top-1.5 -right-1.5 min-w-[14px] h-3.5 rounded-full bg-blue-500
+                text-white text-[9px] font-bold flex items-center justify-center px-0.5 leading-none">
+                {pendingCount}
+              </span>
+            </div>
+            {!collapsed && (
+              <span className="truncate">
+                {pendingCount} job{pendingCount !== 1 ? 's' : ''} running
+              </span>
+            )}
+            {collapsed && (
+              <span className="absolute left-full ml-3 px-2 py-1 rounded-md bg-zinc-800 text-white text-xs font-medium
+                opacity-0 pointer-events-none group-hover:opacity-100 transition-opacity duration-150 whitespace-nowrap shadow-lg">
+                {pendingCount} job{pendingCount !== 1 ? 's' : ''} running
+              </span>
+            )}
+          </NavLink>
+        </nav>
+      )}
 
       {/* Bottom nav */}
       <nav className="flex flex-col gap-0.5 px-2 py-3 shrink-0">
