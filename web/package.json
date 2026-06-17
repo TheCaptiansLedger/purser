@@ -13,13 +13,13 @@
     "@fontsource-variable/inter": "^5.1.0",
     "@tanstack/react-query": "^5.62.0",
     "lucide-react": "^0.460.0",
-    "react": "^18.3.1",
+    "react": "^19.2.7",
     "react-dom": "^18.3.1",
     "react-router-dom": "^6.27.0"
   },
   "devDependencies": {
     "@tailwindcss/vite": "^4.0.0",
-    "@types/react": "^18.3.12",
+    "@types/react": "^19.2.17",
     "@types/react-dom": "^18.3.1",
     "@vitejs/plugin-react": "^6.0.2",
     "tailwindcss": "^4.0.0",
