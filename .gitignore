@@ -1,5 +1,5 @@
 # Build output
-purser
+/purser
 *.exe
 
 # Web build artifacts and dependencies
@@ -17,6 +17,7 @@ data/
 
 # Env with real secrets
 .env
+.envrc
 
 # SQLite database files
 *.db

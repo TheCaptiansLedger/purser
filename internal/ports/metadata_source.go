@@ -3,13 +3,16 @@ package ports
 import (
 	"context"
 	"errors"
-
 	"purser/internal/domain"
 )
 
 // ErrNotSupported is returned by MetadataSource adapters for methods the source
 // does not implement (e.g., a source that has no hash-lookup capability).
 var ErrNotSupported = errors.New("not supported")
+
+// ErrNotFound is returned by MetadataSource adapters when a lookup finds no match
+// (as opposed to an error occurring during the lookup).
+var ErrNotFound = errors.New("not found")
 
 // MetadataSource is the port for external metadata databases.
 // Adapters implement this for StashDB, TPDB, Stash, TMDB, TVDB, MusicBrainz, etc.

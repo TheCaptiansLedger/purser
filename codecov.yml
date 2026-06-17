@@ -1,0 +1,43 @@
+coverage:
+  status:
+    project:
+      default:
+        enabled: false
+    patch:
+      default:
+        enabled: false
+
+component_management:
+  default_rules:
+    statuses:
+      - type: project
+        target: auto
+  individual_components:
+    - component_id: domain
+      name: Domain
+      paths:
+        - internal/domain/**
+      statuses:
+        - type: project
+          target: 95%
+    - component_id: adapters
+      name: Adapters
+      paths:
+        - internal/adapters/**
+      statuses:
+        - type: project
+          target: 80%
+    - component_id: api
+      name: API
+      paths:
+        - internal/api/**
+      statuses:
+        - type: project
+          target: 80%
+    - component_id: cmd
+      name: CMD
+      paths:
+        - cmd/**
+      statuses:
+        - type: project
+          target: 50%

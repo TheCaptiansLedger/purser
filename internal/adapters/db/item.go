@@ -3,8 +3,8 @@ package db
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
-
 	"purser/internal/domain"
 	"purser/internal/ports"
 )
@@ -26,11 +26,11 @@ const itemSelectCols = `
 
 func scanItem(row interface{ Scan(...any) error }) (*domain.Item, error) {
 	var (
-		i                            domain.Item
-		contentType                  string
-		monitored                    int
-		status, metadata             string
-		date, addedAt, updatedAt     string
+		i                        domain.Item
+		contentType              string
+		monitored                int
+		status, metadata         string
+		date, addedAt, updatedAt string
 	)
 	if err := row.Scan(
 		&i.ID, &contentType, &i.LibraryEntryID, &i.GroupID,
@@ -76,7 +76,7 @@ func (r *itemRepo) Get(ctx context.Context, id string) (*domain.Item, error) {
 	item.ExternalIDs = ids
 
 	mf, err := loadMediaFileByItemID(ctx, r.db, id)
-	if err != nil {
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return nil, fmt.Errorf("load media file for item %s: %w", id, err)
 	}
 	item.MediaFile = mf
@@ -84,9 +84,8 @@ func (r *itemRepo) Get(ctx context.Context, id string) (*domain.Item, error) {
 	return item, nil
 }
 
-func (r *itemRepo) List(ctx context.Context, f ports.ItemFilter) ([]*domain.Item, int, error) {
+func buildItemWhere(f ports.ItemFilter) *whereClause {
 	w := &whereClause{}
-
 	if f.LibraryEntryID != "" {
 		w.add("library_entry_id = ?", f.LibraryEntryID)
 	}
@@ -107,7 +106,7 @@ func (r *itemRepo) List(ctx context.Context, f ports.ItemFilter) ([]*domain.Item
 	}
 	if len(f.TagIDs) > 0 {
 		ph := listPlaceholders(len(f.TagIDs))
-		tagArgs := make([]any, len(f.TagIDs))
+		tagArgs := make([]any, len(f.TagIDs), len(f.TagIDs)+1)
 		for i, id := range f.TagIDs {
 			tagArgs[i] = id
 		}
@@ -119,11 +118,17 @@ func (r *itemRepo) List(ctx context.Context, f ports.ItemFilter) ([]*domain.Item
 	if f.Search != "" {
 		w.add("title LIKE ?", "%"+f.Search+"%")
 	}
+	return w
+}
+
+func (r *itemRepo) List(ctx context.Context, f ports.ItemFilter) ([]*domain.Item, int, error) {
+	w := buildItemWhere(f)
 
 	where, args := w.build()
 
 	var total int
-	if err := r.db.QueryRowContext(ctx,
+	if err := r.db.QueryRowContext(
+		ctx,
 		`SELECT COUNT(*) FROM items WHERE `+where, args...,
 	).Scan(&total); err != nil {
 		return nil, 0, fmt.Errorf("count items: %w", err)
@@ -142,7 +147,7 @@ func (r *itemRepo) List(ctx context.Context, f ports.ItemFilter) ([]*domain.Item
 	if err != nil {
 		return nil, 0, fmt.Errorf("list items: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var items []*domain.Item
 	for rows.Next() {
@@ -189,9 +194,10 @@ func (r *itemRepo) Save(ctx context.Context, item *domain.Item) error {
 	if err != nil {
 		return fmt.Errorf("begin save item: %w", err)
 	}
-	defer tx.Rollback()
+	defer func() { _ = tx.Rollback() }()
 
-	if _, err := tx.ExecContext(ctx, `
+	if _, err := tx.ExecContext(
+		ctx, `
 		INSERT INTO items(
 			id, content_type, library_entry_id, group_id,
 			title, overview, date, sequence, runtime_seconds,
@@ -242,13 +248,10 @@ func (r *itemRepo) Delete(ctx context.Context, id string) error {
 
 var _ ports.ItemRepository = (*itemRepo)(nil)
 
-// loadMediaFileByItemID returns the MediaFile for an item, or nil if none exists.
+// loadMediaFileByItemID returns the MediaFile for an item.
+// Returns nil and sql.ErrNoRows when no media file exists for the item.
 func loadMediaFileByItemID(ctx context.Context, db *sql.DB, itemID string) (*domain.MediaFile, error) {
 	row := db.QueryRowContext(ctx,
 		`SELECT`+mediaFileSelectCols+`FROM media_files WHERE item_id = ?`, itemID)
-	mf, err := scanMediaFile(row)
-	if err == sql.ErrNoRows {
-		return nil, nil
-	}
-	return mf, err
+	return scanMediaFile(row)
 }

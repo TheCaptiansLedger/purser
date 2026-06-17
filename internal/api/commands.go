@@ -3,11 +3,10 @@ package api
 import (
 	"context"
 	"net/http"
-
-	"github.com/go-chi/chi/v5"
-
 	"purser/internal/app/metadata"
 	"purser/internal/ports"
+
+	"github.com/go-chi/chi/v5"
 )
 
 type commandsHandler struct {

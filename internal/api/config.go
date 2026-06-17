@@ -3,7 +3,6 @@ package api
 import (
 	"net/http"
 	"net/url"
-
 	"purser/internal/config"
 )
 
@@ -53,7 +52,7 @@ type logCfgResponse struct {
 	Format string `json:"format"`
 }
 
-func (h *configHandler) get(w http.ResponseWriter, r *http.Request) {
+func (h *configHandler) get(w http.ResponseWriter, _ *http.Request) {
 	c := h.cfg
 	writeJSON(w, http.StatusOK, configResponse{
 		Server:   serverCfgResponse{Port: c.Server.Port},

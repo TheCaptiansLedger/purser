@@ -5,15 +5,15 @@ import (
 	"fmt"
 	"io/fs"
 	"net/http"
-
-	"github.com/go-chi/chi/v5"
-	"github.com/go-chi/chi/v5/middleware"
-
 	"purser/internal/app/library"
 	"purser/internal/app/metadata"
 	"purser/internal/app/people"
 	"purser/internal/config"
 	"purser/internal/ports"
+	"time"
+
+	"github.com/go-chi/chi/v5"
+	"github.com/go-chi/chi/v5/middleware"
 )
 
 // Server is the HTTP server. It owns the Chi router and all handler registration.
@@ -110,7 +110,14 @@ func (s *Server) mount(
 
 // Start begins listening on the configured port. It blocks until the server exits.
 func (s *Server) Start() error {
-	return http.ListenAndServe(fmt.Sprintf(":%d", s.port), s.router)
+	srv := &http.Server{
+		Addr:         fmt.Sprintf(":%d", s.port),
+		Handler:      s.router,
+		ReadTimeout:  30 * time.Second,
+		WriteTimeout: 120 * time.Second,
+		IdleTimeout:  120 * time.Second,
+	}
+	return srv.ListenAndServe()
 }
 
 // Handler returns the underlying http.Handler, useful for testing.

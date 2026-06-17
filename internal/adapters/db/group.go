@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-
 	"purser/internal/domain"
 	"purser/internal/ports"
 )
@@ -25,10 +24,10 @@ const groupSelectCols = `
 
 func scanGroup(row interface{ Scan(...any) error }) (*domain.Group, error) {
 	var (
-		g                   domain.Group
-		monitorMode         string
-		monitored           int
-		metadata            string
+		g           domain.Group
+		monitorMode string
+		monitored   int
+		metadata    string
 	)
 	if err := row.Scan(
 		&g.ID, &g.LibraryEntryID, &g.Title, &g.SortName, &g.Number, &g.Year, &g.Overview,
@@ -77,7 +76,7 @@ func (r *groupRepo) List(ctx context.Context, f ports.GroupFilter) ([]*domain.Gr
 	if err != nil {
 		return nil, fmt.Errorf("list groups: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var groups []*domain.Group
 	for rows.Next() {
@@ -99,9 +98,10 @@ func (r *groupRepo) Save(ctx context.Context, g *domain.Group) error {
 	if err != nil {
 		return fmt.Errorf("begin save group: %w", err)
 	}
-	defer tx.Rollback()
+	defer func() { _ = tx.Rollback() }()
 
-	if _, err := tx.ExecContext(ctx, `
+	if _, err := tx.ExecContext(
+		ctx, `
 		INSERT INTO groups(
 			id, library_entry_id, title, sort_name, number, year, overview,
 			monitored, monitor_mode, metadata

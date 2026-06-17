@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-
 	"purser/internal/domain"
 	"purser/internal/ports"
 )
@@ -91,7 +90,8 @@ func (r *personRepo) List(ctx context.Context, f ports.PersonFilter) ([]*domain.
 	where, args := w.build()
 
 	var total int
-	if err := r.db.QueryRowContext(ctx,
+	if err := r.db.QueryRowContext(
+		ctx,
 		`SELECT COUNT(*) FROM people WHERE `+where, args...,
 	).Scan(&total); err != nil {
 		return nil, 0, fmt.Errorf("count people: %w", err)
@@ -110,7 +110,7 @@ func (r *personRepo) List(ctx context.Context, f ports.PersonFilter) ([]*domain.
 	if err != nil {
 		return nil, 0, fmt.Errorf("list people: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var people []*domain.Person
 	for rows.Next() {
@@ -144,9 +144,10 @@ func (r *personRepo) Save(ctx context.Context, p *domain.Person) error {
 	if err != nil {
 		return fmt.Errorf("begin save person: %w", err)
 	}
-	defer tx.Rollback()
+	defer func() { _ = tx.Rollback() }()
 
-	if _, err := tx.ExecContext(ctx, `
+	if _, err := tx.ExecContext(
+		ctx, `
 		INSERT INTO people(id, name, sort_name, overview, monitored, monitor_mode, image_path, metadata, added_at)
 		VALUES(?,?,?,?,?,?,?,?,?)
 		ON CONFLICT(id) DO UPDATE SET

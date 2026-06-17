@@ -3,6 +3,7 @@ package domain
 // ExternalIDSource identifies an external metadata database.
 type ExternalIDSource string
 
+// External ID source constants for supported metadata databases.
 const (
 	SourceStashDB     ExternalIDSource = "stashdb"
 	SourceTPDB        ExternalIDSource = "tpdb"

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { NavLink, useLocation } from 'react-router-dom'
-import { Film, Tv2, Music2, BookOpen, Sparkles, Users, Settings, ChevronLeft, ChevronRight, Hexagon, Loader2 } from 'lucide-react'
+import { Film, Tv2, Music2, BookOpen, Sparkles, Users, Settings, ChevronLeft, ChevronRight, Hexagon, Loader2, Map } from 'lucide-react'
 import { useModules } from '../../context/ModulesContext'
 import type { EnabledModules } from '../../context/ModulesContext'
 import { useJobs } from '../../api/jobs'
@@ -15,6 +15,7 @@ const NAV: Array<{ path: string; label: string; icon: React.ElementType; accent:
 
 const BOTTOM_NAV = [
   { path: '/people',   label: 'People',   icon: Users    },
+  { path: '/roadmap',  label: 'Roadmap',  icon: Map      },
   { path: '/settings', label: 'Settings', icon: Settings },
 ]
 

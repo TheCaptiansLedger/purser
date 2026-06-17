@@ -17,7 +17,7 @@ func ImagePath(base, entityType, id, ext string) string {
 // Shard directories are created lazily on first write.
 func EnsureDirs(base string) error {
 	for _, sub := range []string{"entries", "items", "people"} {
-		if err := os.MkdirAll(filepath.Join(base, sub), 0o755); err != nil {
+		if err := os.MkdirAll(filepath.Join(base, sub), 0o750); err != nil {
 			return fmt.Errorf("create media dir %s: %w", sub, err)
 		}
 	}
@@ -48,7 +48,7 @@ func MigrateFlat(base string) error {
 				continue
 			}
 			shardDir := filepath.Join(dir, shard(id))
-			if err := os.MkdirAll(shardDir, 0o755); err != nil {
+			if err := os.MkdirAll(shardDir, 0o750); err != nil {
 				return fmt.Errorf("create shard dir %s: %w", shardDir, err)
 			}
 			src := filepath.Join(dir, name)

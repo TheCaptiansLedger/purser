@@ -2,7 +2,6 @@ package ports_test
 
 import (
 	"context"
-
 	"purser/internal/domain"
 	"purser/internal/ports"
 )
@@ -30,7 +29,7 @@ func (s *stubMetadataSource) FindByHash(_ context.Context, _ string) (*domain.Ex
 }
 
 func (s *stubMetadataSource) FindByExternalID(_ context.Context, _ string) (*domain.ExternalItem, error) {
-	return nil, nil
+	return nil, ports.ErrNotFound
 }
 
 func (s *stubMetadataSource) FetchEntryContent(_ context.Context, _ string, _, _ int) ([]*domain.ExternalGroup, []*domain.ExternalItem, int, error) {

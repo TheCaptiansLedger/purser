@@ -2,10 +2,9 @@ package stashdb
 
 import (
 	"context"
-	"time"
-
 	"purser/internal/domain"
 	"purser/internal/ports"
+	"time"
 )
 
 // ── GraphQL response types ────────────────────────────────────────────────────
@@ -14,8 +13,8 @@ type gqlScene struct {
 	ID          string     `json:"id"`
 	Title       string     `json:"title"`
 	Description string     `json:"details"`  // StashDB uses "details" not "description"
-	Date        string     `json:"date"`      // "YYYY-MM-DD"
-	Duration    int        `json:"duration"`  // seconds
+	Date        string     `json:"date"`     // "YYYY-MM-DD"
+	Duration    int        `json:"duration"` // seconds
 	Images      []gqlImage `json:"images"`
 	Tags        []struct {
 		Name string `json:"name"`
@@ -93,6 +92,7 @@ query FindScenesByFingerprints($fingerprints: [FingerprintQueryInput!]!) {
 
 // ── MetadataSource ────────────────────────────────────────────────────────────
 
+// SearchItems queries StashDB for scenes matching the given search string.
 func (a *Adapter) SearchItems(ctx context.Context, contentType domain.ContentType, query string, limit int) ([]*domain.ExternalItem, error) {
 	var resp struct {
 		QueryScenes struct {
@@ -111,7 +111,7 @@ func (a *Adapter) SearchItems(ctx context.Context, contentType domain.ContentTyp
 	return out, nil
 }
 
-// FindByHash looks up a scene by OSHash. Returns nil, nil when no match is found.
+// FindByHash looks up a scene by OSHash. Returns ports.ErrNotFound when no match exists.
 func (a *Adapter) FindByHash(ctx context.Context, hash string) (*domain.ExternalItem, error) {
 	var resp struct {
 		FindScenesByFingerprints []gqlScene `json:"findScenesByFingerprints"`
@@ -125,13 +125,13 @@ func (a *Adapter) FindByHash(ctx context.Context, hash string) (*domain.External
 		return nil, err
 	}
 	if len(resp.FindScenesByFingerprints) == 0 {
-		return nil, nil
+		return nil, ports.ErrNotFound
 	}
 	return toExternalItem(&resp.FindScenesByFingerprints[0], domain.ContentTypeAdult), nil
 }
 
 // FindByExternalID fetches a single scene by its StashDB ID.
-// Returns nil, nil when the ID is not found.
+// Returns ports.ErrNotFound when the ID does not exist in StashDB.
 func (a *Adapter) FindByExternalID(ctx context.Context, id string) (*domain.ExternalItem, error) {
 	var resp struct {
 		FindScene *gqlScene `json:"findScene"`
@@ -140,7 +140,7 @@ func (a *Adapter) FindByExternalID(ctx context.Context, id string) (*domain.Exte
 		return nil, err
 	}
 	if resp.FindScene == nil {
-		return nil, nil
+		return nil, ports.ErrNotFound
 	}
 	return toExternalItem(resp.FindScene, domain.ContentTypeAdult), nil
 }

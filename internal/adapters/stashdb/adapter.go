@@ -7,11 +7,10 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"time"
-
 	"purser/internal/config"
 	"purser/internal/domain"
 	"purser/internal/ports"
+	"time"
 )
 
 // Compile-time interface check.
@@ -50,8 +49,13 @@ func New(cfg config.MetadataSourceConfig) *Adapter {
 	}
 }
 
-func (a *Adapter) Name() string                       { return "stashdb" }
-func (a *Adapter) ContentTypes() []domain.ContentType { return []domain.ContentType{domain.ContentTypeAdult, domain.ContentTypeJAV} }
+// Name returns the identifier for this metadata source.
+func (a *Adapter) Name() string { return "stashdb" }
+
+// ContentTypes returns the content types this adapter can provide metadata for.
+func (a *Adapter) ContentTypes() []domain.ContentType {
+	return []domain.ContentType{domain.ContentTypeAdult, domain.ContentTypeJAV}
+}
 
 // ── GraphQL transport ─────────────────────────────────────────────────────────
 
@@ -80,7 +84,7 @@ func (a *Adapter) gql(ctx context.Context, query string, vars map[string]any, ou
 	if err != nil {
 		return fmt.Errorf("stashdb: request: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		b, _ := io.ReadAll(resp.Body)

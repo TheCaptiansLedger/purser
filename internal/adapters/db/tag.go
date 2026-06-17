@@ -4,10 +4,9 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"strings"
-
 	"purser/internal/domain"
 	"purser/internal/ports"
+	"strings"
 )
 
 type tagRepo struct {
@@ -22,7 +21,8 @@ func NewTagRepo(db *sql.DB) ports.TagRepository {
 func (r *tagRepo) Get(ctx context.Context, id string) (*domain.Tag, error) {
 	var t domain.Tag
 	var scope, category string
-	if err := r.db.QueryRowContext(ctx,
+	if err := r.db.QueryRowContext(
+		ctx,
 		`SELECT id, name, scope, category FROM tags WHERE id = ?`, id,
 	).Scan(&t.ID, &t.Name, &scope, &category); err != nil {
 		return nil, fmt.Errorf("get tag %s: %w", id, err)
@@ -65,7 +65,7 @@ func (r *tagRepo) List(ctx context.Context, f ports.TagFilter) ([]*domain.Tag, e
 	}
 
 	if len(conditions) > 0 {
-		q += ` WHERE ` + strings.Join(conditions, ` AND `)
+		q += ` WHERE ` + strings.Join(conditions, ` AND `) //nolint:gosec // conditions contain only parameterized placeholders, no user input
 	}
 	q += ` ORDER BY t.name`
 
@@ -73,7 +73,7 @@ func (r *tagRepo) List(ctx context.Context, f ports.TagFilter) ([]*domain.Tag, e
 	if err != nil {
 		return nil, fmt.Errorf("list tags: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var tags []*domain.Tag
 	for rows.Next() {

@@ -4,14 +4,13 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
-	"time"
-
-	"github.com/go-chi/chi/v5"
-
 	"purser/internal/app/errs"
 	"purser/internal/app/library"
 	"purser/internal/domain"
 	"purser/internal/ports"
+	"time"
+
+	"github.com/go-chi/chi/v5"
 )
 
 type libraryEntryHandler struct {

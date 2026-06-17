@@ -5,6 +5,7 @@ import "time"
 // JobStatus tracks the lifecycle state of an async background job.
 type JobStatus string
 
+// Job status constants covering the full async job lifecycle.
 const (
 	JobStatusQueued    JobStatus = "queued"
 	JobStatusRunning   JobStatus = "running"

@@ -3,9 +3,8 @@ package stashdb
 import (
 	"context"
 	"fmt"
-	"strings"
-
 	"purser/internal/domain"
+	"strings"
 )
 
 // ── GraphQL response types ────────────────────────────────────────────────────
@@ -67,6 +66,7 @@ query SearchPerformers($name: String!, $limit: Int!) {
 
 // ── MetadataSource ────────────────────────────────────────────────────────────
 
+// SearchPeople queries StashDB for performers matching the given search string.
 func (a *Adapter) SearchPeople(ctx context.Context, query string, limit int) ([]*domain.ExternalPerson, error) {
 	var resp struct {
 		QueryPerformers struct {
@@ -126,29 +126,40 @@ func performerMetadata(p *gqlPerformer) map[string]any {
 	if p.CareerStartYear > 0 {
 		m["career_start"] = fmt.Sprintf("%d", p.CareerStartYear)
 	}
-	if ms := p.Measurements; ms != nil {
-		if ms.CupSize != "" {
-			m["cup_size"] = ms.CupSize
-		}
-		var parts []string
-		if ms.BandSize > 0 {
-			parts = append(parts, fmt.Sprintf("%d", ms.BandSize))
-		}
-		if ms.Waist > 0 {
-			parts = append(parts, fmt.Sprintf("%d", ms.Waist))
-		}
-		if ms.Hip > 0 {
-			parts = append(parts, fmt.Sprintf("%d", ms.Hip))
-		}
-		if len(parts) > 0 {
-			m["measurements"] = strings.Join(parts, "-")
-		}
-	}
+	applyMeasurements(m, p.Measurements)
 
 	if len(m) == 0 {
 		return nil
 	}
 	return m
+}
+
+func applyMeasurements(m map[string]any, ms *struct {
+	CupSize  string `json:"cup_size"`
+	BandSize int    `json:"band_size"`
+	Waist    int    `json:"waist"`
+	Hip      int    `json:"hip"`
+},
+) {
+	if ms == nil {
+		return
+	}
+	if ms.CupSize != "" {
+		m["cup_size"] = ms.CupSize
+	}
+	var parts []string
+	if ms.BandSize > 0 {
+		parts = append(parts, fmt.Sprintf("%d", ms.BandSize))
+	}
+	if ms.Waist > 0 {
+		parts = append(parts, fmt.Sprintf("%d", ms.Waist))
+	}
+	if ms.Hip > 0 {
+		parts = append(parts, fmt.Sprintf("%d", ms.Hip))
+	}
+	if len(parts) > 0 {
+		m["measurements"] = strings.Join(parts, "-")
+	}
 }
 
 func bodyModString(mods []gqlBodyMod) string {

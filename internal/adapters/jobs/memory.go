@@ -5,15 +5,14 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"purser/internal/app/errs"
+	"purser/internal/domain"
+	"purser/internal/ports"
 	"sort"
 	"sync"
 	"time"
 
 	"github.com/google/uuid"
-
-	"purser/internal/app/errs"
-	"purser/internal/domain"
-	"purser/internal/ports"
 )
 
 type jobEntry struct {
@@ -54,6 +53,7 @@ func (q *Queue) Close() {
 	q.wg.Wait()
 }
 
+// Submit enqueues a new job and returns a snapshot of its initial state.
 func (q *Queue) Submit(ctx context.Context, name string, payload map[string]any, fn ports.JobFunc) (*domain.Job, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
@@ -79,6 +79,7 @@ func (q *Queue) Submit(ctx context.Context, name string, payload map[string]any,
 	return snap, nil
 }
 
+// Get returns a snapshot of the job with the given ID.
 func (q *Queue) Get(_ context.Context, id string) (*domain.Job, error) {
 	q.mu.RLock()
 	entry, ok := q.jobs[id]
@@ -93,6 +94,7 @@ func (q *Queue) Get(_ context.Context, id string) (*domain.Job, error) {
 	return snap, nil
 }
 
+// List returns snapshots of all known jobs, newest first.
 func (q *Queue) List(_ context.Context) ([]*domain.Job, error) {
 	q.mu.RLock()
 	out := make([]*domain.Job, 0, len(q.jobs))
@@ -107,6 +109,7 @@ func (q *Queue) List(_ context.Context) ([]*domain.Job, error) {
 	return out, nil
 }
 
+// Cancel signals the job to stop and marks queued jobs as cancelled immediately.
 func (q *Queue) Cancel(_ context.Context, id string) error {
 	q.mu.Lock()
 	entry, ok := q.jobs[id]

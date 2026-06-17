@@ -2,12 +2,11 @@ package api
 
 import (
 	"net/http"
+	"purser/internal/domain"
+	"purser/internal/ports"
 	"strings"
 
 	"github.com/go-chi/chi/v5"
-
-	"purser/internal/domain"
-	"purser/internal/ports"
 )
 
 type tagHandler struct {
