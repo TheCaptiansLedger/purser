@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-
 	"purser/internal/app/errs"
 	"purser/internal/domain"
 	"purser/internal/ports"
@@ -19,6 +18,7 @@ type Service struct {
 	items   ports.ItemRepository
 }
 
+// New constructs a library Service wired to the given repositories.
 func New(
 	entries ports.LibraryEntryRepository,
 	groups ports.GroupRepository,
@@ -56,6 +56,7 @@ func (s *Service) CreateEntry(ctx context.Context, e *domain.LibraryEntry) error
 	return nil
 }
 
+// GetEntry returns the library entry with the given ID.
 func (s *Service) GetEntry(ctx context.Context, id string) (*domain.LibraryEntry, error) {
 	e, err := s.entries.Get(ctx, id)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -64,10 +65,12 @@ func (s *Service) GetEntry(ctx context.Context, id string) (*domain.LibraryEntry
 	return e, err
 }
 
+// ListEntries returns a filtered, paginated list of library entries.
 func (s *Service) ListEntries(ctx context.Context, f ports.LibraryFilter) ([]*domain.LibraryEntry, int, error) {
 	return s.entries.List(ctx, f)
 }
 
+// ListChildren returns the direct children of the given library entry.
 func (s *Service) ListChildren(ctx context.Context, parentID string) ([]*domain.LibraryEntry, int, error) {
 	return s.entries.List(ctx, ports.LibraryFilter{ParentID: parentID, Limit: 200})
 }
@@ -80,6 +83,7 @@ func (s *Service) SaveEntry(ctx context.Context, e *domain.LibraryEntry) error {
 	return s.entries.Save(ctx, e)
 }
 
+// DeleteEntry removes a library entry by ID, returning an error if not found.
 func (s *Service) DeleteEntry(ctx context.Context, id string) error {
 	if _, err := s.GetEntry(ctx, id); err != nil {
 		return err
@@ -89,6 +93,7 @@ func (s *Service) DeleteEntry(ctx context.Context, id string) error {
 
 // ── Groups ────────────────────────────────────────────────────────────────────
 
+// CreateGroup validates and persists a new group under a library entry.
 func (s *Service) CreateGroup(ctx context.Context, g *domain.Group) error {
 	if g.LibraryEntryID == "" {
 		return errs.Validation("libraryEntryId is required")
@@ -99,6 +104,7 @@ func (s *Service) CreateGroup(ctx context.Context, g *domain.Group) error {
 	return s.groups.Save(ctx, g)
 }
 
+// GetGroup returns the group with the given ID.
 func (s *Service) GetGroup(ctx context.Context, id string) (*domain.Group, error) {
 	g, err := s.groups.Get(ctx, id)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -107,14 +113,17 @@ func (s *Service) GetGroup(ctx context.Context, id string) (*domain.Group, error
 	return g, err
 }
 
+// ListGroups returns groups matching the given filter.
 func (s *Service) ListGroups(ctx context.Context, f ports.GroupFilter) ([]*domain.Group, error) {
 	return s.groups.List(ctx, f)
 }
 
+// SaveGroup persists changes to an existing group.
 func (s *Service) SaveGroup(ctx context.Context, g *domain.Group) error {
 	return s.groups.Save(ctx, g)
 }
 
+// DeleteGroup removes a group by ID, returning an error if not found.
 func (s *Service) DeleteGroup(ctx context.Context, id string) error {
 	if _, err := s.GetGroup(ctx, id); err != nil {
 		return err
@@ -124,6 +133,7 @@ func (s *Service) DeleteGroup(ctx context.Context, id string) error {
 
 // ── Items ─────────────────────────────────────────────────────────────────────
 
+// CreateItem validates and persists a new leaf item.
 func (s *Service) CreateItem(ctx context.Context, item *domain.Item) error {
 	if item.LibraryEntryID == "" {
 		return errs.Validation("libraryEntryId is required")
@@ -141,6 +151,7 @@ func (s *Service) CreateItem(ctx context.Context, item *domain.Item) error {
 	return s.items.Save(ctx, item)
 }
 
+// GetItem returns the item with the given ID.
 func (s *Service) GetItem(ctx context.Context, id string) (*domain.Item, error) {
 	item, err := s.items.Get(ctx, id)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -149,14 +160,17 @@ func (s *Service) GetItem(ctx context.Context, id string) (*domain.Item, error) 
 	return item, err
 }
 
+// ListItems returns a filtered, paginated list of items.
 func (s *Service) ListItems(ctx context.Context, f ports.ItemFilter) ([]*domain.Item, int, error) {
 	return s.items.List(ctx, f)
 }
 
+// SaveItem persists changes to an existing item.
 func (s *Service) SaveItem(ctx context.Context, item *domain.Item) error {
 	return s.items.Save(ctx, item)
 }
 
+// DeleteItem removes an item by ID, returning an error if not found.
 func (s *Service) DeleteItem(ctx context.Context, id string) error {
 	if _, err := s.GetItem(ctx, id); err != nil {
 		return err

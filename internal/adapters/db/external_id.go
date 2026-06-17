@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-
 	"purser/internal/app/errs"
 	"purser/internal/ports"
 )
@@ -21,7 +20,8 @@ func NewExternalIDRepo(db *sql.DB) ports.ExternalIDRepository {
 
 func (r *externalIDRepo) FindEntity(ctx context.Context, entityType, source, value string) (string, error) {
 	var id string
-	err := r.db.QueryRowContext(ctx,
+	err := r.db.QueryRowContext(
+		ctx,
 		`SELECT entity_id FROM external_ids
 		 WHERE entity_type = ? AND source = ? AND value = ?`,
 		entityType, source, value,

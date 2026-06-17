@@ -4,10 +4,9 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"strings"
-
 	"purser/internal/domain"
 	"purser/internal/ports"
+	"strings"
 )
 
 type libraryEntryRepo struct {
@@ -28,11 +27,11 @@ const entrySelectCols = `
 
 func scanEntry(row interface{ Scan(...any) error }) (*domain.LibraryEntry, error) {
 	var (
-		e                              domain.LibraryEntry
-		contentType, kind              string
-		monitorMode, status            string
-		monitored                      int
-		metadata, addedAt, updatedAt   string
+		e                            domain.LibraryEntry
+		contentType, kind            string
+		monitorMode, status          string
+		monitored                    int
+		metadata, addedAt, updatedAt string
 	)
 	if err := row.Scan(
 		&e.ID, &contentType, &kind, &e.Name, &e.SortName, &e.Overview,
@@ -98,7 +97,8 @@ func (r *libraryEntryRepo) List(ctx context.Context, f ports.LibraryFilter) ([]*
 	where, args := w.build()
 
 	var total int
-	if err := r.db.QueryRowContext(ctx,
+	if err := r.db.QueryRowContext(
+		ctx,
 		`SELECT COUNT(*) FROM library_entries WHERE `+where, args...,
 	).Scan(&total); err != nil {
 		return nil, 0, fmt.Errorf("count library entries: %w", err)
@@ -117,7 +117,7 @@ func (r *libraryEntryRepo) List(ctx context.Context, f ports.LibraryFilter) ([]*
 	if err != nil {
 		return nil, 0, fmt.Errorf("list library entries: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var entries []*domain.LibraryEntry
 	for rows.Next() {
@@ -153,9 +153,10 @@ func (r *libraryEntryRepo) Save(ctx context.Context, e *domain.LibraryEntry) err
 	if err != nil {
 		return fmt.Errorf("begin save library entry: %w", err)
 	}
-	defer tx.Rollback()
+	defer func() { _ = tx.Rollback() }()
 
-	if _, err := tx.ExecContext(ctx, `
+	if _, err := tx.ExecContext(
+		ctx, `
 		INSERT INTO library_entries(
 			id, content_type, kind, name, sort_name, overview, parent_id,
 			monitored, monitor_mode, status, quality_profile_id, metadata_profile_id,

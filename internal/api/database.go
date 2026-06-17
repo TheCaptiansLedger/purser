@@ -49,7 +49,7 @@ func (h *databaseHandler) stats(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
 	var version string
-	h.db.QueryRowContext(ctx, "SELECT sqlite_version()").Scan(&version) //nolint:errcheck
+	_ = h.db.QueryRowContext(ctx, "SELECT sqlite_version()").Scan(&version)
 
 	rows, err := h.db.QueryContext(ctx,
 		"SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name")
@@ -57,7 +57,7 @@ func (h *databaseHandler) stats(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "QUERY_ERROR", "failed to list tables")
 		return
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	tables, total := scanTableStats(ctx, rows, h.db)
 	_ = total
@@ -68,7 +68,7 @@ func (h *databaseHandler) stats(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var migCount int
-	h.db.QueryRowContext(ctx, "SELECT COUNT(*) FROM schema_migrations").Scan(&migCount) //nolint:errcheck
+	_ = h.db.QueryRowContext(ctx, "SELECT COUNT(*) FROM schema_migrations").Scan(&migCount)
 
 	writeJSON(w, http.StatusOK, dbStatsResponse{
 		Tables:         tables,
@@ -88,9 +88,9 @@ func (h *databaseHandler) backup(w http.ResponseWriter, r *http.Request) {
 	bw := bufio.NewWriter(w)
 	defer bw.Flush() //nolint:errcheck
 
-	fmt.Fprintf(bw, "-- Purser database dump\n-- Generated: %s\n\n", time.Now().UTC().Format(time.RFC3339))
-	fmt.Fprintln(bw, "PRAGMA foreign_keys=OFF;")
-	fmt.Fprintln(bw, "BEGIN TRANSACTION;")
+	_, _ = fmt.Fprintf(bw, "-- Purser database dump\n-- Generated: %s\n\n", time.Now().UTC().Format(time.RFC3339))
+	_, _ = fmt.Fprintln(bw, "PRAGMA foreign_keys=OFF;")
+	_, _ = fmt.Fprintln(bw, "BEGIN TRANSACTION;")
 
 	schemaRows, err := h.db.QueryContext(ctx,
 		`SELECT type, name, sql FROM sqlite_master
@@ -106,12 +106,12 @@ func (h *databaseHandler) backup(w http.ResponseWriter, r *http.Request) {
 		if err := schemaRows.Scan(&typ, &name, &ddl); err != nil {
 			continue
 		}
-		fmt.Fprintf(bw, "\n%s;\n", ddl)
+		_, _ = fmt.Fprintf(bw, "\n%s;\n", ddl)
 		if typ == "table" {
 			tables = append(tables, name)
 		}
 	}
-	schemaRows.Close()
+	_ = schemaRows.Close()
 
 	for _, table := range tables {
 		dataRows, err := h.db.QueryContext(ctx, fmt.Sprintf("SELECT * FROM %q", table))
@@ -128,20 +128,20 @@ func (h *databaseHandler) backup(w http.ResponseWriter, r *http.Request) {
 			if err := dataRows.Scan(ptrs...); err != nil {
 				continue
 			}
-			fmt.Fprintf(bw, "INSERT INTO %q VALUES (", table)
+			_, _ = fmt.Fprintf(bw, "INSERT INTO %q VALUES (", table)
 			for i, v := range vals {
 				if i > 0 {
-					fmt.Fprint(bw, ",")
+					_, _ = fmt.Fprint(bw, ",")
 				}
 				writeSQLVal(bw, v)
 			}
-			fmt.Fprintln(bw, ");")
+			_, _ = fmt.Fprintln(bw, ");")
 		}
-		dataRows.Close()
+		_ = dataRows.Close()
 	}
 
-	fmt.Fprintln(bw, "\nCOMMIT;")
-	fmt.Fprintln(bw, "PRAGMA foreign_keys=ON;")
+	_, _ = fmt.Fprintln(bw, "\nCOMMIT;")
+	_, _ = fmt.Fprintln(bw, "PRAGMA foreign_keys=ON;")
 }
 
 // restore accepts a SQL dump, applies it to a fresh DB, validates it, swaps it in, and exits
@@ -149,7 +149,7 @@ func (h *databaseHandler) backup(w http.ResponseWriter, r *http.Request) {
 func (h *databaseHandler) restore(w http.ResponseWriter, r *http.Request) {
 	r.Body = http.MaxBytesReader(w, r.Body, 512<<20)
 
-	if err := r.ParseMultipartForm(32 << 20); err != nil {
+	if err := r.ParseMultipartForm(32 << 20); err != nil { //nolint:gosec
 		writeError(w, http.StatusBadRequest, "PARSE_ERROR", "failed to parse upload")
 		return
 	}
@@ -159,7 +159,7 @@ func (h *databaseHandler) restore(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "FILE_MISSING", "database file is required")
 		return
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 
 	sqlContent, err := io.ReadAll(file)
 	if err != nil {
@@ -174,8 +174,8 @@ func (h *databaseHandler) restore(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	tmpPath := tmp.Name()
-	tmp.Close()
-	defer os.Remove(tmpPath) // no-op if rename succeeds
+	_ = tmp.Close()
+	defer func() { _ = os.Remove(tmpPath) }() // no-op if rename succeeds
 
 	tmpDB, err := sql.Open("sqlite", tmpPath)
 	if err != nil {
@@ -185,7 +185,7 @@ func (h *databaseHandler) restore(w http.ResponseWriter, r *http.Request) {
 
 	for _, stmt := range splitSQL(string(sqlContent)) {
 		if _, err := tmpDB.ExecContext(r.Context(), stmt); err != nil {
-			tmpDB.Close()
+			_ = tmpDB.Close()
 			writeError(w, http.StatusBadRequest, "SQL_ERROR", fmt.Sprintf("SQL execution failed: %v", err))
 			return
 		}
@@ -193,18 +193,19 @@ func (h *databaseHandler) restore(w http.ResponseWriter, r *http.Request) {
 
 	// Validate that this is a Purser database.
 	var migCount int
-	if err := tmpDB.QueryRowContext(r.Context(),
+	if err := tmpDB.QueryRowContext(
+		r.Context(),
 		"SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='schema_migrations'",
 	).Scan(&migCount); err != nil || migCount == 0 {
-		tmpDB.Close()
+		_ = tmpDB.Close()
 		writeError(w, http.StatusBadRequest, "INVALID_DB", "not a valid Purser database (schema_migrations missing)")
 		return
 	}
 
 	tables, totalRows := collectTableStats(r.Context(), tmpDB)
-	tmpDB.Close()
+	_ = tmpDB.Close()
 
-	h.db.ExecContext(r.Context(), "PRAGMA wal_checkpoint(TRUNCATE)") //nolint:errcheck
+	_, _ = h.db.ExecContext(r.Context(), "PRAGMA wal_checkpoint(TRUNCATE)")
 
 	if err := os.Rename(tmpPath, h.dsn); err != nil {
 		writeError(w, http.StatusInternalServerError, "REPLACE_ERROR", "failed to replace database")
@@ -234,7 +235,7 @@ func scanTableStats(ctx context.Context, nameRows *sql.Rows, db *sql.DB) ([]tabl
 			continue
 		}
 		var count int64
-		db.QueryRowContext(ctx, fmt.Sprintf("SELECT COUNT(*) FROM %q", name)).Scan(&count) //nolint:errcheck
+		_ = db.QueryRowContext(ctx, fmt.Sprintf("SELECT COUNT(*) FROM %q", name)).Scan(&count)
 		tables = append(tables, tableStats{Name: name, Rows: count})
 		total += count
 	}
@@ -250,29 +251,29 @@ func collectTableStats(ctx context.Context, db *sql.DB) ([]tableStats, int64) {
 	if err != nil {
 		return nil, 0
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	return scanTableStats(ctx, rows, db)
 }
 
 func writeSQLVal(w io.Writer, v any) {
 	switch val := v.(type) {
 	case nil:
-		fmt.Fprint(w, "NULL")
+		_, _ = fmt.Fprint(w, "NULL")
 	case int64:
-		fmt.Fprintf(w, "%d", val)
+		_, _ = fmt.Fprintf(w, "%d", val)
 	case float64:
-		fmt.Fprintf(w, "%g", val)
+		_, _ = fmt.Fprintf(w, "%g", val)
 	case string:
-		fmt.Fprintf(w, "'%s'", strings.ReplaceAll(val, "'", "''"))
+		_, _ = fmt.Fprintf(w, "'%s'", strings.ReplaceAll(val, "'", "''"))
 	case []byte:
-		fmt.Fprintf(w, "X'%s'", hex.EncodeToString(val))
+		_, _ = fmt.Fprintf(w, "X'%s'", hex.EncodeToString(val))
 	default:
-		fmt.Fprintf(w, "'%v'", val)
+		_, _ = fmt.Fprintf(w, "'%v'", val)
 	}
 }
 
 // splitSQL splits a SQL dump into individual statements, correctly handling
-// single-quoted strings (with '' escaping) and -- line comments.
+// single-quoted strings (with ” escaping) and -- line comments.
 func splitSQL(input string) []string {
 	var stmts []string
 	var cur strings.Builder
@@ -282,15 +283,7 @@ func splitSQL(input string) []string {
 		c := input[i]
 
 		if inStr {
-			cur.WriteByte(c)
-			if c == '\'' {
-				if i+1 < len(input) && input[i+1] == '\'' {
-					cur.WriteByte(input[i+1])
-					i++
-				} else {
-					inStr = false
-				}
-			}
+			i = consumeInString(input, i, &cur, &inStr)
 			continue
 		}
 
@@ -300,9 +293,7 @@ func splitSQL(input string) []string {
 			cur.WriteByte(c)
 		case '-':
 			if i+1 < len(input) && input[i+1] == '-' {
-				for i < len(input) && input[i] != '\n' {
-					i++
-				}
+				i = skipLineComment(input, i)
 			} else {
 				cur.WriteByte(c)
 			}
@@ -322,4 +313,24 @@ func splitSQL(input string) []string {
 	}
 
 	return stmts
+}
+
+func consumeInString(input string, i int, cur *strings.Builder, inStr *bool) int {
+	c := input[i]
+	cur.WriteByte(c)
+	if c == '\'' {
+		if i+1 < len(input) && input[i+1] == '\'' {
+			cur.WriteByte(input[i+1])
+			return i + 1
+		}
+		*inStr = false
+	}
+	return i
+}
+
+func skipLineComment(input string, i int) int {
+	for i < len(input) && input[i] != '\n' {
+		i++
+	}
+	return i
 }

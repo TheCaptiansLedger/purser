@@ -1,0 +1,16 @@
+# Copy this file to .envrc and run `direnv allow`.
+# .envrc is gitignored — your local values never leave this machine.
+
+# Load secrets from .env (also gitignored)
+dotenv
+
+# Optional: isolate gh CLI to a project-specific GitHub account.
+# One-time setup: GH_CONFIG_DIR=~/.config/gh-<account> gh auth login
+# export GH_CONFIG_DIR="${HOME}/.config/gh-<your-account>"
+
+# Optional: lock git identity for this repo.
+# Useful when you have multiple GitHub accounts.
+# export GIT_AUTHOR_NAME="Your Name"
+# export GIT_AUTHOR_EMAIL="your@email.com"
+# export GIT_COMMITTER_NAME="Your Name"
+# export GIT_COMMITTER_EMAIL="your@email.com"

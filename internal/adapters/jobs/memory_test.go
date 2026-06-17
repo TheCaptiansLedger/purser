@@ -3,11 +3,10 @@ package jobs
 import (
 	"context"
 	"errors"
-	"testing"
-	"time"
-
 	"purser/internal/domain"
 	"purser/internal/ports"
+	"testing"
+	"time"
 )
 
 func waitForTerminal(t *testing.T, q *Queue, id string) *domain.Job {

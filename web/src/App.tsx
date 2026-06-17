@@ -44,6 +44,7 @@ import { SceneDetail } from './pages/afterdark/SceneDetail'
 
 import { PeoplePage } from './pages/people/PeoplePage'
 import { PersonDetail } from './pages/people/PersonDetail'
+import { Roadmap } from './pages/Roadmap'
 import { SettingsLayout } from './pages/settings/SettingsLayout'
 import { SettingsPage } from './pages/settings/SettingsPage'
 import { DatabasePage } from './pages/settings/DatabasePage'
@@ -114,6 +115,8 @@ function AppRoutes() {
 
         <Route path="people" element={<PeoplePage />} />
         <Route path="people/:id" element={<PersonDetail />} />
+
+        <Route path="roadmap" element={<Roadmap />} />
 
         <Route path="settings" element={<SettingsLayout />}>
           <Route index element={<Navigate to="config" replace />} />

@@ -4,12 +4,11 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"testing"
-
 	"purser/internal/app/errs"
 	"purser/internal/app/library"
 	"purser/internal/domain"
 	"purser/internal/ports"
+	"testing"
 )
 
 // ── Hand-rolled mocks ─────────────────────────────────────────────────────────
@@ -78,7 +77,7 @@ func (m *mockGroupRepo) Get(_ context.Context, id string) (*domain.Group, error)
 }
 
 func (m *mockGroupRepo) List(_ context.Context, _ ports.GroupFilter) ([]*domain.Group, error) {
-	var res []*domain.Group
+	res := make([]*domain.Group, 0, len(m.data))
 	for _, g := range m.data {
 		res = append(res, g)
 	}
@@ -116,7 +115,7 @@ func (m *mockItemRepo) Get(_ context.Context, id string) (*domain.Item, error) {
 }
 
 func (m *mockItemRepo) List(_ context.Context, _ ports.ItemFilter) ([]*domain.Item, int, error) {
-	var res []*domain.Item
+	res := make([]*domain.Item, 0, len(m.data))
 	for _, item := range m.data {
 		res = append(res, item)
 	}

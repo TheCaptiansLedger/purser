@@ -3,13 +3,12 @@ package metadata_test
 import (
 	"context"
 	"fmt"
-	"testing"
-	"time"
-
 	"purser/internal/app/errs"
 	"purser/internal/app/metadata"
 	"purser/internal/domain"
 	"purser/internal/ports"
+	"testing"
+	"time"
 )
 
 // ── stubs ─────────────────────────────────────────────────────────────────────
@@ -51,9 +50,11 @@ type stubItemRepo struct {
 func (r *stubItemRepo) Get(_ context.Context, _ string) (*domain.Item, error) {
 	return nil, fmt.Errorf("not found: %w", errs.ErrNotFound)
 }
+
 func (r *stubItemRepo) List(_ context.Context, _ ports.ItemFilter) ([]*domain.Item, int, error) {
 	return r.items, len(r.items), nil
 }
+
 func (r *stubItemRepo) Save(_ context.Context, item *domain.Item) error {
 	r.items = append(r.items, item)
 	return nil
@@ -66,29 +67,38 @@ type stubSource struct {
 	total  int
 }
 
-func (s *stubSource) Name() string                       { return "stashdb" }
-func (s *stubSource) ContentTypes() []domain.ContentType { return []domain.ContentType{domain.ContentTypeAdult} }
+func (s *stubSource) Name() string { return "stashdb" }
+func (s *stubSource) ContentTypes() []domain.ContentType {
+	return []domain.ContentType{domain.ContentTypeAdult}
+}
+
 func (s *stubSource) SearchStudios(_ context.Context, _ string, _ int) ([]*domain.ExternalStudio, error) {
 	return nil, nil
 }
+
 func (s *stubSource) SearchPeople(_ context.Context, _ string, _ int) ([]*domain.ExternalPerson, error) {
 	return nil, nil
 }
+
 func (s *stubSource) SearchItems(_ context.Context, _ domain.ContentType, _ string, _ int) ([]*domain.ExternalItem, error) {
 	return nil, nil
 }
+
 func (s *stubSource) FindByHash(_ context.Context, _ string) (*domain.ExternalItem, error) {
 	return nil, ports.ErrNotSupported
 }
+
 func (s *stubSource) FindByExternalID(_ context.Context, _ string) (*domain.ExternalItem, error) {
-	return nil, nil
+	return nil, ports.ErrNotFound
 }
+
 func (s *stubSource) FetchEntryContent(_ context.Context, _ string, page, _ int) ([]*domain.ExternalGroup, []*domain.ExternalItem, int, error) {
 	if page == 1 {
 		return nil, s.scenes, s.total, nil
 	}
 	return nil, nil, s.total, nil
 }
+
 func (s *stubSource) FetchGroupContent(_ context.Context, _ string, _, _ int) ([]*domain.ExternalItem, int, error) {
 	return nil, 0, ports.ErrNotSupported
 }
@@ -101,9 +111,12 @@ func (q *stubJobQueue) Submit(_ context.Context, name string, _ map[string]any, 
 	q.submitted = append(q.submitted, name)
 	return &domain.Job{Name: name, Status: domain.JobStatusQueued}, nil
 }
-func (q *stubJobQueue) Get(_ context.Context, _ string) (*domain.Job, error)    { return nil, nil }
-func (q *stubJobQueue) List(_ context.Context) ([]*domain.Job, error)            { return nil, nil }
-func (q *stubJobQueue) Cancel(_ context.Context, _ string) error                 { return nil }
+
+func (q *stubJobQueue) Get(_ context.Context, _ string) (*domain.Job, error) {
+	return nil, ports.ErrNotFound
+}
+func (q *stubJobQueue) List(_ context.Context) ([]*domain.Job, error) { return nil, nil }
+func (q *stubJobQueue) Cancel(_ context.Context, _ string) error      { return nil }
 
 type stubPersonRepo struct {
 	saved []*domain.Person
@@ -112,9 +125,11 @@ type stubPersonRepo struct {
 func (r *stubPersonRepo) Get(_ context.Context, _ string) (*domain.Person, error) {
 	return nil, fmt.Errorf("not found: %w", errs.ErrNotFound)
 }
+
 func (r *stubPersonRepo) List(_ context.Context, _ ports.PersonFilter) ([]*domain.Person, int, error) {
 	return nil, 0, nil
 }
+
 func (r *stubPersonRepo) Save(_ context.Context, p *domain.Person) error {
 	r.saved = append(r.saved, p)
 	return nil
@@ -125,10 +140,14 @@ type stubTagRepo struct {
 	saved []*domain.Tag
 }
 
-func (r *stubTagRepo) Get(_ context.Context, _ string) (*domain.Tag, error) { return nil, nil }
+func (r *stubTagRepo) Get(_ context.Context, _ string) (*domain.Tag, error) {
+	return nil, ports.ErrNotFound
+}
+
 func (r *stubTagRepo) List(_ context.Context, _ ports.TagFilter) ([]*domain.Tag, error) {
 	return r.saved, nil
 }
+
 func (r *stubTagRepo) Save(_ context.Context, t *domain.Tag) error {
 	r.saved = append(r.saved, t)
 	return nil

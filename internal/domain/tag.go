@@ -4,6 +4,7 @@ package domain
 // (imported from metadata sources).
 type TagScope string
 
+// Tag scope constants distinguishing user-created from source-imported tags.
 const (
 	TagScopeUser     TagScope = "user"
 	TagScopeMetadata TagScope = "metadata"
@@ -13,6 +14,7 @@ const (
 // The empty string means general / uncategorized.
 type TagCategory string
 
+// Tag category constants for classifying what kind of metadata a tag represents.
 const (
 	TagCategoryGenre          TagCategory = "genre"
 	TagCategoryContentWarning TagCategory = "content_warning"

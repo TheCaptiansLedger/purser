@@ -1,5 +1,9 @@
 # Purser
 
+[![Domain Coverage](https://codecov.io/gh/TheCaptiansLedger/purser/graph/badge.svg?component=domain)](https://codecov.io/gh/TheCaptiansLedger/purser?component=domain)
+[![Adapters Coverage](https://codecov.io/gh/TheCaptiansLedger/purser/graph/badge.svg?component=adapters)](https://codecov.io/gh/TheCaptiansLedger/purser?component=adapters)
+[![API Coverage](https://codecov.io/gh/TheCaptiansLedger/purser/graph/badge.svg?component=api)](https://codecov.io/gh/TheCaptiansLedger/purser?component=api)
+
 **Purser is a self-hosted metadata manager for the media you care about.**
 
 It maintains a rich, browsable library enriched from external sources — TMDB, TVDB, MusicBrainz, StashDB, and others — and gives you tools to identify gaps in your collection and fill them. Think of the metadata side as a local mirror of everything worth knowing about your library; the acquisition side as a disciplined way to go get what you're missing.
@@ -105,6 +109,29 @@ domain ← ports ← app ← adapters / api
 | Adapters | `internal/adapters` | SQLite, metadata sources, download clients, filesystem |
 | API | `internal/api` | HTTP handlers (Chi); translates HTTP ↔ app services |
 | UI | `web/` | React 18 + TypeScript + Tailwind; `go:embed`ed into the binary |
+
+---
+
+## Verifying commits
+
+All commits to this repository are signed. Public keys are in the [`keys/`](keys/) directory.
+
+| Key | Fingerprint | Used for |
+|-----|-------------|----------|
+| `keys/theacaptiansledger.asc` | `F18A 78D6 A6FB 8E47 F01D  0426 9C04 0FFC 9921 D766` | Human commits |
+| `keys/purser-ci.asc` | `DCC7 3B8D 68B8 F098 D878  F016 2F9A 9A18 67E9 D043` | Automated release commits |
+
+```bash
+# Import both keys
+gpg --import keys/theacaptiansledger.asc
+gpg --import keys/purser-ci.asc
+
+# Verify a commit
+git verify-commit HEAD
+
+# Verify a tag
+git verify-tag v1.0.0
+```
 
 ---
 

@@ -24,7 +24,12 @@ RUN go mod download
 COPY . .
 COPY --from=ui-builder /app/web/dist ./web/dist
 
-RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" -o /out/purser ./cmd/purser
+ARG VERSION=dev
+ARG COMMIT_SHA=unknown
+
+RUN CGO_ENABLED=0 GOOS=linux go build -trimpath \
+    -ldflags="-s -w -X purser/internal/version.Version=${VERSION}" \
+    -o /out/purser ./cmd/purser
 
 # ──────────────────────────────────────────────────────────────────────────────
 # Stage 3: Runtime image

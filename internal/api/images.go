@@ -38,10 +38,15 @@ func (h *imageHandler) get(w http.ResponseWriter, r *http.Request) {
 	if len(entityID) >= 2 {
 		shard = entityID[:2]
 	}
+	base := filepath.Clean(h.basePath)
 	for _, ext := range []string{".jpg", ".jpeg", ".png", ".webp", ".svg"} {
 		candidate := filepath.Join(h.basePath, entityType, shard, entityID+ext)
-		if _, err := os.Stat(candidate); err == nil {
-			http.ServeFile(w, r, candidate)
+		if !strings.HasPrefix(filepath.Clean(candidate), base) {
+			http.NotFound(w, r)
+			return
+		}
+		if _, err := os.Stat(candidate); err == nil { //nolint:gosec
+			http.ServeFile(w, r, candidate) //nolint:gosec
 			return
 		}
 	}

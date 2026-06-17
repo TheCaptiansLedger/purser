@@ -2,7 +2,6 @@ package ports
 
 import (
 	"context"
-
 	"purser/internal/domain"
 )
 

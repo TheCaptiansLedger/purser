@@ -2,14 +2,14 @@ package stashdb_test
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"net/http/httptest"
-	"testing"
-
 	"purser/internal/adapters/stashdb"
 	"purser/internal/config"
 	"purser/internal/domain"
 	"purser/internal/ports"
+	"testing"
 )
 
 const fetchStudioFixture = `{
@@ -99,7 +99,7 @@ func TestFetchGroupContent_NotSupported(t *testing.T) {
 
 	a := newTestAdapter(srv)
 	_, _, err := a.FetchGroupContent(context.Background(), "any-id", 1, 100)
-	if err != ports.ErrNotSupported {
+	if !errors.Is(err, ports.ErrNotSupported) {
 		t.Errorf("expected ErrNotSupported, got %v", err)
 	}
 }

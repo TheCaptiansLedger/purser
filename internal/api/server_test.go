@@ -7,11 +7,6 @@ import (
 	"io/fs"
 	"net/http"
 	"net/http/httptest"
-	"testing"
-	"time"
-
-	dbadapter "purser/internal/adapters/db"
-	jobsadapter "purser/internal/adapters/jobs"
 	"purser/internal/api"
 	"purser/internal/app/library"
 	"purser/internal/app/metadata"
@@ -19,6 +14,11 @@ import (
 	"purser/internal/config"
 	"purser/internal/ports"
 	"purser/web"
+	"testing"
+	"time"
+
+	dbadapter "purser/internal/adapters/db"
+	jobsadapter "purser/internal/adapters/jobs"
 )
 
 // newHandler builds a full server backed by a temp-file SQLite database.
@@ -95,16 +95,24 @@ func TestConfig_Get(t *testing.T) {
 		t.Fatalf("status = %d, want 200", w.Code)
 	}
 	var resp struct {
-		Server   struct{ Port int `json:"port"` } `json:"server"`
+		Server struct {
+			Port int `json:"port"`
+		} `json:"server"`
 		Database struct {
 			Driver string `json:"driver"`
 			DSN    string `json:"dsn"`
 		} `json:"database"`
 		Modules struct {
-			Movies    struct{ Enabled bool `json:"enabled"` } `json:"movies"`
-			AfterDark struct{ Enabled bool `json:"enabled"` } `json:"afterdark"`
+			Movies struct {
+				Enabled bool `json:"enabled"`
+			} `json:"movies"`
+			AfterDark struct {
+				Enabled bool `json:"enabled"`
+			} `json:"afterdark"`
 		} `json:"modules"`
-		Log struct{ Level string `json:"level"` } `json:"log"`
+		Log struct {
+			Level string `json:"level"`
+		} `json:"log"`
 	}
 	decodeJSON(t, w, &resp)
 	if resp.Server.Port != 0 {
@@ -206,7 +214,9 @@ func TestLibraryEntries_Create_ValidationError(t *testing.T) {
 	if w.Code != http.StatusUnprocessableEntity {
 		t.Fatalf("status = %d, want 422", w.Code)
 	}
-	var resp struct{ Code string `json:"code"` }
+	var resp struct {
+		Code string `json:"code"`
+	}
 	decodeJSON(t, w, &resp)
 	if resp.Code != "VALIDATION_ERROR" {
 		t.Errorf("code = %q, want VALIDATION_ERROR", resp.Code)
@@ -232,7 +242,9 @@ func TestLibraryEntries_Get_NotFound(t *testing.T) {
 	if w.Code != http.StatusNotFound {
 		t.Fatalf("status = %d, want 404", w.Code)
 	}
-	var resp struct{ Code string `json:"code"` }
+	var resp struct {
+		Code string `json:"code"`
+	}
 	decodeJSON(t, w, &resp)
 	if resp.Code != "NOT_FOUND" {
 		t.Errorf("code = %q, want NOT_FOUND", resp.Code)
@@ -250,7 +262,9 @@ func TestLibraryEntries_CreateAndGet(t *testing.T) {
 	if w.Code != http.StatusCreated {
 		t.Fatalf("create status = %d", w.Code)
 	}
-	var created struct{ ID string `json:"id"` }
+	var created struct {
+		ID string `json:"id"`
+	}
 	decodeJSON(t, w, &created)
 
 	w = do(t, h, http.MethodGet, "/api/v1/library-entries/"+created.ID, nil)
@@ -276,7 +290,9 @@ func TestLibraryEntries_Patch(t *testing.T) {
 	w := do(t, h, http.MethodPost, "/api/v1/library-entries", map[string]any{
 		"contentType": "adult", "kind": "studio", "name": "Studio A",
 	})
-	var created struct{ ID string `json:"id"` }
+	var created struct {
+		ID string `json:"id"`
+	}
 	decodeJSON(t, w, &created)
 
 	w = do(t, h, http.MethodPatch, "/api/v1/library-entries/"+created.ID, map[string]any{
@@ -305,7 +321,9 @@ func TestLibraryEntries_Delete(t *testing.T) {
 	w := do(t, h, http.MethodPost, "/api/v1/library-entries", map[string]any{
 		"contentType": "adult", "kind": "studio", "name": "Delete Me",
 	})
-	var created struct{ ID string `json:"id"` }
+	var created struct {
+		ID string `json:"id"`
+	}
 	decodeJSON(t, w, &created)
 
 	w = do(t, h, http.MethodDelete, "/api/v1/library-entries/"+created.ID, nil)
@@ -332,7 +350,9 @@ func TestLibraryEntries_List_FilterByContentType(t *testing.T) {
 	if w.Code != http.StatusOK {
 		t.Fatalf("status = %d", w.Code)
 	}
-	var resp struct{ Total int `json:"total"` }
+	var resp struct {
+		Total int `json:"total"`
+	}
 	decodeJSON(t, w, &resp)
 	if resp.Total != 2 {
 		t.Errorf("adult total = %d, want 2", resp.Total)
@@ -346,7 +366,9 @@ func TestLibraryEntries_Children(t *testing.T) {
 	w := do(t, h, http.MethodPost, "/api/v1/library-entries", map[string]any{
 		"contentType": "adult", "kind": "network", "name": "Network A",
 	})
-	var network struct{ ID string `json:"id"` }
+	var network struct {
+		ID string `json:"id"`
+	}
 	decodeJSON(t, w, &network)
 
 	// Create two studios under it
@@ -360,7 +382,9 @@ func TestLibraryEntries_Children(t *testing.T) {
 	if w.Code != http.StatusOK {
 		t.Fatalf("children status = %d", w.Code)
 	}
-	var resp struct{ Total int `json:"total"` }
+	var resp struct {
+		Total int `json:"total"`
+	}
 	decodeJSON(t, w, &resp)
 	if resp.Total != 2 {
 		t.Errorf("children total = %d, want 2", resp.Total)
@@ -375,7 +399,9 @@ func TestItems_Create_InheritsContentType(t *testing.T) {
 	w := do(t, h, http.MethodPost, "/api/v1/library-entries", map[string]any{
 		"contentType": "adult", "kind": "studio", "name": "Test Studio",
 	})
-	var studio struct{ ID string `json:"id"` }
+	var studio struct {
+		ID string `json:"id"`
+	}
 	decodeJSON(t, w, &studio)
 
 	w = do(t, h, http.MethodPost, "/api/v1/items", map[string]any{
@@ -409,13 +435,17 @@ func TestItems_Patch_Monitored(t *testing.T) {
 	w := do(t, h, http.MethodPost, "/api/v1/library-entries", map[string]any{
 		"contentType": "adult", "kind": "studio", "name": "S",
 	})
-	var studio struct{ ID string `json:"id"` }
+	var studio struct {
+		ID string `json:"id"`
+	}
 	decodeJSON(t, w, &studio)
 
 	w = do(t, h, http.MethodPost, "/api/v1/items", map[string]any{
 		"libraryEntryId": studio.ID, "title": "Scene", "monitored": true,
 	})
-	var item struct{ ID string `json:"id"` }
+	var item struct {
+		ID string `json:"id"`
+	}
 	decodeJSON(t, w, &item)
 
 	w = do(t, h, http.MethodPatch, "/api/v1/items/"+item.ID, map[string]any{
@@ -444,7 +474,9 @@ func TestItems_ListByLibraryEntry(t *testing.T) {
 	w := do(t, h, http.MethodPost, "/api/v1/library-entries", map[string]any{
 		"contentType": "adult", "kind": "studio", "name": "S",
 	})
-	var studio struct{ ID string `json:"id"` }
+	var studio struct {
+		ID string `json:"id"`
+	}
 	decodeJSON(t, w, &studio)
 
 	for _, title := range []string{"Scene 1", "Scene 2", "Scene 3"} {
@@ -454,7 +486,9 @@ func TestItems_ListByLibraryEntry(t *testing.T) {
 	}
 
 	w = do(t, h, http.MethodGet, "/api/v1/items?libraryEntryId="+studio.ID, nil)
-	var resp struct{ Total int `json:"total"` }
+	var resp struct {
+		Total int `json:"total"`
+	}
 	decodeJSON(t, w, &resp)
 	if resp.Total != 3 {
 		t.Errorf("item total = %d, want 3", resp.Total)
@@ -495,7 +529,9 @@ func TestPeople_Patch(t *testing.T) {
 	h := newHandler(t)
 
 	w := do(t, h, http.MethodPost, "/api/v1/people", map[string]any{"name": "Alice"})
-	var created struct{ ID string `json:"id"` }
+	var created struct {
+		ID string `json:"id"`
+	}
 	decodeJSON(t, w, &created)
 
 	w = do(t, h, http.MethodPatch, "/api/v1/people/"+created.ID, map[string]any{
@@ -530,7 +566,9 @@ func TestPeople_SearchByAlias(t *testing.T) {
 	})
 
 	w := do(t, h, http.MethodGet, "/api/v1/people?search=JD", nil)
-	var resp struct{ Total int `json:"total"` }
+	var resp struct {
+		Total int `json:"total"`
+	}
 	decodeJSON(t, w, &resp)
 	if resp.Total != 1 {
 		t.Errorf("search JD total = %d, want 1", resp.Total)
@@ -556,7 +594,9 @@ func TestTags_CreateAndList(t *testing.T) {
 	}
 
 	w := do(t, h, http.MethodGet, "/api/v1/tags", nil)
-	var resp struct{ Total int `json:"total"` }
+	var resp struct {
+		Total int `json:"total"`
+	}
 	decodeJSON(t, w, &resp)
 	if resp.Total != 3 {
 		t.Errorf("total = %d, want 3", resp.Total)
@@ -585,7 +625,9 @@ func TestGroups_CreateAndList(t *testing.T) {
 	w := do(t, h, http.MethodPost, "/api/v1/library-entries", map[string]any{
 		"contentType": "tv", "kind": "series", "name": "Breaking Bad",
 	})
-	var series struct{ ID string `json:"id"` }
+	var series struct {
+		ID string `json:"id"`
+	}
 	decodeJSON(t, w, &series)
 
 	for i := 1; i <= 5; i++ {
@@ -597,7 +639,9 @@ func TestGroups_CreateAndList(t *testing.T) {
 	}
 
 	w = do(t, h, http.MethodGet, "/api/v1/groups?libraryEntryId="+series.ID, nil)
-	var resp struct{ Total int `json:"total"` }
+	var resp struct {
+		Total int `json:"total"`
+	}
 	decodeJSON(t, w, &resp)
 	if resp.Total != 5 {
 		t.Errorf("groups total = %d, want 5", resp.Total)
@@ -635,7 +679,9 @@ func TestGroups_GetAndPatchAndDelete(t *testing.T) {
 	w := do(t, h, http.MethodPost, "/api/v1/library-entries", map[string]any{
 		"contentType": "tv", "kind": "series", "name": "Breaking Bad",
 	})
-	var series struct{ ID string `json:"id"` }
+	var series struct {
+		ID string `json:"id"`
+	}
 	decodeJSON(t, w, &series)
 
 	// Create group
@@ -645,7 +691,9 @@ func TestGroups_GetAndPatchAndDelete(t *testing.T) {
 	if w.Code != http.StatusCreated {
 		t.Fatalf("create group status = %d, body: %s", w.Code, w.Body.String())
 	}
-	var group struct{ ID string `json:"id"` }
+	var group struct {
+		ID string `json:"id"`
+	}
 	decodeJSON(t, w, &group)
 
 	// GET /:id
@@ -654,8 +702,8 @@ func TestGroups_GetAndPatchAndDelete(t *testing.T) {
 		t.Fatalf("get group status = %d", w.Code)
 	}
 	var got struct {
-		Title   string `json:"title"`
-		Number  int    `json:"number"`
+		Title  string `json:"title"`
+		Number int    `json:"number"`
 	}
 	decodeJSON(t, w, &got)
 	if got.Title != "Season 1" || got.Number != 1 {
@@ -700,13 +748,17 @@ func TestItems_GetAndDelete(t *testing.T) {
 	w := do(t, h, http.MethodPost, "/api/v1/library-entries", map[string]any{
 		"contentType": "adult", "kind": "studio", "name": "S",
 	})
-	var studio struct{ ID string `json:"id"` }
+	var studio struct {
+		ID string `json:"id"`
+	}
 	decodeJSON(t, w, &studio)
 
 	w = do(t, h, http.MethodPost, "/api/v1/items", map[string]any{
 		"libraryEntryId": studio.ID, "title": "Scene X",
 	})
-	var item struct{ ID string `json:"id"` }
+	var item struct {
+		ID string `json:"id"`
+	}
 	decodeJSON(t, w, &item)
 
 	// GET /:id
@@ -714,7 +766,9 @@ func TestItems_GetAndDelete(t *testing.T) {
 	if w.Code != http.StatusOK {
 		t.Fatalf("get item = %d", w.Code)
 	}
-	var got struct{ Title string `json:"title"` }
+	var got struct {
+		Title string `json:"title"`
+	}
 	decodeJSON(t, w, &got)
 	if got.Title != "Scene X" {
 		t.Errorf("title = %q, want Scene X", got.Title)
@@ -735,7 +789,9 @@ func TestPeople_GetAndDelete(t *testing.T) {
 	h := newHandler(t)
 
 	w := do(t, h, http.MethodPost, "/api/v1/people", map[string]any{"name": "Test Person"})
-	var person struct{ ID string `json:"id"` }
+	var person struct {
+		ID string `json:"id"`
+	}
 	decodeJSON(t, w, &person)
 
 	// GET /:id
@@ -759,7 +815,9 @@ func TestTags_Delete(t *testing.T) {
 	h := newHandler(t)
 
 	w := do(t, h, http.MethodPost, "/api/v1/tags", map[string]any{"name": "blonde", "scope": "metadata"})
-	var tag struct{ ID string `json:"id"` }
+	var tag struct {
+		ID string `json:"id"`
+	}
 	decodeJSON(t, w, &tag)
 
 	w = do(t, h, http.MethodDelete, "/api/v1/tags/"+tag.ID, nil)
@@ -786,7 +844,9 @@ func TestLibraryEntries_Update_BadJSON(t *testing.T) {
 	w := do(t, h, http.MethodPost, "/api/v1/library-entries", map[string]any{
 		"contentType": "adult", "kind": "studio", "name": "S",
 	})
-	var created struct{ ID string `json:"id"` }
+	var created struct {
+		ID string `json:"id"`
+	}
 	decodeJSON(t, w, &created)
 
 	req := httptest.NewRequest(http.MethodPatch, "/api/v1/library-entries/"+created.ID, bytes.NewBufferString("{bad"))
@@ -814,12 +874,16 @@ func TestGroups_Update_BadJSON(t *testing.T) {
 	w := do(t, h, http.MethodPost, "/api/v1/library-entries", map[string]any{
 		"contentType": "tv", "kind": "series", "name": "BB",
 	})
-	var series struct{ ID string `json:"id"` }
+	var series struct {
+		ID string `json:"id"`
+	}
 	decodeJSON(t, w, &series)
 	w = do(t, h, http.MethodPost, "/api/v1/groups", map[string]any{
 		"libraryEntryId": series.ID, "title": "S1", "number": 1,
 	})
-	var group struct{ ID string `json:"id"` }
+	var group struct {
+		ID string `json:"id"`
+	}
 	decodeJSON(t, w, &group)
 
 	req := httptest.NewRequest(http.MethodPatch, "/api/v1/groups/"+group.ID, bytes.NewBufferString("{bad"))
@@ -847,12 +911,16 @@ func TestItems_Update_BadJSON(t *testing.T) {
 	w := do(t, h, http.MethodPost, "/api/v1/library-entries", map[string]any{
 		"contentType": "adult", "kind": "studio", "name": "S",
 	})
-	var studio struct{ ID string `json:"id"` }
+	var studio struct {
+		ID string `json:"id"`
+	}
 	decodeJSON(t, w, &studio)
 	w = do(t, h, http.MethodPost, "/api/v1/items", map[string]any{
 		"libraryEntryId": studio.ID, "title": "Scene",
 	})
-	var item struct{ ID string `json:"id"` }
+	var item struct {
+		ID string `json:"id"`
+	}
 	decodeJSON(t, w, &item)
 
 	req := httptest.NewRequest(http.MethodPatch, "/api/v1/items/"+item.ID, bytes.NewBufferString("{bad"))
@@ -878,7 +946,9 @@ func TestPeople_Create_BadJSON(t *testing.T) {
 func TestPeople_Update_BadJSON(t *testing.T) {
 	h := newHandler(t)
 	w := do(t, h, http.MethodPost, "/api/v1/people", map[string]any{"name": "Alice"})
-	var person struct{ ID string `json:"id"` }
+	var person struct {
+		ID string `json:"id"`
+	}
 	decodeJSON(t, w, &person)
 
 	req := httptest.NewRequest(http.MethodPatch, "/api/v1/people/"+person.ID, bytes.NewBufferString("{bad"))
@@ -977,7 +1047,9 @@ func TestGroups_Create_WithExternalIDs(t *testing.T) {
 	w := do(t, h, http.MethodPost, "/api/v1/library-entries", map[string]any{
 		"contentType": "tv", "kind": "series", "name": "BB",
 	})
-	var series struct{ ID string `json:"id"` }
+	var series struct {
+		ID string `json:"id"`
+	}
 	decodeJSON(t, w, &series)
 
 	w = do(t, h, http.MethodPost, "/api/v1/groups", map[string]any{
@@ -990,7 +1062,9 @@ func TestGroups_Create_WithExternalIDs(t *testing.T) {
 		t.Fatalf("status = %d, body: %s", w.Code, w.Body.String())
 	}
 	var resp struct {
-		ExternalIDs []struct{ Value string `json:"value"` } `json:"externalIds"`
+		ExternalIDs []struct {
+			Value string `json:"value"`
+		} `json:"externalIds"`
 	}
 	decodeJSON(t, w, &resp)
 	if len(resp.ExternalIDs) != 1 || resp.ExternalIDs[0].Value != "s1-id" {
@@ -1005,7 +1079,9 @@ func TestLibraryEntries_Patch_AllFields(t *testing.T) {
 	w := do(t, h, http.MethodPost, "/api/v1/library-entries", map[string]any{
 		"contentType": "adult", "kind": "studio", "name": "Original",
 	})
-	var created struct{ ID string `json:"id"` }
+	var created struct {
+		ID string `json:"id"`
+	}
 	decodeJSON(t, w, &created)
 
 	w = do(t, h, http.MethodPatch, "/api/v1/library-entries/"+created.ID, map[string]any{
@@ -1048,13 +1124,17 @@ func TestGroups_Patch_AllFields(t *testing.T) {
 	w := do(t, h, http.MethodPost, "/api/v1/library-entries", map[string]any{
 		"contentType": "tv", "kind": "series", "name": "Show",
 	})
-	var series struct{ ID string `json:"id"` }
+	var series struct {
+		ID string `json:"id"`
+	}
 	decodeJSON(t, w, &series)
 
 	w = do(t, h, http.MethodPost, "/api/v1/groups", map[string]any{
 		"libraryEntryId": series.ID, "title": "S1", "number": 1,
 	})
-	var group struct{ ID string `json:"id"` }
+	var group struct {
+		ID string `json:"id"`
+	}
 	decodeJSON(t, w, &group)
 
 	w = do(t, h, http.MethodPatch, "/api/v1/groups/"+group.ID, map[string]any{
@@ -1091,13 +1171,17 @@ func TestItems_Update_AllFields(t *testing.T) {
 	w := do(t, h, http.MethodPost, "/api/v1/library-entries", map[string]any{
 		"contentType": "tv", "kind": "series", "name": "Show",
 	})
-	var series struct{ ID string `json:"id"` }
+	var series struct {
+		ID string `json:"id"`
+	}
 	decodeJSON(t, w, &series)
 
 	w = do(t, h, http.MethodPost, "/api/v1/items", map[string]any{
 		"libraryEntryId": series.ID, "title": "Episode 1",
 	})
-	var item struct{ ID string `json:"id"` }
+	var item struct {
+		ID string `json:"id"`
+	}
 	decodeJSON(t, w, &item)
 
 	w = do(t, h, http.MethodPatch, "/api/v1/items/"+item.ID, map[string]any{
@@ -1174,7 +1258,9 @@ func TestItems_List_ByStatus(t *testing.T) {
 	w := do(t, h, http.MethodPost, "/api/v1/library-entries", map[string]any{
 		"contentType": "adult", "kind": "studio", "name": "S",
 	})
-	var studio struct{ ID string `json:"id"` }
+	var studio struct {
+		ID string `json:"id"`
+	}
 	decodeJSON(t, w, &studio)
 
 	do(t, h, http.MethodPost, "/api/v1/items", map[string]any{
@@ -1183,12 +1269,16 @@ func TestItems_List_ByStatus(t *testing.T) {
 	w = do(t, h, http.MethodPost, "/api/v1/items", map[string]any{
 		"libraryEntryId": studio.ID, "title": "Scene Skipped",
 	})
-	var skipped struct{ ID string `json:"id"` }
+	var skipped struct {
+		ID string `json:"id"`
+	}
 	decodeJSON(t, w, &skipped)
 	do(t, h, http.MethodPatch, "/api/v1/items/"+skipped.ID, map[string]any{"status": "skipped"})
 
 	w = do(t, h, http.MethodGet, "/api/v1/items?status=wanted&libraryEntryId="+studio.ID, nil)
-	var resp struct{ Total int `json:"total"` }
+	var resp struct {
+		Total int `json:"total"`
+	}
 	decodeJSON(t, w, &resp)
 	if resp.Total != 1 {
 		t.Errorf("wanted total = %d, want 1", resp.Total)
@@ -1200,14 +1290,18 @@ func TestItems_List_BySearch(t *testing.T) {
 	w := do(t, h, http.MethodPost, "/api/v1/library-entries", map[string]any{
 		"contentType": "adult", "kind": "studio", "name": "S",
 	})
-	var studio struct{ ID string `json:"id"` }
+	var studio struct {
+		ID string `json:"id"`
+	}
 	decodeJSON(t, w, &studio)
 
 	do(t, h, http.MethodPost, "/api/v1/items", map[string]any{"libraryEntryId": studio.ID, "title": "Hot Summer"})
 	do(t, h, http.MethodPost, "/api/v1/items", map[string]any{"libraryEntryId": studio.ID, "title": "Winter Scene"})
 
 	w = do(t, h, http.MethodGet, "/api/v1/items?search=Summer", nil)
-	var resp struct{ Total int `json:"total"` }
+	var resp struct {
+		Total int `json:"total"`
+	}
 	decodeJSON(t, w, &resp)
 	if resp.Total != 1 {
 		t.Errorf("search Summer total = %d, want 1", resp.Total)
@@ -1219,14 +1313,18 @@ func TestItems_List_Monitored_True(t *testing.T) {
 	w := do(t, h, http.MethodPost, "/api/v1/library-entries", map[string]any{
 		"contentType": "adult", "kind": "studio", "name": "S",
 	})
-	var studio struct{ ID string `json:"id"` }
+	var studio struct {
+		ID string `json:"id"`
+	}
 	decodeJSON(t, w, &studio)
 
 	do(t, h, http.MethodPost, "/api/v1/items", map[string]any{"libraryEntryId": studio.ID, "title": "A", "monitored": true})
 	do(t, h, http.MethodPost, "/api/v1/items", map[string]any{"libraryEntryId": studio.ID, "title": "B", "monitored": false})
 
 	w = do(t, h, http.MethodGet, "/api/v1/items?monitored=true&libraryEntryId="+studio.ID, nil)
-	var resp struct{ Total int `json:"total"` }
+	var resp struct {
+		Total int `json:"total"`
+	}
 	decodeJSON(t, w, &resp)
 	if resp.Total != 1 {
 		t.Errorf("monitored=true total = %d, want 1", resp.Total)
@@ -1239,7 +1337,9 @@ func TestPeople_List_Monitored(t *testing.T) {
 	do(t, h, http.MethodPost, "/api/v1/people", map[string]any{"name": "Bob", "monitored": false})
 
 	w := do(t, h, http.MethodGet, "/api/v1/people?monitored=true", nil)
-	var resp struct{ Total int `json:"total"` }
+	var resp struct {
+		Total int `json:"total"`
+	}
 	decodeJSON(t, w, &resp)
 	if resp.Total != 1 {
 		t.Errorf("monitored=true total = %d, want 1", resp.Total)
@@ -1253,12 +1353,16 @@ func TestItems_Create_WithPeople(t *testing.T) {
 	w := do(t, h, http.MethodPost, "/api/v1/library-entries", map[string]any{
 		"contentType": "adult", "kind": "studio", "name": "S",
 	})
-	var studio struct{ ID string `json:"id"` }
+	var studio struct {
+		ID string `json:"id"`
+	}
 	decodeJSON(t, w, &studio)
 
 	// Create performer
 	w = do(t, h, http.MethodPost, "/api/v1/people", map[string]any{"name": "Jane Doe"})
-	var performer struct{ ID string `json:"id"` }
+	var performer struct {
+		ID string `json:"id"`
+	}
 	decodeJSON(t, w, &performer)
 
 	// Create scene with performer
@@ -1312,7 +1416,9 @@ func TestJobs_Get_NotFound(t *testing.T) {
 	if w.Code != http.StatusNotFound {
 		t.Fatalf("status = %d, want 404", w.Code)
 	}
-	var resp struct{ Code string `json:"code"` }
+	var resp struct {
+		Code string `json:"code"`
+	}
 	decodeJSON(t, w, &resp)
 	if resp.Code != "NOT_FOUND" {
 		t.Errorf("code = %q, want NOT_FOUND", resp.Code)
@@ -1380,7 +1486,9 @@ func TestJobs_Cancel_SetsStatus(t *testing.T) {
 	}
 	for time.Now().Before(deadline) {
 		w = do(t, h, http.MethodGet, "/api/v1/jobs/"+submitted.ID, nil)
-		var job struct{ Status string `json:"status"` }
+		var job struct {
+			Status string `json:"status"`
+		}
 		decodeJSON(t, w, &job)
 		if job.Status == "cancelled" {
 			return
@@ -1405,7 +1513,9 @@ func TestCommands_RefreshStudio_Returns202(t *testing.T) {
 	if w.Code != http.StatusCreated {
 		t.Fatalf("create studio = %d", w.Code)
 	}
-	var studio struct{ ID string `json:"id"` }
+	var studio struct {
+		ID string `json:"id"`
+	}
 	decodeJSON(t, w, &studio)
 
 	w = do(t, h, http.MethodPost, "/api/v1/commands", map[string]any{
@@ -1437,7 +1547,9 @@ func TestCommands_RefreshStudio_MissingEntryID(t *testing.T) {
 	if w.Code != http.StatusBadRequest {
 		t.Fatalf("status = %d, want 400", w.Code)
 	}
-	var resp struct{ Code string `json:"code"` }
+	var resp struct {
+		Code string `json:"code"`
+	}
 	decodeJSON(t, w, &resp)
 	if resp.Code != "MISSING_FIELDS" {
 		t.Errorf("code = %q, want MISSING_FIELDS", resp.Code)
@@ -1452,7 +1564,9 @@ func TestCommands_UnknownCommand(t *testing.T) {
 	if w.Code != http.StatusBadRequest {
 		t.Fatalf("status = %d, want 400", w.Code)
 	}
-	var resp struct{ Code string `json:"code"` }
+	var resp struct {
+		Code string `json:"code"`
+	}
 	decodeJSON(t, w, &resp)
 	if resp.Code != "UNKNOWN_COMMAND" {
 		t.Errorf("code = %q, want UNKNOWN_COMMAND", resp.Code)

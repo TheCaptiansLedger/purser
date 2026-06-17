@@ -3,10 +3,9 @@ package db
 import (
 	"context"
 	"database/sql"
-	"testing"
-
 	"purser/internal/domain"
 	"purser/internal/ports"
+	"testing"
 )
 
 func setupTestDB(t *testing.T) *sql.DB {
@@ -347,8 +346,8 @@ func TestItemRepo_List_ByPersonID(t *testing.T) {
 	if err != nil {
 		t.Fatalf("List by person: %v", err)
 	}
-	if total != 2 {
-		t.Errorf("p1 item total = %d, want 2", total)
+	if total != 2 || len(res) != 2 {
+		t.Errorf("p1 item total = %d, len = %d, want 2", total, len(res))
 	}
 
 	res, total, err = itemRepo.List(ctx, ports.ItemFilter{PersonID: p2.ID, Limit: 50})
@@ -713,8 +712,8 @@ func TestLibraryEntryRepo_List_KindAndParentFilters(t *testing.T) {
 	if err != nil {
 		t.Fatalf("List by kind: %v", err)
 	}
-	if total != 2 {
-		t.Errorf("studio total = %d, want 2", total)
+	if total != 2 || len(res) != 2 {
+		t.Errorf("studio total = %d, len = %d, want 2", total, len(res))
 	}
 
 	// Filter by parentId
@@ -850,12 +849,12 @@ func TestItemRepo_List_Filters(t *testing.T) {
 	if err != nil {
 		t.Fatalf("List by groupId: %v", err)
 	}
-	if total != 2 {
-		t.Errorf("groupId filter total = %d, want 2", total)
+	if total != 2 || len(res) != 2 {
+		t.Errorf("groupId filter total = %d, len = %d, want 2", total, len(res))
 	}
 
 	// Filter by status
-	res, total, err = itemRepo.List(ctx, ports.ItemFilter{Status: domain.StatusImported, Limit: 50})
+	_, total, err = itemRepo.List(ctx, ports.ItemFilter{Status: domain.StatusImported, Limit: 50})
 	if err != nil {
 		t.Fatalf("List by status: %v", err)
 	}
@@ -864,7 +863,7 @@ func TestItemRepo_List_Filters(t *testing.T) {
 	}
 
 	// Filter by contentType
-	res, total, err = itemRepo.List(ctx, ports.ItemFilter{ContentType: domain.ContentTypeTV, Limit: 50})
+	_, total, err = itemRepo.List(ctx, ports.ItemFilter{ContentType: domain.ContentTypeTV, Limit: 50})
 	if err != nil {
 		t.Fatalf("List by contentType: %v", err)
 	}
@@ -873,7 +872,7 @@ func TestItemRepo_List_Filters(t *testing.T) {
 	}
 
 	// Filter by search
-	res, total, err = itemRepo.List(ctx, ports.ItemFilter{Search: "Pilot", Limit: 50})
+	_, total, err = itemRepo.List(ctx, ports.ItemFilter{Search: "Pilot", Limit: 50})
 	if err != nil {
 		t.Fatalf("List by search: %v", err)
 	}
@@ -882,7 +881,7 @@ func TestItemRepo_List_Filters(t *testing.T) {
 	}
 
 	// Filter by tagIds
-	res, total, err = itemRepo.List(ctx, ports.ItemFilter{TagIDs: []string{tag.ID}, Limit: 50})
+	_, total, err = itemRepo.List(ctx, ports.ItemFilter{TagIDs: []string{tag.ID}, Limit: 50})
 	if err != nil {
 		t.Fatalf("List by tagIds: %v", err)
 	}
