@@ -1,16 +1,18 @@
 import { useParams, Link } from 'react-router-dom'
+import type { ReactNode } from 'react'
 import { ArrowLeft, User, Film } from 'lucide-react'
 import { usePerson } from '../../api/people'
 import { useItems } from '../../api/items'
 import { Badge } from '../../components/ui/Badge'
+import { CountryChip } from '../../components/ui/CountryChip'
 import { ItemCard } from '../../components/media/ItemCard'
 import { Skeleton } from '../../components/ui/Skeleton'
 import { fmtDate } from '../../components/ui/Runtime'
 
 const ACCENT = '#f43f5e'
 
-function MetaRow({ label, value }: { label: string; value?: string | number | null }) {
-  if (!value) return null
+function MetaRow({ label, value }: { label: string; value?: ReactNode }) {
+  if (value === undefined || value === null || value === '') return null
   return (
     <div className="py-3 border-b border-white/5">
       <p className="text-xs text-white/35 mb-0.5">{label}</p>
@@ -76,6 +78,9 @@ export function PerformerDetail() {
           {/* Type-specific metadata */}
           {meta.birthdate && <MetaRow label="Born" value={fmtDate(String(meta.birthdate))} />}
           {meta.birthplace && <MetaRow label="Birthplace" value={String(meta.birthplace)} />}
+          {meta.nationality && (
+            <MetaRow label="Nationality" value={<CountryChip value={String(meta.nationality)} />} />
+          )}
           {meta.ethnicity && <MetaRow label="Ethnicity" value={String(meta.ethnicity)} />}
           {meta.hair_color && <MetaRow label="Hair" value={String(meta.hair_color)} />}
           {meta.eye_color && <MetaRow label="Eyes" value={String(meta.eye_color)} />}
