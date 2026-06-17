@@ -36,19 +36,6 @@
       }
     ],
     [
-      "@semantic-release/changelog",
-      { "changelogFile": "CHANGELOG.md" }
-    ],
-    [
-      "@semantic-release/git",
-      {
-        "assets": ["CHANGELOG.md"],
-        "message": "chore(release): ${nextRelease.version} [skip ci]\n\n${nextRelease.notes}",
-        "authorName": "TheCaptiansLedger",
-        "authorEmail": "cold.harp5900@fastmail.com"
-      }
-    ],
-    [
       "@semantic-release/github",
       {
         "successComment": false,
