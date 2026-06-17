@@ -454,24 +454,31 @@ go run ./cmd/purser migrate
 
 ## Testing Conventions
 
-- Unit tests alongside code (`_test.go` files)
-- App service tests use hand-rolled mock port implementations (no mockgen)
-- Adapter tests use real databases (SQLite in-memory; testcontainers for PostgreSQL)
-- No mocking the database — integration tests hit a real DB
-- HTTP handler tests use `httptest` with real app services + in-memory SQLite
+- **Coverage Targets**: Core domain must maintain at least **95%** unit test coverage. Adapters must maintain at least **80%** coverage. Aggregation/glue code (such as `main.go` and router setup) must maintain at least **50%** coverage.
+- **Package Selection**: Prefer `package name_test` format (external tests) for unit tests so they do not rely on internal structure, forcing testing of the public API/interface. Test internal structures (same package name) only when absolutely necessary to verify internal logic.
+- Unit tests alongside code (`_test.go` files).
+- App service tests use hand-rolled mock port implementations (no mockgen).
+- Adapter tests use real databases (SQLite in-memory; testcontainers for PostgreSQL) — no mocking the database.
+- HTTP handler tests use `httptest` with real app services + in-memory SQLite.
+- **UI Testing**: Going forward, the frontend/UI must also include unit tests.
 
 ---
 
-## Code Conventions
+## Code & Design Conventions
 
-- No comments explaining what code does — names do that
-- Comments only for non-obvious WHY (hidden constraint, workaround, subtle invariant)
-- No global state — everything injected via constructor
-- Errors wrapped with `fmt.Errorf("context: %w", err)` at each layer boundary
-- Context propagated everywhere — no `context.Background()` inside business logic
-- All time values in UTC; never `time.Local`
-- `metadata JSON` columns hold type-specific fields that don't need indexed querying
-- Fields that need filtering (performers, tags, quality) always get their own columns or junction tables
+- **Pre-Write Code Review**: Always present the code or diff in the chat and wait for explicit user confirmation/approval before writing, editing, or creating files.
+- **SOLID Principles**: Adhere to SOLID design principles across the codebase.
+- **Go Best Practices**: Follow Go community best practices for all backend development.
+- **UI Best Practices**: Follow React, Vite, TypeScript, and CSS best practices for all frontend development.
+- No comments explaining what code does — names do that.
+- Comments only for non-obvious WHY (hidden constraint, workaround, subtle invariant).
+- No global state — everything injected via constructor.
+- Errors wrapped with `fmt.Errorf("context: %w", err)` at each layer boundary.
+- Context propagated everywhere — no `context.Background()` inside business logic.
+- All time values in UTC; never `time.Local`.
+- `metadata JSON` columns hold type-specific fields that don't need indexed querying.
+- Fields that need filtering (performers, tags, quality) always get their own columns or junction tables.
+- **Linting**: The codebase must always compile successfully, all unit tests must pass, and the project must always pass `golangci-lint` check.
 
 ---
 
