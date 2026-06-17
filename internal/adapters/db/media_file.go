@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-
 	"purser/internal/domain"
 	"purser/internal/ports"
 )
@@ -68,7 +67,8 @@ func (r *mediaFileRepo) Save(ctx context.Context, mf *domain.MediaFile) error {
 		mf.AddedAt = strToTime(nowStr())
 	}
 
-	_, err := r.db.ExecContext(ctx, `
+	_, err := r.db.ExecContext(
+		ctx, `
 		INSERT INTO media_files(
 			id, item_id, path, size, oshash, md5,
 			quality, resolution, codec, container, added_at

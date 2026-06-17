@@ -4,12 +4,11 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"purser/internal/domain"
 	"strings"
 	"time"
 
 	"github.com/google/uuid"
-
-	"purser/internal/domain"
 )
 
 func newID() string {
@@ -107,7 +106,7 @@ func loadExternalIDs(ctx context.Context, db *sql.DB, entityType, entityID strin
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var ids []domain.ExternalID
 	for rows.Next() {
@@ -148,7 +147,7 @@ func loadItemTags(ctx context.Context, db *sql.DB, itemID string) ([]domain.Tag,
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	return scanTags(rows)
 }
 
@@ -162,7 +161,7 @@ func loadEntryTags(ctx context.Context, db *sql.DB, entryID string) ([]domain.Ta
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	return scanTags(rows)
 }
 
@@ -221,7 +220,7 @@ func loadItemPeople(ctx context.Context, db *sql.DB, itemID string) ([]domain.It
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var people []domain.ItemPerson
 	for rows.Next() {
@@ -265,7 +264,7 @@ func loadAliases(ctx context.Context, db *sql.DB, personID string) ([]string, er
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var aliases []string
 	for rows.Next() {

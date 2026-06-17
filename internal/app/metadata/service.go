@@ -9,17 +9,16 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"purser/internal/app/errs"
+	"purser/internal/domain"
+	"purser/internal/media"
+	"purser/internal/ports"
 	"slices"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/google/uuid"
-
-	"purser/internal/app/errs"
-	"purser/internal/domain"
-	"purser/internal/media"
-	"purser/internal/ports"
 )
 
 // Service fans out metadata searches to all registered sources and handles
@@ -35,6 +34,7 @@ type Service struct {
 	mediaPath   string
 }
 
+// New constructs a metadata Service wired to the given sources and repositories.
 func New(
 	sources []ports.MetadataSource,
 	jobs ports.JobQueue,
@@ -130,13 +130,13 @@ func (s *Service) SearchPeople(ctx context.Context, query string, contentType do
 
 // ImportStudioRequest carries the (user-reviewed) studio data to persist.
 type ImportStudioRequest struct {
-	Source      domain.ExternalIDSource
-	ExternalID  string
-	Name        string
-	Overview    string
-	ContentType domain.ContentType
-	Monitored   bool
-	MonitorMode domain.MonitorMode
+	Source           domain.ExternalIDSource
+	ExternalID       string
+	Name             string
+	Overview         string
+	ContentType      domain.ContentType
+	Monitored        bool
+	MonitorMode      domain.MonitorMode
 	AutoImport       bool // when true, enqueue a RefreshStudio job immediately after saving
 	ImageURL         string
 	WebsiteURL       string
@@ -150,6 +150,53 @@ type ImportStudioRequest struct {
 type ImportStudioResult struct {
 	Studio  *domain.LibraryEntry
 	Network *domain.LibraryEntry // nil if no parent was specified or it already existed
+}
+
+// importOrFindNetwork resolves or creates the parent network for an ImportStudioRequest.
+// Returns the parent ID, the newly created network (nil if it already existed or not needed), and any error.
+func (s *Service) importOrFindNetwork(ctx context.Context, req *ImportStudioRequest) (string, *domain.LibraryEntry, error) {
+	src := string(req.Source)
+
+	if req.ParentExternalID != "" {
+		if id, err := s.externalIDs.FindEntity(ctx, "library_entry", src, req.ParentExternalID); err == nil {
+			return id, nil, nil
+		} else if !errors.Is(err, errs.ErrNotFound) {
+			return "", nil, err
+		}
+	} else if req.ParentName == "" {
+		return "", nil, nil
+	}
+
+	networkID := uuid.New().String()
+	var imagePath string
+	if req.ParentImageURL != "" && s.mediaPath != "" {
+		imagePath = s.fetchImage(ctx, req.ParentImageURL, "entries", networkID)
+	}
+	meta := map[string]any{}
+	if req.ParentWebsiteURL != "" {
+		meta["website_url"] = req.ParentWebsiteURL
+	}
+	extIDs := []domain.ExternalID{}
+	if req.ParentExternalID != "" {
+		extIDs = []domain.ExternalID{{Source: req.Source, Value: req.ParentExternalID}}
+	}
+	network := &domain.LibraryEntry{
+		ID:          networkID,
+		ContentType: req.ContentType,
+		Kind:        domain.KindNetwork,
+		Name:        req.ParentName,
+		SortName:    req.ParentName,
+		Status:      domain.EntryStatusActive,
+		Monitored:   false,
+		MonitorMode: domain.MonitorNone,
+		ImagePath:   imagePath,
+		Metadata:    meta,
+		ExternalIDs: extIDs,
+	}
+	if err := s.entries.Save(ctx, network); err != nil {
+		return "", nil, err
+	}
+	return network.ID, network, nil
 }
 
 // ImportStudio persists an ExternalStudio as a library entry. If the studio
@@ -170,73 +217,11 @@ func (s *Service) ImportStudio(ctx context.Context, req *ImportStudioRequest) (*
 
 	res := &ImportStudioResult{}
 
-	// Resolve or create the parent network.
-	var parentID string
-	if req.ParentExternalID != "" {
-		if id, err := s.externalIDs.FindEntity(ctx, "library_entry", src, req.ParentExternalID); err == nil {
-			parentID = id
-		} else if errors.Is(err, errs.ErrNotFound) {
-			networkID := uuid.New().String()
-			var networkImagePath string
-			if req.ParentImageURL != "" && s.mediaPath != "" {
-				networkImagePath = s.fetchImage(ctx, req.ParentImageURL, "entries", networkID)
-			}
-			networkMeta := map[string]any{}
-			if req.ParentWebsiteURL != "" {
-				networkMeta["website_url"] = req.ParentWebsiteURL
-			}
-			network := &domain.LibraryEntry{
-				ID:          networkID,
-				ContentType: req.ContentType,
-				Kind:        domain.KindNetwork,
-				Name:        req.ParentName,
-				SortName:    req.ParentName,
-				Status:      domain.EntryStatusActive,
-				Monitored:   false,
-				MonitorMode: domain.MonitorNone,
-				ImagePath:   networkImagePath,
-				Metadata:    networkMeta,
-				ExternalIDs: []domain.ExternalID{
-					{Source: req.Source, Value: req.ParentExternalID},
-				},
-			}
-			if err := s.entries.Save(ctx, network); err != nil {
-				return nil, err
-			}
-			parentID = network.ID
-			res.Network = network
-		} else {
-			return nil, err
-		}
-	} else if req.ParentName != "" {
-		// Source gave us a name but no external ID — create a name-only network.
-		networkID := uuid.New().String()
-		var networkImagePath string
-		if req.ParentImageURL != "" && s.mediaPath != "" {
-			networkImagePath = s.fetchImage(ctx, req.ParentImageURL, "entries", networkID)
-		}
-		networkMeta := map[string]any{}
-		if req.ParentWebsiteURL != "" {
-			networkMeta["website_url"] = req.ParentWebsiteURL
-		}
-		network := &domain.LibraryEntry{
-			ID:          networkID,
-			ContentType: req.ContentType,
-			Kind:        domain.KindNetwork,
-			Name:        req.ParentName,
-			SortName:    req.ParentName,
-			Status:      domain.EntryStatusActive,
-			Monitored:   false,
-			MonitorMode: domain.MonitorNone,
-			ImagePath:   networkImagePath,
-			Metadata:    networkMeta,
-		}
-		if err := s.entries.Save(ctx, network); err != nil {
-			return nil, err
-		}
-		parentID = network.ID
-		res.Network = network
+	parentID, network, err := s.importOrFindNetwork(ctx, req)
+	if err != nil {
+		return nil, err
 	}
+	res.Network = network
 
 	monitorMode := req.MonitorMode
 	if monitorMode == "" {
@@ -347,6 +332,30 @@ func (s *Service) ImportPerson(ctx context.Context, req *ImportPersonRequest) (*
 
 // ── Refresh ───────────────────────────────────────────────────────────────────
 
+// collectNewItems pages through src for the given entry external ID and returns
+// external items that do not yet have a corresponding item record.
+func (s *Service) collectNewItems(ctx context.Context, src ports.MetadataSource, entryName, srcExtID string) ([]*domain.ExternalItem, error) {
+	const perPage = 100
+	var newExtItems []*domain.ExternalItem
+
+	for page := 1; ; page++ {
+		_, extItems, total, err := src.FetchEntryContent(ctx, srcExtID, page, perPage)
+		if err != nil {
+			return nil, fmt.Errorf("refresh studio %q: page %d: %w", entryName, page, err)
+		}
+		for _, ei := range extItems {
+			if _, err := s.externalIDs.FindEntity(ctx, "item", string(ei.Source), ei.ExternalID); err == nil {
+				continue // already imported
+			}
+			newExtItems = append(newExtItems, ei)
+		}
+		if len(extItems) == 0 || page*perPage >= total {
+			break
+		}
+	}
+	return newExtItems, nil
+}
+
 // RefreshStudio fetches all content for a studio from its external metadata
 // source and creates Item records for any scenes not already in the library.
 // Cover art, performers, and tags are imported alongside each item.
@@ -362,24 +371,9 @@ func (s *Service) RefreshStudio(ctx context.Context, entryID string, p ports.Pro
 		return fmt.Errorf("refresh studio %q: no configured metadata source has an external ID for this entry", entry.Name)
 	}
 
-	// Phase 1: page through all content, collecting ExternalItems not yet imported.
-	const perPage = 100
-	var newExtItems []*domain.ExternalItem
-
-	for page := 1; ; page++ {
-		_, extItems, total, err := src.FetchEntryContent(ctx, srcExtID, page, perPage)
-		if err != nil {
-			return fmt.Errorf("refresh studio %q: page %d: %w", entry.Name, page, err)
-		}
-		for _, ei := range extItems {
-			if _, err := s.externalIDs.FindEntity(ctx, "item", string(ei.Source), ei.ExternalID); err == nil {
-				continue // already imported
-			}
-			newExtItems = append(newExtItems, ei)
-		}
-		if len(extItems) == 0 || page*perPage >= total {
-			break
-		}
+	newExtItems, err := s.collectNewItems(ctx, src, entry.Name, srcExtID)
+	if err != nil {
+		return err
 	}
 
 	if len(newExtItems) == 0 {
@@ -460,7 +454,6 @@ func (s *Service) loadTagCache(ctx context.Context) map[string]*domain.Tag {
 		return cache
 	}
 	for _, t := range existing {
-		t := t
 		cache[strings.ToLower(t.Name)] = t
 	}
 	return cache
@@ -593,7 +586,7 @@ func servesContentType(src ports.MetadataSource, contentType domain.ContentType)
 // extension (e.g. ".jpg"). Returns "" on error (non-fatal; logged only).
 func (s *Service) fetchImage(ctx context.Context, url, entityType, entityID string) string {
 	destBase := media.ImagePath(s.mediaPath, entityType, entityID, "")
-	if err := os.MkdirAll(filepath.Dir(destBase), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(destBase), 0o750); err != nil {
 		slog.Warn("failed to create image dir", "error", err)
 		return ""
 	}
@@ -608,7 +601,7 @@ func (s *Service) fetchImage(ctx context.Context, url, entityType, entityID stri
 		slog.Warn("failed to fetch image", "url", url, "error", err)
 		return ""
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		slog.Warn("unexpected status fetching image", "url", url, "status", resp.StatusCode)
@@ -616,16 +609,21 @@ func (s *Service) fetchImage(ctx context.Context, url, entityType, entityID stri
 	}
 
 	ext := extFromContentType(resp.Header.Get("Content-Type"))
-	f, err := os.Create(destBase + ext)
-	if err != nil {
-		slog.Warn("failed to create image file", "path", destBase+ext, "error", err)
+	dest := filepath.Clean(destBase + ext)
+	if !strings.HasPrefix(dest, filepath.Clean(s.mediaPath)) {
+		slog.Warn("image path outside media dir", "path", dest)
 		return ""
 	}
-	defer f.Close()
+	f, err := os.Create(dest) //nolint:gosec
+	if err != nil {
+		slog.Warn("failed to create image file", "path", dest, "error", err)
+		return ""
+	}
+	defer func() { _ = f.Close() }()
 
 	if _, err := io.Copy(f, resp.Body); err != nil {
-		slog.Warn("failed to write image", "path", destBase+ext, "error", err)
-		_ = os.Remove(destBase + ext)
+		slog.Warn("failed to write image", "path", dest, "error", err)
+		_ = os.Remove(dest)
 		return ""
 	}
 

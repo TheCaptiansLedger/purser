@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-
 	"purser/internal/app/errs"
 	"purser/internal/domain"
 	"purser/internal/ports"
@@ -15,10 +14,12 @@ type Service struct {
 	people ports.PersonRepository
 }
 
+// New constructs a people Service wired to the given repository.
 func New(people ports.PersonRepository) *Service {
 	return &Service{people: people}
 }
 
+// CreatePerson validates and persists a new person record.
 func (s *Service) CreatePerson(ctx context.Context, p *domain.Person) error {
 	if p.Name == "" {
 		return errs.Validation("name is required")
@@ -32,6 +33,7 @@ func (s *Service) CreatePerson(ctx context.Context, p *domain.Person) error {
 	return s.people.Save(ctx, p)
 }
 
+// GetPerson returns the person with the given ID.
 func (s *Service) GetPerson(ctx context.Context, id string) (*domain.Person, error) {
 	p, err := s.people.Get(ctx, id)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -40,10 +42,12 @@ func (s *Service) GetPerson(ctx context.Context, id string) (*domain.Person, err
 	return p, err
 }
 
+// ListPeople returns a filtered, paginated list of people.
 func (s *Service) ListPeople(ctx context.Context, f ports.PersonFilter) ([]*domain.Person, int, error) {
 	return s.people.List(ctx, f)
 }
 
+// SavePerson persists changes to an existing person record.
 func (s *Service) SavePerson(ctx context.Context, p *domain.Person) error {
 	if p.Name == "" {
 		return errs.Validation("name is required")
@@ -51,6 +55,7 @@ func (s *Service) SavePerson(ctx context.Context, p *domain.Person) error {
 	return s.people.Save(ctx, p)
 }
 
+// DeletePerson removes a person by ID, returning an error if not found.
 func (s *Service) DeletePerson(ctx context.Context, id string) error {
 	if _, err := s.GetPerson(ctx, id); err != nil {
 		return err

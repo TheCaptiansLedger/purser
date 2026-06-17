@@ -3,12 +3,11 @@ package api
 import (
 	"context"
 	"net/http"
+	"purser/internal/domain"
+	"purser/internal/ports"
 	"time"
 
 	"github.com/go-chi/chi/v5"
-
-	"purser/internal/domain"
-	"purser/internal/ports"
 )
 
 type jobHandler struct {

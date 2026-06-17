@@ -2,7 +2,6 @@ package stashdb
 
 import (
 	"context"
-
 	"purser/internal/domain"
 )
 
@@ -47,6 +46,7 @@ query SearchStudios($term: String!) {
 
 // ── MetadataSource ────────────────────────────────────────────────────────────
 
+// SearchStudios queries StashDB for studios matching the given search string.
 func (a *Adapter) SearchStudios(ctx context.Context, query string, limit int) ([]*domain.ExternalStudio, error) {
 	var resp struct {
 		SearchStudio []gqlStudio `json:"searchStudio"`

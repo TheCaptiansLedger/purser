@@ -2,12 +2,11 @@ package api
 
 import (
 	"net/http"
-
-	"github.com/go-chi/chi/v5"
-
 	"purser/internal/app/library"
 	"purser/internal/domain"
 	"purser/internal/ports"
+
+	"github.com/go-chi/chi/v5"
 )
 
 type groupHandler struct {

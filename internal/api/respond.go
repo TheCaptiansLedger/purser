@@ -24,7 +24,7 @@ func writeJSON(w http.ResponseWriter, status int, v any) {
 	w.WriteHeader(status)
 	enc := json.NewEncoder(w)
 	enc.SetEscapeHTML(false)
-	enc.Encode(v) //nolint:errcheck
+	_ = enc.Encode(v)
 }
 
 func writeError(w http.ResponseWriter, status int, code, msg string) {

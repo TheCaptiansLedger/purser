@@ -4,12 +4,11 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"testing"
-
 	"purser/internal/app/errs"
 	"purser/internal/app/people"
 	"purser/internal/domain"
 	"purser/internal/ports"
+	"testing"
 )
 
 type mockPersonRepo struct {
@@ -29,7 +28,7 @@ func (m *mockPersonRepo) Get(_ context.Context, id string) (*domain.Person, erro
 }
 
 func (m *mockPersonRepo) List(_ context.Context, _ ports.PersonFilter) ([]*domain.Person, int, error) {
-	var res []*domain.Person
+	res := make([]*domain.Person, 0, len(m.data))
 	for _, p := range m.data {
 		res = append(res, p)
 	}

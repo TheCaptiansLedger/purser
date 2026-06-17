@@ -1,0 +1,84 @@
+version: "2"
+
+run:
+  timeout: 5m
+  relative-path-mode: gomod
+  tests: true
+
+issues:
+  max-issues-per-linter: 0
+  max-same-issues: 0
+
+linters:
+  default: none
+
+  enable:
+    # correctness
+    - govet
+    - staticcheck
+    - errcheck
+    - ineffassign
+    - unused
+    - nilerr
+    - nilnil
+    - errorlint
+
+    # security
+    - gosec
+
+    # maintainability
+    - revive
+    - iface
+    - unconvert
+    - wastedassign
+    - bodyclose
+    - contextcheck
+    - durationcheck
+    - copyloopvar
+    - misspell
+
+    # perf
+    - prealloc
+
+    # complexity
+    - cyclop
+
+    # dependency hygiene
+    - depguard
+
+  settings:
+    cyclop:
+      max-complexity: 15
+
+    revive:
+      rules:
+        - name: var-naming
+        - name: exported
+        - name: empty-block
+        - name: unused-parameter
+        - name: superfluous-else
+        - name: unreachable-code
+
+    depguard:
+      rules:
+        main:
+          deny:
+            - pkg: io/ioutil
+              desc: deprecated
+
+    gosec:
+      excludes:
+        - G404
+
+  exclusions:
+    rules:
+      - path: _test\.go
+        linters:
+          - errcheck
+          - gosec
+          - cyclop
+
+formatters:
+  enable:
+    - gofumpt
+    - goimports

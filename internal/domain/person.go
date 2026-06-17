@@ -5,6 +5,7 @@ import "time"
 // PersonRole describes how a person is credited on a particular item.
 type PersonRole string
 
+// Person role constants for all supported credit types.
 const (
 	RolePerformer PersonRole = "performer"
 	RoleActress   PersonRole = "actress"

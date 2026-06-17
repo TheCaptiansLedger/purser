@@ -2,13 +2,12 @@ package api
 
 import (
 	"net/http"
-	"time"
-
-	"github.com/go-chi/chi/v5"
-
 	"purser/internal/app/people"
 	"purser/internal/domain"
 	"purser/internal/ports"
+	"time"
+
+	"github.com/go-chi/chi/v5"
 )
 
 type peopleHandler struct {
@@ -100,11 +99,11 @@ func (h *peopleHandler) get(w http.ResponseWriter, r *http.Request) {
 }
 
 type createPersonRequest struct {
-	Name        string `json:"name"`
-	SortName    string `json:"sortName"`
-	Overview    string `json:"overview"`
-	Monitored   bool   `json:"monitored"`
-	MonitorMode string `json:"monitorMode"`
+	Name        string   `json:"name"`
+	SortName    string   `json:"sortName"`
+	Overview    string   `json:"overview"`
+	Monitored   bool     `json:"monitored"`
+	MonitorMode string   `json:"monitorMode"`
 	Aliases     []string `json:"aliases"`
 	ExternalIDs []struct {
 		Source string `json:"source"`

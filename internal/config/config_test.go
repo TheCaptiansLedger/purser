@@ -3,10 +3,28 @@ package config
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
+// clearPurserEnv unsets every PURSER_* environment variable for the duration
+// of the test and restores the originals via t.Cleanup. This prevents ambient
+// host environment from shadowing defaults or YAML fixture values.
+func clearPurserEnv(t *testing.T) {
+	t.Helper()
+	for _, kv := range os.Environ() {
+		k, _, _ := strings.Cut(kv, "=")
+		if !strings.HasPrefix(k, "PURSER_") {
+			continue
+		}
+		orig := os.Getenv(k)
+		os.Unsetenv(k)
+		t.Cleanup(func() { os.Setenv(k, orig) })
+	}
+}
+
 func TestLoad_Defaults(t *testing.T) {
+	clearPurserEnv(t)
 	cfg, err := Load("")
 	if err != nil {
 		t.Fatalf("Load empty path: %v", err)
@@ -32,6 +50,7 @@ func TestLoad_Defaults(t *testing.T) {
 }
 
 func TestLoad_Defaults_AllModulesEnabled(t *testing.T) {
+	clearPurserEnv(t)
 	cfg, err := Load("")
 	if err != nil {
 		t.Fatalf("Load: %v", err)
@@ -57,6 +76,7 @@ func TestLoad_Defaults_AllModulesEnabled(t *testing.T) {
 }
 
 func TestLoad_Defaults_RootsEmpty(t *testing.T) {
+	clearPurserEnv(t)
 	cfg, err := Load("")
 	if err != nil {
 		t.Fatalf("Load: %v", err)
@@ -70,6 +90,7 @@ func TestLoad_Defaults_RootsEmpty(t *testing.T) {
 }
 
 func TestLoad_MissingFile(t *testing.T) {
+	clearPurserEnv(t)
 	cfg, err := Load("/no/such/file.yaml")
 	if err != nil {
 		t.Fatalf("missing file should not error, got: %v", err)
@@ -80,6 +101,7 @@ func TestLoad_MissingFile(t *testing.T) {
 }
 
 func TestLoad_FromYAML(t *testing.T) {
+	clearPurserEnv(t)
 	f := filepath.Join(t.TempDir(), "purser.yaml")
 	if err := os.WriteFile(f, []byte(`
 server:
@@ -102,7 +124,7 @@ modules:
 log:
   level: debug
   format: json
-`), 0644); err != nil {
+`), 0o644); err != nil {
 		t.Fatal(err)
 	}
 
@@ -143,6 +165,7 @@ log:
 }
 
 func TestLoad_Defaults_SourcesDisabled(t *testing.T) {
+	clearPurserEnv(t)
 	cfg, err := Load("")
 	if err != nil {
 		t.Fatalf("Load: %v", err)
@@ -177,6 +200,7 @@ func TestLoad_Defaults_SourcesDisabled(t *testing.T) {
 }
 
 func TestLoad_SourcesFromYAML(t *testing.T) {
+	clearPurserEnv(t)
 	f := filepath.Join(t.TempDir(), "purser.yaml")
 	if err := os.WriteFile(f, []byte(`
 sources:
@@ -193,7 +217,7 @@ sources:
     enabled: true
     url: http://stash.local:9999
     api_key: stash-local-key
-`), 0644); err != nil {
+`), 0o644); err != nil {
 		t.Fatal(err)
 	}
 

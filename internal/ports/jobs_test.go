@@ -3,7 +3,6 @@ package ports_test
 import (
 	"context"
 	"errors"
-
 	"purser/internal/domain"
 	"purser/internal/ports"
 )
@@ -43,5 +42,7 @@ func (r *stubReporter) Report(current, total int, message string) {
 }
 
 // Compile-time interface satisfaction checks.
-var _ ports.JobQueue = (*stubQueue)(nil)
-var _ ports.ProgressReporter = (*stubReporter)(nil)
+var (
+	_ ports.JobQueue         = (*stubQueue)(nil)
+	_ ports.ProgressReporter = (*stubReporter)(nil)
+)

@@ -2,12 +2,11 @@ package api
 
 import (
 	"net/http"
+	"purser/internal/app/metadata"
+	"purser/internal/domain"
 	"strconv"
 
 	"github.com/go-chi/chi/v5"
-
-	"purser/internal/app/metadata"
-	"purser/internal/domain"
 )
 
 type metadataHandler struct {
@@ -174,16 +173,16 @@ func (h *metadataHandler) importPerson(w http.ResponseWriter, r *http.Request) {
 // ── Response shapes ───────────────────────────────────────────────────────────
 
 type externalStudioResponse struct {
-	Source             string `json:"source"`
-	ExternalID         string `json:"externalId"`
-	Name               string `json:"name"`
-	Overview           string `json:"overview,omitempty"`
-	ImageURL           string `json:"imageUrl,omitempty"`
-	WebsiteURL         string `json:"websiteUrl,omitempty"`
-	ParentExternalID   string `json:"parentExternalId,omitempty"`
-	ParentName         string `json:"parentName,omitempty"`
-	ParentImageURL     string `json:"parentImageUrl,omitempty"`
-	ParentWebsiteURL   string `json:"parentWebsiteUrl,omitempty"`
+	Source           string `json:"source"`
+	ExternalID       string `json:"externalId"`
+	Name             string `json:"name"`
+	Overview         string `json:"overview,omitempty"`
+	ImageURL         string `json:"imageUrl,omitempty"`
+	WebsiteURL       string `json:"websiteUrl,omitempty"`
+	ParentExternalID string `json:"parentExternalId,omitempty"`
+	ParentName       string `json:"parentName,omitempty"`
+	ParentImageURL   string `json:"parentImageUrl,omitempty"`
+	ParentWebsiteURL string `json:"parentWebsiteUrl,omitempty"`
 }
 
 type externalPersonResponse struct {

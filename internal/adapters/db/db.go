@@ -24,12 +24,12 @@ func Open(dsn string) (*sql.DB, error) {
 	}
 
 	if _, err := database.Exec(`PRAGMA journal_mode=WAL; PRAGMA foreign_keys=ON;`); err != nil {
-		database.Close()
+		_ = database.Close()
 		return nil, fmt.Errorf("configure sqlite: %w", err)
 	}
 
 	if err := runMigrations(database); err != nil {
-		database.Close()
+		_ = database.Close()
 		return nil, fmt.Errorf("run migrations: %w", err)
 	}
 
@@ -52,12 +52,12 @@ func runMigrations(database *sql.DB) error {
 	for rows.Next() {
 		var v string
 		if err := rows.Scan(&v); err != nil {
-			rows.Close()
+			_ = rows.Close()
 			return err
 		}
 		applied[v] = true
 	}
-	rows.Close()
+	_ = rows.Close()
 	if err := rows.Err(); err != nil {
 		return err
 	}
@@ -79,34 +79,39 @@ func runMigrations(database *sql.DB) error {
 		if applied[f] {
 			continue
 		}
-
 		data, err := migrationFiles.ReadFile("migrations/" + f)
 		if err != nil {
 			return fmt.Errorf("read migration %s: %w", f, err)
 		}
-
-		tx, err := database.Begin()
-		if err != nil {
-			return fmt.Errorf("begin migration %s: %w", f, err)
-		}
-
-		if _, err := tx.Exec(string(data)); err != nil {
-			tx.Rollback()
-			return fmt.Errorf("apply migration %s: %w", f, err)
-		}
-
-		if _, err := tx.Exec(
-			`INSERT INTO schema_migrations(version, applied_at) VALUES(?, ?)`,
-			f, time.Now().UTC().Format(time.RFC3339),
-		); err != nil {
-			tx.Rollback()
-			return fmt.Errorf("record migration %s: %w", f, err)
-		}
-
-		if err := tx.Commit(); err != nil {
-			return fmt.Errorf("commit migration %s: %w", f, err)
+		if err := applyMigration(database, f, data); err != nil {
+			return err
 		}
 	}
 
+	return nil
+}
+
+func applyMigration(database *sql.DB, filename string, data []byte) error {
+	tx, err := database.Begin()
+	if err != nil {
+		return fmt.Errorf("begin migration %s: %w", filename, err)
+	}
+
+	if _, err := tx.Exec(string(data)); err != nil {
+		_ = tx.Rollback()
+		return fmt.Errorf("apply migration %s: %w", filename, err)
+	}
+
+	if _, err := tx.Exec(
+		`INSERT INTO schema_migrations(version, applied_at) VALUES(?, ?)`,
+		filename, time.Now().UTC().Format(time.RFC3339),
+	); err != nil {
+		_ = tx.Rollback()
+		return fmt.Errorf("record migration %s: %w", filename, err)
+	}
+
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("commit migration %s: %w", filename, err)
+	}
 	return nil
 }

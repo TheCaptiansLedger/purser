@@ -3,6 +3,7 @@ package domain
 // Quality represents a video resolution tier.
 type Quality string
 
+// Quality tier constants ordered from highest to lowest resolution.
 const (
 	Quality4K   Quality = "4K"
 	Quality1080 Quality = "1080p"
