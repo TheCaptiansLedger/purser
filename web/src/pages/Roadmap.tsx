@@ -1,12 +1,30 @@
+import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { ExternalLink, RefreshCw, AlertCircle, CheckCircle2, Lightbulb, Wrench, Ban } from 'lucide-react'
+import {
+  ExternalLink,
+  RefreshCw,
+  AlertCircle,
+  CheckCircle2,
+  Lightbulb,
+  Wrench,
+  Ban,
+  LayoutGrid,
+  Layers,
+  Cpu,
+  Database,
+  Plug,
+  Folder,
+  Settings,
+  HelpCircle,
+  Layout
+} from 'lucide-react'
 
 const GITHUB_REPO = 'TheCaptiansLedger/purser'
 const GITHUB_API = `https://api.github.com/repos/${GITHUB_REPO}`
 
-interface GHLabel { id: number; name: string; color: string }
-interface GHUser  { login: string; avatar_url: string }
-interface GHIssue {
+export interface GHLabel { id: number; name: string; color: string }
+export interface GHUser  { login: string; avatar_url: string }
+export interface GHIssue {
   id: number
   number: number
   title: string
@@ -17,6 +35,8 @@ interface GHIssue {
   updated_at: string
   closed_at: string | null
   state: 'open' | 'closed'
+  pull_request?: { url: string }
+  assignees?: GHUser[]
 }
 
 async function fetchIssues(state: 'open' | 'closed'): Promise<GHIssue[]> {
@@ -35,17 +55,45 @@ const COLUMNS = [
   { status: 'blocked',     label: 'Blocked',      icon: Ban,          accent: '#ef4444' },
 ]
 
-function hasStatus(issue: GHIssue, status: string) {
+export const AREAS = [
+  { id: 'ui',       label: 'User Interface',  color: '#ec4899' },
+  { id: 'api',      label: 'API & Routing',   color: '#3b82f6' },
+  { id: 'db',       label: 'Database',        color: '#10b981' },
+  { id: 'adapter',  label: 'Adapters',         color: '#8b5cf6' },
+  { id: 'domain',   label: 'Core Domain',     color: '#14b8a6' },
+  { id: 'infra',    label: 'Infrastructure & CI', color: '#f59e0b' },
+  { id: 'other',    label: 'General & Other',  color: '#6b7280' },
+]
+
+const AREA_ICONS: Record<string, React.ElementType> = {
+  ui: Layout,
+  api: Cpu,
+  db: Database,
+  adapter: Plug,
+  domain: Folder,
+  infra: Settings,
+  other: HelpCircle,
+}
+
+export function hasStatus(issue: GHIssue, status: string) {
   return issue.labels.some(l => l.name === `status: ${status}`)
 }
 
-function getQuarterKey(dateStr: string) {
+export function getQuarterKey(dateStr: string) {
   const d = new Date(dateStr)
-  return `${d.getFullYear()}-Q${Math.floor(d.getMonth() / 3) + 1}`
+  return `${d.getUTCFullYear()}-Q${Math.floor(d.getUTCMonth() / 3) + 1}`
+}
+
+export function getIssueArea(issue: GHIssue): string {
+  const areaLabel = issue.labels.find(l => l.name.startsWith('area:'))
+  if (!areaLabel) return 'other'
+  const name = areaLabel.name.replace('area:', '').trim()
+  const exists = AREAS.some(a => a.id === name)
+  return exists ? name : 'other'
 }
 
 function displayLabels(labels: GHLabel[]) {
-  return labels.filter(l => !l.name.startsWith('status:')).slice(0, 3)
+  return labels.filter(l => !l.name.startsWith('status:') && !l.name.startsWith('area:')).slice(0, 3)
 }
 
 function relativeDate(dateStr: string) {
@@ -65,6 +113,25 @@ function shortDate(dateStr: string) {
   return new Date(dateStr).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
 }
 
+function ContributorAvatar({ user, role }: { user: GHUser; role: 'creator' | 'assignee' }) {
+  return (
+    <div className="relative group/avatar">
+      <img
+        src={user.avatar_url}
+        alt={user.login}
+        className={`w-5 h-5 rounded-full border shrink-0 transition-all ${
+          role === 'creator'
+            ? 'border-indigo-500/40 opacity-70 group-hover/avatar:opacity-100'
+            : 'border-emerald-500/40 opacity-55 group-hover/avatar:opacity-100 hover:scale-105'
+        }`}
+      />
+      <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 hidden group-hover/avatar:block bg-zinc-950 text-[9px] text-white/90 px-1.5 py-0.5 rounded border border-white/10 whitespace-nowrap z-30 shadow-lg pointer-events-none">
+        {role === 'creator' ? 'Creator' : 'Assignee'}: {user.login}
+      </span>
+    </div>
+  )
+}
+
 function IssueCard({ issue, shipped = false }: { issue: GHIssue; shipped?: boolean }) {
   const labels = displayLabels(issue.labels)
   return (
@@ -75,9 +142,14 @@ function IssueCard({ issue, shipped = false }: { issue: GHIssue; shipped?: boole
       className="group flex flex-col gap-2.5 p-3.5 rounded-xl border border-white/6 bg-white/3 hover:bg-white/6 hover:border-white/12 transition-all duration-150"
     >
       <div className="flex items-start justify-between gap-2">
-        <div className="flex items-center gap-2 min-w-0">
-          <img src={issue.user.avatar_url} alt={issue.user.login} className="w-5 h-5 rounded-full shrink-0 opacity-60" />
-          <span className="text-[11px] text-white/35 shrink-0">#{issue.number}</span>
+        <div className="flex items-center gap-1.5 min-w-0">
+          <span className="text-[11px] text-white/35 shrink-0 mr-0.5">#{issue.number}</span>
+          <div className="flex items-center -space-x-1 shrink-0">
+            <ContributorAvatar user={issue.user} role="creator" />
+            {(issue.assignees ?? []).map(assignee => (
+              <ContributorAvatar key={assignee.login} user={assignee} role="assignee" />
+            ))}
+          </div>
         </div>
         <div className="flex items-center gap-2 shrink-0">
           {issue.comments > 0 && (
@@ -159,8 +231,20 @@ export function Roadmap() {
     staleTime: 5 * 60 * 1000,
   })
 
-  const openIssues = (open.data ?? []).filter(i => i.labels.some(l => l.name.startsWith('status:')))
-  const shippedIssues = closed.data ?? []
+  const [viewMode, setViewMode] = useState<'kanban' | 'swimlanes'>(() => {
+    return (localStorage.getItem('purser:roadmap:viewMode') as 'kanban' | 'swimlanes') || 'swimlanes'
+  })
+
+  const openIssues = (open.data ?? []).filter(
+    i => !i.pull_request && i.labels.some(l => l.name.startsWith('status:'))
+  )
+  const shippedIssues = (closed.data ?? []).filter(
+    i => !i.pull_request && i.labels.some(l => l.name.startsWith('status:'))
+  )
+
+  const activeAreas = AREAS.filter(area =>
+    openIssues.some(i => getIssueArea(i) === area.id)
+  )
 
   const quarters = Array.from(new Set(
     shippedIssues.filter(i => i.closed_at).map(i => getQuarterKey(i.closed_at!))
@@ -190,14 +274,53 @@ export function Roadmap() {
             <ExternalLink size={12} />
           </a>
         </div>
-        <button
-          onClick={refetch}
-          disabled={isLoading}
-          className="flex items-center gap-2 px-3 py-2 rounded-lg border border-white/8 bg-white/3 hover:bg-white/6 text-white/50 hover:text-white/80 text-sm transition-all duration-150 disabled:opacity-40"
-        >
-          <RefreshCw size={14} className={isLoading ? 'animate-spin' : ''} />
-          Refresh
-        </button>
+
+        <div className="flex items-center gap-3">
+          {/* View Mode Toggle */}
+          {!error && !isLoading && openIssues.length > 0 && (
+            <div className="flex items-center rounded-lg border border-white/8 bg-white/3 p-0.5 shrink-0">
+              <button
+                onClick={() => {
+                  setViewMode('swimlanes')
+                  localStorage.setItem('purser:roadmap:viewMode', 'swimlanes')
+                }}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
+                  viewMode === 'swimlanes'
+                    ? 'bg-white/10 text-white shadow-sm'
+                    : 'text-white/40 hover:text-white/75'
+                }`}
+                title="Swimlanes by Area"
+              >
+                <Layers size={13} />
+                Swimlanes
+              </button>
+              <button
+                onClick={() => {
+                  setViewMode('kanban')
+                  localStorage.setItem('purser:roadmap:viewMode', 'kanban')
+                }}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
+                  viewMode === 'kanban'
+                    ? 'bg-white/10 text-white shadow-sm'
+                    : 'text-white/40 hover:text-white/75'
+                }`}
+                title="Standard Kanban Board"
+              >
+                <LayoutGrid size={13} />
+                Standard
+              </button>
+            </div>
+          )}
+
+          <button
+            onClick={refetch}
+            disabled={isLoading}
+            className="flex items-center gap-2 px-3 py-2 rounded-lg border border-white/8 bg-white/3 hover:bg-white/6 text-white/50 hover:text-white/80 text-sm transition-all duration-150 disabled:opacity-40 shrink-0"
+          >
+            <RefreshCw size={14} className={isLoading ? 'animate-spin' : ''} />
+            Refresh
+          </button>
+        </div>
       </div>
 
       {error && (
@@ -207,7 +330,7 @@ export function Roadmap() {
         </div>
       )}
 
-      {/* Kanban */}
+      {/* Main Board Content */}
       {isLoading && openIssues.length === 0 ? (
         <div className="grid grid-cols-3 gap-6">
           {COLUMNS.map(col => (
@@ -219,7 +342,79 @@ export function Roadmap() {
             </div>
           ))}
         </div>
+      ) : openIssues.length === 0 ? (
+        <div className="text-center py-12 rounded-xl border border-white/6 bg-white/1 text-white/30 text-sm">
+          No active roadmap issues found.
+        </div>
+      ) : viewMode === 'swimlanes' ? (
+        <div className="flex flex-col gap-8">
+          {/* Global Column Headers for Swimlanes */}
+          <div className="grid grid-cols-3 gap-6 mb-2 px-1">
+            {COLUMNS.map(col => {
+              const Icon = col.icon
+              const count = openIssues.filter(i => hasStatus(i, col.status)).length
+              return (
+                <div key={col.status} className="flex items-center gap-2 pb-2 border-b border-white/4">
+                  <Icon size={14} style={{ color: col.accent }} />
+                  <span className="text-xs font-semibold text-white/60 uppercase tracking-wider">{col.label}</span>
+                  <span
+                    className="text-[10px] font-bold px-1.5 py-0.5 rounded-full"
+                    style={{ background: `${col.accent}15`, color: col.accent }}
+                  >
+                    {count}
+                  </span>
+                </div>
+              )
+            })}
+          </div>
+
+          {/* Swimlanes list */}
+          <div className="flex flex-col gap-6">
+            {activeAreas.map(area => {
+              const areaIssues = openIssues.filter(i => getIssueArea(i) === area.id)
+              const AreaIcon = AREA_ICONS[area.id] || HelpCircle
+
+              return (
+                <div
+                  key={area.id}
+                  className="flex flex-col gap-4 p-4 rounded-xl border border-white/6 bg-white/1 hover:border-white/10 transition-colors duration-150"
+                >
+                  {/* Swimlane Header */}
+                  <div className="flex items-center gap-2.5">
+                    <AreaIcon size={16} style={{ color: area.color }} />
+                    <span className="text-sm font-semibold text-white/95">{area.label}</span>
+                    <span
+                      className="text-[10px] px-2 py-0.5 rounded-full font-medium"
+                      style={{ background: `${area.color}15`, color: area.color }}
+                    >
+                      {areaIssues.length} open
+                    </span>
+                  </div>
+
+                  {/* 3 Columns under this Swimlane */}
+                  <div className="grid grid-cols-3 gap-6">
+                    {COLUMNS.map(col => {
+                      const colIssues = areaIssues.filter(i => hasStatus(i, col.status))
+                      return (
+                        <div key={col.status} className="flex flex-col gap-2.5 min-w-0">
+                          {colIssues.length === 0 ? (
+                            <div className="h-full min-h-[4rem] flex items-center justify-center rounded-xl border border-dashed border-white/4 bg-white/[0.01] text-center text-xs text-white/15">
+                              No {col.label.toLowerCase()}
+                            </div>
+                          ) : (
+                            colIssues.map(i => <IssueCard key={i.id} issue={i} />)
+                          )}
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        </div>
       ) : (
+        /* Standard Kanban Board */
         <div className="grid grid-cols-3 gap-6">
           {COLUMNS.map(col => (
             <KanbanColumn
@@ -231,9 +426,9 @@ export function Roadmap() {
         </div>
       )}
 
-      {/* Shipped */}
+      {/* Shipped Section */}
       {(shippedIssues.length > 0 || (!closed.isLoading && shippedIssues.length === 0)) && (
-        <div className="mt-12">
+        <div className="mt-16">
           <div className="flex items-center gap-3 mb-6">
             <CheckCircle2 size={16} className="text-emerald-400" />
             <h2 className="text-base font-semibold text-white/70">Shipped</h2>
@@ -249,9 +444,12 @@ export function Roadmap() {
                 const items = shippedIssues
                   .filter(i => i.closed_at && getQuarterKey(i.closed_at) === qKey)
                   .sort((a, b) => new Date(b.closed_at!).getTime() - new Date(a.closed_at!).getTime())
+                
+                if (items.length === 0) return null
+
                 return (
                   <div key={qKey}>
-                    <div className="flex items-center gap-3 mb-3">
+                    <div className="flex items-center gap-3 mb-4">
                       <span className="text-sm font-medium text-white/50">{q} {year}</span>
                       <span className="text-xs text-white/25">{items.length} features</span>
                     </div>
