@@ -281,6 +281,18 @@ func TestLoad_EnvOverride(t *testing.T) {
 	}
 }
 
+func TestLoad_InvalidYAML(t *testing.T) {
+	clearPurserEnv(t)
+	f := filepath.Join(t.TempDir(), "purser.yaml")
+	if err := os.WriteFile(f, []byte(":\tinvalid: yaml: {{{"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	_, err := Load(f)
+	if err == nil {
+		t.Fatal("Load with invalid YAML should return an error")
+	}
+}
+
 func TestLoad_SourcesEnvOverride(t *testing.T) {
 	t.Setenv("PURSER_SOURCES_STASHDB_ENABLED", "true")
 	t.Setenv("PURSER_SOURCES_STASHDB_API_KEY", "env-stash-key")
