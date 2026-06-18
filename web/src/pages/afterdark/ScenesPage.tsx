@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Film } from 'lucide-react'
 import { useItems } from '../../api/items'
+import { useStatusOverlay } from '../../hooks/useStatusOverlay'
 import { PageHeader } from '../../components/layout/PageHeader'
 import { ItemCard } from '../../components/media/ItemCard'
 import { Pagination } from '../../components/ui/Pagination'
@@ -13,6 +14,7 @@ const LIMIT = 48
 export function ScenesPage() {
   const [search, setSearch] = useState('')
   const [offset, setOffset] = useState(0)
+  const [alwaysShowStatus, toggleStatus] = useStatusOverlay('afterdark')
 
   const resetPage = (v: string) => { setSearch(v); setOffset(0) }
 
@@ -52,6 +54,7 @@ export function ScenesPage() {
         search={search}
         onSearch={resetPage}
         total={total}
+        statusOverlay={{ value: alwaysShowStatus, onToggle: toggleStatus }}
       />
       <div className="px-8 py-6">
         {loading ? (
@@ -62,7 +65,15 @@ export function ScenesPage() {
           <>
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
               {allScenes.map(item => (
-                <ItemCard key={item.id} item={item} href={`/afterdark/scenes/${item.id}`} aspect="16/9" accent={ACCENT} showPeople />
+                <ItemCard
+                  key={item.id}
+                  item={item}
+                  href={`/afterdark/scenes/${item.id}`}
+                  aspect="16/9"
+                  accent={ACCENT}
+                  showPeople
+                  alwaysShowStatus={alwaysShowStatus}
+                />
               ))}
             </div>
             <Pagination total={total} limit={LIMIT} offset={offset} onChange={setOffset} accent={ACCENT} />

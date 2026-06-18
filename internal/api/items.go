@@ -256,7 +256,16 @@ func (h *itemHandler) update(w http.ResponseWriter, r *http.Request) {
 		item.Monitored = *req.Monitored
 	}
 	if req.Status != nil {
-		item.Status = domain.ItemStatus(*req.Status)
+		newStatus := domain.ItemStatus(*req.Status)
+		if newStatus != domain.StatusWanted && newStatus != domain.StatusSkipped {
+			writeError(w, http.StatusUnprocessableEntity, "INVALID_STATUS", "status must be 'wanted' or 'skipped'")
+			return
+		}
+		if err := domain.ValidateTransition(item.Status, newStatus); err != nil {
+			writeError(w, http.StatusUnprocessableEntity, "INVALID_TRANSITION", err.Error())
+			return
+		}
+		item.Status = newStatus
 	}
 
 	if err := h.svc.SaveItem(r.Context(), item); handleErr(w, err) {

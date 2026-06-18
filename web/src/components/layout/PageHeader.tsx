@@ -1,4 +1,10 @@
+import { Eye, EyeOff } from 'lucide-react'
 import { SearchBar } from '../ui/SearchBar'
+
+interface StatusOverlayControl {
+  value: boolean
+  onToggle: () => void
+}
 
 interface Props {
   title: string
@@ -7,10 +13,11 @@ interface Props {
   search: string
   onSearch: (v: string) => void
   total?: number
+  statusOverlay?: StatusOverlayControl
   children?: React.ReactNode
 }
 
-export function PageHeader({ title, subtitle, accent, search, onSearch, total, children }: Props) {
+export function PageHeader({ title, subtitle, accent, search, onSearch, total, statusOverlay, children }: Props) {
   return (
     <div
       className="sticky top-0 z-30 border-b border-white/5 backdrop-blur-xl"
@@ -34,6 +41,21 @@ export function PageHeader({ title, subtitle, accent, search, onSearch, total, c
         <div className="w-64 shrink-0">
           <SearchBar value={search} onChange={onSearch} accent={accent} />
         </div>
+        {statusOverlay && (
+          <button
+            type="button"
+            onClick={statusOverlay.onToggle}
+            title={statusOverlay.value ? 'Hide status badges' : 'Always show status badges'}
+            className="inline-flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-lg border transition-colors"
+            style={statusOverlay.value
+              ? { borderColor: accent + '55', color: accent }
+              : { borderColor: 'rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.4)' }
+            }
+          >
+            {statusOverlay.value ? <Eye size={13} /> : <EyeOff size={13} />}
+            Status
+          </button>
+        )}
         {children}
       </div>
     </div>

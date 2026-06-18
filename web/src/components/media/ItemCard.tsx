@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { ImageIcon, Clock } from 'lucide-react'
-import { Badge } from '../ui/Badge'
+import { ItemStatusPopover } from './ItemStatusPopover'
 import type { Item } from '../../types'
 
 interface Props {
@@ -10,6 +10,7 @@ interface Props {
   aspect?: '2/3' | '16/9'
   accent?: string
   showPeople?: boolean
+  alwaysShowStatus?: boolean
 }
 
 function fmtRuntime(secs: number) {
@@ -24,7 +25,7 @@ function fmtDate(d?: string) {
   return new Date(d).getFullYear()
 }
 
-export function ItemCard({ item, href, aspect = '2/3', accent, showPeople = false }: Props) {
+export function ItemCard({ item, href, aspect = '2/3', accent, showPeople = false, alwaysShowStatus = false }: Props) {
   const [imgFailed, setImgFailed] = useState(false)
   const showImg = !!item.coverUrl && !imgFailed
   const runtime = fmtRuntime(item.runtimeSeconds)
@@ -66,12 +67,13 @@ export function ItemCard({ item, href, aspect = '2/3', accent, showPeople = fals
             </span>
           </div>
         )}
-        {/* File status */}
-        {item.status === 'imported' && (
-          <div className="absolute top-2 left-2">
-            <Badge color={accent}>HD</Badge>
-          </div>
-        )}
+        {/* Status overlay — always visible or revealed on hover */}
+        <div className={[
+          'absolute bottom-2 left-2 transition-opacity duration-200',
+          alwaysShowStatus ? 'opacity-100' : 'opacity-0 group-hover:opacity-100',
+        ].join(' ')}>
+          <ItemStatusPopover item={item} />
+        </div>
       </div>
 
       <div className="px-0.5">
