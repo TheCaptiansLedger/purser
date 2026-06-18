@@ -169,6 +169,71 @@ func TestQueue_Get_NotFound(t *testing.T) {
 	}
 }
 
+func TestQueue_Cancel_NotFound(t *testing.T) {
+	q := New(1)
+	defer q.Close()
+
+	err := q.Cancel(context.Background(), "nonexistent-id")
+	if err == nil {
+		t.Error("Cancel with unknown id returned nil error, want error")
+	}
+}
+
+func TestQueue_Cancel_QueuedJob(t *testing.T) {
+	// Fill the worker so the second job stays queued.
+	q := New(1)
+	defer q.Close()
+
+	blocking := make(chan struct{})
+	q.Submit(context.Background(), "blocker", nil, func(_ context.Context, _ ports.ProgressReporter) error { //nolint:errcheck
+		<-blocking
+		return nil
+	})
+
+	queued, err := q.Submit(context.Background(), "queued", nil, func(_ context.Context, _ ports.ProgressReporter) error {
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("Submit: %v", err)
+	}
+
+	if err := q.Cancel(context.Background(), queued.ID); err != nil {
+		t.Fatalf("Cancel queued: %v", err)
+	}
+
+	// Unblock the worker so the queue drains cleanly.
+	close(blocking)
+
+	job := waitForTerminal(t, q, queued.ID)
+	if job.Status != domain.JobStatusCancelled {
+		t.Errorf("Status = %s, want cancelled", job.Status)
+	}
+}
+
+func TestQueue_Submit_WithPayload(t *testing.T) {
+	q := New(1)
+	defer q.Close()
+
+	payload := map[string]any{"key": "value", "count": 42}
+	submitted, err := q.Submit(context.Background(), "with-payload", payload, func(_ context.Context, _ ports.ProgressReporter) error {
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("Submit: %v", err)
+	}
+
+	got := waitForTerminal(t, q, submitted.ID)
+	if got.Status != domain.JobStatusCompleted {
+		t.Errorf("Status = %s, want completed", got.Status)
+	}
+	if got.Payload == nil {
+		t.Fatal("Payload should not be nil")
+	}
+	if got.Payload["key"] != "value" {
+		t.Errorf("Payload[key] = %v, want value", got.Payload["key"])
+	}
+}
+
 func TestQueue_Submit_CancelledContext(t *testing.T) {
 	q := New(1)
 	defer q.Close()

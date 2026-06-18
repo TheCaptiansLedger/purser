@@ -901,6 +901,45 @@ func TestItemRepo_List_Filters(t *testing.T) {
 	_ = res
 }
 
+// ── ExternalIDRepo ────────────────────────────────────────────────────────────
+
+func TestExternalIDRepo_FindEntity(t *testing.T) {
+	database := setupTestDB(t)
+	entryRepo := NewLibraryEntryRepo(database)
+	extRepo := NewExternalIDRepo(database)
+	ctx := context.Background()
+
+	e := &domain.LibraryEntry{
+		ContentType: domain.ContentTypeAdult,
+		Kind:        domain.KindStudio,
+		Name:        "StashDB Studio",
+		MonitorMode: domain.MonitorAll,
+		Status:      domain.EntryStatusActive,
+		ExternalIDs: []domain.ExternalID{{Source: domain.SourceStashDB, Value: "ext-uuid-abc"}},
+	}
+	if err := entryRepo.Save(ctx, e); err != nil {
+		t.Fatalf("Save: %v", err)
+	}
+
+	id, err := extRepo.FindEntity(ctx, "library_entry", string(domain.SourceStashDB), "ext-uuid-abc")
+	if err != nil {
+		t.Fatalf("FindEntity: %v", err)
+	}
+	if id != e.ID {
+		t.Errorf("FindEntity returned %q, want %q", id, e.ID)
+	}
+}
+
+func TestExternalIDRepo_FindEntity_NotFound(t *testing.T) {
+	extRepo := NewExternalIDRepo(setupTestDB(t))
+	ctx := context.Background()
+
+	_, err := extRepo.FindEntity(ctx, "library_entry", "stashdb", "no-such-value")
+	if err == nil {
+		t.Fatal("expected error for missing external ID, got nil")
+	}
+}
+
 func TestItemRepo_Delete(t *testing.T) {
 	database := setupTestDB(t)
 	entryRepo := NewLibraryEntryRepo(database)
