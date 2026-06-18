@@ -157,6 +157,49 @@ func TestSearchPeople_GenderNormalization(t *testing.T) {
 	}
 }
 
+func TestSearchPeople_Error(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	defer srv.Close()
+
+	_, err := newPeopleTestAdapter(srv).SearchPeople(context.Background(), "any", 10)
+	if err == nil {
+		t.Fatal("expected error for server error, got nil")
+	}
+}
+
+func TestSearchPeople_BodyModLocationOnly(t *testing.T) {
+	fixture := `{"data":{"queryPerformers":{"performers":[{
+		"id": "perf-loc",
+		"name": "Loc Only",
+		"aliases": [],
+		"images": [],
+		"tattoos": [{"location": "wrist", "description": ""}],
+		"piercings": [{"location": "nose", "description": ""}]
+	}]}}}`
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(fixture)) //nolint:errcheck
+	}))
+	defer srv.Close()
+
+	people, err := newPeopleTestAdapter(srv).SearchPeople(context.Background(), "Loc", 10)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(people) != 1 {
+		t.Fatalf("expected 1 person, got %d", len(people))
+	}
+	if got := people[0].Metadata["tattoos"]; got != "wrist" {
+		t.Errorf("tattoos = %q, want wrist", got)
+	}
+	if got := people[0].Metadata["piercings"]; got != "nose" {
+		t.Errorf("piercings = %q, want nose", got)
+	}
+}
+
 func TestSearchPeople_NilMetadataWhenEmpty(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
