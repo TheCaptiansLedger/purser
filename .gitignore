@@ -35,6 +35,4 @@ purser.yaml
 .vscode/
 
 
-# Temp exlusion until the ducks are in a row
-docs/
 testdata/
