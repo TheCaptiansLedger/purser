@@ -27,9 +27,15 @@ type gqlPerformer struct {
 	Height          int          `json:"height"` // centimetres
 	HairColor       string       `json:"hair_color"`
 	EyeColor        string       `json:"eye_color"`
+	Gender          string       `json:"gender"` // StashDB enum; normalized on mapping
+	Ethnicity       string       `json:"ethnicity"`
+	Nationality     string       `json:"country"` // StashDB uses "country"; maps to "nationality"
+	BreastType      string       `json:"breast_type"`
+	CareerStartYear int          `json:"career_start_year"`
+	CareerEndYear   int          `json:"career_end_year"`
+	Disambiguation  string       `json:"disambiguation"`
 	Tattoos         []gqlBodyMod `json:"tattoos"`
 	Piercings       []gqlBodyMod `json:"piercings"`
-	CareerStartYear int          `json:"career_start_year"`
 
 	Measurements *struct {
 		CupSize  string `json:"cup_size"`
@@ -56,9 +62,15 @@ query SearchPerformers($name: String!, $limit: Int!) {
       height
       hair_color
       eye_color
+      gender
+      ethnicity
+      country
+      breast_type
+      career_start_year
+      career_end_year
+      disambiguation
       tattoos { location description }
       piercings { location description }
-      career_start_year
       measurements { cup_size band_size waist hip }
     }
   }
@@ -108,14 +120,17 @@ func performerMetadata(p *gqlPerformer) map[string]any {
 	if p.Birthdate != nil && p.Birthdate.Date != "" {
 		m["birthdate"] = p.Birthdate.Date
 	}
+	if p.Height > 0 {
+		m["height"] = fmt.Sprintf("%d cm", p.Height)
+	}
 	if p.HairColor != "" {
 		m["hair_color"] = strings.ToLower(p.HairColor)
 	}
 	if p.EyeColor != "" {
 		m["eye_color"] = strings.ToLower(p.EyeColor)
 	}
-	if p.Height > 0 {
-		m["height"] = fmt.Sprintf("%d cm", p.Height)
+	if p.CareerStartYear > 0 {
+		m["career_start"] = fmt.Sprintf("%d", p.CareerStartYear)
 	}
 	if s := bodyModString(p.Tattoos); s != "" {
 		m["tattoos"] = s
@@ -123,15 +138,58 @@ func performerMetadata(p *gqlPerformer) map[string]any {
 	if s := bodyModString(p.Piercings); s != "" {
 		m["piercings"] = s
 	}
-	if p.CareerStartYear > 0 {
-		m["career_start"] = fmt.Sprintf("%d", p.CareerStartYear)
-	}
 	applyMeasurements(m, p.Measurements)
+	applyExtendedMetadata(m, p)
 
 	if len(m) == 0 {
 		return nil
 	}
 	return m
+}
+
+func applyExtendedMetadata(m map[string]any, p *gqlPerformer) {
+	if p.Gender != "" {
+		m["gender"] = normalizeGender(p.Gender)
+	}
+	if p.Ethnicity != "" {
+		m["ethnicity"] = p.Ethnicity
+	}
+	if p.Nationality != "" {
+		m["nationality"] = p.Nationality
+	}
+	if p.CareerEndYear > 0 {
+		m["career_end"] = fmt.Sprintf("%d", p.CareerEndYear)
+	}
+	switch strings.ToUpper(p.BreastType) {
+	case "FAKE":
+		m["breast_type"] = "Fake"
+	case "NATURAL":
+		m["breast_type"] = "Natural"
+	}
+	if p.Disambiguation != "" {
+		m["disambiguation"] = p.Disambiguation
+	}
+}
+
+// normalizeGender maps StashDB gender enum values to the canonical lowercase
+// string values defined in docs/person-metadata-keys.md.
+func normalizeGender(g string) string {
+	switch strings.ToUpper(g) {
+	case "MALE":
+		return "male"
+	case "FEMALE":
+		return "female"
+	case "TRANSGENDER_MALE":
+		return "transgender_male"
+	case "TRANSGENDER_FEMALE":
+		return "transgender_female"
+	case "INTERSEX":
+		return "intersex"
+	case "NON_BINARY":
+		return "non_binary"
+	default:
+		return "unknown"
+	}
 }
 
 func applyMeasurements(m map[string]any, ms *struct {

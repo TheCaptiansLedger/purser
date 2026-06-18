@@ -88,7 +88,7 @@ export function PerformerDetail() {
           {meta.height && <MetaRow label="Height" value={String(meta.height)} />}
           {meta.weight && <MetaRow label="Weight" value={String(meta.weight)} />}
           {meta.cup_size && <MetaRow label="Cup Size" value={String(meta.cup_size)} />}
-          {meta.fake_boobs !== undefined && <MetaRow label="Enhanced" value={meta.fake_boobs ? 'Yes' : 'No'} />}
+          {meta.breast_type && <MetaRow label="Breast Type" value={String(meta.breast_type)} />}
           {meta.tattoos && <MetaRow label="Tattoos" value={String(meta.tattoos)} />}
           {meta.piercings && <MetaRow label="Piercings" value={String(meta.piercings)} />}
           {meta.career_start && <MetaRow label="Career start" value={String(meta.career_start)} />}

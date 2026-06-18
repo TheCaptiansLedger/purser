@@ -42,9 +42,10 @@ const sceneFields = `
         id name aliases images { url }
         birthdate { date }
         height hair_color eye_color
+        gender ethnicity country breast_type
+        career_start_year career_end_year disambiguation
         tattoos { location description }
         piercings { location description }
-        career_start_year
         measurements { cup_size band_size waist hip }
       }
     }`
