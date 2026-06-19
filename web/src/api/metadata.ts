@@ -19,6 +19,7 @@ export interface ImportStudioRequest {
   name: string
   overview?: string
   contentType: ContentType
+  kind?: string
   monitored: boolean
   monitorMode: MonitorMode
   parentExternalId?: string
