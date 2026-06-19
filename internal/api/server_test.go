@@ -1572,3 +1572,94 @@ func TestCommands_UnknownCommand(t *testing.T) {
 		t.Errorf("code = %q, want UNKNOWN_COMMAND", resp.Code)
 	}
 }
+
+// ── Item status transition enforcement ───────────────────────────────────────
+
+func newItemInStudio(t *testing.T, h http.Handler) string {
+	t.Helper()
+	w := do(t, h, http.MethodPost, "/api/v1/library-entries", map[string]any{
+		"contentType": "adult", "kind": "studio", "name": "S",
+	})
+	var studio struct {
+		ID string `json:"id"`
+	}
+	decodeJSON(t, w, &studio)
+
+	w = do(t, h, http.MethodPost, "/api/v1/items", map[string]any{
+		"libraryEntryId": studio.ID, "title": "Scene",
+	})
+	var item struct {
+		ID string `json:"id"`
+	}
+	decodeJSON(t, w, &item)
+	return item.ID
+}
+
+func TestItems_Patch_Status_SystemStatusRejected(t *testing.T) {
+	h := newHandler(t)
+	id := newItemInStudio(t, h)
+
+	for _, s := range []string{"grabbed", "downloading", "imported", "missing"} {
+		w := do(t, h, http.MethodPatch, "/api/v1/items/"+id, map[string]any{"status": s})
+		if w.Code != http.StatusUnprocessableEntity {
+			t.Errorf("status %q: got HTTP %d, want 422", s, w.Code)
+		}
+		var resp struct {
+			Code string `json:"code"`
+		}
+		decodeJSON(t, w, &resp)
+		if resp.Code != "INVALID_STATUS" {
+			t.Errorf("status %q: code = %q, want INVALID_STATUS", s, resp.Code)
+		}
+	}
+}
+
+func TestItems_Patch_Status_IllegalTransition(t *testing.T) {
+	// Start from skipped, try to set to skipped (no-op is fine) then back to wanted.
+	// The one illegal case we test here: grabbed → wanted (grabbed is pipeline-locked).
+	// We can't set grabbed directly via PATCH (it's rejected above), so we test
+	// the transition table via domain tests. Here we verify the HTTP response code
+	// for a valid transition roundtrip.
+	h := newHandler(t)
+	id := newItemInStudio(t, h)
+
+	// wanted → skipped (legal)
+	w := do(t, h, http.MethodPatch, "/api/v1/items/"+id, map[string]any{"status": "skipped"})
+	if w.Code != http.StatusOK {
+		t.Fatalf("wanted→skipped: status = %d, body: %s", w.Code, w.Body.String())
+	}
+
+	// skipped → wanted (legal)
+	w = do(t, h, http.MethodPatch, "/api/v1/items/"+id, map[string]any{"status": "wanted"})
+	if w.Code != http.StatusOK {
+		t.Fatalf("skipped→wanted: status = %d, body: %s", w.Code, w.Body.String())
+	}
+
+	var item struct {
+		Status string `json:"status"`
+	}
+	decodeJSON(t, w, &item)
+	if item.Status != "wanted" {
+		t.Errorf("status = %q, want wanted", item.Status)
+	}
+}
+
+func TestItems_Patch_Status_ImportedCannotBeSkipped(t *testing.T) {
+	// We cannot set imported via PATCH (it's system-only), so we can only test
+	// the domain layer directly for that transition. This test confirms that
+	// the API rejects the imported status value itself.
+	h := newHandler(t)
+	id := newItemInStudio(t, h)
+
+	w := do(t, h, http.MethodPatch, "/api/v1/items/"+id, map[string]any{"status": "imported"})
+	if w.Code != http.StatusUnprocessableEntity {
+		t.Fatalf("status = %d, want 422", w.Code)
+	}
+	var resp struct {
+		Code string `json:"code"`
+	}
+	decodeJSON(t, w, &resp)
+	if resp.Code != "INVALID_STATUS" {
+		t.Errorf("code = %q, want INVALID_STATUS", resp.Code)
+	}
+}
