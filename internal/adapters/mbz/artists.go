@@ -25,7 +25,7 @@ type mbzArtist struct {
 
 // SearchStudios queries MusicBrainz for bands, orchestras, and ensembles by name.
 func (a *Adapter) SearchStudios(ctx context.Context, query string, limit int) ([]*domain.ExternalStudio, error) {
-	u := a.artistURL(query, "group", limit)
+	u := a.artistURL(query, "Group", limit)
 	var resp mbzArtistResponse
 	if err := a.get(ctx, u, &resp); err != nil {
 		return nil, err
@@ -39,7 +39,7 @@ func (a *Adapter) SearchStudios(ctx context.Context, query string, limit int) ([
 
 // SearchPeople queries MusicBrainz for individual artists by name.
 func (a *Adapter) SearchPeople(ctx context.Context, query string, limit int) ([]*domain.ExternalPerson, error) {
-	u := a.artistURL(query, "person", limit)
+	u := a.artistURL(query, "Person", limit)
 	var resp mbzArtistResponse
 	if err := a.get(ctx, u, &resp); err != nil {
 		return nil, err
@@ -55,8 +55,11 @@ func (a *Adapter) SearchPeople(ctx context.Context, query string, limit int) ([]
 
 func (a *Adapter) artistURL(query, artistType string, limit int) string {
 	params := url.Values{}
-	params.Set("query", query)
-	params.Set("type", artistType)
+	if artistType != "" {
+		params.Set("query", query+" AND type:"+artistType)
+	} else {
+		params.Set("query", query)
+	}
 	params.Set("fmt", "json")
 	if limit > 0 {
 		params.Set("limit", strconv.Itoa(limit))
