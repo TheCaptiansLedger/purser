@@ -226,6 +226,41 @@ func TestImportStudio_ExplicitMonitorMode(t *testing.T) {
 	}
 }
 
+func TestImportStudio_KindDefaultsToStudio(t *testing.T) {
+	svc := newService()
+
+	res, err := svc.ImportStudio(context.Background(), &metadata.ImportStudioRequest{
+		Source:      domain.SourceStashDB,
+		ExternalID:  "studio-kind-default",
+		Name:        "Default Kind Studio",
+		ContentType: domain.ContentTypeAdult,
+	})
+	if err != nil {
+		t.Fatalf("ImportStudio: %v", err)
+	}
+	if res.Studio.Kind != domain.KindStudio {
+		t.Errorf("Kind = %q, want %q", res.Studio.Kind, domain.KindStudio)
+	}
+}
+
+func TestImportStudio_KindArtist(t *testing.T) {
+	svc := newService()
+
+	res, err := svc.ImportStudio(context.Background(), &metadata.ImportStudioRequest{
+		Source:      domain.SourceMusicBrainz,
+		ExternalID:  "artist-mbz-1",
+		Name:        "Test Artist",
+		ContentType: domain.ContentTypeMusic,
+		Kind:        domain.KindArtist,
+	})
+	if err != nil {
+		t.Fatalf("ImportStudio: %v", err)
+	}
+	if res.Studio.Kind != domain.KindArtist {
+		t.Errorf("Kind = %q, want %q", res.Studio.Kind, domain.KindArtist)
+	}
+}
+
 func TestImportStudio_Idempotent(t *testing.T) {
 	entryRepo := newStubEntryRepo()
 	svc := metadata.New(nil, nil, entryRepo, &stubItemRepo{}, &stubPersonRepo{}, &stubTagRepo{}, &stubExternalIDRepo{}, "")

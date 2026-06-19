@@ -67,6 +67,7 @@ type importStudioRequest struct {
 	Name             string `json:"name"`
 	Overview         string `json:"overview"`
 	ContentType      string `json:"contentType"`
+	Kind             string `json:"kind"`
 	Monitored        bool   `json:"monitored"`
 	MonitorMode      string `json:"monitorMode"`
 	AutoImport       *bool  `json:"autoImport"` // nil = omitted → defaults to true
@@ -98,6 +99,7 @@ func (h *metadataHandler) importStudio(w http.ResponseWriter, r *http.Request) {
 		Name:             req.Name,
 		Overview:         req.Overview,
 		ContentType:      domain.ContentType(req.ContentType),
+		Kind:             domain.Kind(req.Kind),
 		Monitored:        req.Monitored,
 		MonitorMode:      domain.MonitorMode(req.MonitorMode),
 		AutoImport:       autoImport,

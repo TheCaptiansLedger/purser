@@ -135,6 +135,7 @@ type ImportStudioRequest struct {
 	Name             string
 	Overview         string
 	ContentType      domain.ContentType
+	Kind             domain.Kind // defaults to KindStudio if empty
 	Monitored        bool
 	MonitorMode      domain.MonitorMode
 	AutoImport       bool // when true, enqueue a RefreshStudio job immediately after saving
@@ -228,6 +229,11 @@ func (s *Service) ImportStudio(ctx context.Context, req *ImportStudioRequest) (*
 		monitorMode = domain.MonitorLatest
 	}
 
+	kind := req.Kind
+	if kind == "" {
+		kind = domain.KindStudio
+	}
+
 	studioID := uuid.New().String()
 
 	var imagePath string
@@ -243,7 +249,7 @@ func (s *Service) ImportStudio(ctx context.Context, req *ImportStudioRequest) (*
 	studio := &domain.LibraryEntry{
 		ID:          studioID,
 		ContentType: req.ContentType,
-		Kind:        domain.KindStudio,
+		Kind:        kind,
 		Name:        req.Name,
 		SortName:    req.Name,
 		Overview:    req.Overview,
