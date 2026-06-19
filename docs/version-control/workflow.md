@@ -52,3 +52,15 @@ Rules:
 - If multiple commits, use the issue title as the pr title
 - Keep PRs focused — one feature or fix per PR
 - All checks must pass before merge
+
+## Merging
+
+GitHub's web merge operations (squash, rebase, create merge commit) all produce commits signed by GitHub's CA key, not yours. To keep every commit — including the merge commit — signed with your GPG key, merge locally after CI passes and the PR is approved:
+
+```bash
+git fetch && git checkout develop && git pull && git merge --no-ff origin/<branch> && git push
+```
+
+GitHub auto-closes the PR when it detects the branch is merged via the commit graph.
+
+Never use GitHub's merge button — it will strip or replace your signature regardless of which strategy is chosen.
