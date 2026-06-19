@@ -39,3 +39,13 @@ type ItemPerson struct {
 	Person   *Person // nil unless explicitly loaded
 	Role     PersonRole
 }
+
+// EntryPerson links a Person to a library entry (artist/band) with their role and tenure dates.
+// Used exclusively for kind=artist entries (music content type).
+type EntryPerson struct {
+	PersonID  string
+	Person    *Person // nil unless explicitly loaded
+	Role      string
+	StartDate time.Time
+	EndDate   time.Time
+}

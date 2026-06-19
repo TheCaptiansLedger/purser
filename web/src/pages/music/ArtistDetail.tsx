@@ -3,6 +3,7 @@ import { ArrowLeft, ImageIcon } from 'lucide-react'
 import { useLibraryEntry } from '../../api/library'
 import { useGroups } from '../../api/groups'
 import { Hero } from '../../components/layout/Hero'
+import { PersonCard } from '../../components/media/PersonCard'
 import { Skeleton } from '../../components/ui/Skeleton'
 
 const ACCENT = '#10b981'
@@ -49,6 +50,22 @@ export function ArtistDetail() {
       <div className="px-8 py-8 space-y-8">
         {entry.overview && (
           <p className="text-sm text-white/60 leading-relaxed max-w-3xl">{entry.overview}</p>
+        )}
+
+        {entry.people.length > 0 && (
+          <section>
+            <h2 className="text-sm font-semibold text-white/40 uppercase tracking-widest mb-4">Members</h2>
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
+              {entry.people.map(ep => ep.person && (
+                <PersonCard
+                  key={ep.personId}
+                  person={{ ...ep.person, aliases: [], monitored: false, monitorMode: 'all', overview: '', externalIds: [], addedAt: '' }}
+                  href={`/people/${ep.personId}`}
+                  accent={ACCENT}
+                />
+              ))}
+            </div>
+          </section>
         )}
 
         <section>

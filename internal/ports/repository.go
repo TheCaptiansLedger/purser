@@ -10,6 +10,7 @@ type LibraryFilter struct {
 	ContentType domain.ContentType
 	Kind        domain.Kind
 	ParentID    string
+	PersonID    string // entries where this person is a member (via entry_people)
 	Monitored   *bool
 	Search      string
 	Limit       int
@@ -22,6 +23,9 @@ type LibraryEntryRepository interface {
 	List(ctx context.Context, f LibraryFilter) ([]*domain.LibraryEntry, int, error)
 	Save(ctx context.Context, e *domain.LibraryEntry) error
 	Delete(ctx context.Context, id string) error
+	GetPeople(ctx context.Context, entryID string) ([]domain.EntryPerson, error)
+	SavePerson(ctx context.Context, entryID string, ep domain.EntryPerson) error
+	RemovePerson(ctx context.Context, entryID, personID, role string) error
 }
 
 // GroupFilter specifies criteria for listing Groups.

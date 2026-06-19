@@ -29,25 +29,26 @@ func (h *libraryEntryHandler) routes(r chi.Router) {
 // ── Response types ────────────────────────────────────────────────────────────
 
 type entryResponse struct {
-	ID                string               `json:"id"`
-	ContentType       string               `json:"contentType"`
-	Kind              string               `json:"kind"`
-	Name              string               `json:"name"`
-	SortName          string               `json:"sortName"`
-	Overview          string               `json:"overview"`
-	ParentID          string               `json:"parentId,omitempty"`
-	Monitored         bool                 `json:"monitored"`
-	MonitorMode       string               `json:"monitorMode"`
-	Status            string               `json:"status"`
-	QualityProfileID  string               `json:"qualityProfileId,omitempty"`
-	MetadataProfileID string               `json:"metadataProfileId,omitempty"`
-	Path              string               `json:"path,omitempty"`
-	ImageURL          string               `json:"imageUrl,omitempty"`
-	ExternalIDs       []externalIDResponse `json:"externalIds"`
-	Tags              []tagResponse        `json:"tags"`
-	Metadata          map[string]any       `json:"metadata,omitempty"`
-	AddedAt           time.Time            `json:"addedAt"`
-	UpdatedAt         time.Time            `json:"updatedAt"`
+	ID                string                `json:"id"`
+	ContentType       string                `json:"contentType"`
+	Kind              string                `json:"kind"`
+	Name              string                `json:"name"`
+	SortName          string                `json:"sortName"`
+	Overview          string                `json:"overview"`
+	ParentID          string                `json:"parentId,omitempty"`
+	Monitored         bool                  `json:"monitored"`
+	MonitorMode       string                `json:"monitorMode"`
+	Status            string                `json:"status"`
+	QualityProfileID  string                `json:"qualityProfileId,omitempty"`
+	MetadataProfileID string                `json:"metadataProfileId,omitempty"`
+	Path              string                `json:"path,omitempty"`
+	ImageURL          string                `json:"imageUrl,omitempty"`
+	ExternalIDs       []externalIDResponse  `json:"externalIds"`
+	Tags              []tagResponse         `json:"tags"`
+	People            []entryPersonResponse `json:"people"`
+	Metadata          map[string]any        `json:"metadata,omitempty"`
+	AddedAt           time.Time             `json:"addedAt"`
+	UpdatedAt         time.Time             `json:"updatedAt"`
 }
 
 func toEntryResponse(e *domain.LibraryEntry) *entryResponse {
@@ -71,6 +72,7 @@ func toEntryResponse(e *domain.LibraryEntry) *entryResponse {
 		UpdatedAt:         e.UpdatedAt,
 		ExternalIDs:       []externalIDResponse{},
 		Tags:              []tagResponse{},
+		People:            []entryPersonResponse{},
 	}
 	for _, id := range e.ExternalIDs {
 		r.ExternalIDs = append(r.ExternalIDs, externalIDResponse{
@@ -80,6 +82,27 @@ func toEntryResponse(e *domain.LibraryEntry) *entryResponse {
 	}
 	for _, t := range e.Tags {
 		r.Tags = append(r.Tags, tagResponse{ID: t.ID, Name: t.Name, Scope: string(t.Scope)})
+	}
+	for _, ep := range e.People {
+		epr := entryPersonResponse{
+			PersonID: ep.PersonID,
+			Role:     ep.Role,
+		}
+		if !ep.StartDate.IsZero() {
+			epr.StartDate = ep.StartDate.Format("2006-01-02")
+		}
+		if !ep.EndDate.IsZero() {
+			epr.EndDate = ep.EndDate.Format("2006-01-02")
+		}
+		if ep.Person != nil {
+			epr.Person = &personRefResponse{
+				ID:       ep.Person.ID,
+				Name:     ep.Person.Name,
+				SortName: ep.Person.SortName,
+				ImageURL: imageURL("people", ep.Person.ID, ep.Person.ImagePath),
+			}
+		}
+		r.People = append(r.People, epr)
 	}
 	return r
 }
@@ -94,6 +117,7 @@ func (h *libraryEntryHandler) list(w http.ResponseWriter, r *http.Request) {
 		ContentType: domain.ContentType(q.Get("contentType")),
 		Kind:        domain.Kind(q.Get("kind")),
 		ParentID:    q.Get("parentId"),
+		PersonID:    q.Get("personId"),
 		Monitored:   boolPtr(r, "monitored"),
 		Search:      q.Get("search"),
 		Limit:       limit,

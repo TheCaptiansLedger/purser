@@ -16,6 +16,7 @@ type Service struct {
 	entries ports.LibraryEntryRepository
 	groups  ports.GroupRepository
 	items   ports.ItemRepository
+	persons ports.PersonRepository
 }
 
 // New constructs a library Service wired to the given repositories.
@@ -23,8 +24,9 @@ func New(
 	entries ports.LibraryEntryRepository,
 	groups ports.GroupRepository,
 	items ports.ItemRepository,
+	persons ports.PersonRepository,
 ) *Service {
-	return &Service{entries: entries, groups: groups, items: items}
+	return &Service{entries: entries, groups: groups, items: items, persons: persons}
 }
 
 // ── Library entries ───────────────────────────────────────────────────────────
@@ -176,6 +178,45 @@ func (s *Service) DeleteItem(ctx context.Context, id string) error {
 		return err
 	}
 	return s.items.Delete(ctx, id)
+}
+
+// ── Entry people (artist members) ────────────────────────────────────────────
+
+// GetEntryPeople returns all member links for the given entry.
+func (s *Service) GetEntryPeople(ctx context.Context, entryID string) ([]domain.EntryPerson, error) {
+	return s.entries.GetPeople(ctx, entryID)
+}
+
+// SaveEntryPerson upserts a single member link for the given entry.
+func (s *Service) SaveEntryPerson(ctx context.Context, entryID string, ep domain.EntryPerson) error {
+	return s.entries.SavePerson(ctx, entryID, ep)
+}
+
+// RemoveEntryPerson removes a single member link for the given entry.
+func (s *Service) RemoveEntryPerson(ctx context.Context, entryID, personID, role string) error {
+	return s.entries.RemovePerson(ctx, entryID, personID, role)
+}
+
+// ImportArtistMembers upserts each person in members and links them to the given artist entry
+// under the provided role. The entry must be kind=artist.
+func (s *Service) ImportArtistMembers(ctx context.Context, entryID string, members []domain.Person, role string) error {
+	entry, err := s.GetEntry(ctx, entryID)
+	if err != nil {
+		return err
+	}
+	if entry.Kind != domain.KindArtist {
+		return errs.Validation("ImportArtistMembers: entry must be kind=artist")
+	}
+	for i := range members {
+		if err := s.persons.Save(ctx, &members[i]); err != nil {
+			return fmt.Errorf("upsert person %q: %w", members[i].Name, err)
+		}
+		ep := domain.EntryPerson{PersonID: members[i].ID, Role: role}
+		if err := s.entries.SavePerson(ctx, entryID, ep); err != nil {
+			return fmt.Errorf("link person %q to entry: %w", members[i].ID, err)
+		}
+	}
+	return nil
 }
 
 // ── Internal helpers ──────────────────────────────────────────────────────────

@@ -412,6 +412,11 @@ func (s *Service) RefreshStudio(ctx context.Context, entryID string, p ports.Pro
 			monitored = (i == latestIdx)
 		}
 
+		itemStatus := domain.StatusWanted
+		if !monitored {
+			itemStatus = domain.StatusMissing
+		}
+
 		item := &domain.Item{
 			ID:             itemID,
 			ContentType:    entry.ContentType,
@@ -421,7 +426,7 @@ func (s *Service) RefreshStudio(ctx context.Context, entryID string, p ports.Pro
 			Date:           ei.Date,
 			RuntimeSeconds: ei.RuntimeSecs,
 			Monitored:      monitored,
-			Status:         domain.StatusWanted,
+			Status:         itemStatus,
 			CoverPath:      coverPath,
 			People:         s.resolveItemPeople(ctx, ei.People, personCache),
 			Tags:           s.resolveItemTags(ctx, ei.Tags, tagCache),

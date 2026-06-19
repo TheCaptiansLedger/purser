@@ -25,6 +25,7 @@ type LibraryEntry struct {
 	ImagePath         string
 	ExternalIDs       []ExternalID
 	Tags              []Tag
+	People            []EntryPerson
 	Metadata          map[string]any
 	AddedAt           time.Time
 	UpdatedAt         time.Time

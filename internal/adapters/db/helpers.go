@@ -255,6 +255,44 @@ func saveItemPeople(ctx context.Context, tx *sql.Tx, itemID string, people []dom
 	return nil
 }
 
+// ── Entry people (artist members) ────────────────────────────────────────────
+
+func loadEntryPeople(ctx context.Context, db *sql.DB, entryID string) ([]domain.EntryPerson, error) {
+	rows, err := db.QueryContext(ctx,
+		`SELECT ep.person_id, ep.role, ep.start_date, ep.end_date,
+		        p.name, p.sort_name, p.image_path
+		 FROM entry_people ep
+		 JOIN people p ON p.id = ep.person_id
+		 WHERE ep.library_entry_id = ?
+		 ORDER BY p.sort_name, p.name`,
+		entryID)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+
+	var members []domain.EntryPerson
+	for rows.Next() {
+		var (
+			ep                 domain.EntryPerson
+			startDate, endDate string
+			p                  domain.Person
+		)
+		if err := rows.Scan(
+			&ep.PersonID, &ep.Role, &startDate, &endDate,
+			&p.Name, &p.SortName, &p.ImagePath,
+		); err != nil {
+			return nil, err
+		}
+		ep.StartDate = strToDate(startDate)
+		ep.EndDate = strToDate(endDate)
+		p.ID = ep.PersonID
+		ep.Person = &p
+		members = append(members, ep)
+	}
+	return members, rows.Err()
+}
+
 // ── People aliases ────────────────────────────────────────────────────────────
 
 func loadAliases(ctx context.Context, db *sql.DB, personID string) ([]string, error) {

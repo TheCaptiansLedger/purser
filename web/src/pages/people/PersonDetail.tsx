@@ -2,7 +2,9 @@ import { useParams, Link } from 'react-router-dom'
 import { ArrowLeft, User } from 'lucide-react'
 import { usePerson } from '../../api/people'
 import { useItems } from '../../api/items'
+import { useLibraryEntries } from '../../api/library'
 import { Badge } from '../../components/ui/Badge'
+import { EntryCard } from '../../components/media/EntryCard'
 import { ItemCard } from '../../components/media/ItemCard'
 import { Skeleton } from '../../components/ui/Skeleton'
 
@@ -13,6 +15,8 @@ export function PersonDetail() {
   const { data: person, isLoading } = usePerson(id!)
   const { data: itemsPage } = useItems({ personId: id!, limit: 48 })
   const items = itemsPage?.data ?? []
+  const { data: bandsPage } = useLibraryEntries({ personId: id! })
+  const bands = bandsPage?.data ?? []
 
   if (isLoading) return <div className="px-8 py-10"><Skeleton className="h-64 w-full" /></div>
   if (!person) return null
@@ -82,6 +86,22 @@ export function PersonDetail() {
             <section>
               <h2 className="text-xs font-semibold text-white/35 uppercase tracking-widest mb-3">Biography</h2>
               <p className="text-sm text-white/60 leading-relaxed max-w-3xl">{person.overview}</p>
+            </section>
+          )}
+
+          {bands.length > 0 && (
+            <section>
+              <h2 className="text-xs font-semibold text-white/35 uppercase tracking-widest mb-4">Member of</h2>
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+                {bands.map(band => (
+                  <EntryCard
+                    key={band.id}
+                    entry={band}
+                    href={`/music/${band.id}`}
+                    accent={ACCENT}
+                  />
+                ))}
+              </div>
             </section>
           )}
 

@@ -43,6 +43,18 @@ func (r *stubEntryRepo) Delete(_ context.Context, id string) error {
 	return nil
 }
 
+func (r *stubEntryRepo) GetPeople(_ context.Context, _ string) ([]domain.EntryPerson, error) {
+	return nil, nil
+}
+
+func (r *stubEntryRepo) SavePerson(_ context.Context, _ string, _ domain.EntryPerson) error {
+	return nil
+}
+
+func (r *stubEntryRepo) RemovePerson(_ context.Context, _, _, _ string) error {
+	return nil
+}
+
 type stubItemRepo struct {
 	items []*domain.Item
 }
@@ -432,19 +444,33 @@ func TestRefreshStudio_MonitorLatest(t *testing.T) {
 	if len(itemRepo.items) != 3 {
 		t.Fatalf("item count = %d, want 3", len(itemRepo.items))
 	}
-	monitored := map[string]bool{}
-	for _, it := range itemRepo.items {
-		monitored[it.ExternalIDs[0].Value] = it.Monitored
+	type itemState struct {
+		monitored bool
+		status    domain.ItemStatus
 	}
-	// scene-2 has the latest date (2023-06-15) — only it should be monitored.
-	if monitored["scene-1"] {
+	state := map[string]itemState{}
+	for _, it := range itemRepo.items {
+		state[it.ExternalIDs[0].Value] = itemState{monitored: it.Monitored, status: it.Status}
+	}
+	// scene-2 has the latest date (2023-06-15) — only it should be monitored+wanted;
+	// others must be unmonitored and missing (not wanted).
+	if state["scene-1"].monitored {
 		t.Error("scene-1: monitored = true, want false")
 	}
-	if !monitored["scene-2"] {
+	if state["scene-1"].status != domain.StatusMissing {
+		t.Errorf("scene-1: status = %q, want %q", state["scene-1"].status, domain.StatusMissing)
+	}
+	if !state["scene-2"].monitored {
 		t.Error("scene-2 (latest): monitored = false, want true")
 	}
-	if monitored["scene-3"] {
+	if state["scene-2"].status != domain.StatusWanted {
+		t.Errorf("scene-2 (latest): status = %q, want %q", state["scene-2"].status, domain.StatusWanted)
+	}
+	if state["scene-3"].monitored {
 		t.Error("scene-3: monitored = true, want false")
+	}
+	if state["scene-3"].status != domain.StatusMissing {
+		t.Errorf("scene-3: status = %q, want %q", state["scene-3"].status, domain.StatusMissing)
 	}
 }
 

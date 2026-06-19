@@ -25,6 +25,15 @@ const entrySelectCols = `
 	added_at, updated_at
 `
 
+// entrySelectColsAliased is the same as entrySelectCols but with the "le" table alias,
+// required when listing with JOINs to avoid column ambiguity.
+const entrySelectColsAliased = `
+	le.id, le.content_type, le.kind, le.name, le.sort_name, le.overview,
+	COALESCE(le.parent_id, ''), le.monitored, le.monitor_mode, le.status,
+	le.quality_profile_id, le.metadata_profile_id, le.path, le.image_path, le.metadata,
+	le.added_at, le.updated_at
+`
+
 func scanEntry(row interface{ Scan(...any) error }) (*domain.LibraryEntry, error) {
 	var (
 		e                            domain.LibraryEntry
@@ -72,6 +81,12 @@ func (r *libraryEntryRepo) Get(ctx context.Context, id string) (*domain.LibraryE
 	}
 	e.Tags = tags
 
+	people, err := loadEntryPeople(ctx, r.db, id)
+	if err != nil {
+		return nil, fmt.Errorf("load people for %s: %w", id, err)
+	}
+	e.People = people
+
 	return e, nil
 }
 
@@ -79,19 +94,25 @@ func (r *libraryEntryRepo) List(ctx context.Context, f ports.LibraryFilter) ([]*
 	w := &whereClause{}
 
 	if f.ContentType != "" {
-		w.add("content_type = ?", string(f.ContentType))
+		w.add("le.content_type = ?", string(f.ContentType))
 	}
 	if f.Kind != "" {
-		w.add("kind = ?", string(f.Kind))
+		w.add("le.kind = ?", string(f.Kind))
 	}
 	if f.ParentID != "" {
-		w.add("parent_id = ?", f.ParentID)
+		w.add("le.parent_id = ?", f.ParentID)
 	}
 	if f.Monitored != nil {
-		w.add("monitored = ?", boolToInt(*f.Monitored))
+		w.add("le.monitored = ?", boolToInt(*f.Monitored))
 	}
 	if f.Search != "" {
-		w.add("name LIKE ?", "%"+f.Search+"%")
+		w.add("le.name LIKE ?", "%"+f.Search+"%")
+	}
+
+	join := ""
+	if f.PersonID != "" {
+		join = " JOIN entry_people ep ON ep.library_entry_id = le.id"
+		w.add("ep.person_id = ?", f.PersonID)
 	}
 
 	where, args := w.build()
@@ -99,7 +120,7 @@ func (r *libraryEntryRepo) List(ctx context.Context, f ports.LibraryFilter) ([]*
 	var total int
 	if err := r.db.QueryRowContext(
 		ctx,
-		`SELECT COUNT(*) FROM library_entries WHERE `+where, args...,
+		`SELECT COUNT(*) FROM library_entries le`+join+` WHERE `+where, args...,
 	).Scan(&total); err != nil {
 		return nil, 0, fmt.Errorf("count library entries: %w", err)
 	}
@@ -111,8 +132,8 @@ func (r *libraryEntryRepo) List(ctx context.Context, f ports.LibraryFilter) ([]*
 
 	queryArgs := append(args, limit, f.Offset)
 	rows, err := r.db.QueryContext(ctx,
-		`SELECT`+entrySelectCols+`FROM library_entries WHERE `+where+
-			` ORDER BY sort_name, name LIMIT ? OFFSET ?`,
+		`SELECT`+entrySelectColsAliased+`FROM library_entries le`+join+` WHERE `+where+
+			` ORDER BY le.sort_name, le.name LIMIT ? OFFSET ?`,
 		queryArgs...)
 	if err != nil {
 		return nil, 0, fmt.Errorf("list library entries: %w", err)
@@ -132,6 +153,36 @@ func (r *libraryEntryRepo) List(ctx context.Context, f ports.LibraryFilter) ([]*
 	}
 
 	return entries, total, nil
+}
+
+func (r *libraryEntryRepo) GetPeople(ctx context.Context, entryID string) ([]domain.EntryPerson, error) {
+	return loadEntryPeople(ctx, r.db, entryID)
+}
+
+func (r *libraryEntryRepo) SavePerson(ctx context.Context, entryID string, ep domain.EntryPerson) error {
+	_, err := r.db.ExecContext(ctx,
+		`INSERT INTO entry_people(library_entry_id, person_id, role, start_date, end_date)
+		 VALUES(?, ?, ?, ?, ?)
+		 ON CONFLICT(library_entry_id, person_id, role) DO UPDATE SET
+		     start_date = excluded.start_date,
+		     end_date   = excluded.end_date`,
+		entryID, ep.PersonID, ep.Role, dateToStr(ep.StartDate), dateToStr(ep.EndDate),
+	)
+	if err != nil {
+		return fmt.Errorf("save entry person: %w", err)
+	}
+	return nil
+}
+
+func (r *libraryEntryRepo) RemovePerson(ctx context.Context, entryID, personID, role string) error {
+	_, err := r.db.ExecContext(ctx,
+		`DELETE FROM entry_people WHERE library_entry_id = ? AND person_id = ? AND role = ?`,
+		entryID, personID, role,
+	)
+	if err != nil {
+		return fmt.Errorf("remove entry person: %w", err)
+	}
+	return nil
 }
 
 func (r *libraryEntryRepo) Save(ctx context.Context, e *domain.LibraryEntry) error {
