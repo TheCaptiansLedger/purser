@@ -6,18 +6,8 @@ import (
 	"purser/internal/ports"
 )
 
-// SearchItems returns ErrNotSupported — MusicBrainz track search is not yet implemented.
-func (a *Adapter) SearchItems(_ context.Context, _ domain.ContentType, _ string, _ int) ([]*domain.ExternalItem, error) {
-	return nil, ports.ErrNotSupported
-}
-
 // FindByHash returns ErrNotSupported — MusicBrainz has no hash-based lookup.
 func (a *Adapter) FindByHash(_ context.Context, _ string) (*domain.ExternalItem, error) {
-	return nil, ports.ErrNotSupported
-}
-
-// FindByExternalID returns ErrNotSupported — not yet implemented.
-func (a *Adapter) FindByExternalID(_ context.Context, _ string) (*domain.ExternalItem, error) {
 	return nil, ports.ErrNotSupported
 }
 

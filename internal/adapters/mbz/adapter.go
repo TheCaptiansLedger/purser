@@ -3,6 +3,7 @@ package mbz
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -17,6 +18,8 @@ import (
 
 // Compile-time interface check.
 var _ ports.MetadataSource = (*Adapter)(nil)
+
+var errNotFound = errors.New("musicbrainz: not found")
 
 const (
 	publicBaseURL = "https://musicbrainz.org/ws/2/"
@@ -118,6 +121,10 @@ func (a *Adapter) doGet(ctx context.Context, rawURL string, out any) error {
 		return fmt.Errorf("musicbrainz: request: %w", err)
 	}
 	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode == http.StatusNotFound {
+		return errNotFound
+	}
 
 	if resp.StatusCode == http.StatusTooManyRequests {
 		wait := retryAfterDuration(resp.Header.Get("Retry-After"))
