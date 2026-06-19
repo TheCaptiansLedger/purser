@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/signal"
 	"purser/internal/adapters/db"
+	"purser/internal/adapters/mbz"
 	"purser/internal/adapters/stashdb"
 	"purser/internal/api"
 	"purser/internal/app/library"
@@ -108,6 +109,9 @@ func buildSources(cfg *config.Config) []ports.MetadataSource {
 	var sources []ports.MetadataSource
 	if cfg.Sources.StashDB.Enabled {
 		sources = append(sources, stashdb.New(cfg.Sources.StashDB))
+	}
+	if cfg.Sources.MusicBrainz.Enabled {
+		sources = append(sources, mbz.New(cfg.Sources.MusicBrainz))
 	}
 	return sources
 }
