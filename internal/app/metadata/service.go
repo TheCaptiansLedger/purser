@@ -155,6 +155,146 @@ func (s *Service) FetchArtistDiscography(
 	return groups, total, nil
 }
 
+// ImportAlbumRequest carries the user-selected album to persist.
+type ImportAlbumRequest struct {
+	Source         domain.ExternalIDSource
+	ExternalID     string // release-group MBID
+	LibraryEntryID string // the artist's internal entry ID
+	Title          string
+	Year           int
+	Monitored      bool
+	MonitorMode    domain.MonitorMode
+}
+
+// ImportAlbum adds a single album (and its tracks) to an existing artist entry.
+// The operation is idempotent: if a group with this external ID already exists,
+// it is returned without modification.
+func (s *Service) ImportAlbum(ctx context.Context, req *ImportAlbumRequest) (*domain.Group, error) {
+	if id, err := s.externalIDs.FindEntity(ctx, "group", string(req.Source), req.ExternalID); err == nil {
+		return s.groups.Get(ctx, id)
+	}
+
+	src := s.sourceByName(string(req.Source))
+	if src == nil {
+		return nil, errs.Validation(fmt.Sprintf("unknown metadata source %q", req.Source))
+	}
+
+	entry, err := s.entries.Get(ctx, req.LibraryEntryID)
+	if err != nil {
+		return nil, fmt.Errorf("import album: load entry: %w", err)
+	}
+
+	monitorMode := req.MonitorMode
+	if monitorMode == "" {
+		monitorMode = domain.MonitorAll
+	}
+
+	g := &domain.Group{
+		ID:             uuid.New().String(),
+		LibraryEntryID: req.LibraryEntryID,
+		Title:          req.Title,
+		SortName:       req.Title,
+		Year:           req.Year,
+		Monitored:      req.Monitored,
+		MonitorMode:    monitorMode,
+		ExternalIDs:    []domain.ExternalID{{Source: req.Source, Value: req.ExternalID}},
+	}
+	if err := s.groups.Save(ctx, g); err != nil {
+		return nil, fmt.Errorf("import album: save group: %w", err)
+	}
+
+	pending, err := s.collectNewGroupTracks(ctx, src, req.ExternalID)
+	if err != nil {
+		return nil, fmt.Errorf("import album: %w", err)
+	}
+
+	if len(pending) == 0 {
+		return g, nil
+	}
+
+	if err := s.saveGroupTracks(ctx, entry.ContentType, req.LibraryEntryID, g.ID, monitorMode, pending); err != nil {
+		return nil, fmt.Errorf("import album: %w", err)
+	}
+
+	slog.Info("album.imported", "entry_id", req.LibraryEntryID, "group_id", g.ID, "title", g.Title, "new_tracks", len(pending))
+	return g, nil
+}
+
+// collectNewGroupTracks pages through FetchGroupContent for a single group and
+// returns tracks not already present in the library.
+func (s *Service) collectNewGroupTracks(ctx context.Context, src ports.MetadataSource, groupExtID string) ([]*domain.ExternalItem, error) {
+	const perPage = 100
+	var tracks []*domain.ExternalItem
+	for page := 1; ; page++ {
+		extItems, trackTotal, err := src.FetchGroupContent(ctx, groupExtID, page, perPage)
+		if err != nil {
+			return nil, fmt.Errorf("fetch tracks page %d: %w", page, err)
+		}
+		for _, ei := range extItems {
+			if _, findErr := s.externalIDs.FindEntity(ctx, "item", string(ei.Source), ei.ExternalID); findErr == nil {
+				continue
+			}
+			tracks = append(tracks, ei)
+		}
+		if len(extItems) == 0 || page*perPage >= trackTotal {
+			break
+		}
+	}
+	return tracks, nil
+}
+
+// saveGroupTracks creates Item records for each track, applying monitor-mode
+// logic consistent with RefreshArtist.
+func (s *Service) saveGroupTracks(ctx context.Context, contentType domain.ContentType, libraryEntryID, groupID string, monitorMode domain.MonitorMode, tracks []*domain.ExternalItem) error {
+	latestIdx := 0
+	for i, ei := range tracks {
+		if ei.Date.After(tracks[latestIdx].Date) {
+			latestIdx = i
+		}
+	}
+
+	now := time.Now().UTC()
+	for i, ei := range tracks {
+		monitored := monitoredForMode(monitorMode, now, ei.Date)
+		if monitorMode == domain.MonitorLatest {
+			monitored = (i == latestIdx)
+		}
+		itemStatus := domain.StatusWanted
+		if !monitored {
+			itemStatus = domain.StatusMissing
+		}
+		item := &domain.Item{
+			ID:             uuid.New().String(),
+			ContentType:    contentType,
+			LibraryEntryID: libraryEntryID,
+			GroupID:        groupID,
+			Title:          ei.Title,
+			Overview:       ei.Overview,
+			Date:           ei.Date,
+			RuntimeSeconds: ei.RuntimeSecs,
+			Monitored:      monitored,
+			Status:         itemStatus,
+			ExternalIDs:    []domain.ExternalID{{Source: ei.Source, Value: ei.ExternalID}},
+			AddedAt:        now,
+		}
+		if err := s.items.Save(ctx, item); err != nil {
+			return fmt.Errorf("save track %q: %w", item.Title, err)
+		}
+	}
+	return nil
+}
+
+// sourceByName returns the first registered MetadataSource with the given name,
+// or nil if none is found.
+func (s *Service) sourceByName(name string) ports.MetadataSource {
+	for _, src := range s.sources {
+		if src.Name() == name {
+			return src
+		}
+	}
+	return nil
+}
+
 // ── Import ────────────────────────────────────────────────────────────────────
 
 // ImportStudioRequest carries the (user-reviewed) studio data to persist.

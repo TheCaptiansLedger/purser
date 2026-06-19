@@ -607,7 +607,12 @@ type stubGroupRepo struct {
 	groups []*domain.Group
 }
 
-func (r *stubGroupRepo) Get(_ context.Context, _ string) (*domain.Group, error) {
+func (r *stubGroupRepo) Get(_ context.Context, id string) (*domain.Group, error) {
+	for _, g := range r.groups {
+		if g.ID == id {
+			return g, nil
+		}
+	}
 	return nil, fmt.Errorf("not found: %w", errs.ErrNotFound)
 }
 
@@ -913,6 +918,131 @@ func TestFetchArtistDiscography_ReturnsGroups(t *testing.T) {
 func TestFetchArtistDiscography_UnknownSource(t *testing.T) {
 	svc := newService()
 	_, _, err := svc.FetchArtistDiscography(context.Background(), "nonexistent", "some-id", 1, 50)
+	if err == nil {
+		t.Fatal("expected error for unknown source, got nil")
+	}
+	if !errs.IsValidation(err) {
+		t.Errorf("expected ValidationError, got: %v", err)
+	}
+}
+
+// ── ImportAlbum ───────────────────────────────────────────────────────────────
+
+func importAlbumSvc(src *stubMusicSource, entryRepo *stubEntryRepo, groupRepo *stubGroupRepo, itemRepo *stubItemRepo) *metadata.Service {
+	return metadata.New(
+		[]ports.MetadataSource{src},
+		nil,
+		entryRepo,
+		groupRepo,
+		itemRepo,
+		&stubPersonRepo{},
+		&stubTagRepo{},
+		&stubExternalIDRepo{},
+		"",
+	)
+}
+
+func TestImportAlbum_CreatesGroupAndTracks(t *testing.T) {
+	entryRepo := newStubEntryRepo()
+	groupRepo := &stubGroupRepo{}
+	itemRepo := &stubItemRepo{}
+	entry := artistEntry(domain.MonitorAll, time.Date(2020, 1, 1, 0, 0, 0, 0, time.UTC))
+	entryRepo.data[entry.ID] = entry
+
+	src, albums, _ := twoAlbumsWithTracks()
+	svc := importAlbumSvc(src, entryRepo, groupRepo, itemRepo)
+
+	g, err := svc.ImportAlbum(context.Background(), &metadata.ImportAlbumRequest{
+		Source:         domain.SourceMusicBrainz,
+		ExternalID:     albums[0].ExternalID,
+		LibraryEntryID: entry.ID,
+		Title:          albums[0].Title,
+		Year:           albums[0].Year,
+		Monitored:      true,
+		MonitorMode:    domain.MonitorAll,
+	})
+	if err != nil {
+		t.Fatalf("ImportAlbum: %v", err)
+	}
+	if len(groupRepo.groups) != 1 {
+		t.Errorf("group count = %d, want 1", len(groupRepo.groups))
+	}
+	if g.Title != albums[0].Title {
+		t.Errorf("group title = %q, want %q", g.Title, albums[0].Title)
+	}
+	// album-1 has 2 tracks
+	if len(itemRepo.items) != 2 {
+		t.Errorf("item count = %d, want 2", len(itemRepo.items))
+	}
+	for _, it := range itemRepo.items {
+		if it.GroupID != g.ID {
+			t.Errorf("item %q: GroupID = %q, want %q", it.Title, it.GroupID, g.ID)
+		}
+		if it.LibraryEntryID != entry.ID {
+			t.Errorf("item %q: LibraryEntryID = %q, want %q", it.Title, it.LibraryEntryID, entry.ID)
+		}
+	}
+}
+
+func TestImportAlbum_Idempotent(t *testing.T) {
+	entryRepo := newStubEntryRepo()
+	groupRepo := &stubGroupRepo{}
+	itemRepo := &stubItemRepo{}
+	entry := artistEntry(domain.MonitorAll, time.Date(2020, 1, 1, 0, 0, 0, 0, time.UTC))
+	entryRepo.data[entry.ID] = entry
+
+	src, albums, _ := twoAlbumsWithTracks()
+	svc := importAlbumSvc(src, entryRepo, groupRepo, itemRepo)
+
+	req := &metadata.ImportAlbumRequest{
+		Source:         domain.SourceMusicBrainz,
+		ExternalID:     albums[0].ExternalID,
+		LibraryEntryID: entry.ID,
+		Title:          albums[0].Title,
+		Year:           albums[0].Year,
+		Monitored:      true,
+		MonitorMode:    domain.MonitorAll,
+	}
+	g1, err := svc.ImportAlbum(context.Background(), req)
+	if err != nil {
+		t.Fatalf("first ImportAlbum: %v", err)
+	}
+
+	// Seed external IDs so the second call finds the existing group.
+	seeded := &seededArtistExternalIDRepo{
+		groupIDs: map[string]string{"mbz:" + albums[0].ExternalID: g1.ID},
+		itemIDs:  make(map[string]string),
+	}
+	svc2 := metadata.New([]ports.MetadataSource{src}, nil, entryRepo, groupRepo, itemRepo, &stubPersonRepo{}, &stubTagRepo{}, seeded, "")
+
+	g2, err := svc2.ImportAlbum(context.Background(), req)
+	if err != nil {
+		t.Fatalf("second ImportAlbum: %v", err)
+	}
+	if g2.ID != g1.ID {
+		t.Errorf("idempotent call returned different ID: %q vs %q", g2.ID, g1.ID)
+	}
+	if len(groupRepo.groups) != 1 {
+		t.Errorf("group count = %d, want 1 (no duplicate)", len(groupRepo.groups))
+	}
+	if len(itemRepo.items) != 2 {
+		t.Errorf("item count = %d, want 2 (no duplicate tracks)", len(itemRepo.items))
+	}
+}
+
+func TestImportAlbum_UnknownSource(t *testing.T) {
+	entryRepo := newStubEntryRepo()
+	groupRepo := &stubGroupRepo{}
+	itemRepo := &stubItemRepo{}
+	src, albums, _ := twoAlbumsWithTracks()
+	svc := importAlbumSvc(src, entryRepo, groupRepo, itemRepo)
+
+	_, err := svc.ImportAlbum(context.Background(), &metadata.ImportAlbumRequest{
+		Source:         "nonexistent",
+		ExternalID:     albums[0].ExternalID,
+		LibraryEntryID: "entry-1",
+		Title:          "Test Album",
+	})
 	if err == nil {
 		t.Fatal("expected error for unknown source, got nil")
 	}

@@ -19,6 +19,7 @@ func (h *metadataHandler) routes(r chi.Router) {
 	r.Get("/discography", h.discography)
 	r.Post("/studios/import", h.importStudio)
 	r.Post("/people/import", h.importPerson)
+	r.Post("/albums/import", h.importAlbum)
 }
 
 // ── Search ────────────────────────────────────────────────────────────────────
@@ -172,6 +173,52 @@ func (h *metadataHandler) importPerson(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusCreated, toPersonResponse(person))
+}
+
+// ── Import album ──────────────────────────────────────────────────────────────
+
+type importAlbumRequest struct {
+	Source         string `json:"source"`
+	ExternalID     string `json:"externalId"`
+	LibraryEntryID string `json:"libraryEntryId"`
+	Title          string `json:"title"`
+	Year           int    `json:"year"`
+	Monitored      bool   `json:"monitored"`
+	MonitorMode    string `json:"monitorMode"`
+}
+
+// POST /api/v1/metadata/albums/import
+func (h *metadataHandler) importAlbum(w http.ResponseWriter, r *http.Request) {
+	var req importAlbumRequest
+	if err := decode(r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, "INVALID_BODY", "invalid request body")
+		return
+	}
+	if req.Source == "" || req.ExternalID == "" || req.LibraryEntryID == "" || req.Title == "" {
+		writeError(w, http.StatusBadRequest, "MISSING_FIELDS", "source, externalId, libraryEntryId, and title are required")
+		return
+	}
+
+	svcReq := &metadata.ImportAlbumRequest{
+		Source:         domain.ExternalIDSource(req.Source),
+		ExternalID:     req.ExternalID,
+		LibraryEntryID: req.LibraryEntryID,
+		Title:          req.Title,
+		Year:           req.Year,
+		Monitored:      req.Monitored,
+		MonitorMode:    domain.MonitorMode(req.MonitorMode),
+	}
+
+	group, err := h.svc.ImportAlbum(r.Context(), svcReq)
+	if err != nil {
+		if errs.IsValidation(err) {
+			writeError(w, http.StatusBadRequest, "UNKNOWN_SOURCE", err.Error())
+			return
+		}
+		writeError(w, http.StatusInternalServerError, "IMPORT_ERROR", "import failed")
+		return
+	}
+	writeJSON(w, http.StatusCreated, toGroupResponse(group))
 }
 
 // ── Discography ───────────────────────────────────────────────────────────────
