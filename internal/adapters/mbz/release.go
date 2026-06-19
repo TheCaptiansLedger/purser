@@ -9,6 +9,14 @@ import (
 
 // ── MusicBrainz response types ────────────────────────────────────────────────
 
+type mbzReleaseList struct {
+	Releases []mbzReleaseRef `json:"releases"`
+}
+
+type mbzReleaseRef struct {
+	ID string `json:"id"`
+}
+
 type mbzReleaseDetail struct {
 	Media []mbzMedium `json:"media"`
 }
@@ -29,10 +37,18 @@ type mbzTrack struct {
 
 // ── MetadataSource ────────────────────────────────────────────────────────────
 
-// FetchGroupContent fetches all tracks on a release, flattening across discs,
-// then applies page/perPage slicing. MusicBrainz does not paginate at the
-// track level so the full release is fetched and sliced locally.
-func (a *Adapter) FetchGroupContent(ctx context.Context, releaseMBID string, page, perPage int) ([]*domain.ExternalItem, int, error) {
+// FetchGroupContent fetches tracks for a release-group MBID. MusicBrainz
+// separates release-groups (the abstract album) from releases (a specific
+// pressing), so a two-step lookup is required: first resolve the
+// release-group to its canonical release, then fetch track recordings.
+// Tracks are flattened across discs; page/perPage slicing is applied locally
+// because MusicBrainz does not paginate at the track level.
+func (a *Adapter) FetchGroupContent(ctx context.Context, releaseGroupMBID string, page, perPage int) ([]*domain.ExternalItem, int, error) {
+	releaseMBID, err := a.resolveToReleaseMBID(ctx, releaseGroupMBID)
+	if err != nil {
+		return nil, 0, err
+	}
+
 	params := url.Values{}
 	params.Set("inc", "recordings")
 	params.Set("fmt", "json")
@@ -61,6 +77,23 @@ func (a *Adapter) FetchGroupContent(ctx context.Context, releaseMBID string, pag
 		end = len(all)
 	}
 	return all[offset:end], total, nil
+}
+
+func (a *Adapter) resolveToReleaseMBID(ctx context.Context, releaseGroupMBID string) (string, error) {
+	params := url.Values{}
+	params.Set("release-group", releaseGroupMBID)
+	params.Set("limit", "1")
+	params.Set("fmt", "json")
+	u := fmt.Sprintf("%srelease?%s", a.baseURL, params.Encode())
+
+	var list mbzReleaseList
+	if err := a.get(ctx, u, &list); err != nil {
+		return "", fmt.Errorf("resolving release-group %s: %w", releaseGroupMBID, err)
+	}
+	if len(list.Releases) == 0 {
+		return "", fmt.Errorf("musicbrainz: no releases found for release-group %s", releaseGroupMBID)
+	}
+	return list.Releases[0].ID, nil
 }
 
 // ── Mapping ───────────────────────────────────────────────────────────────────
