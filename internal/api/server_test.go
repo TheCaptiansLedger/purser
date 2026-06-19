@@ -33,12 +33,14 @@ func newHandler(t *testing.T) http.Handler {
 	}
 	t.Cleanup(func() { database.Close() })
 
+	personRepo := dbadapter.NewPersonRepo(database)
 	libSvc := library.New(
 		dbadapter.NewLibraryEntryRepo(database),
 		dbadapter.NewGroupRepo(database),
 		dbadapter.NewItemRepo(database),
+		personRepo,
 	)
-	peopleSvc := people.New(dbadapter.NewPersonRepo(database))
+	peopleSvc := people.New(personRepo)
 	tagRepo := dbadapter.NewTagRepo(database)
 
 	jobQueue := jobsadapter.New(1)
@@ -1499,6 +1501,7 @@ func TestJobs_Cancel_SetsStatus(t *testing.T) {
 		dbadapter.NewLibraryEntryRepo(database),
 		dbadapter.NewGroupRepo(database),
 		dbadapter.NewItemRepo(database),
+		dbadapter.NewPersonRepo(database),
 	)
 	peopleSvc := people.New(dbadapter.NewPersonRepo(database))
 	metaSvc := metadata.New(nil, nil, dbadapter.NewLibraryEntryRepo(database), dbadapter.NewItemRepo(database), dbadapter.NewPersonRepo(database), dbadapter.NewTagRepo(database), dbadapter.NewExternalIDRepo(database), "")
@@ -1591,6 +1594,85 @@ func TestCommands_RefreshStudio_MissingEntryID(t *testing.T) {
 	decodeJSON(t, w, &resp)
 	if resp.Code != "MISSING_FIELDS" {
 		t.Errorf("code = %q, want MISSING_FIELDS", resp.Code)
+	}
+}
+
+// ── Artist entry people ───────────────────────────────────────────────────────
+
+func TestLibraryEntries_Artist_GetIncludesPeople(t *testing.T) {
+	h := newHandler(t)
+
+	// Create artist entry
+	w := do(t, h, http.MethodPost, "/api/v1/library-entries", map[string]any{
+		"contentType": "music", "kind": "artist", "name": "The Beatles",
+	})
+	if w.Code != http.StatusCreated {
+		t.Fatalf("create artist = %d, body: %s", w.Code, w.Body.String())
+	}
+	var artist struct {
+		ID string `json:"id"`
+	}
+	decodeJSON(t, w, &artist)
+
+	// Create a person
+	w = do(t, h, http.MethodPost, "/api/v1/people", map[string]any{"name": "John Lennon"})
+	var person struct {
+		ID string `json:"id"`
+	}
+	decodeJSON(t, w, &person)
+
+	// Link via DB directly (no API endpoint for this yet — tested at repo level)
+	// GET should still return an empty people array (no members linked via API)
+	w = do(t, h, http.MethodGet, "/api/v1/library-entries/"+artist.ID, nil)
+	if w.Code != http.StatusOK {
+		t.Fatalf("get artist = %d", w.Code)
+	}
+	var resp struct {
+		People []any `json:"people"`
+	}
+	decodeJSON(t, w, &resp)
+	if resp.People == nil {
+		t.Error("people should be [] not null")
+	}
+}
+
+func TestLibraryEntries_List_FilterByPersonID(t *testing.T) {
+	h := newHandler(t)
+
+	// Create two artists
+	w := do(t, h, http.MethodPost, "/api/v1/library-entries", map[string]any{
+		"contentType": "music", "kind": "artist", "name": "The Beatles",
+	})
+	var beatles struct {
+		ID string `json:"id"`
+	}
+	decodeJSON(t, w, &beatles)
+	w = do(t, h, http.MethodPost, "/api/v1/library-entries", map[string]any{
+		"contentType": "music", "kind": "artist", "name": "Wings",
+	})
+	var wings struct {
+		ID string `json:"id"`
+	}
+	decodeJSON(t, w, &wings)
+
+	// Create person
+	w = do(t, h, http.MethodPost, "/api/v1/people", map[string]any{"name": "Paul McCartney"})
+	var paul struct {
+		ID string `json:"id"`
+	}
+	decodeJSON(t, w, &paul)
+
+	// personId filter with no links → 0 results
+	w = do(t, h, http.MethodGet, "/api/v1/library-entries?personId="+paul.ID, nil)
+	if w.Code != http.StatusOK {
+		t.Fatalf("list by personId = %d", w.Code)
+	}
+	var resp struct {
+		Total int `json:"total"`
+	}
+	decodeJSON(t, w, &resp)
+	if resp.Total != 0 {
+		t.Errorf("total = %d, want 0 (no links yet)", resp.Total)
 	}
 }
 

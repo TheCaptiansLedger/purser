@@ -79,6 +79,14 @@ export interface ItemPerson {
   role: PersonRole
 }
 
+export interface EntryPerson {
+  personId: string
+  person?: PersonRef
+  role: string
+  startDate?: string
+  endDate?: string
+}
+
 export interface MediaFile {
   id: string
   path: string
@@ -122,6 +130,7 @@ export interface LibraryEntry {
   imageUrl?: string
   externalIds: ExternalID[]
   tags: Tag[]
+  people: EntryPerson[]
   metadata?: Record<string, unknown>
   addedAt: string
   updatedAt: string

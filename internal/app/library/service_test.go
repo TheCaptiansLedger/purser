@@ -15,11 +15,15 @@ import (
 
 type mockEntryRepo struct {
 	data    map[string]*domain.LibraryEntry
+	people  map[string][]domain.EntryPerson // keyed by entryID
 	saveErr error
 }
 
 func newMockEntryRepo() *mockEntryRepo {
-	return &mockEntryRepo{data: make(map[string]*domain.LibraryEntry)}
+	return &mockEntryRepo{
+		data:   make(map[string]*domain.LibraryEntry),
+		people: make(map[string][]domain.EntryPerson),
+	}
 }
 
 func (m *mockEntryRepo) Get(_ context.Context, id string) (*domain.LibraryEntry, error) {
@@ -56,6 +60,64 @@ func (m *mockEntryRepo) Save(_ context.Context, e *domain.LibraryEntry) error {
 }
 
 func (m *mockEntryRepo) Delete(_ context.Context, id string) error {
+	delete(m.data, id)
+	return nil
+}
+
+func (m *mockEntryRepo) GetPeople(_ context.Context, entryID string) ([]domain.EntryPerson, error) {
+	return m.people[entryID], nil
+}
+
+func (m *mockEntryRepo) SavePerson(_ context.Context, entryID string, ep domain.EntryPerson) error {
+	m.people[entryID] = append(m.people[entryID], ep)
+	return nil
+}
+
+func (m *mockEntryRepo) RemovePerson(_ context.Context, entryID, personID, role string) error {
+	existing := m.people[entryID]
+	updated := existing[:0]
+	for _, ep := range existing {
+		if ep.PersonID != personID || ep.Role != role {
+			updated = append(updated, ep)
+		}
+	}
+	m.people[entryID] = updated
+	return nil
+}
+
+type mockPersonRepo struct {
+	data map[string]*domain.Person
+}
+
+func newMockPersonRepo() *mockPersonRepo {
+	return &mockPersonRepo{data: make(map[string]*domain.Person)}
+}
+
+func (m *mockPersonRepo) Get(_ context.Context, id string) (*domain.Person, error) {
+	p, ok := m.data[id]
+	if !ok {
+		return nil, sql.ErrNoRows
+	}
+	return p, nil
+}
+
+func (m *mockPersonRepo) List(_ context.Context, _ ports.PersonFilter) ([]*domain.Person, int, error) {
+	res := make([]*domain.Person, 0, len(m.data))
+	for _, p := range m.data {
+		res = append(res, p)
+	}
+	return res, len(res), nil
+}
+
+func (m *mockPersonRepo) Save(_ context.Context, p *domain.Person) error {
+	if p.ID == "" {
+		p.ID = fmt.Sprintf("person-%d", len(m.data)+1)
+	}
+	m.data[p.ID] = p
+	return nil
+}
+
+func (m *mockPersonRepo) Delete(_ context.Context, id string) error {
 	delete(m.data, id)
 	return nil
 }
@@ -139,7 +201,11 @@ func (m *mockItemRepo) Delete(_ context.Context, id string) error {
 }
 
 func newSvc(entries *mockEntryRepo, groups *mockGroupRepo, items *mockItemRepo) *library.Service {
-	return library.New(entries, groups, items)
+	return library.New(entries, groups, items, newMockPersonRepo())
+}
+
+func newSvcWithPersons(entries *mockEntryRepo, groups *mockGroupRepo, items *mockItemRepo, persons *mockPersonRepo) *library.Service {
+	return library.New(entries, groups, items, persons)
 }
 
 // ── Entry tests ───────────────────────────────────────────────────────────────
@@ -532,5 +598,67 @@ func TestDeleteItem(t *testing.T) {
 	}
 	if _, err := svc.GetItem(ctx, item.ID); !errs.IsNotFound(err) {
 		t.Errorf("expected ErrNotFound after delete, got %v", err)
+	}
+}
+
+// ── ImportArtistMembers tests ─────────────────────────────────────────────────
+
+func TestImportArtistMembers_LinksMembers(t *testing.T) {
+	entries := newMockEntryRepo()
+	persons := newMockPersonRepo()
+	svc := newSvcWithPersons(entries, newMockGroupRepo(), newMockItemRepo(), persons)
+	ctx := context.Background()
+
+	artist := &domain.LibraryEntry{
+		ContentType: domain.ContentTypeMusic, Kind: domain.KindArtist, Name: "The Beatles",
+	}
+	svc.CreateEntry(ctx, artist) //nolint:errcheck
+
+	members := []domain.Person{
+		{Name: "John Lennon"},
+		{Name: "Paul McCartney"},
+	}
+	if err := svc.ImportArtistMembers(ctx, artist.ID, members, "member"); err != nil {
+		t.Fatalf("ImportArtistMembers: %v", err)
+	}
+
+	if len(persons.data) != 2 {
+		t.Errorf("persons count = %d, want 2", len(persons.data))
+	}
+	eps := entries.people[artist.ID]
+	if len(eps) != 2 {
+		t.Errorf("entry_people count = %d, want 2", len(eps))
+	}
+	for _, ep := range eps {
+		if ep.Role != "member" {
+			t.Errorf("role = %q, want member", ep.Role)
+		}
+		if ep.PersonID == "" {
+			t.Error("PersonID should be set after import")
+		}
+	}
+}
+
+func TestImportArtistMembers_NotArtist(t *testing.T) {
+	entries := newMockEntryRepo()
+	svc := newSvcWithPersons(entries, newMockGroupRepo(), newMockItemRepo(), newMockPersonRepo())
+	ctx := context.Background()
+
+	studio := &domain.LibraryEntry{
+		ContentType: domain.ContentTypeAdult, Kind: domain.KindStudio, Name: "Evil Angel",
+	}
+	svc.CreateEntry(ctx, studio) //nolint:errcheck
+
+	err := svc.ImportArtistMembers(ctx, studio.ID, []domain.Person{{Name: "Someone"}}, "member")
+	if err == nil || !errs.IsValidation(err) {
+		t.Errorf("expected ValidationError for non-artist entry, got %v", err)
+	}
+}
+
+func TestImportArtistMembers_NotFound(t *testing.T) {
+	svc := newSvc(newMockEntryRepo(), newMockGroupRepo(), newMockItemRepo())
+	err := svc.ImportArtistMembers(context.Background(), "nonexistent", nil, "member")
+	if !errs.IsNotFound(err) {
+		t.Errorf("expected ErrNotFound, got %v", err)
 	}
 }

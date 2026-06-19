@@ -43,6 +43,18 @@ func (r *stubEntryRepo) Delete(_ context.Context, id string) error {
 	return nil
 }
 
+func (r *stubEntryRepo) GetPeople(_ context.Context, _ string) ([]domain.EntryPerson, error) {
+	return nil, nil
+}
+
+func (r *stubEntryRepo) SavePerson(_ context.Context, _ string, _ domain.EntryPerson) error {
+	return nil
+}
+
+func (r *stubEntryRepo) RemovePerson(_ context.Context, _, _, _ string) error {
+	return nil
+}
+
 type stubItemRepo struct {
 	items []*domain.Item
 }

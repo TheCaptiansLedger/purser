@@ -6,6 +6,7 @@ interface LibraryFilter {
   contentType?: ContentType
   kind?: Kind
   parentId?: string
+  personId?: string
   monitored?: boolean
   search?: string
   tag?: string

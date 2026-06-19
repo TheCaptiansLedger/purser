@@ -28,6 +28,14 @@ type itemPersonResponse struct {
 	Role     string             `json:"role"`
 }
 
+type entryPersonResponse struct {
+	PersonID  string             `json:"personId"`
+	Person    *personRefResponse `json:"person,omitempty"`
+	Role      string             `json:"role"`
+	StartDate string             `json:"startDate,omitempty"`
+	EndDate   string             `json:"endDate,omitempty"`
+}
+
 type mediaFileResponse struct {
 	ID         string    `json:"id"`
 	Path       string    `json:"path"`

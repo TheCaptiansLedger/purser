@@ -77,7 +77,7 @@ func run(cfgPath string) error {
 	jobQueue := jobsadapter.New(cfg.Server.Workers)
 	defer jobQueue.Close()
 
-	libSvc := library.New(entryRepo, groupRepo, itemRepo)
+	libSvc := library.New(entryRepo, groupRepo, itemRepo, personRepo)
 	peopleSvc := people.New(personRepo)
 	metaSvc := metadata.New(buildSources(cfg), jobQueue, entryRepo, itemRepo, personRepo, tagRepo, extIDRepo, cfg.Media.Path)
 

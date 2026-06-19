@@ -28,8 +28,8 @@ func TestOpen_CreatesSchema(t *testing.T) {
 	if err := database.QueryRow(`SELECT COUNT(*) FROM schema_migrations`).Scan(&count); err != nil {
 		t.Fatalf("schema_migrations missing: %v", err)
 	}
-	if count != 3 {
-		t.Errorf("migration count = %d, want 3", count)
+	if count != 4 {
+		t.Errorf("migration count = %d, want 4", count)
 	}
 
 	tables := []string{
@@ -37,6 +37,7 @@ func TestOpen_CreatesSchema(t *testing.T) {
 		"people", "people_aliases", "item_people",
 		"external_ids", "tags", "item_tags", "entry_tags",
 		"media_files", "releases", "downloads",
+		"entry_people",
 	}
 	for _, table := range tables {
 		var n int
@@ -1037,5 +1038,162 @@ func TestItemRepo_Delete(t *testing.T) {
 	}
 	if _, err := itemRepo.Get(ctx, item.ID); err == nil {
 		t.Error("Get after delete should error")
+	}
+}
+
+// ── LibraryEntryRepo — entry people ──────────────────────────────────────────
+
+func TestLibraryEntryRepo_SaveAndGetPeople(t *testing.T) {
+	db := setupTestDB(t)
+	entryRepo := NewLibraryEntryRepo(db)
+	personRepo := NewPersonRepo(db)
+	ctx := context.Background()
+
+	artist := &domain.LibraryEntry{
+		ContentType: domain.ContentTypeMusic, Kind: domain.KindArtist,
+		Name: "The Beatles", MonitorMode: domain.MonitorAll, Status: domain.EntryStatusActive,
+	}
+	if err := entryRepo.Save(ctx, artist); err != nil {
+		t.Fatalf("Save artist: %v", err)
+	}
+
+	john := &domain.Person{Name: "John Lennon", SortName: "Lennon, John", MonitorMode: domain.MonitorAll}
+	paul := &domain.Person{Name: "Paul McCartney", SortName: "McCartney, Paul", MonitorMode: domain.MonitorAll}
+	personRepo.Save(ctx, john) //nolint:errcheck
+	personRepo.Save(ctx, paul) //nolint:errcheck
+
+	if err := entryRepo.SavePerson(ctx, artist.ID, domain.EntryPerson{PersonID: john.ID, Role: "member"}); err != nil {
+		t.Fatalf("SavePerson John: %v", err)
+	}
+	if err := entryRepo.SavePerson(ctx, artist.ID, domain.EntryPerson{PersonID: paul.ID, Role: "member"}); err != nil {
+		t.Fatalf("SavePerson Paul: %v", err)
+	}
+
+	people, err := entryRepo.GetPeople(ctx, artist.ID)
+	if err != nil {
+		t.Fatalf("GetPeople: %v", err)
+	}
+	if len(people) != 2 {
+		t.Fatalf("people count = %d, want 2", len(people))
+	}
+	names := map[string]bool{}
+	for _, ep := range people {
+		if ep.Person == nil {
+			t.Error("Person stub should be loaded")
+		} else {
+			names[ep.Person.Name] = true
+		}
+		if ep.Role != "member" {
+			t.Errorf("role = %q, want member", ep.Role)
+		}
+	}
+	if !names["John Lennon"] || !names["Paul McCartney"] {
+		t.Errorf("expected both members, got names: %v", names)
+	}
+}
+
+func TestLibraryEntryRepo_GetIncludesPeople(t *testing.T) {
+	db := setupTestDB(t)
+	entryRepo := NewLibraryEntryRepo(db)
+	personRepo := NewPersonRepo(db)
+	ctx := context.Background()
+
+	artist := &domain.LibraryEntry{
+		ContentType: domain.ContentTypeMusic, Kind: domain.KindArtist,
+		Name: "Pink Floyd", MonitorMode: domain.MonitorAll, Status: domain.EntryStatusActive,
+	}
+	entryRepo.Save(ctx, artist) //nolint:errcheck
+
+	member := &domain.Person{Name: "Roger Waters", MonitorMode: domain.MonitorAll}
+	personRepo.Save(ctx, member) //nolint:errcheck
+
+	entryRepo.SavePerson(ctx, artist.ID, domain.EntryPerson{PersonID: member.ID, Role: "member"}) //nolint:errcheck
+
+	got, err := entryRepo.Get(ctx, artist.ID)
+	if err != nil {
+		t.Fatalf("Get: %v", err)
+	}
+	if len(got.People) != 1 {
+		t.Fatalf("People count = %d, want 1", len(got.People))
+	}
+	if got.People[0].Person == nil || got.People[0].Person.Name != "Roger Waters" {
+		t.Errorf("People[0].Person = %+v, want Roger Waters stub", got.People[0].Person)
+	}
+}
+
+func TestLibraryEntryRepo_RemovePerson(t *testing.T) {
+	db := setupTestDB(t)
+	entryRepo := NewLibraryEntryRepo(db)
+	personRepo := NewPersonRepo(db)
+	ctx := context.Background()
+
+	artist := &domain.LibraryEntry{
+		ContentType: domain.ContentTypeMusic, Kind: domain.KindArtist,
+		Name: "Band", MonitorMode: domain.MonitorAll, Status: domain.EntryStatusActive,
+	}
+	entryRepo.Save(ctx, artist) //nolint:errcheck
+
+	p := &domain.Person{Name: "Member One", MonitorMode: domain.MonitorAll}
+	personRepo.Save(ctx, p)                                                                  //nolint:errcheck
+	entryRepo.SavePerson(ctx, artist.ID, domain.EntryPerson{PersonID: p.ID, Role: "member"}) //nolint:errcheck
+
+	if err := entryRepo.RemovePerson(ctx, artist.ID, p.ID, "member"); err != nil {
+		t.Fatalf("RemovePerson: %v", err)
+	}
+
+	people, err := entryRepo.GetPeople(ctx, artist.ID)
+	if err != nil {
+		t.Fatalf("GetPeople after remove: %v", err)
+	}
+	if len(people) != 0 {
+		t.Errorf("people count = %d, want 0 after remove", len(people))
+	}
+}
+
+func TestLibraryEntryRepo_List_PersonIDFilter(t *testing.T) {
+	db := setupTestDB(t)
+	entryRepo := NewLibraryEntryRepo(db)
+	personRepo := NewPersonRepo(db)
+	ctx := context.Background()
+
+	beatles := &domain.LibraryEntry{
+		ContentType: domain.ContentTypeMusic, Kind: domain.KindArtist,
+		Name: "The Beatles", MonitorMode: domain.MonitorAll, Status: domain.EntryStatusActive,
+	}
+	wings := &domain.LibraryEntry{
+		ContentType: domain.ContentTypeMusic, Kind: domain.KindArtist,
+		Name: "Wings", MonitorMode: domain.MonitorAll, Status: domain.EntryStatusActive,
+	}
+	entryRepo.Save(ctx, beatles) //nolint:errcheck
+	entryRepo.Save(ctx, wings)   //nolint:errcheck
+
+	paul := &domain.Person{Name: "Paul McCartney", MonitorMode: domain.MonitorAll}
+	john := &domain.Person{Name: "John Lennon", MonitorMode: domain.MonitorAll}
+	personRepo.Save(ctx, paul) //nolint:errcheck
+	personRepo.Save(ctx, john) //nolint:errcheck
+
+	entryRepo.SavePerson(ctx, beatles.ID, domain.EntryPerson{PersonID: paul.ID, Role: "member"}) //nolint:errcheck
+	entryRepo.SavePerson(ctx, beatles.ID, domain.EntryPerson{PersonID: john.ID, Role: "member"}) //nolint:errcheck
+	entryRepo.SavePerson(ctx, wings.ID, domain.EntryPerson{PersonID: paul.ID, Role: "member"})   //nolint:errcheck
+
+	// Paul is in 2 bands
+	paulBands, total, err := entryRepo.List(ctx, ports.LibraryFilter{PersonID: paul.ID})
+	if err != nil {
+		t.Fatalf("List by PersonID: %v", err)
+	}
+	if total != 2 || len(paulBands) != 2 {
+		t.Errorf("Paul bands: total=%d len=%d, want 2", total, len(paulBands))
+	}
+
+	// John is in 1 band
+	johnBands, total, err := entryRepo.List(ctx, ports.LibraryFilter{PersonID: john.ID})
+	if err != nil {
+		t.Fatalf("List by PersonID: %v", err)
+	}
+	if total != 1 || len(johnBands) != 1 {
+		t.Errorf("John bands: total=%d len=%d, want 1", total, len(johnBands))
+	}
+	if johnBands[0].Name != "The Beatles" {
+		t.Errorf("band name = %q, want The Beatles", johnBands[0].Name)
 	}
 }
