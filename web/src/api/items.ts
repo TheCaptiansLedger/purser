@@ -15,6 +15,11 @@ export async function patchItem(id: string, patch: { monitored?: boolean; status
   return res.json() as Promise<Item>
 }
 
+export const SORT_OPTIONS = ['date', 'title'] as const
+export const SORT_DIR_OPTIONS = ['asc', 'desc'] as const
+export type SortField = typeof SORT_OPTIONS[number]
+export type SortDir = typeof SORT_DIR_OPTIONS[number]
+
 interface ItemFilter {
   libraryEntryId?: string
   groupId?: string
@@ -23,6 +28,8 @@ interface ItemFilter {
   monitored?: boolean
   personId?: string
   search?: string
+  sort?: SortField
+  sortDir?: SortDir
   limit?: number
   offset?: number
 }
