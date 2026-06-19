@@ -2,11 +2,13 @@ package mbz_test
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"purser/internal/adapters/mbz"
 	"purser/internal/config"
 	"purser/internal/domain"
+	"purser/internal/ports"
 	"strings"
 	"testing"
 )
@@ -54,6 +56,14 @@ func TestAdapter_InvalidJSON(t *testing.T) {
 	_, err := a.SearchStudios(context.Background(), "test", 5)
 	if err == nil {
 		t.Fatal("expected error for invalid JSON, got nil")
+	}
+}
+
+func TestAdapter_FindByHash_NotSupported(t *testing.T) {
+	a := mbz.New(config.MetadataSourceConfig{})
+	_, err := a.FindByHash(context.Background(), "abc123")
+	if !errors.Is(err, ports.ErrNotSupported) {
+		t.Errorf("expected ports.ErrNotSupported, got: %v", err)
 	}
 }
 
