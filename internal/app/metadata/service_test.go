@@ -179,6 +179,7 @@ func newService() *metadata.Service {
 		nil, // no metadata sources needed for import tests
 		nil, // no job queue
 		newStubEntryRepo(),
+		nil, // no group repo needed for import tests
 		&stubItemRepo{},
 		&stubPersonRepo{},
 		&stubTagRepo{},
@@ -263,7 +264,7 @@ func TestImportStudio_KindArtist(t *testing.T) {
 
 func TestImportStudio_Idempotent(t *testing.T) {
 	entryRepo := newStubEntryRepo()
-	svc := metadata.New(nil, nil, entryRepo, &stubItemRepo{}, &stubPersonRepo{}, &stubTagRepo{}, &stubExternalIDRepo{}, "")
+	svc := metadata.New(nil, nil, entryRepo, nil, &stubItemRepo{}, &stubPersonRepo{}, &stubTagRepo{}, &stubExternalIDRepo{}, "")
 
 	req := &metadata.ImportStudioRequest{
 		Source:      domain.SourceStashDB,
@@ -279,7 +280,7 @@ func TestImportStudio_Idempotent(t *testing.T) {
 
 	// Seed the external ID repo with the saved entry so the second call finds it.
 	seededRepo := &seededExternalIDRepo{id: res1.Studio.ID}
-	svc2 := metadata.New(nil, nil, entryRepo, &stubItemRepo{}, &stubPersonRepo{}, &stubTagRepo{}, seededRepo, "")
+	svc2 := metadata.New(nil, nil, entryRepo, nil, &stubItemRepo{}, &stubPersonRepo{}, &stubTagRepo{}, seededRepo, "")
 
 	res2, err := svc2.ImportStudio(context.Background(), req)
 	if err != nil {
@@ -320,6 +321,7 @@ func refreshSvc(scenes []*domain.ExternalItem, entryRepo *stubEntryRepo, itemRep
 		[]ports.MetadataSource{src},
 		nil, // no job queue needed for refresh tests
 		entryRepo,
+		nil, // no group repo needed for RefreshStudio tests
 		itemRepo,
 		&stubPersonRepo{},
 		&stubTagRepo{},
@@ -414,6 +416,7 @@ func TestImportStudio_AutoImport_EnqueuesJob(t *testing.T) {
 		nil, // no metadata sources
 		jobQueue,
 		newStubEntryRepo(),
+		nil,
 		&stubItemRepo{},
 		&stubPersonRepo{},
 		&stubTagRepo{},
@@ -445,6 +448,7 @@ func TestImportStudio_AutoImport_False_NoJob(t *testing.T) {
 		nil,
 		jobQueue,
 		newStubEntryRepo(),
+		nil,
 		&stubItemRepo{},
 		&stubPersonRepo{},
 		&stubTagRepo{},
@@ -545,7 +549,7 @@ func TestRefreshStudio_ImportsPerformers(t *testing.T) {
 	entryRepo.data[entry.ID] = entry
 
 	src := &stubSource{scenes: scenesWithPeopleAndTags(), total: 2}
-	svc := metadata.New([]ports.MetadataSource{src}, nil, entryRepo, itemRepo, personRepo, &stubTagRepo{}, &stubExternalIDRepo{}, "")
+	svc := metadata.New([]ports.MetadataSource{src}, nil, entryRepo, nil, itemRepo, personRepo, &stubTagRepo{}, &stubExternalIDRepo{}, "")
 
 	if err := svc.RefreshStudio(context.Background(), entry.ID, nil); err != nil {
 		t.Fatalf("RefreshStudio: %v", err)
@@ -577,7 +581,7 @@ func TestRefreshStudio_ImportsTags(t *testing.T) {
 	entryRepo.data[entry.ID] = entry
 
 	src := &stubSource{scenes: scenesWithPeopleAndTags(), total: 2}
-	svc := metadata.New([]ports.MetadataSource{src}, nil, entryRepo, itemRepo, &stubPersonRepo{}, tagRepo, &stubExternalIDRepo{}, "")
+	svc := metadata.New([]ports.MetadataSource{src}, nil, entryRepo, nil, itemRepo, &stubPersonRepo{}, tagRepo, &stubExternalIDRepo{}, "")
 
 	if err := svc.RefreshStudio(context.Background(), entry.ID, nil); err != nil {
 		t.Fatalf("RefreshStudio: %v", err)
@@ -594,5 +598,325 @@ func TestRefreshStudio_ImportsTags(t *testing.T) {
 	// Second scene has 1 tag (outdoor), reused from cache.
 	if len(itemRepo.items[1].Tags) != 1 {
 		t.Errorf("scene 2 tags = %d, want 1", len(itemRepo.items[1].Tags))
+	}
+}
+
+// ── RefreshArtist stubs ───────────────────────────────────────────────────────
+
+type stubGroupRepo struct {
+	groups []*domain.Group
+}
+
+func (r *stubGroupRepo) Get(_ context.Context, _ string) (*domain.Group, error) {
+	return nil, fmt.Errorf("not found: %w", errs.ErrNotFound)
+}
+
+func (r *stubGroupRepo) List(_ context.Context, _ ports.GroupFilter) ([]*domain.Group, error) {
+	return r.groups, nil
+}
+
+func (r *stubGroupRepo) Save(_ context.Context, g *domain.Group) error {
+	r.groups = append(r.groups, g)
+	return nil
+}
+
+func (r *stubGroupRepo) Delete(_ context.Context, _ string) error { return nil }
+
+// stubMusicSource returns albums via FetchEntryContent and per-album tracks via
+// FetchGroupContent. Name() returns "mbz" to match artist entry external IDs.
+type stubMusicSource struct {
+	albums []*domain.ExternalGroup
+	tracks map[string][]*domain.ExternalItem // groupExternalID → tracks
+}
+
+func (s *stubMusicSource) Name() string { return "mbz" }
+func (s *stubMusicSource) ContentTypes() []domain.ContentType {
+	return []domain.ContentType{domain.ContentTypeMusic}
+}
+
+func (s *stubMusicSource) SearchStudios(_ context.Context, _ string, _ int) ([]*domain.ExternalStudio, error) {
+	return nil, nil
+}
+
+func (s *stubMusicSource) SearchPeople(_ context.Context, _ string, _ int) ([]*domain.ExternalPerson, error) {
+	return nil, nil
+}
+
+func (s *stubMusicSource) SearchItems(_ context.Context, _ domain.ContentType, _ string, _ int) ([]*domain.ExternalItem, error) {
+	return nil, nil
+}
+
+func (s *stubMusicSource) FindByHash(_ context.Context, _ string) (*domain.ExternalItem, error) {
+	return nil, ports.ErrNotSupported
+}
+
+func (s *stubMusicSource) FindByExternalID(_ context.Context, _ string) (*domain.ExternalItem, error) {
+	return nil, ports.ErrNotFound
+}
+
+func (s *stubMusicSource) FetchEntryContent(_ context.Context, _ string, page, _ int) ([]*domain.ExternalGroup, []*domain.ExternalItem, int, error) {
+	if page == 1 {
+		return s.albums, nil, len(s.albums), nil
+	}
+	return nil, nil, len(s.albums), nil
+}
+
+func (s *stubMusicSource) FetchGroupContent(_ context.Context, groupExtID string, page, _ int) ([]*domain.ExternalItem, int, error) {
+	tracks := s.tracks[groupExtID]
+	if page == 1 {
+		return tracks, len(tracks), nil
+	}
+	return nil, len(tracks), nil
+}
+
+func artistEntry(mode domain.MonitorMode, addedAt time.Time) *domain.LibraryEntry {
+	return &domain.LibraryEntry{
+		ID:          "artist-entry-1",
+		ContentType: domain.ContentTypeMusic,
+		Kind:        domain.KindArtist,
+		Name:        "Test Artist",
+		MonitorMode: mode,
+		AddedAt:     addedAt,
+		ExternalIDs: []domain.ExternalID{{Source: domain.SourceMusicBrainz, Value: "artist-mbz-1"}},
+	}
+}
+
+func twoAlbumsWithTracks() (*stubMusicSource, []*domain.ExternalGroup, map[string][]*domain.ExternalItem) {
+	albums := []*domain.ExternalGroup{
+		{Source: domain.SourceMusicBrainz, ExternalID: "album-1", Title: "Album One", Year: 2020},
+		{Source: domain.SourceMusicBrainz, ExternalID: "album-2", Title: "Album Two", Year: 2022},
+	}
+	tracks := map[string][]*domain.ExternalItem{
+		"album-1": {
+			{Source: domain.SourceMusicBrainz, ExternalID: "track-1", Title: "Track A1", Date: time.Date(2020, 3, 1, 0, 0, 0, 0, time.UTC)},
+			{Source: domain.SourceMusicBrainz, ExternalID: "track-2", Title: "Track A2", Date: time.Date(2020, 3, 2, 0, 0, 0, 0, time.UTC)},
+		},
+		"album-2": {
+			{Source: domain.SourceMusicBrainz, ExternalID: "track-3", Title: "Track B1", Date: time.Date(2022, 6, 1, 0, 0, 0, 0, time.UTC)},
+			{Source: domain.SourceMusicBrainz, ExternalID: "track-4", Title: "Track B2", Date: time.Date(2022, 6, 15, 0, 0, 0, 0, time.UTC)},
+		},
+	}
+	return &stubMusicSource{albums: albums, tracks: tracks}, albums, tracks
+}
+
+func artistRefreshSvc(src *stubMusicSource, entryRepo *stubEntryRepo, groupRepo *stubGroupRepo, itemRepo *stubItemRepo) *metadata.Service {
+	return metadata.New(
+		[]ports.MetadataSource{src},
+		nil,
+		entryRepo,
+		groupRepo,
+		itemRepo,
+		&stubPersonRepo{},
+		&stubTagRepo{},
+		&stubExternalIDRepo{},
+		"",
+	)
+}
+
+// ── RefreshArtist tests ───────────────────────────────────────────────────────
+
+func TestRefreshArtist_CreatesGroupsAndTracks(t *testing.T) {
+	entryRepo := newStubEntryRepo()
+	groupRepo := &stubGroupRepo{}
+	itemRepo := &stubItemRepo{}
+	entry := artistEntry(domain.MonitorAll, time.Date(2020, 1, 1, 0, 0, 0, 0, time.UTC))
+	entryRepo.data[entry.ID] = entry
+
+	src, _, _ := twoAlbumsWithTracks()
+	svc := artistRefreshSvc(src, entryRepo, groupRepo, itemRepo)
+
+	if err := svc.RefreshArtist(context.Background(), entry.ID, nil); err != nil {
+		t.Fatalf("RefreshArtist: %v", err)
+	}
+	if len(groupRepo.groups) != 2 {
+		t.Errorf("group count = %d, want 2", len(groupRepo.groups))
+	}
+	if len(itemRepo.items) != 4 {
+		t.Errorf("item count = %d, want 4", len(itemRepo.items))
+	}
+}
+
+func TestRefreshArtist_MonitorAll(t *testing.T) {
+	entryRepo := newStubEntryRepo()
+	groupRepo := &stubGroupRepo{}
+	itemRepo := &stubItemRepo{}
+	entry := artistEntry(domain.MonitorAll, time.Date(2020, 1, 1, 0, 0, 0, 0, time.UTC))
+	entryRepo.data[entry.ID] = entry
+
+	src, _, _ := twoAlbumsWithTracks()
+	if err := artistRefreshSvc(src, entryRepo, groupRepo, itemRepo).RefreshArtist(context.Background(), entry.ID, nil); err != nil {
+		t.Fatalf("RefreshArtist: %v", err)
+	}
+	for _, it := range itemRepo.items {
+		if !it.Monitored {
+			t.Errorf("track %q: monitored = false, want true (MonitorAll)", it.Title)
+		}
+	}
+}
+
+func TestRefreshArtist_MonitorNone(t *testing.T) {
+	entryRepo := newStubEntryRepo()
+	groupRepo := &stubGroupRepo{}
+	itemRepo := &stubItemRepo{}
+	entry := artistEntry(domain.MonitorNone, time.Date(2020, 1, 1, 0, 0, 0, 0, time.UTC))
+	entryRepo.data[entry.ID] = entry
+
+	src, _, _ := twoAlbumsWithTracks()
+	if err := artistRefreshSvc(src, entryRepo, groupRepo, itemRepo).RefreshArtist(context.Background(), entry.ID, nil); err != nil {
+		t.Fatalf("RefreshArtist: %v", err)
+	}
+	for _, it := range itemRepo.items {
+		if it.Monitored {
+			t.Errorf("track %q: monitored = true, want false (MonitorNone)", it.Title)
+		}
+	}
+}
+
+func TestRefreshArtist_MonitorFuture(t *testing.T) {
+	entryRepo := newStubEntryRepo()
+	groupRepo := &stubGroupRepo{}
+	itemRepo := &stubItemRepo{}
+	// AddedAt between album-1 tracks (Mar 2020) and album-2 tracks (Jun 2022).
+	entry := artistEntry(domain.MonitorFuture, time.Date(2021, 1, 1, 0, 0, 0, 0, time.UTC))
+	entryRepo.data[entry.ID] = entry
+
+	src, _, _ := twoAlbumsWithTracks()
+	if err := artistRefreshSvc(src, entryRepo, groupRepo, itemRepo).RefreshArtist(context.Background(), entry.ID, nil); err != nil {
+		t.Fatalf("RefreshArtist: %v", err)
+	}
+	monitored := map[string]bool{}
+	for _, it := range itemRepo.items {
+		monitored[it.ExternalIDs[0].Value] = it.Monitored
+	}
+	if monitored["track-1"] || monitored["track-2"] {
+		t.Error("album-1 tracks (2020): want unmonitored (before AddedAt)")
+	}
+	if !monitored["track-3"] || !monitored["track-4"] {
+		t.Error("album-2 tracks (2022): want monitored (after AddedAt)")
+	}
+}
+
+func TestRefreshArtist_MonitorLatest(t *testing.T) {
+	entryRepo := newStubEntryRepo()
+	groupRepo := &stubGroupRepo{}
+	itemRepo := &stubItemRepo{}
+	entry := artistEntry(domain.MonitorLatest, time.Date(2020, 1, 1, 0, 0, 0, 0, time.UTC))
+	entryRepo.data[entry.ID] = entry
+
+	src, _, _ := twoAlbumsWithTracks()
+	if err := artistRefreshSvc(src, entryRepo, groupRepo, itemRepo).RefreshArtist(context.Background(), entry.ID, nil); err != nil {
+		t.Fatalf("RefreshArtist: %v", err)
+	}
+	// track-4 (2022-06-15) is the newest across all albums.
+	monitored := map[string]bool{}
+	status := map[string]domain.ItemStatus{}
+	for _, it := range itemRepo.items {
+		extID := it.ExternalIDs[0].Value
+		monitored[extID] = it.Monitored
+		status[extID] = it.Status
+	}
+	for _, extID := range []string{"track-1", "track-2", "track-3"} {
+		if monitored[extID] {
+			t.Errorf("%s: monitored = true, want false", extID)
+		}
+		if status[extID] != domain.StatusMissing {
+			t.Errorf("%s: status = %q, want missing", extID, status[extID])
+		}
+	}
+	if !monitored["track-4"] {
+		t.Error("track-4 (latest): monitored = false, want true")
+	}
+	if status["track-4"] != domain.StatusWanted {
+		t.Errorf("track-4 (latest): status = %q, want wanted", status["track-4"])
+	}
+}
+
+func TestRefreshArtist_SkipsDuplicates(t *testing.T) {
+	entryRepo := newStubEntryRepo()
+	groupRepo := &stubGroupRepo{}
+	itemRepo := &stubItemRepo{}
+	entry := artistEntry(domain.MonitorAll, time.Date(2020, 1, 1, 0, 0, 0, 0, time.UTC))
+	entryRepo.data[entry.ID] = entry
+
+	src, _, _ := twoAlbumsWithTracks()
+	svc := artistRefreshSvc(src, entryRepo, groupRepo, itemRepo)
+
+	if err := svc.RefreshArtist(context.Background(), entry.ID, nil); err != nil {
+		t.Fatalf("first RefreshArtist: %v", err)
+	}
+	firstGroups := len(groupRepo.groups)
+	firstItems := len(itemRepo.items)
+
+	// Seed the external ID repo so the second call sees everything as existing.
+	seeded := &seededArtistExternalIDRepo{
+		groupIDs: map[string]string{
+			"mbz:album-1": groupRepo.groups[0].ID,
+			"mbz:album-2": groupRepo.groups[1].ID,
+		},
+		itemIDs: make(map[string]string),
+	}
+	for _, it := range itemRepo.items {
+		seeded.itemIDs["mbz:"+it.ExternalIDs[0].Value] = it.ID
+	}
+	svc2 := metadata.New([]ports.MetadataSource{src}, nil, entryRepo, groupRepo, itemRepo, &stubPersonRepo{}, &stubTagRepo{}, seeded, "")
+
+	if err := svc2.RefreshArtist(context.Background(), entry.ID, nil); err != nil {
+		t.Fatalf("second RefreshArtist: %v", err)
+	}
+	if len(groupRepo.groups) != firstGroups {
+		t.Errorf("group count after second refresh = %d, want %d (no duplicates)", len(groupRepo.groups), firstGroups)
+	}
+	if len(itemRepo.items) != firstItems {
+		t.Errorf("item count after second refresh = %d, want %d (no duplicates)", len(itemRepo.items), firstItems)
+	}
+}
+
+// seededArtistExternalIDRepo returns known IDs for groups and items already imported.
+type seededArtistExternalIDRepo struct {
+	groupIDs map[string]string // "source:extID" → internal group ID
+	itemIDs  map[string]string // "source:extID" → internal item ID
+}
+
+func (r *seededArtistExternalIDRepo) FindEntity(_ context.Context, entityType, source, value string) (string, error) {
+	key := source + ":" + value
+	switch entityType {
+	case "group":
+		if id, ok := r.groupIDs[key]; ok {
+			return id, nil
+		}
+	case "item":
+		if id, ok := r.itemIDs[key]; ok {
+			return id, nil
+		}
+	}
+	return "", fmt.Errorf("not found: %w", errs.ErrNotFound)
+}
+
+func TestRefreshArtist_GroupLinkedToItem(t *testing.T) {
+	entryRepo := newStubEntryRepo()
+	groupRepo := &stubGroupRepo{}
+	itemRepo := &stubItemRepo{}
+	entry := artistEntry(domain.MonitorAll, time.Date(2020, 1, 1, 0, 0, 0, 0, time.UTC))
+	entryRepo.data[entry.ID] = entry
+
+	src, _, _ := twoAlbumsWithTracks()
+	if err := artistRefreshSvc(src, entryRepo, groupRepo, itemRepo).RefreshArtist(context.Background(), entry.ID, nil); err != nil {
+		t.Fatalf("RefreshArtist: %v", err)
+	}
+
+	// Build a map from internal group ID to album external ID for verification.
+	groupByID := map[string]*domain.Group{}
+	for _, g := range groupRepo.groups {
+		groupByID[g.ID] = g
+	}
+
+	for _, it := range itemRepo.items {
+		if it.GroupID == "" {
+			t.Errorf("item %q: GroupID is empty", it.Title)
+			continue
+		}
+		if _, ok := groupByID[it.GroupID]; !ok {
+			t.Errorf("item %q: GroupID %q does not match any saved group", it.Title, it.GroupID)
+		}
 	}
 }

@@ -27,6 +27,7 @@ type Service struct {
 	sources     []ports.MetadataSource
 	jobs        ports.JobQueue
 	entries     ports.LibraryEntryRepository
+	groups      ports.GroupRepository
 	items       ports.ItemRepository
 	people      ports.PersonRepository
 	tags        ports.TagRepository
@@ -39,6 +40,7 @@ func New(
 	sources []ports.MetadataSource,
 	jobs ports.JobQueue,
 	entries ports.LibraryEntryRepository,
+	groups ports.GroupRepository,
 	items ports.ItemRepository,
 	people ports.PersonRepository,
 	tags ports.TagRepository,
@@ -49,6 +51,7 @@ func New(
 		sources:     sources,
 		jobs:        jobs,
 		entries:     entries,
+		groups:      groups,
 		items:       items,
 		people:      people,
 		tags:        tags,
@@ -450,6 +453,167 @@ func (s *Service) RefreshStudio(ctx context.Context, entryID string, p ports.Pro
 
 	slog.Info("studio.refreshed", "entry_id", entryID, "name", entry.Name, "new_items", total)
 	return nil
+}
+
+// artistAlbum is the intermediate representation used during RefreshArtist to
+// carry both the resolved internal group ID and the external album metadata.
+type artistAlbum struct {
+	internalID string
+	extGroup   *domain.ExternalGroup
+}
+
+// artistTrack is a track collected during RefreshArtist, bundled with the
+// internal group ID of the album it belongs to.
+type artistTrack struct {
+	groupID string
+	extItem *domain.ExternalItem
+}
+
+// RefreshArtist fetches the discography for a music artist and creates Group
+// records for albums and Item records for tracks not already in the library.
+// Progress is reported through p if non-nil; p is updated once per saved track.
+func (s *Service) RefreshArtist(ctx context.Context, entryID string, p ports.ProgressReporter) error {
+	entry, err := s.entries.Get(ctx, entryID)
+	if err != nil {
+		return fmt.Errorf("refresh artist: load entry: %w", err)
+	}
+
+	src, srcExtID := s.sourceForEntry(entry)
+	if src == nil {
+		return fmt.Errorf("refresh artist %q: no configured metadata source has an external ID for this entry", entry.Name)
+	}
+
+	albums, err := s.resolveArtistAlbums(ctx, src, entry, srcExtID)
+	if err != nil {
+		return err
+	}
+
+	newTracks, err := s.collectArtistTracks(ctx, src, entry.Name, albums)
+	if err != nil {
+		return err
+	}
+
+	if len(newTracks) == 0 {
+		slog.Info("artist.refresh.noop", "entry_id", entryID, "name", entry.Name)
+		return nil
+	}
+
+	latestIdx := 0
+	for i, tr := range newTracks {
+		if tr.extItem.Date.After(newTracks[latestIdx].extItem.Date) {
+			latestIdx = i
+		}
+	}
+
+	now := time.Now().UTC()
+	total := len(newTracks)
+
+	for i, tr := range newTracks {
+		itemID := uuid.New().String()
+		var coverPath string
+		if tr.extItem.ImageURL != "" && s.mediaPath != "" {
+			coverPath = s.fetchImage(ctx, tr.extItem.ImageURL, "items", itemID)
+		}
+		monitored := monitoredForMode(entry.MonitorMode, entry.AddedAt, tr.extItem.Date)
+		if entry.MonitorMode == domain.MonitorLatest {
+			monitored = (i == latestIdx)
+		}
+		itemStatus := domain.StatusWanted
+		if !monitored {
+			itemStatus = domain.StatusMissing
+		}
+		item := &domain.Item{
+			ID:             itemID,
+			ContentType:    entry.ContentType,
+			LibraryEntryID: entry.ID,
+			GroupID:        tr.groupID,
+			Title:          tr.extItem.Title,
+			Overview:       tr.extItem.Overview,
+			Date:           tr.extItem.Date,
+			RuntimeSeconds: tr.extItem.RuntimeSecs,
+			Monitored:      monitored,
+			Status:         itemStatus,
+			CoverPath:      coverPath,
+			ExternalIDs:    []domain.ExternalID{{Source: tr.extItem.Source, Value: tr.extItem.ExternalID}},
+			AddedAt:        now,
+		}
+		if err := s.items.Save(ctx, item); err != nil {
+			return fmt.Errorf("refresh artist %q: save track %q: %w", entry.Name, item.Title, err)
+		}
+		if p != nil {
+			p.Report(i+1, total, item.Title)
+		}
+	}
+
+	slog.Info("artist.refreshed", "entry_id", entryID, "name", entry.Name, "new_tracks", total)
+	return nil
+}
+
+// resolveArtistAlbums pages through FetchEntryContent for the artist and
+// creates Group records for any album not already in the library. Returns a
+// slice of all albums (new and existing) with their internal IDs resolved.
+func (s *Service) resolveArtistAlbums(ctx context.Context, src ports.MetadataSource, entry *domain.LibraryEntry, srcExtID string) ([]artistAlbum, error) {
+	const perPage = 100
+	var albums []artistAlbum
+
+	for page := 1; ; page++ {
+		extGroups, _, albumTotal, err := src.FetchEntryContent(ctx, srcExtID, page, perPage)
+		if err != nil {
+			return nil, fmt.Errorf("refresh artist %q: fetch albums page %d: %w", entry.Name, page, err)
+		}
+		for _, eg := range extGroups {
+			if id, findErr := s.externalIDs.FindEntity(ctx, "group", string(eg.Source), eg.ExternalID); findErr == nil {
+				albums = append(albums, artistAlbum{internalID: id, extGroup: eg})
+				continue
+			}
+			g := &domain.Group{
+				ID:             uuid.New().String(),
+				LibraryEntryID: entry.ID,
+				Title:          eg.Title,
+				SortName:       eg.Title,
+				Number:         eg.Number,
+				Year:           eg.Year,
+				Overview:       eg.Overview,
+				Monitored:      true,
+				MonitorMode:    domain.MonitorAll,
+				ExternalIDs:    []domain.ExternalID{{Source: eg.Source, Value: eg.ExternalID}},
+			}
+			if err := s.groups.Save(ctx, g); err != nil {
+				return nil, fmt.Errorf("refresh artist %q: save album %q: %w", entry.Name, g.Title, err)
+			}
+			albums = append(albums, artistAlbum{internalID: g.ID, extGroup: eg})
+		}
+		if len(extGroups) == 0 || page*perPage >= albumTotal {
+			break
+		}
+	}
+	return albums, nil
+}
+
+// collectArtistTracks pages through FetchGroupContent for each album and
+// returns tracks not already present in the library.
+func (s *Service) collectArtistTracks(ctx context.Context, src ports.MetadataSource, entryName string, albums []artistAlbum) ([]artistTrack, error) {
+	const perPage = 100
+	var tracks []artistTrack
+
+	for _, album := range albums {
+		for page := 1; ; page++ {
+			extItems, trackTotal, err := src.FetchGroupContent(ctx, album.extGroup.ExternalID, page, perPage)
+			if err != nil {
+				return nil, fmt.Errorf("refresh artist %q: album %q: fetch tracks page %d: %w", entryName, album.extGroup.Title, page, err)
+			}
+			for _, ei := range extItems {
+				if _, err := s.externalIDs.FindEntity(ctx, "item", string(ei.Source), ei.ExternalID); err == nil {
+					continue
+				}
+				tracks = append(tracks, artistTrack{groupID: album.internalID, extItem: ei})
+			}
+			if len(extItems) == 0 || page*perPage >= trackTotal {
+				break
+			}
+		}
+	}
+	return tracks, nil
 }
 
 // loadTagCache returns a map of lowercase tag name → tag for all existing

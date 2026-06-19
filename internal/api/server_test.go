@@ -46,7 +46,7 @@ func newHandlerWithDB(t *testing.T) (http.Handler, *sql.DB) {
 	jobQueue := jobsadapter.New(1)
 	t.Cleanup(jobQueue.Close)
 
-	metaSvc := metadata.New(nil, jobQueue, dbadapter.NewLibraryEntryRepo(database), dbadapter.NewItemRepo(database), dbadapter.NewPersonRepo(database), dbadapter.NewTagRepo(database), dbadapter.NewExternalIDRepo(database), "")
+	metaSvc := metadata.New(nil, jobQueue, dbadapter.NewLibraryEntryRepo(database), dbadapter.NewGroupRepo(database), dbadapter.NewItemRepo(database), dbadapter.NewPersonRepo(database), dbadapter.NewTagRepo(database), dbadapter.NewExternalIDRepo(database), "")
 
 	uiFS, _ := fs.Sub(web.Dist, "dist")
 	cfg := &config.Config{
@@ -1513,7 +1513,7 @@ func TestJobs_Cancel_SetsStatus(t *testing.T) {
 		dbadapter.NewPersonRepo(database),
 	)
 	peopleSvc := people.New(dbadapter.NewPersonRepo(database))
-	metaSvc := metadata.New(nil, nil, dbadapter.NewLibraryEntryRepo(database), dbadapter.NewItemRepo(database), dbadapter.NewPersonRepo(database), dbadapter.NewTagRepo(database), dbadapter.NewExternalIDRepo(database), "")
+	metaSvc := metadata.New(nil, nil, dbadapter.NewLibraryEntryRepo(database), dbadapter.NewGroupRepo(database), dbadapter.NewItemRepo(database), dbadapter.NewPersonRepo(database), dbadapter.NewTagRepo(database), dbadapter.NewExternalIDRepo(database), "")
 	tagRepo := dbadapter.NewTagRepo(database)
 	uiFS, _ := fs.Sub(web.Dist, "dist")
 	cfg := &config.Config{
@@ -1592,6 +1592,58 @@ func TestCommands_RefreshStudio_MissingEntryID(t *testing.T) {
 	h := newHandler(t)
 	w := do(t, h, http.MethodPost, "/api/v1/commands", map[string]any{
 		"name": "RefreshStudio",
+		// entryId omitted
+	})
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want 400", w.Code)
+	}
+	var resp struct {
+		Code string `json:"code"`
+	}
+	decodeJSON(t, w, &resp)
+	if resp.Code != "MISSING_FIELDS" {
+		t.Errorf("code = %q, want MISSING_FIELDS", resp.Code)
+	}
+}
+
+func TestCommands_RefreshArtist_Returns202(t *testing.T) {
+	h := newHandler(t)
+
+	w := do(t, h, http.MethodPost, "/api/v1/library-entries", map[string]any{
+		"contentType": "music", "kind": "artist", "name": "Test Artist",
+	})
+	if w.Code != http.StatusCreated {
+		t.Fatalf("create artist = %d", w.Code)
+	}
+	var artist struct {
+		ID string `json:"id"`
+	}
+	decodeJSON(t, w, &artist)
+
+	w = do(t, h, http.MethodPost, "/api/v1/commands", map[string]any{
+		"name":    "RefreshArtist",
+		"entryId": artist.ID,
+	})
+	if w.Code != http.StatusAccepted {
+		t.Fatalf("command status = %d, want 202 — body: %s", w.Code, w.Body.String())
+	}
+	var resp struct {
+		ID   string `json:"id"`
+		Name string `json:"name"`
+	}
+	decodeJSON(t, w, &resp)
+	if resp.ID == "" {
+		t.Error("job id should be set")
+	}
+	if resp.Name != "RefreshArtist" {
+		t.Errorf("job name = %q, want RefreshArtist", resp.Name)
+	}
+}
+
+func TestCommands_RefreshArtist_MissingEntryID(t *testing.T) {
+	h := newHandler(t)
+	w := do(t, h, http.MethodPost, "/api/v1/commands", map[string]any{
+		"name": "RefreshArtist",
 		// entryId omitted
 	})
 	if w.Code != http.StatusBadRequest {
