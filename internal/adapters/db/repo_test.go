@@ -29,8 +29,8 @@ func TestOpen_CreatesSchema(t *testing.T) {
 	if err := database.QueryRow(`SELECT COUNT(*) FROM schema_migrations`).Scan(&count); err != nil {
 		t.Fatalf("schema_migrations missing: %v", err)
 	}
-	if count != 4 {
-		t.Errorf("migration count = %d, want 4", count)
+	if count != 5 {
+		t.Errorf("migration count = %d, want 5", count)
 	}
 
 	tables := []string{
@@ -39,6 +39,7 @@ func TestOpen_CreatesSchema(t *testing.T) {
 		"external_ids", "tags", "item_tags", "entry_tags",
 		"media_files", "releases", "downloads",
 		"entry_people",
+		"images", "image_selections",
 	}
 	for _, table := range tables {
 		var n int
@@ -1259,6 +1260,78 @@ func TestLibraryEntryRepo_RemovePerson(t *testing.T) {
 	}
 	if len(people) != 0 {
 		t.Errorf("people count = %d, want 0 after remove", len(people))
+	}
+}
+
+// ── Image schema constraints ──────────────────────────────────────────────────
+
+func TestImageSchema_Constraints(t *testing.T) {
+	database := setupTestDB(t)
+
+	insert := func(id, entityType, entityID, imageType, url, source string) error {
+		_, err := database.Exec(
+			`INSERT INTO images (id, entity_type, entity_id, image_type, url, source) VALUES (?,?,?,?,?,?)`,
+			id, entityType, entityID, imageType, url, source,
+		)
+		return err
+	}
+
+	// Two images for the same (entity_type, entity_id, image_type) from different sources — both persist.
+	if err := insert("img-1", "person", "person-1", "poster", "https://example.com/a.jpg", "stashdb"); err != nil {
+		t.Fatalf("insert img-1: %v", err)
+	}
+	if err := insert("img-2", "person", "person-1", "poster", "https://example.com/b.jpg", "tpdb"); err != nil {
+		t.Fatalf("insert img-2: %v", err)
+	}
+	var count int
+	if err := database.QueryRow(`SELECT COUNT(*) FROM images WHERE entity_id='person-1'`).Scan(&count); err != nil {
+		t.Fatalf("count images: %v", err)
+	}
+	if count != 2 {
+		t.Errorf("expected 2 images from different sources, got %d", count)
+	}
+
+	// Same URL twice for same (entity_type, entity_id, image_type) — unique constraint violation.
+	if err := insert("img-3", "person", "person-1", "poster", "https://example.com/a.jpg", "stashdb"); err == nil {
+		t.Error("expected unique constraint error for duplicate URL, got nil")
+	}
+
+	// Delete an image that a selection row points to — row survives with image_id nulled.
+	if _, err := database.Exec(
+		`INSERT INTO image_selections (entity_type, entity_id, image_type, image_id) VALUES ('person','person-1','poster','img-1')`,
+	); err != nil {
+		t.Fatalf("insert image_selection: %v", err)
+	}
+	if _, err := database.Exec(`DELETE FROM images WHERE id='img-1'`); err != nil {
+		t.Fatalf("delete img-1: %v", err)
+	}
+	var selCount int
+	var imageID *string
+	if err := database.QueryRow(
+		`SELECT COUNT(*), image_id FROM image_selections WHERE entity_type='person' AND entity_id='person-1' AND image_type='poster'`,
+	).Scan(&selCount, &imageID); err != nil {
+		t.Fatalf("query selection: %v", err)
+	}
+	if selCount != 1 {
+		t.Errorf("selection row count = %d, want 1 (row must survive delete)", selCount)
+	}
+	if imageID != nil {
+		t.Errorf("image_id = %v, want NULL after referenced image deleted", *imageID)
+	}
+
+	// No selection row for an entity — querying returns no error (absence is valid state).
+	rows, err := database.Query(
+		`SELECT image_id FROM image_selections WHERE entity_type='person' AND entity_id='no-such-entity' AND image_type='poster'`,
+	)
+	if err != nil {
+		t.Fatalf("query missing selection: %v", err)
+	}
+	defer rows.Close()
+	if rows.Next() {
+		t.Error("expected no rows for entity with no selection, got one")
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatalf("rows error: %v", err)
 	}
 }
 
