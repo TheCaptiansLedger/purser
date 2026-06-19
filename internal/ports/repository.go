@@ -48,6 +48,8 @@ type ItemFilter struct {
 	PersonID       string   // items featuring this person
 	TagIDs         []string // items carrying all of these tags
 	Search         string
+	Sort           string // "date" | "title"; adapter defaults to "date"
+	SortDir        string // "asc" | "desc"; adapter defaults to "desc"
 	Limit          int
 	Offset         int
 }

@@ -901,6 +901,80 @@ func TestItemRepo_List_Filters(t *testing.T) {
 	_ = res
 }
 
+func TestItemRepo_List_SortByTitle(t *testing.T) {
+	database := setupTestDB(t)
+	entryRepo := NewLibraryEntryRepo(database)
+	itemRepo := NewItemRepo(database)
+	ctx := context.Background()
+
+	entry := &domain.LibraryEntry{ContentType: domain.ContentTypeAdult, Kind: domain.KindStudio, Name: "S", MonitorMode: domain.MonitorAll, Status: domain.EntryStatusActive}
+	entryRepo.Save(ctx, entry) //nolint:errcheck
+
+	for _, title := range []string{"Zebra Scene", "Apple Scene", "Mango Scene"} {
+		i := &domain.Item{ContentType: domain.ContentTypeAdult, LibraryEntryID: entry.ID, Title: title, Status: domain.StatusWanted}
+		if err := itemRepo.Save(ctx, i); err != nil {
+			t.Fatalf("Save item %q: %v", title, err)
+		}
+	}
+
+	res, _, err := itemRepo.List(ctx, ports.ItemFilter{Sort: "title", SortDir: "asc", Limit: 50})
+	if err != nil {
+		t.Fatalf("List sort=title asc: %v", err)
+	}
+	if len(res) != 3 {
+		t.Fatalf("expected 3 items, got %d", len(res))
+	}
+	if res[0].Title != "Apple Scene" || res[1].Title != "Mango Scene" || res[2].Title != "Zebra Scene" {
+		t.Errorf("unexpected order: %v, %v, %v", res[0].Title, res[1].Title, res[2].Title)
+	}
+}
+
+func TestItemRepo_List_SortByDate(t *testing.T) {
+	database := setupTestDB(t)
+	entryRepo := NewLibraryEntryRepo(database)
+	itemRepo := NewItemRepo(database)
+	ctx := context.Background()
+
+	entry := &domain.LibraryEntry{ContentType: domain.ContentTypeAdult, Kind: domain.KindStudio, Name: "S", MonitorMode: domain.MonitorAll, Status: domain.EntryStatusActive}
+	entryRepo.Save(ctx, entry) //nolint:errcheck
+
+	dates := []string{"2023-01-01", "2025-06-01", "2024-03-15"}
+	for i, d := range dates {
+		item := &domain.Item{
+			ContentType:    domain.ContentTypeAdult,
+			LibraryEntryID: entry.ID,
+			Title:          "Scene",
+			Status:         domain.StatusWanted,
+			Date:           strToDate(d),
+		}
+		item.Title = "Scene " + string(rune('A'+i))
+		if err := itemRepo.Save(ctx, item); err != nil {
+			t.Fatalf("Save item: %v", err)
+		}
+	}
+
+	// Default (desc) — newest first
+	res, _, err := itemRepo.List(ctx, ports.ItemFilter{Sort: "date", SortDir: "desc", Limit: 50})
+	if err != nil {
+		t.Fatalf("List sort=date desc: %v", err)
+	}
+	if res[0].Date.Year() != 2025 {
+		t.Errorf("first item year = %d, want 2025", res[0].Date.Year())
+	}
+	if res[2].Date.Year() != 2023 {
+		t.Errorf("last item year = %d, want 2023", res[2].Date.Year())
+	}
+
+	// Asc — oldest first
+	res, _, err = itemRepo.List(ctx, ports.ItemFilter{Sort: "date", SortDir: "asc", Limit: 50})
+	if err != nil {
+		t.Fatalf("List sort=date asc: %v", err)
+	}
+	if res[0].Date.Year() != 2023 {
+		t.Errorf("first item year (asc) = %d, want 2023", res[0].Date.Year())
+	}
+}
+
 // ── ExternalIDRepo ────────────────────────────────────────────────────────────
 
 func TestExternalIDRepo_FindEntity(t *testing.T) {

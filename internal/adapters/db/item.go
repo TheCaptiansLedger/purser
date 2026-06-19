@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"purser/internal/domain"
 	"purser/internal/ports"
+	"strings"
 )
 
 type itemRepo struct {
@@ -121,6 +122,25 @@ func buildItemWhere(f ports.ItemFilter) *whereClause {
 	return w
 }
 
+func itemOrderBy(f ports.ItemFilter) string {
+	col := "date"
+	switch f.Sort {
+	case "title":
+		col = "title"
+	}
+
+	dir := "DESC"
+	switch strings.ToUpper(f.SortDir) {
+	case "ASC":
+		dir = "ASC"
+	}
+
+	if col == "date" {
+		return col + " " + dir + ", sequence, title"
+	}
+	return col + " " + dir
+}
+
 func (r *itemRepo) List(ctx context.Context, f ports.ItemFilter) ([]*domain.Item, int, error) {
 	w := buildItemWhere(f)
 
@@ -142,7 +162,7 @@ func (r *itemRepo) List(ctx context.Context, f ports.ItemFilter) ([]*domain.Item
 	queryArgs := append(args, limit, f.Offset)
 	rows, err := r.db.QueryContext(ctx,
 		`SELECT`+itemSelectCols+`FROM items WHERE `+where+
-			` ORDER BY date DESC, sequence, title LIMIT ? OFFSET ?`,
+			` ORDER BY `+itemOrderBy(f)+` LIMIT ? OFFSET ?`,
 		queryArgs...)
 	if err != nil {
 		return nil, 0, fmt.Errorf("list items: %w", err)
