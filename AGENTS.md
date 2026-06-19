@@ -14,6 +14,9 @@ Do not read all project documentation. Determine what the task touches, then loa
 
 ## Load by Task
 
+### When making any change that will be committed to the repository
+- [docs/development/process.md](docs/development/process.md)
+
 ### Starting a new feature or issue
 - [docs/development/process.md](docs/development/process.md)
 - [docs/version-control/workflow.md](docs/version-control/workflow.md)

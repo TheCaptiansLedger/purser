@@ -41,7 +41,7 @@ Rules:
 - Present tense, imperative mood (`add` not `added`, `fix` not `fixed`)
 - No period at the end of the subject line
 - Do not add Co-Authored-By AI attribution
-- Body should contain a small paragraph on the why, not the what
+- Body should contain a small paragraph on the WHY not the WHAT. WHY is this code going in? what does it add for the user or project? 
 - footers should include breaking changes and a resolves: issue #xxx or Part-Of: issue #xxx if not fully resolving issue
 
 ```

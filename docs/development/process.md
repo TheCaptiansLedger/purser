@@ -1,6 +1,6 @@
 # Development Process
 
-## Starting a New Feature
+## Working on a github issue (starting a new feature, fix, test, docs, etc)
 
 1. **Identify the issue** — every feature or fix must have a GitHub issue.
 
