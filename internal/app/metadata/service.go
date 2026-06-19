@@ -439,11 +439,20 @@ func (s *Service) ImportStudio(ctx context.Context, req *ImportStudioRequest) (*
 
 	if req.AutoImport && s.jobs != nil {
 		entryID := studio.ID
-		if _, err := s.jobs.Submit(ctx, "RefreshStudio", map[string]any{"entry_id": entryID},
-			func(ctx context.Context, p ports.ProgressReporter) error {
-				return s.RefreshStudio(ctx, entryID, p)
-			}); err != nil {
-			slog.Warn("auto-import: failed to enqueue RefreshStudio", "entry_id", entryID, "error", err)
+		if kind == domain.KindArtist {
+			if _, err := s.jobs.Submit(ctx, "RefreshArtist", map[string]any{"entry_id": entryID},
+				func(ctx context.Context, p ports.ProgressReporter) error {
+					return s.RefreshArtist(ctx, entryID, p)
+				}); err != nil {
+				slog.Warn("auto-import: failed to enqueue RefreshArtist", "entry_id", entryID, "error", err)
+			}
+		} else {
+			if _, err := s.jobs.Submit(ctx, "RefreshStudio", map[string]any{"entry_id": entryID},
+				func(ctx context.Context, p ports.ProgressReporter) error {
+					return s.RefreshStudio(ctx, entryID, p)
+				}); err != nil {
+				slog.Warn("auto-import: failed to enqueue RefreshStudio", "entry_id", entryID, "error", err)
+			}
 		}
 	}
 

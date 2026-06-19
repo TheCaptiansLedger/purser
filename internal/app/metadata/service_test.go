@@ -442,6 +442,39 @@ func TestImportStudio_AutoImport_EnqueuesJob(t *testing.T) {
 	}
 }
 
+func TestImportStudio_AutoImport_KindArtist_EnqueuesRefreshArtist(t *testing.T) {
+	jobQueue := &stubJobQueue{}
+	svc := metadata.New(
+		nil,
+		jobQueue,
+		newStubEntryRepo(),
+		nil,
+		&stubItemRepo{},
+		&stubPersonRepo{},
+		&stubTagRepo{},
+		&stubExternalIDRepo{},
+		"",
+	)
+
+	_, err := svc.ImportStudio(context.Background(), &metadata.ImportStudioRequest{
+		Source:      domain.SourceMusicBrainz,
+		ExternalID:  "artist-auto-1",
+		Name:        "Fleetwood Mac",
+		ContentType: domain.ContentTypeMusic,
+		Kind:        domain.KindArtist,
+		AutoImport:  true,
+	})
+	if err != nil {
+		t.Fatalf("ImportStudio: %v", err)
+	}
+	if len(jobQueue.submitted) != 1 {
+		t.Fatalf("submitted job count = %d, want 1", len(jobQueue.submitted))
+	}
+	if jobQueue.submitted[0] != "RefreshArtist" {
+		t.Errorf("job name = %q, want RefreshArtist", jobQueue.submitted[0])
+	}
+}
+
 func TestImportStudio_AutoImport_False_NoJob(t *testing.T) {
 	jobQueue := &stubJobQueue{}
 	svc := metadata.New(

@@ -4,7 +4,6 @@ import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useLibraryEntries } from '../../api/library'
 import { searchStudios, importStudio } from '../../api/metadata'
 import type { ImportStudioRequest } from '../../api/metadata'
-import { refreshArtist } from '../../api/commands'
 import type { ExternalStudio } from '../../types'
 import { PageHeader } from '../../components/layout/PageHeader'
 import { EntryCard } from '../../components/media/EntryCard'
@@ -43,8 +42,7 @@ function AddArtistDialog({ onClose, onImported }: { onClose: () => void; onImpor
 
   const importMutation = useMutation({
     mutationFn: importStudio,
-    onSuccess: (result) => {
-      void refreshArtist(result.studio.id)
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['library-entries'] })
       onImported()
     },
