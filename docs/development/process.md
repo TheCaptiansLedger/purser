@@ -8,6 +8,7 @@
    ```bash
    gh issue edit <number> --assignee TheCaptiansLedger
    ```
+2a. assign the status:in-progress label and comment on the issue "Starting to work on this"
 
 3. **Create a topic branch** from `main`:
    ```bash

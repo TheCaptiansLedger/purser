@@ -6,6 +6,7 @@ import (
 	"purser/internal/domain"
 	"purser/internal/ports"
 	"testing"
+	"time"
 )
 
 func setupTestDB(t *testing.T) *sql.DB {
@@ -194,6 +195,117 @@ func TestLibraryEntryRepo_Delete(t *testing.T) {
 	}
 	if _, err := repo.Get(ctx, e.ID); err == nil {
 		t.Error("Get after delete should error, got nil")
+	}
+}
+
+func TestLibraryEntryRepo_EntryPeople(t *testing.T) {
+	database := setupTestDB(t)
+	entryRepo := NewLibraryEntryRepo(database)
+	personRepo := NewPersonRepo(database)
+	ctx := context.Background()
+
+	entry := &domain.LibraryEntry{
+		ContentType: domain.ContentTypeMusic, Kind: domain.KindArtist,
+		Name: "The Beatles", MonitorMode: domain.MonitorAll, Status: domain.EntryStatusActive,
+	}
+	if err := entryRepo.Save(ctx, entry); err != nil {
+		t.Fatalf("Save entry: %v", err)
+	}
+
+	person := &domain.Person{Name: "John Lennon", MonitorMode: domain.MonitorAll}
+	if err := personRepo.Save(ctx, person); err != nil {
+		t.Fatalf("Save person: %v", err)
+	}
+
+	// SavePerson with start/end dates
+	ep := domain.EntryPerson{
+		PersonID:  person.ID,
+		Role:      "member",
+		StartDate: time.Date(1960, 1, 1, 0, 0, 0, 0, time.UTC),
+		EndDate:   time.Date(1970, 12, 31, 0, 0, 0, 0, time.UTC),
+	}
+	if err := entryRepo.SavePerson(ctx, entry.ID, ep); err != nil {
+		t.Fatalf("SavePerson: %v", err)
+	}
+
+	// GetPeople returns the link with person details and dates
+	people, err := entryRepo.GetPeople(ctx, entry.ID)
+	if err != nil {
+		t.Fatalf("GetPeople: %v", err)
+	}
+	if len(people) != 1 {
+		t.Fatalf("people count = %d, want 1", len(people))
+	}
+	if people[0].PersonID != person.ID {
+		t.Errorf("PersonID = %q, want %q", people[0].PersonID, person.ID)
+	}
+	if people[0].Role != "member" {
+		t.Errorf("Role = %q, want member", people[0].Role)
+	}
+	if people[0].StartDate.IsZero() {
+		t.Error("StartDate should be set")
+	}
+	if people[0].EndDate.IsZero() {
+		t.Error("EndDate should be set")
+	}
+	if people[0].Person == nil || people[0].Person.Name != "John Lennon" {
+		t.Errorf("Person.Name = %v, want John Lennon", people[0].Person)
+	}
+
+	// Get entry also loads people
+	got, err := entryRepo.Get(ctx, entry.ID)
+	if err != nil {
+		t.Fatalf("Get: %v", err)
+	}
+	if len(got.People) != 1 {
+		t.Errorf("entry.People count = %d, want 1", len(got.People))
+	}
+
+	// Upsert updates dates for same (entry, person, role) triple
+	ep.StartDate = time.Date(1962, 1, 1, 0, 0, 0, 0, time.UTC)
+	if err := entryRepo.SavePerson(ctx, entry.ID, ep); err != nil {
+		t.Fatalf("SavePerson upsert: %v", err)
+	}
+	people, _ = entryRepo.GetPeople(ctx, entry.ID)
+	if len(people) != 1 {
+		t.Errorf("after upsert, people count = %d, want 1", len(people))
+	}
+
+	// RemovePerson deletes the link
+	if err := entryRepo.RemovePerson(ctx, entry.ID, person.ID, "member"); err != nil {
+		t.Fatalf("RemovePerson: %v", err)
+	}
+	people, _ = entryRepo.GetPeople(ctx, entry.ID)
+	if len(people) != 0 {
+		t.Errorf("after remove, people count = %d, want 0", len(people))
+	}
+}
+
+func TestLibraryEntryRepo_List_FilterByPersonID(t *testing.T) {
+	database := setupTestDB(t)
+	entryRepo := NewLibraryEntryRepo(database)
+	personRepo := NewPersonRepo(database)
+	ctx := context.Background()
+
+	beatles := &domain.LibraryEntry{ContentType: domain.ContentTypeMusic, Kind: domain.KindArtist, Name: "The Beatles", MonitorMode: domain.MonitorAll, Status: domain.EntryStatusActive}
+	wings := &domain.LibraryEntry{ContentType: domain.ContentTypeMusic, Kind: domain.KindArtist, Name: "Wings", MonitorMode: domain.MonitorAll, Status: domain.EntryStatusActive}
+	entryRepo.Save(ctx, beatles) //nolint:errcheck
+	entryRepo.Save(ctx, wings)   //nolint:errcheck
+
+	paul := &domain.Person{Name: "Paul McCartney", MonitorMode: domain.MonitorAll}
+	personRepo.Save(ctx, paul) //nolint:errcheck
+
+	entryRepo.SavePerson(ctx, beatles.ID, domain.EntryPerson{PersonID: paul.ID, Role: "member"}) //nolint:errcheck
+
+	res, total, err := entryRepo.List(ctx, ports.LibraryFilter{PersonID: paul.ID, Limit: 50})
+	if err != nil {
+		t.Fatalf("List by PersonID: %v", err)
+	}
+	if total != 1 || len(res) != 1 {
+		t.Errorf("filtered by PersonID: total=%d, len=%d, want 1", total, len(res))
+	}
+	if res[0].Name != "The Beatles" {
+		t.Errorf("result name = %q, want The Beatles", res[0].Name)
 	}
 }
 

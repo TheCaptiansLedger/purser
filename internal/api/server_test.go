@@ -3,6 +3,7 @@ package api_test
 import (
 	"bytes"
 	"context"
+	"database/sql"
 	"encoding/json"
 	"io/fs"
 	"net/http"
@@ -21,10 +22,9 @@ import (
 	jobsadapter "purser/internal/adapters/jobs"
 )
 
-// newHandler builds a full server backed by a temp-file SQLite database.
-// A temp file is used (not :memory:) because SQLite creates a separate DB per
-// connection for :memory:, which breaks nested queries that use the pool.
-func newHandler(t *testing.T) http.Handler {
+// newHandlerWithDB builds a full server backed by a temp-file SQLite database
+// and returns both the HTTP handler and the underlying database for test setup.
+func newHandlerWithDB(t *testing.T) (http.Handler, *sql.DB) {
 	t.Helper()
 	dbPath := t.TempDir() + "/test.db"
 	database, err := dbadapter.Open(dbPath)
@@ -63,7 +63,16 @@ func newHandler(t *testing.T) http.Handler {
 		},
 		Log: config.LogConfig{Level: "info", Format: "text"},
 	}
-	return api.New(0, "", cfg, database, libSvc, peopleSvc, metaSvc, tagRepo, jobQueue, uiFS).Handler()
+	return api.New(0, "", cfg, database, libSvc, peopleSvc, metaSvc, tagRepo, jobQueue, uiFS).Handler(), database
+}
+
+// newHandler builds a full server backed by a temp-file SQLite database.
+// A temp file is used (not :memory:) because SQLite creates a separate DB per
+// connection for :memory:, which breaks nested queries that use the pool.
+func newHandler(t *testing.T) http.Handler {
+	t.Helper()
+	h, _ := newHandlerWithDB(t)
+	return h
 }
 
 func do(t *testing.T, h http.Handler, method, path string, body any) *httptest.ResponseRecorder {
@@ -1673,6 +1682,120 @@ func TestLibraryEntries_List_FilterByPersonID(t *testing.T) {
 	decodeJSON(t, w, &resp)
 	if resp.Total != 0 {
 		t.Errorf("total = %d, want 0 (no links yet)", resp.Total)
+	}
+}
+
+func TestLibraryEntries_List_FilterByPersonID_WithLinks(t *testing.T) {
+	h, db := newHandlerWithDB(t)
+
+	w := do(t, h, http.MethodPost, "/api/v1/library-entries", map[string]any{
+		"contentType": "music", "kind": "artist", "name": "The Beatles",
+	})
+	var beatles struct {
+		ID string `json:"id"`
+	}
+	decodeJSON(t, w, &beatles)
+	do(t, h, http.MethodPost, "/api/v1/library-entries", map[string]any{
+		"contentType": "music", "kind": "artist", "name": "Wings",
+	})
+
+	w = do(t, h, http.MethodPost, "/api/v1/people", map[string]any{"name": "Paul McCartney"})
+	var paul struct {
+		ID string `json:"id"`
+	}
+	decodeJSON(t, w, &paul)
+
+	// Link Paul to The Beatles via DB (no API endpoint yet)
+	if _, err := db.ExecContext(t.Context(),
+		`INSERT INTO entry_people(library_entry_id, person_id, role, start_date, end_date) VALUES(?, ?, ?, ?, ?)`,
+		beatles.ID, paul.ID, "member", "", "",
+	); err != nil {
+		t.Fatalf("insert entry_people: %v", err)
+	}
+
+	w = do(t, h, http.MethodGet, "/api/v1/library-entries?personId="+paul.ID, nil)
+	if w.Code != http.StatusOK {
+		t.Fatalf("list by personId = %d", w.Code)
+	}
+	var resp struct {
+		Total int `json:"total"`
+	}
+	decodeJSON(t, w, &resp)
+	if resp.Total != 1 {
+		t.Errorf("total = %d, want 1 (paul is in beatles)", resp.Total)
+	}
+}
+
+func TestLibraryEntries_Artist_PeopleInResponse(t *testing.T) {
+	h, db := newHandlerWithDB(t)
+
+	// Create artist entry
+	w := do(t, h, http.MethodPost, "/api/v1/library-entries", map[string]any{
+		"contentType": "music", "kind": "artist", "name": "The Beatles",
+	})
+	if w.Code != http.StatusCreated {
+		t.Fatalf("create artist = %d, body: %s", w.Code, w.Body.String())
+	}
+	var artist struct {
+		ID string `json:"id"`
+	}
+	decodeJSON(t, w, &artist)
+
+	// Create a person
+	w = do(t, h, http.MethodPost, "/api/v1/people", map[string]any{"name": "John Lennon"})
+	var person struct {
+		ID string `json:"id"`
+	}
+	decodeJSON(t, w, &person)
+
+	// Link with start and end dates (no API endpoint yet — insert directly)
+	if _, err := db.ExecContext(t.Context(),
+		`INSERT INTO entry_people(library_entry_id, person_id, role, start_date, end_date) VALUES(?, ?, ?, ?, ?)`,
+		artist.ID, person.ID, "member", "1960-01-01", "1970-12-31",
+	); err != nil {
+		t.Fatalf("insert entry_people: %v", err)
+	}
+
+	// GET artist — people array should be populated with person details and dates
+	w = do(t, h, http.MethodGet, "/api/v1/library-entries/"+artist.ID, nil)
+	if w.Code != http.StatusOK {
+		t.Fatalf("get artist = %d", w.Code)
+	}
+	var resp struct {
+		People []struct {
+			PersonID  string `json:"personId"`
+			Role      string `json:"role"`
+			StartDate string `json:"startDate"`
+			EndDate   string `json:"endDate"`
+			Person    *struct {
+				ID   string `json:"id"`
+				Name string `json:"name"`
+			} `json:"person"`
+		} `json:"people"`
+	}
+	decodeJSON(t, w, &resp)
+
+	if len(resp.People) != 1 {
+		t.Fatalf("people count = %d, want 1", len(resp.People))
+	}
+	ep := resp.People[0]
+	if ep.PersonID != person.ID {
+		t.Errorf("personId = %q, want %q", ep.PersonID, person.ID)
+	}
+	if ep.Role != "member" {
+		t.Errorf("role = %q, want member", ep.Role)
+	}
+	if ep.StartDate != "1960-01-01" {
+		t.Errorf("startDate = %q, want 1960-01-01", ep.StartDate)
+	}
+	if ep.EndDate != "1970-12-31" {
+		t.Errorf("endDate = %q, want 1970-12-31", ep.EndDate)
+	}
+	if ep.Person == nil {
+		t.Fatal("person ref should be populated")
+	}
+	if ep.Person.Name != "John Lennon" {
+		t.Errorf("person.name = %q, want John Lennon", ep.Person.Name)
 	}
 }
 

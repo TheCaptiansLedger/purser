@@ -14,9 +14,10 @@ import (
 // ── Hand-rolled mocks ─────────────────────────────────────────────────────────
 
 type mockEntryRepo struct {
-	data    map[string]*domain.LibraryEntry
-	people  map[string][]domain.EntryPerson // keyed by entryID
-	saveErr error
+	data          map[string]*domain.LibraryEntry
+	people        map[string][]domain.EntryPerson // keyed by entryID
+	saveErr       error
+	savePersonErr error
 }
 
 func newMockEntryRepo() *mockEntryRepo {
@@ -69,6 +70,9 @@ func (m *mockEntryRepo) GetPeople(_ context.Context, entryID string) ([]domain.E
 }
 
 func (m *mockEntryRepo) SavePerson(_ context.Context, entryID string, ep domain.EntryPerson) error {
+	if m.savePersonErr != nil {
+		return m.savePersonErr
+	}
 	m.people[entryID] = append(m.people[entryID], ep)
 	return nil
 }
@@ -86,7 +90,8 @@ func (m *mockEntryRepo) RemovePerson(_ context.Context, entryID, personID, role 
 }
 
 type mockPersonRepo struct {
-	data map[string]*domain.Person
+	data    map[string]*domain.Person
+	saveErr error
 }
 
 func newMockPersonRepo() *mockPersonRepo {
@@ -110,6 +115,9 @@ func (m *mockPersonRepo) List(_ context.Context, _ ports.PersonFilter) ([]*domai
 }
 
 func (m *mockPersonRepo) Save(_ context.Context, p *domain.Person) error {
+	if m.saveErr != nil {
+		return m.saveErr
+	}
 	if p.ID == "" {
 		p.ID = fmt.Sprintf("person-%d", len(m.data)+1)
 	}
@@ -660,5 +668,89 @@ func TestImportArtistMembers_NotFound(t *testing.T) {
 	err := svc.ImportArtistMembers(context.Background(), "nonexistent", nil, "member")
 	if !errs.IsNotFound(err) {
 		t.Errorf("expected ErrNotFound, got %v", err)
+	}
+}
+
+func TestImportArtistMembers_PersonSaveError(t *testing.T) {
+	entries := newMockEntryRepo()
+	persons := newMockPersonRepo()
+	persons.saveErr = fmt.Errorf("db unavailable")
+	svc := newSvcWithPersons(entries, newMockGroupRepo(), newMockItemRepo(), persons)
+	ctx := context.Background()
+
+	artist := &domain.LibraryEntry{
+		ContentType: domain.ContentTypeMusic, Kind: domain.KindArtist, Name: "The Beatles",
+	}
+	svc.CreateEntry(ctx, artist) //nolint:errcheck
+
+	err := svc.ImportArtistMembers(ctx, artist.ID, []domain.Person{{Name: "Ringo Starr"}}, "member")
+	if err == nil {
+		t.Fatal("expected error from person Save, got nil")
+	}
+}
+
+func TestImportArtistMembers_LinkSaveError(t *testing.T) {
+	entries := newMockEntryRepo()
+	entries.savePersonErr = fmt.Errorf("link insert failed")
+	svc := newSvcWithPersons(entries, newMockGroupRepo(), newMockItemRepo(), newMockPersonRepo())
+	ctx := context.Background()
+
+	artist := &domain.LibraryEntry{
+		ContentType: domain.ContentTypeMusic, Kind: domain.KindArtist, Name: "The Beatles",
+	}
+	svc.CreateEntry(ctx, artist) //nolint:errcheck
+
+	err := svc.ImportArtistMembers(ctx, artist.ID, []domain.Person{{Name: "George Harrison"}}, "member")
+	if err == nil {
+		t.Fatal("expected error from entry SavePerson, got nil")
+	}
+}
+
+// ── Entry people method tests ─────────────────────────────────────────────────
+
+func TestGetEntryPeople(t *testing.T) {
+	entries := newMockEntryRepo()
+	svc := newSvc(entries, newMockGroupRepo(), newMockItemRepo())
+	ctx := context.Background()
+
+	artist := &domain.LibraryEntry{
+		ContentType: domain.ContentTypeMusic, Kind: domain.KindArtist, Name: "The Beatles",
+	}
+	svc.CreateEntry(ctx, artist) //nolint:errcheck
+
+	entries.people[artist.ID] = []domain.EntryPerson{{PersonID: "p1", Role: "member"}}
+
+	people, err := svc.GetEntryPeople(ctx, artist.ID)
+	if err != nil {
+		t.Fatalf("GetEntryPeople: %v", err)
+	}
+	if len(people) != 1 || people[0].PersonID != "p1" {
+		t.Errorf("people = %v, want [{p1 member}]", people)
+	}
+}
+
+func TestSaveAndRemoveEntryPerson(t *testing.T) {
+	entries := newMockEntryRepo()
+	svc := newSvc(entries, newMockGroupRepo(), newMockItemRepo())
+	ctx := context.Background()
+
+	artist := &domain.LibraryEntry{
+		ContentType: domain.ContentTypeMusic, Kind: domain.KindArtist, Name: "The Beatles",
+	}
+	svc.CreateEntry(ctx, artist) //nolint:errcheck
+
+	ep := domain.EntryPerson{PersonID: "p1", Role: "member"}
+	if err := svc.SaveEntryPerson(ctx, artist.ID, ep); err != nil {
+		t.Fatalf("SaveEntryPerson: %v", err)
+	}
+	if len(entries.people[artist.ID]) != 1 {
+		t.Errorf("people count = %d, want 1", len(entries.people[artist.ID]))
+	}
+
+	if err := svc.RemoveEntryPerson(ctx, artist.ID, "p1", "member"); err != nil {
+		t.Fatalf("RemoveEntryPerson: %v", err)
+	}
+	if len(entries.people[artist.ID]) != 0 {
+		t.Errorf("people count = %d, want 0 after remove", len(entries.people[artist.ID]))
 	}
 }

@@ -53,3 +53,8 @@ Do not read all project documentation. Determine what the task touches, then loa
 
 ### Working with person/people data or metadata
 - [docs/technical/person-metadata-keys.md](docs/technical/person-metadata-keys.md)
+
+### Working on the acquisition pipeline (Phase 2)
+- [docs/technical/acquisition-pipeline.md](docs/technical/acquisition-pipeline.md)
+- [docs/technical/ports.md](docs/technical/ports.md)
+- [docs/architecture/overview.md](docs/architecture/overview.md)
