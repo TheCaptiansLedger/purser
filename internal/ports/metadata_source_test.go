@@ -40,5 +40,9 @@ func (s *stubMetadataSource) FetchGroupContent(_ context.Context, _ string, _, _
 	return nil, 0, ports.ErrNotSupported
 }
 
+func (s *stubMetadataSource) FetchEntryPeople(_ context.Context, _ string) ([]*domain.ExternalPerson, error) {
+	return nil, ports.ErrNotSupported
+}
+
 // Compile-time interface satisfaction check.
 var _ ports.MetadataSource = (*stubMetadataSource)(nil)

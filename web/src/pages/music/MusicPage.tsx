@@ -3,7 +3,7 @@ import { Music2, Plus, Search, X, ChevronRight, Loader2 } from 'lucide-react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useLibraryEntries } from '../../api/library'
 import { searchStudios, importStudio } from '../../api/metadata'
-import type { ImportStudioRequest } from '../../api/metadata'
+import type { ImportStudioRequest, AlbumFilterToken } from '../../api/metadata'
 import type { ExternalStudio } from '../../types'
 import { PageHeader } from '../../components/layout/PageHeader'
 import { EntryCard } from '../../components/media/EntryCard'
@@ -25,8 +25,17 @@ export function artistImportRequest(candidate: ExternalStudio): ImportStudioRequ
     monitored: true,
     monitorMode: 'all',
     imageUrl: candidate.imageUrl,
+    albumFilter: ['studio', 'live'],
   }
 }
+
+const ALBUM_FILTER_OPTIONS: { value: Exclude<AlbumFilterToken, 'all'>; label: string }[] = [
+  { value: 'studio', label: 'Studio albums' },
+  { value: 'live', label: 'Live albums' },
+  { value: 'compilation', label: 'Compilations' },
+  { value: 'ep', label: 'EPs' },
+  { value: 'single', label: 'Singles' },
+]
 
 // ── Add Artist dialog ─────────────────────────────────────────────────────────
 
@@ -232,6 +241,48 @@ function EditForm({ form, onChange }: { form: ImportStudioRequest; onChange: (f:
           onChange={e => onChange({ ...form, overview: e.target.value })}
           className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-white/20 resize-none"
         />
+      </div>
+
+      {/* Album types */}
+      <div>
+        <label className="block text-xs text-white/40 mb-2">Album types to import</label>
+        <div className="flex flex-wrap gap-2">
+          {ALBUM_FILTER_OPTIONS.map(opt => {
+            const isAll = form.albumFilter?.includes('all')
+            const active = isAll || (form.albumFilter ?? []).includes(opt.value)
+            return (
+              <button
+                key={opt.value}
+                type="button"
+                onClick={() => {
+                  const current = (form.albumFilter ?? []).filter(v => v !== 'all')
+                  const next = current.includes(opt.value)
+                    ? current.filter(v => v !== opt.value)
+                    : [...current, opt.value]
+                  onChange({ ...form, albumFilter: next.length > 0 ? next : ['studio'] })
+                }}
+                className="px-3 py-1 rounded-full text-xs font-medium border transition-colors"
+                style={active
+                  ? { background: ACCENT + '22', borderColor: ACCENT, color: ACCENT }
+                  : { background: 'transparent', borderColor: 'rgba(255,255,255,0.12)', color: 'rgba(255,255,255,0.4)' }
+                }
+              >
+                {opt.label}
+              </button>
+            )
+          })}
+          <button
+            type="button"
+            onClick={() => onChange({ ...form, albumFilter: ['all'] })}
+            className="px-3 py-1 rounded-full text-xs font-medium border transition-colors"
+            style={(form.albumFilter ?? []).includes('all')
+              ? { background: ACCENT + '22', borderColor: ACCENT, color: ACCENT }
+              : { background: 'transparent', borderColor: 'rgba(255,255,255,0.12)', color: 'rgba(255,255,255,0.4)' }
+            }
+          >
+            All
+          </button>
+        </div>
       </div>
 
       {/* Monitor mode */}

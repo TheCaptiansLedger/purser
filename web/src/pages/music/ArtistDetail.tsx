@@ -1,21 +1,164 @@
+import { useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
-import { ArrowLeft, ImageIcon } from 'lucide-react'
+import { ArrowLeft, ImageIcon, ChevronLeft, ChevronRight, Disc3, Users } from 'lucide-react'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useLibraryEntry } from '../../api/library'
-import { useGroups } from '../../api/groups'
+import { useGroups, patchGroup } from '../../api/groups'
 import { Hero } from '../../components/layout/Hero'
 import { PersonCard } from '../../components/media/PersonCard'
+import { Badge } from '../../components/ui/Badge'
 import { Skeleton } from '../../components/ui/Skeleton'
+import type { Group } from '../../types'
 
 const ACCENT = '#10b981'
+const PAGE_SIZE = 6
+
+type ArtistTab = 'discography' | 'members'
+
+type DiscographySection = { label: string; token: string }
+
+const SECTIONS: DiscographySection[] = [
+  { label: 'Albums',        token: 'studio'      },
+  { label: 'Live',          token: 'live'         },
+  { label: 'EPs & Singles', token: 'ep_single'   },
+  { label: 'Compilations',  token: 'compilation' },
+  { label: 'Other',         token: 'other'        },
+]
+
+function albumSectionToken(album: Group): string {
+  const primary    = (album.metadata?.primary_type   as string   | undefined) ?? ''
+  const secondary  = (album.metadata?.secondary_types as string[] | undefined) ?? []
+  if (primary === 'EP' || primary === 'Single') return 'ep_single'
+  if (primary !== 'Album') return 'other'
+  if (secondary.includes('Live'))        return 'live'
+  if (secondary.includes('Compilation')) return 'compilation'
+  return 'studio'
+}
+
+// ── Album card ────────────────────────────────────────────────────────────────
+
+function AlbumCard({ album, artistId }: { album: Group; artistId: string }) {
+  const queryClient = useQueryClient()
+
+  const toggleMonitor = useMutation({
+    mutationFn: () => patchGroup(album.id, { monitored: !album.monitored }),
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ['groups'] }),
+  })
+
+  return (
+    <div className="group flex flex-col gap-2">
+      <div className="relative rounded-xl overflow-hidden bg-white/4 border border-white/5 group-hover:border-white/15 transition-all duration-200 group-hover:scale-[1.02]" style={{ aspectRatio: '1/1' }}>
+        <Link to={`/music/${artistId}/albums/${album.id}`} className="block w-full h-full flex items-center justify-center">
+          <ImageIcon size={32} className="text-white/10" strokeWidth={1} />
+        </Link>
+
+        {/* Hover ring */}
+        <div
+          className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none rounded-xl"
+          style={{ boxShadow: `inset 0 0 0 1.5px ${ACCENT}55` }}
+        />
+        {/* Bottom gradient */}
+        <div className="absolute bottom-0 inset-x-0 h-16 bg-gradient-to-t from-black/70 to-transparent pointer-events-none" />
+
+        {/* Monitored chip — always shown */}
+        <button
+          onClick={() => toggleMonitor.mutate()}
+          className="absolute bottom-2 left-2 pointer-events-auto"
+          title={album.monitored ? 'Monitored — click to unmonitor' : 'Unmonitored — click to monitor'}
+        >
+          <Badge color={album.monitored ? ACCENT : undefined}>
+            {album.monitored ? 'Monitored' : 'Unmonitored'}
+          </Badge>
+        </button>
+      </div>
+
+      <div className="px-0.5">
+        <Link to={`/music/${artistId}/albums/${album.id}`} className="text-sm font-medium text-white/80 truncate hover:text-white block">
+          {album.title}
+        </Link>
+        {album.year > 0 && <p className="text-xs text-white/35">{album.year}</p>}
+      </div>
+    </div>
+  )
+}
+
+// ── Section with arrow pagination ────────────────────────────────────────────
+
+function DiscographySection({
+  section,
+  albums,
+  artistId,
+}: {
+  section: DiscographySection
+  albums: Group[]
+  artistId: string
+}) {
+  const [page, setPage] = useState(0)
+  if (albums.length === 0) return null
+
+  const pages = Math.ceil(albums.length / PAGE_SIZE)
+  const slice = albums.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE)
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-3">
+        <h3 className="text-xs font-semibold text-white/30 uppercase tracking-widest">
+          {section.label}
+          <span className="ml-2 font-normal normal-case tracking-normal text-white/20">{albums.length}</span>
+        </h3>
+        {pages > 1 && (
+          <div className="flex items-center gap-1">
+            <button
+              onClick={() => setPage(p => p - 1)}
+              disabled={page === 0}
+              className="flex items-center justify-center w-7 h-7 rounded-lg text-white/35 hover:text-white/70 hover:bg-white/5 disabled:opacity-20 disabled:cursor-not-allowed transition-all"
+            >
+              <ChevronLeft size={14} />
+            </button>
+            <span className="text-xs text-white/20 w-10 text-center tabular-nums">
+              {page + 1} / {pages}
+            </span>
+            <button
+              onClick={() => setPage(p => p + 1)}
+              disabled={page >= pages - 1}
+              className="flex items-center justify-center w-7 h-7 rounded-lg text-white/35 hover:text-white/70 hover:bg-white/5 disabled:opacity-20 disabled:cursor-not-allowed transition-all"
+            >
+              <ChevronRight size={14} />
+            </button>
+          </div>
+        )}
+      </div>
+
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
+        {slice.map(album => (
+          <AlbumCard key={album.id} album={album} artistId={artistId} />
+        ))}
+      </div>
+    </div>
+  )
+}
+
+// ── Page ──────────────────────────────────────────────────────────────────────
 
 export function ArtistDetail() {
   const { id } = useParams<{ id: string }>()
+  const [tab, setTab] = useState<ArtistTab>('discography')
+
   const { data: entry, isLoading } = useLibraryEntry(id!)
   const { data: albumsPage } = useGroups(id!)
   const albums = albumsPage?.data ?? []
 
   if (isLoading) return <div className="px-8 py-10"><Skeleton className="h-64 w-full" /></div>
   if (!entry) return null
+
+  const bySection = Object.fromEntries(
+    SECTIONS.map(s => [s.token, albums.filter(a => albumSectionToken(a) === s.token)])
+  )
+
+  const TABS: { id: ArtistTab; label: string; icon: typeof Disc3 }[] = [
+    { id: 'discography', label: 'Discography', icon: Disc3  },
+    { id: 'members',     label: 'Members',     icon: Users  },
+  ]
 
   return (
     <div>
@@ -25,7 +168,6 @@ export function ArtistDetail() {
         </Link>
       </div>
 
-      {/* Full-width artist hero */}
       <Hero backdropUrl={entry.imageUrl} accent={ACCENT}>
         <div className="flex gap-6 items-end">
           <div className="shrink-0 w-36 h-36 rounded-full overflow-hidden border-2 shadow-2xl" style={{ borderColor: ACCENT + '44' }}>
@@ -40,21 +182,62 @@ export function ArtistDetail() {
           <div>
             <p className="text-xs font-medium uppercase tracking-widest mb-1" style={{ color: ACCENT }}>Artist</p>
             <h1 className="text-4xl font-bold text-white mb-2">{entry.name}</h1>
-            {albums.length > 0 && (
-              <p className="text-sm text-white/40">{albums.length} album{albums.length !== 1 ? 's' : ''}</p>
-            )}
+            <div className="flex items-center gap-3 text-sm text-white/35">
+              {albums.length > 0 && <span>{albums.length} release{albums.length !== 1 ? 's' : ''}</span>}
+              {entry.people.length > 0 && <span>{entry.people.length} member{entry.people.length !== 1 ? 's' : ''}</span>}
+            </div>
           </div>
         </div>
       </Hero>
 
-      <div className="px-8 py-8 space-y-8">
+      <div className="px-8 py-6">
         {entry.overview && (
-          <p className="text-sm text-white/60 leading-relaxed max-w-3xl">{entry.overview}</p>
+          <p className="text-sm text-white/60 leading-relaxed max-w-3xl mb-6">{entry.overview}</p>
         )}
 
-        {entry.people.length > 0 && (
-          <section>
-            <h2 className="text-sm font-semibold text-white/40 uppercase tracking-widest mb-4">Members</h2>
+        {/* Inline tab strip */}
+        <div className="flex gap-1 mb-8">
+          {TABS.map(({ id: tid, label, icon: Icon }) => (
+            <button
+              key={tid}
+              onClick={() => setTab(tid)}
+              className={[
+                'flex items-center gap-1.5 px-3 h-8 rounded-lg text-xs font-medium transition-all duration-150',
+                tab === tid
+                  ? 'text-white'
+                  : 'text-white/40 hover:text-white/65 hover:bg-white/5',
+              ].join(' ')}
+              style={tab === tid ? { background: ACCENT + '28', color: ACCENT } : {}}
+            >
+              <Icon size={13} />
+              {label}
+            </button>
+          ))}
+        </div>
+
+        {/* Discography tab */}
+        {tab === 'discography' && (
+          albums.length === 0 ? (
+            <p className="text-white/30 text-sm">No albums added yet.</p>
+          ) : (
+            <div className="space-y-8">
+              {SECTIONS.map(section => (
+                <DiscographySection
+                  key={section.token}
+                  section={section}
+                  albums={bySection[section.token] ?? []}
+                  artistId={id!}
+                />
+              ))}
+            </div>
+          )
+        )}
+
+        {/* Members tab */}
+        {tab === 'members' && (
+          entry.people.length === 0 ? (
+            <p className="text-white/30 text-sm">No members listed.</p>
+          ) : (
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
               {entry.people.map(ep => ep.person && (
                 <PersonCard
@@ -65,35 +248,8 @@ export function ArtistDetail() {
                 />
               ))}
             </div>
-          </section>
+          )
         )}
-
-        <section>
-          <h2 className="text-sm font-semibold text-white/40 uppercase tracking-widest mb-4">Discography</h2>
-          {albums.length === 0 ? (
-            <p className="text-white/30 text-sm">No albums added yet.</p>
-          ) : (
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
-              {albums.map(album => (
-                <Link
-                  key={album.id}
-                  to={`/music/${id}/albums/${album.id}`}
-                  className="group flex flex-col gap-2"
-                >
-                  <div className="rounded-xl overflow-hidden bg-white/4 border border-white/5 group-hover:border-white/15 transition-all duration-200 group-hover:scale-[1.02]" style={{ aspectRatio: '1/1' }}>
-                    <div className="w-full h-full flex items-center justify-center">
-                      <ImageIcon size={32} className="text-white/10" strokeWidth={1} />
-                    </div>
-                  </div>
-                  <div className="px-0.5">
-                    <p className="text-sm font-medium text-white/80 truncate">{album.title}</p>
-                    {album.year > 0 && <p className="text-xs text-white/35">{album.year}</p>}
-                  </div>
-                </Link>
-              ))}
-            </div>
-          )}
-        </section>
       </div>
     </div>
   )

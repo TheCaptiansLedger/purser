@@ -65,21 +65,22 @@ func (h *metadataHandler) search(w http.ResponseWriter, r *http.Request) {
 // ── Import studio ─────────────────────────────────────────────────────────────
 
 type importStudioRequest struct {
-	Source           string `json:"source"`
-	ExternalID       string `json:"externalId"`
-	Name             string `json:"name"`
-	Overview         string `json:"overview"`
-	ContentType      string `json:"contentType"`
-	Kind             string `json:"kind"`
-	Monitored        bool   `json:"monitored"`
-	MonitorMode      string `json:"monitorMode"`
-	AutoImport       *bool  `json:"autoImport"` // nil = omitted → defaults to true
-	ParentExternalID string `json:"parentExternalId"`
-	ParentName       string `json:"parentName"`
-	ParentImageURL   string `json:"parentImageUrl"`
-	ParentWebsiteURL string `json:"parentWebsiteUrl"`
-	ImageURL         string `json:"imageUrl"`
-	WebsiteURL       string `json:"websiteUrl"`
+	Source           string   `json:"source"`
+	ExternalID       string   `json:"externalId"`
+	Name             string   `json:"name"`
+	Overview         string   `json:"overview"`
+	ContentType      string   `json:"contentType"`
+	Kind             string   `json:"kind"`
+	Monitored        bool     `json:"monitored"`
+	MonitorMode      string   `json:"monitorMode"`
+	AutoImport       *bool    `json:"autoImport"` // nil = omitted → defaults to true
+	ParentExternalID string   `json:"parentExternalId"`
+	ParentName       string   `json:"parentName"`
+	ParentImageURL   string   `json:"parentImageUrl"`
+	ParentWebsiteURL string   `json:"parentWebsiteUrl"`
+	ImageURL         string   `json:"imageUrl"`
+	WebsiteURL       string   `json:"websiteUrl"`
+	AlbumFilter      []string `json:"albumFilter"`
 }
 
 // POST /api/v1/metadata/studios/import
@@ -112,6 +113,7 @@ func (h *metadataHandler) importStudio(w http.ResponseWriter, r *http.Request) {
 		ParentWebsiteURL: req.ParentWebsiteURL,
 		ImageURL:         req.ImageURL,
 		WebsiteURL:       req.WebsiteURL,
+		AlbumFilter:      req.AlbumFilter,
 	}
 
 	result, err := h.svc.ImportStudio(r.Context(), svcReq)

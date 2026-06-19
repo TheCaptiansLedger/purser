@@ -13,6 +13,8 @@ export function searchPeople(q: string, contentType?: ContentType, limit = 25) {
 
 // ── Import studio ─────────────────────────────────────────────────────────────
 
+export type AlbumFilterToken = 'studio' | 'live' | 'compilation' | 'ep' | 'single' | 'all'
+
 export interface ImportStudioRequest {
   source: string
   externalId: string
@@ -28,6 +30,7 @@ export interface ImportStudioRequest {
   parentWebsiteUrl?: string
   imageUrl?: string
   websiteUrl?: string
+  albumFilter?: AlbumFilterToken[]
 }
 
 export interface ImportStudioResult {

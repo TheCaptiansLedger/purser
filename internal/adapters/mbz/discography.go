@@ -20,10 +20,11 @@ type mbzReleaseGroupResponse struct {
 // first-release-date is always present in browse responses; inc=releases is NOT
 // a valid parameter on that endpoint and will return HTTP 400.
 type mbzReleaseGroup struct {
-	ID               string `json:"id"`
-	Title            string `json:"title"`
-	FirstReleaseDate string `json:"first-release-date"`
-	PrimaryType      string `json:"primary-type"`
+	ID               string   `json:"id"`
+	Title            string   `json:"title"`
+	FirstReleaseDate string   `json:"first-release-date"`
+	PrimaryType      string   `json:"primary-type"`
+	SecondaryTypes   []string `json:"secondary-types"`
 }
 
 // ── MetadataSource ────────────────────────────────────────────────────────────
@@ -64,10 +65,12 @@ func (a *Adapter) FetchEntryContent(ctx context.Context, artistMBID string, page
 
 func toExternalGroup(rg *mbzReleaseGroup) *domain.ExternalGroup {
 	return &domain.ExternalGroup{
-		Source:     domain.SourceMusicBrainz,
-		ExternalID: rg.ID,
-		Title:      rg.Title,
-		Year:       parseYear(rg.FirstReleaseDate),
+		Source:         domain.SourceMusicBrainz,
+		ExternalID:     rg.ID,
+		Title:          rg.Title,
+		Year:           parseYear(rg.FirstReleaseDate),
+		PrimaryType:    rg.PrimaryType,
+		SecondaryTypes: rg.SecondaryTypes,
 	}
 }
 

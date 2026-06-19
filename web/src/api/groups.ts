@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
-import { get, getPage } from './client'
+import { get, getPage, patch } from './client'
 import type { Group, ContentType } from '../types'
 
 export function useGroups(libraryEntryId: string) {
@@ -30,4 +30,8 @@ export function useGroup(id: string) {
     queryFn: () => get<Group>(`/groups/${id}`),
     enabled: !!id,
   })
+}
+
+export function patchGroup(id: string, body: { monitored?: boolean; monitorMode?: string }): Promise<Group> {
+  return patch<Group>(`/groups/${id}`, body)
 }

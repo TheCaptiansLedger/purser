@@ -115,6 +115,10 @@ func (s *stubSource) FetchGroupContent(_ context.Context, _ string, _, _ int) ([
 	return nil, 0, ports.ErrNotSupported
 }
 
+func (s *stubSource) FetchEntryPeople(_ context.Context, _ string) ([]*domain.ExternalPerson, error) {
+	return nil, ports.ErrNotSupported
+}
+
 type stubJobQueue struct {
 	submitted []string
 }
@@ -707,6 +711,10 @@ func (s *stubMusicSource) FetchGroupContent(_ context.Context, groupExtID string
 	return nil, len(tracks), nil
 }
 
+func (s *stubMusicSource) FetchEntryPeople(_ context.Context, _ string) ([]*domain.ExternalPerson, error) {
+	return nil, ports.ErrNotSupported
+}
+
 func artistEntry(mode domain.MonitorMode, addedAt time.Time) *domain.LibraryEntry {
 	return &domain.LibraryEntry{
 		ID:          "artist-entry-1",
@@ -721,8 +729,8 @@ func artistEntry(mode domain.MonitorMode, addedAt time.Time) *domain.LibraryEntr
 
 func twoAlbumsWithTracks() (*stubMusicSource, []*domain.ExternalGroup, map[string][]*domain.ExternalItem) {
 	albums := []*domain.ExternalGroup{
-		{Source: domain.SourceMusicBrainz, ExternalID: "album-1", Title: "Album One", Year: 2020},
-		{Source: domain.SourceMusicBrainz, ExternalID: "album-2", Title: "Album Two", Year: 2022},
+		{Source: domain.SourceMusicBrainz, ExternalID: "album-1", Title: "Album One", Year: 2020, PrimaryType: "Album"},
+		{Source: domain.SourceMusicBrainz, ExternalID: "album-2", Title: "Album Two", Year: 2022, PrimaryType: "Album"},
 	}
 	tracks := map[string][]*domain.ExternalItem{
 		"album-1": {

@@ -178,6 +178,11 @@ func (a *Adapter) FetchGroupContent(_ context.Context, _ string, _, _ int) ([]*d
 	return nil, 0, ports.ErrNotSupported
 }
 
+// FetchEntryPeople returns ErrNotSupported — StashDB does not model studio membership.
+func (a *Adapter) FetchEntryPeople(_ context.Context, _ string) ([]*domain.ExternalPerson, error) {
+	return nil, ports.ErrNotSupported
+}
+
 // ── Mapping ───────────────────────────────────────────────────────────────────
 
 func toExternalItem(s *gqlScene, contentType domain.ContentType) *domain.ExternalItem {

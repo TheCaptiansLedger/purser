@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { Disc3 } from 'lucide-react'
+import { Link } from 'react-router-dom'
 import { useAllGroups } from '../../api/groups'
 import { PageHeader } from '../../components/layout/PageHeader'
 import { Pagination } from '../../components/ui/Pagination'
@@ -38,9 +39,10 @@ export function AlbumsPage() {
           <>
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
               {data.data.map(group => (
-                <div
+                <Link
                   key={group.id}
-                  className="group relative rounded-lg overflow-hidden bg-white/5 border border-white/8 hover:border-white/15 transition-all duration-200 cursor-pointer"
+                  to={`/music/${group.libraryEntryId}/albums/${group.id}`}
+                  className="group relative rounded-lg overflow-hidden bg-white/5 border border-white/8 hover:border-white/15 transition-all duration-200"
                 >
                   <div className="aspect-square bg-white/5 flex items-center justify-center">
                     <Disc3 size={48} className="text-white/20" />
@@ -51,7 +53,7 @@ export function AlbumsPage() {
                       <p className="text-xs text-white/40 mt-0.5">{group.year}</p>
                     )}
                   </div>
-                </div>
+                </Link>
               ))}
             </div>
             <Pagination total={data.total} limit={LIMIT} offset={offset} onChange={setOffset} accent={ACCENT} />

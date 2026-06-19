@@ -53,11 +53,13 @@ type ExternalPerson struct {
 // e.g. a TV season between a show and its episodes, or an album between an
 // artist and its tracks.
 type ExternalGroup struct {
-	Source     ExternalIDSource
-	ExternalID string
-	Title      string
-	Number     int // season 1, disc 2, volume 3, etc.
-	Year       int
-	Overview   string
-	ImageURL   string
+	Source         ExternalIDSource
+	ExternalID     string
+	Title          string
+	Number         int // season 1, disc 2, volume 3, etc.
+	Year           int
+	Overview       string
+	ImageURL       string
+	PrimaryType    string   // source-specific primary classification (e.g. "Album", "Single")
+	SecondaryTypes []string // source-specific secondary classifications (e.g. ["Live"], ["Compilation"])
 }

@@ -314,6 +314,10 @@ type ImportStudioRequest struct {
 	ParentName       string
 	ParentImageURL   string
 	ParentWebsiteURL string
+	// AlbumFilter controls which MusicBrainz release types are imported for artists.
+	// Tokens: "studio", "live", "compilation", "ep", "single", "all".
+	// Empty defaults to ["studio", "live"].
+	AlbumFilter []string
 }
 
 // ImportStudioResult holds the persisted studio and, if applicable, its network.
@@ -410,10 +414,7 @@ func (s *Service) ImportStudio(ctx context.Context, req *ImportStudioRequest) (*
 		imagePath = s.fetchImage(ctx, req.ImageURL, "entries", studioID)
 	}
 
-	meta := map[string]any{}
-	if req.WebsiteURL != "" {
-		meta["website_url"] = req.WebsiteURL
-	}
+	meta := buildEntryMeta(req, kind)
 
 	studio := &domain.LibraryEntry{
 		ID:          studioID,
@@ -663,6 +664,8 @@ func (s *Service) RefreshArtist(ctx context.Context, entryID string, p ports.Pro
 		return err
 	}
 
+	s.importArtistPeople(ctx, src, entryID, srcExtID)
+
 	newTracks, err := s.collectArtistTracks(ctx, src, entry.Name, albums)
 	if err != nil {
 		return err
@@ -724,12 +727,51 @@ func (s *Service) RefreshArtist(ctx context.Context, entryID string, p ports.Pro
 	return nil
 }
 
+// importArtistPeople fetches band members from the metadata source and saves
+// them as Person records linked to the artist entry via entry_people. Errors
+// are logged and suppressed — people import is best-effort and must not block
+// the rest of the refresh.
+func (s *Service) importArtistPeople(ctx context.Context, src ports.MetadataSource, entryID, srcExtID string) {
+	members, err := src.FetchEntryPeople(ctx, srcExtID)
+	if err != nil {
+		if !errors.Is(err, ports.ErrNotSupported) {
+			slog.Warn("refresh artist: fetch members", "entry_id", entryID, "error", err)
+		}
+		return
+	}
+	personCache := map[string]string{}
+	for _, ep := range members {
+		personID := s.resolveOrCreatePerson(ctx, ep, personCache)
+		if personID == "" {
+			continue
+		}
+		if saveErr := s.entries.SavePerson(ctx, entryID, domain.EntryPerson{
+			PersonID: personID,
+			Role:     string(ep.Role),
+		}); saveErr != nil {
+			slog.Warn("refresh artist: link member", "entry_id", entryID, "person_id", personID, "error", saveErr)
+		}
+	}
+}
+
 // resolveArtistAlbums pages through FetchEntryContent for the artist and
 // creates Group records for any album not already in the library. Returns a
 // slice of all albums (new and existing) with their internal IDs resolved.
+// The album types imported are controlled by entry.Metadata["album_filter"].
 func (s *Service) resolveArtistAlbums(ctx context.Context, src ports.MetadataSource, entry *domain.LibraryEntry, srcExtID string) ([]artistAlbum, error) {
 	const perPage = 100
 	var albums []artistAlbum
+
+	var albumFilter []string
+	if raw, ok := entry.Metadata["album_filter"]; ok {
+		if slice, ok := raw.([]any); ok {
+			for _, v := range slice {
+				if sv, ok := v.(string); ok {
+					albumFilter = append(albumFilter, sv)
+				}
+			}
+		}
+	}
 
 	for page := 1; ; page++ {
 		extGroups, _, albumTotal, err := src.FetchEntryContent(ctx, srcExtID, page, perPage)
@@ -737,6 +779,9 @@ func (s *Service) resolveArtistAlbums(ctx context.Context, src ports.MetadataSou
 			return nil, fmt.Errorf("refresh artist %q: fetch albums page %d: %w", entry.Name, page, err)
 		}
 		for _, eg := range extGroups {
+			if !isImportableAlbum(eg, albumFilter) {
+				continue
+			}
 			if id, findErr := s.externalIDs.FindEntity(ctx, "group", string(eg.Source), eg.ExternalID); findErr == nil {
 				albums = append(albums, artistAlbum{internalID: id, extGroup: eg})
 				continue
@@ -752,6 +797,7 @@ func (s *Service) resolveArtistAlbums(ctx context.Context, src ports.MetadataSou
 				Monitored:      true,
 				MonitorMode:    domain.MonitorAll,
 				ExternalIDs:    []domain.ExternalID{{Source: eg.Source, Value: eg.ExternalID}},
+				Metadata:       albumMetadata(eg),
 			}
 			if err := s.groups.Save(ctx, g); err != nil {
 				return nil, fmt.Errorf("refresh artist %q: save album %q: %w", entry.Name, g.Title, err)
@@ -765,8 +811,70 @@ func (s *Service) resolveArtistAlbums(ctx context.Context, src ports.MetadataSou
 	return albums, nil
 }
 
+// isImportableAlbum reports whether a release group matches the user's filter.
+// filter tokens: "studio", "live", "compilation", "ep", "single", "all".
+// An empty filter falls back to the legacy default (studio + live).
+func isImportableAlbum(eg *domain.ExternalGroup, filter []string) bool {
+	if len(filter) == 1 && filter[0] == "all" {
+		return true
+	}
+	if len(filter) == 0 {
+		filter = []string{"studio", "live"}
+	}
+	token := albumFilterToken(eg)
+	return slices.Contains(filter, token)
+}
+
+// albumFilterToken maps an ExternalGroup's MusicBrainz type pair to one of the
+// user-facing filter tokens understood by isImportableAlbum.
+func albumFilterToken(eg *domain.ExternalGroup) string {
+	switch eg.PrimaryType {
+	case "EP":
+		return "ep"
+	case "Single":
+		return "single"
+	case "Album":
+		for _, s := range eg.SecondaryTypes {
+			switch s {
+			case "Live":
+				return "live"
+			case "Compilation":
+				return "compilation"
+			}
+		}
+		return "studio"
+	default:
+		return "other"
+	}
+}
+
+// buildEntryMeta constructs the metadata map for a new library entry from an
+// import request. Kept separate to avoid inflating ImportStudio's cyclomatic
+// complexity beyond the project lint threshold.
+func buildEntryMeta(req *ImportStudioRequest, kind domain.Kind) map[string]any {
+	meta := map[string]any{}
+	if req.WebsiteURL != "" {
+		meta["website_url"] = req.WebsiteURL
+	}
+	if kind == domain.KindArtist && len(req.AlbumFilter) > 0 {
+		meta["album_filter"] = req.AlbumFilter
+	}
+	return meta
+}
+
+// albumMetadata builds the metadata map persisted with a Group record so that
+// the UI can section the discography by release type without re-querying MusicBrainz.
+func albumMetadata(eg *domain.ExternalGroup) map[string]any {
+	m := map[string]any{"primary_type": eg.PrimaryType}
+	if len(eg.SecondaryTypes) > 0 {
+		m["secondary_types"] = eg.SecondaryTypes
+	}
+	return m
+}
+
 // collectArtistTracks pages through FetchGroupContent for each album and
-// returns tracks not already present in the library.
+// returns tracks not already present in the library. Albums that fail track
+// lookup are logged and skipped rather than aborting the entire refresh.
 func (s *Service) collectArtistTracks(ctx context.Context, src ports.MetadataSource, entryName string, albums []artistAlbum) ([]artistTrack, error) {
 	const perPage = 100
 	var tracks []artistTrack
@@ -775,7 +883,8 @@ func (s *Service) collectArtistTracks(ctx context.Context, src ports.MetadataSou
 		for page := 1; ; page++ {
 			extItems, trackTotal, err := src.FetchGroupContent(ctx, album.extGroup.ExternalID, page, perPage)
 			if err != nil {
-				return nil, fmt.Errorf("refresh artist %q: album %q: fetch tracks page %d: %w", entryName, album.extGroup.Title, page, err)
+				slog.Warn("refresh artist: fetch tracks", "entry", entryName, "album", album.extGroup.Title, "error", err)
+				break
 			}
 			for _, ei := range extItems {
 				if _, err := s.externalIDs.FindEntity(ctx, "item", string(ei.Source), ei.ExternalID); err == nil {

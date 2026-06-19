@@ -59,4 +59,9 @@ type MetadataSource interface {
 	// paginated. Returns ErrNotSupported for sources or content types without this
 	// level of hierarchy.
 	FetchGroupContent(ctx context.Context, groupExternalID string, page, perPage int) ([]*domain.ExternalItem, int, error)
+
+	// FetchEntryPeople returns people directly associated with a library entry
+	// (e.g., band members for a music artist). Returns ErrNotSupported for sources
+	// that do not model entry-level people.
+	FetchEntryPeople(ctx context.Context, externalID string) ([]*domain.ExternalPerson, error)
 }

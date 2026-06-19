@@ -221,6 +221,44 @@ func TestMBZ_FetchEntryContent(t *testing.T) {
 	}
 }
 
+// TestMBZ_FetchEntryPeople verifies that band members are returned for a group
+// artist. The Beatles are used; Ringo Starr is asserted as a known member.
+func TestMBZ_FetchEntryPeople(t *testing.T) {
+	a := newIntegrationAdapter()
+	ctx, cancel := integrationCtx(t)
+	defer cancel()
+
+	members, err := a.FetchEntryPeople(ctx, beatlesMBID)
+	if err != nil {
+		t.Fatalf("FetchEntryPeople: %v", err)
+	}
+	if len(members) == 0 {
+		t.Fatal("FetchEntryPeople returned no members for The Beatles")
+	}
+
+	found := false
+	for _, m := range members {
+		if m.ExternalID == "" {
+			t.Errorf("member %q has empty ExternalID", m.Name)
+		}
+		if m.Name == "" {
+			t.Errorf("member with ExternalID %q has empty Name", m.ExternalID)
+		}
+		if m.Source != domain.SourceMusicBrainz {
+			t.Errorf("member %q Source = %q, want %q", m.Name, m.Source, domain.SourceMusicBrainz)
+		}
+		if m.Role != domain.RoleArtist {
+			t.Errorf("member %q Role = %q, want %q", m.Name, m.Role, domain.RoleArtist)
+		}
+		if m.Name == "Ringo Starr" {
+			found = true
+		}
+	}
+	if !found {
+		t.Error("Ringo Starr not found in Beatles members")
+	}
+}
+
 // TestMBZ_FetchGroupContent verifies that tracks for a release-group can be
 // retrieved with positive runtime durations. The release-group MBID is obtained
 // dynamically from FetchEntryContent so this test doesn't hardcode a brittle ID.

@@ -13,7 +13,11 @@ import (
 func TestFetchEntryContent_Success(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		w.Write([]byte(`{"release-group-count":2,"release-groups":[{"id":"abc-123","title":"Nevermind","first-release-date":"1991-09-24"},{"id":"def-456","title":"In Utero","first-release-date":"1993"}]}`)) //nolint:errcheck
+		w.Write([]byte(`{"release-group-count":3,"release-groups":[` +
+			`{"id":"abc-123","title":"Nevermind","first-release-date":"1991-09-24","primary-type":"Album"},` +
+			`{"id":"def-456","title":"In Utero","first-release-date":"1993","primary-type":"Album"},` +
+			`{"id":"ghi-789","title":"Live at Hollywood","first-release-date":"2000","primary-type":"Album","secondary-types":["Live"]}` +
+			`]}`)) //nolint:errcheck
 	}))
 	defer srv.Close()
 
@@ -25,11 +29,11 @@ func TestFetchEntryContent_Success(t *testing.T) {
 	if items != nil {
 		t.Error("items should be nil for music hierarchy")
 	}
-	if total != 2 {
-		t.Errorf("total = %d, want 2", total)
+	if total != 3 {
+		t.Errorf("total = %d, want 3", total)
 	}
-	if len(groups) != 2 {
-		t.Fatalf("len(groups) = %d, want 2", len(groups))
+	if len(groups) != 3 {
+		t.Fatalf("len(groups) = %d, want 3", len(groups))
 	}
 	if groups[0].Title != "Nevermind" {
 		t.Errorf("groups[0].Title = %q, want Nevermind", groups[0].Title)
@@ -39,6 +43,15 @@ func TestFetchEntryContent_Success(t *testing.T) {
 	}
 	if groups[1].Year != 1993 {
 		t.Errorf("groups[1].Year = %d, want 1993 (year parsed from partial date)", groups[1].Year)
+	}
+	if groups[0].PrimaryType != "Album" {
+		t.Errorf("groups[0].PrimaryType = %q, want Album", groups[0].PrimaryType)
+	}
+	if len(groups[0].SecondaryTypes) != 0 {
+		t.Errorf("groups[0].SecondaryTypes = %v, want empty", groups[0].SecondaryTypes)
+	}
+	if len(groups[2].SecondaryTypes) != 1 || groups[2].SecondaryTypes[0] != "Live" {
+		t.Errorf("groups[2].SecondaryTypes = %v, want [Live]", groups[2].SecondaryTypes)
 	}
 }
 
