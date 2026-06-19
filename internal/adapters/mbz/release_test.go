@@ -6,6 +6,7 @@ import (
 	"net/http/httptest"
 	"purser/internal/adapters/mbz"
 	"purser/internal/config"
+	"strings"
 	"testing"
 )
 
@@ -27,15 +28,27 @@ const twoDiscRelease = `{
 	]
 }`
 
-func TestFetchGroupContent_Success(t *testing.T) {
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+const releaseListJSON = `{"releases":[{"id":"rel-001"}],"release-count":1}`
+
+// newGroupContentServer builds a test server that handles both the
+// release-group→release resolve step and the release detail fetch.
+func newGroupContentServer(releaseDetailJSON string) *httptest.Server {
+	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		w.Write([]byte(twoDiscRelease)) //nolint:errcheck
+		if r.URL.Query().Get("release-group") != "" {
+			w.Write([]byte(releaseListJSON)) //nolint:errcheck
+			return
+		}
+		w.Write([]byte(releaseDetailJSON)) //nolint:errcheck
 	}))
+}
+
+func TestFetchGroupContent_Success(t *testing.T) {
+	srv := newGroupContentServer(twoDiscRelease)
 	defer srv.Close()
 
 	a := mbz.New(config.MetadataSourceConfig{URL: srv.URL})
-	items, total, err := a.FetchGroupContent(context.Background(), "rel-001", 1, 10)
+	items, total, err := a.FetchGroupContent(context.Background(), "rg-001", 1, 10)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -58,14 +71,11 @@ func TestFetchGroupContent_Success(t *testing.T) {
 }
 
 func TestFetchGroupContent_Pagination(t *testing.T) {
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		w.Write([]byte(twoDiscRelease)) //nolint:errcheck
-	}))
+	srv := newGroupContentServer(twoDiscRelease)
 	defer srv.Close()
 
 	a := mbz.New(config.MetadataSourceConfig{URL: srv.URL})
-	items, total, err := a.FetchGroupContent(context.Background(), "rel-001", 2, 1)
+	items, total, err := a.FetchGroupContent(context.Background(), "rg-001", 2, 1)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -81,14 +91,11 @@ func TestFetchGroupContent_Pagination(t *testing.T) {
 }
 
 func TestFetchGroupContent_Empty(t *testing.T) {
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		w.Write([]byte(`{"media":[]}`)) //nolint:errcheck
-	}))
+	srv := newGroupContentServer(`{"media":[]}`)
 	defer srv.Close()
 
 	a := mbz.New(config.MetadataSourceConfig{URL: srv.URL})
-	items, total, err := a.FetchGroupContent(context.Background(), "rel-empty", 1, 10)
+	items, total, err := a.FetchGroupContent(context.Background(), "rg-empty", 1, 10)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -97,5 +104,46 @@ func TestFetchGroupContent_Empty(t *testing.T) {
 	}
 	if len(items) != 0 {
 		t.Errorf("len(items) = %d, want 0", len(items))
+	}
+}
+
+func TestFetchGroupContent_RoundTrip(t *testing.T) {
+	const rgID = "rg-nirvana-nevermind"
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch {
+		case strings.Contains(r.URL.Path, "release-group"):
+			w.Write([]byte(`{"release-group-count":1,"release-groups":[{"id":"rg-nirvana-nevermind","title":"Nevermind","releases":[{"date":"1991-09-24"}]}]}`)) //nolint:errcheck
+		case r.URL.Query().Get("release-group") != "":
+			w.Write([]byte(releaseListJSON)) //nolint:errcheck
+		default:
+			w.Write([]byte(twoDiscRelease)) //nolint:errcheck
+		}
+	}))
+	defer srv.Close()
+
+	a := mbz.New(config.MetadataSourceConfig{URL: srv.URL})
+
+	groups, _, _, err := a.FetchEntryContent(context.Background(), "artist-mbid", 1, 10)
+	if err != nil {
+		t.Fatalf("FetchEntryContent: %v", err)
+	}
+	if len(groups) == 0 {
+		t.Fatal("FetchEntryContent returned no groups")
+	}
+	if groups[0].ExternalID != rgID {
+		t.Errorf("groups[0].ExternalID = %q, want %q", groups[0].ExternalID, rgID)
+	}
+
+	items, total, err := a.FetchGroupContent(context.Background(), groups[0].ExternalID, 1, 10)
+	if err != nil {
+		t.Fatalf("FetchGroupContent with release-group MBID: %v", err)
+	}
+	if total != 3 {
+		t.Errorf("total = %d, want 3", total)
+	}
+	if len(items) != 3 {
+		t.Errorf("len(items) = %d, want 3", len(items))
 	}
 }
