@@ -129,6 +129,32 @@ func (s *Service) SearchPeople(ctx context.Context, query string, contentType do
 	return all, nil
 }
 
+// FetchArtistDiscography returns one page of release groups for the artist
+// identified by externalID in the named source.
+// Returns a ValidationError if source is not registered.
+func (s *Service) FetchArtistDiscography(
+	ctx context.Context,
+	source domain.ExternalIDSource,
+	externalID string,
+	page, perPage int,
+) ([]*domain.ExternalGroup, int, error) {
+	var src ports.MetadataSource
+	for _, candidate := range s.sources {
+		if candidate.Name() == string(source) {
+			src = candidate
+			break
+		}
+	}
+	if src == nil {
+		return nil, 0, errs.Validation(fmt.Sprintf("unknown metadata source %q", source))
+	}
+	groups, _, total, err := src.FetchEntryContent(ctx, externalID, page, perPage)
+	if err != nil {
+		return nil, 0, fmt.Errorf("fetch artist discography: %w", err)
+	}
+	return groups, total, nil
+}
+
 // ── Import ────────────────────────────────────────────────────────────────────
 
 // ImportStudioRequest carries the (user-reviewed) studio data to persist.

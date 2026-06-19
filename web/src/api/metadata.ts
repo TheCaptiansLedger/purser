@@ -1,5 +1,5 @@
 import { get, post } from './client'
-import type { ContentType, ExternalStudio, ExternalPerson, LibraryEntry, MonitorMode, Person, PersonRole } from '../types'
+import type { ContentType, ExternalGroup, ExternalStudio, ExternalPerson, LibraryEntry, MonitorMode, Person, PersonRole } from '../types'
 
 // ── Search ────────────────────────────────────────────────────────────────────
 
@@ -55,4 +55,17 @@ export interface ImportPersonRequest {
 
 export function importPerson(req: ImportPersonRequest) {
   return post<Person>('/metadata/people/import', req)
+}
+
+// ── Discography ───────────────────────────────────────────────────────────────
+
+export interface DiscographyResult {
+  results: ExternalGroup[]
+  total: number
+  page: number
+  pageSize: number
+}
+
+export function fetchArtistDiscography(source: string, externalId: string, page = 1, pageSize = 50) {
+  return get<DiscographyResult>('/metadata/discography', { source, externalId, page, pageSize })
 }

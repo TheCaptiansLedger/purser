@@ -892,6 +892,35 @@ func (r *seededArtistExternalIDRepo) FindEntity(_ context.Context, entityType, s
 	return "", fmt.Errorf("not found: %w", errs.ErrNotFound)
 }
 
+// ── FetchArtistDiscography ────────────────────────────────────────────────────
+
+func TestFetchArtistDiscography_ReturnsGroups(t *testing.T) {
+	src, albums, _ := twoAlbumsWithTracks()
+	svc := metadata.New([]ports.MetadataSource{src}, nil, newStubEntryRepo(), nil, &stubItemRepo{}, &stubPersonRepo{}, &stubTagRepo{}, &stubExternalIDRepo{}, "")
+
+	groups, total, err := svc.FetchArtistDiscography(context.Background(), domain.SourceMusicBrainz, "artist-mbz-1", 1, 50)
+	if err != nil {
+		t.Fatalf("FetchArtistDiscography: %v", err)
+	}
+	if total != len(albums) {
+		t.Errorf("total = %d, want %d", total, len(albums))
+	}
+	if len(groups) != len(albums) {
+		t.Errorf("groups = %d, want %d", len(groups), len(albums))
+	}
+}
+
+func TestFetchArtistDiscography_UnknownSource(t *testing.T) {
+	svc := newService()
+	_, _, err := svc.FetchArtistDiscography(context.Background(), "nonexistent", "some-id", 1, 50)
+	if err == nil {
+		t.Fatal("expected error for unknown source, got nil")
+	}
+	if !errs.IsValidation(err) {
+		t.Errorf("expected ValidationError, got: %v", err)
+	}
+}
+
 func TestRefreshArtist_GroupLinkedToItem(t *testing.T) {
 	entryRepo := newStubEntryRepo()
 	groupRepo := &stubGroupRepo{}
