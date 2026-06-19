@@ -2,6 +2,7 @@ package api
 
 import (
 	"net/http"
+	"purser/internal/app/errs"
 	"purser/internal/app/metadata"
 	"purser/internal/domain"
 	"strconv"
@@ -15,6 +16,7 @@ type metadataHandler struct {
 
 func (h *metadataHandler) routes(r chi.Router) {
 	r.Get("/search", h.search)
+	r.Get("/discography", h.discography)
 	r.Post("/studios/import", h.importStudio)
 	r.Post("/people/import", h.importPerson)
 }
@@ -172,7 +174,50 @@ func (h *metadataHandler) importPerson(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusCreated, toPersonResponse(person))
 }
 
+// ── Discography ───────────────────────────────────────────────────────────────
+
+// GET /api/v1/metadata/discography?source=musicbrainz&externalId={mbid}&page=1&pageSize=50
+func (h *metadataHandler) discography(w http.ResponseWriter, r *http.Request) {
+	q := r.URL.Query()
+	source := domain.ExternalIDSource(q.Get("source"))
+	externalID := q.Get("externalId")
+	if source == "" || externalID == "" {
+		writeError(w, http.StatusBadRequest, "MISSING_PARAMS", "source and externalId are required")
+		return
+	}
+	page := 1
+	if p, err := strconv.Atoi(q.Get("page")); err == nil && p > 0 {
+		page = p
+	}
+	pageSize := 50
+	if ps, err := strconv.Atoi(q.Get("pageSize")); err == nil && ps > 0 {
+		pageSize = ps
+	}
+	groups, total, err := h.svc.FetchArtistDiscography(r.Context(), source, externalID, page, pageSize)
+	if err != nil {
+		if errs.IsValidation(err) {
+			writeError(w, http.StatusBadRequest, "UNKNOWN_SOURCE", err.Error())
+			return
+		}
+		writeError(w, http.StatusInternalServerError, "FETCH_ERROR", "failed to fetch discography")
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"results":  toExternalGroupResponses(groups),
+		"total":    total,
+		"page":     page,
+		"pageSize": pageSize,
+	})
+}
+
 // ── Response shapes ───────────────────────────────────────────────────────────
+
+type externalGroupResponse struct {
+	Source     string `json:"source"`
+	ExternalID string `json:"externalId"`
+	Title      string `json:"title"`
+	Year       int    `json:"year,omitempty"`
+}
 
 type externalStudioResponse struct {
 	Source           string `json:"source"`
@@ -196,6 +241,19 @@ type externalPersonResponse struct {
 	ImageURL   string         `json:"imageUrl,omitempty"`
 	Role       string         `json:"role,omitempty"`
 	Metadata   map[string]any `json:"metadata,omitempty"`
+}
+
+func toExternalGroupResponses(groups []*domain.ExternalGroup) []externalGroupResponse {
+	out := make([]externalGroupResponse, len(groups))
+	for i, g := range groups {
+		out[i] = externalGroupResponse{
+			Source:     string(g.Source),
+			ExternalID: g.ExternalID,
+			Title:      g.Title,
+			Year:       g.Year,
+		}
+	}
+	return out
 }
 
 func toExternalStudioResponses(studios []*domain.ExternalStudio) []externalStudioResponse {

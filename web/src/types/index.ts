@@ -46,6 +46,13 @@ export interface ExternalStudio {
   parentWebsiteUrl?: string
 }
 
+export interface ExternalGroup {
+  source: string
+  externalId: string
+  title: string
+  year?: number
+}
+
 export interface ExternalPerson {
   source: string
   externalId: string
