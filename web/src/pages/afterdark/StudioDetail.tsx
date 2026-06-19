@@ -3,16 +3,20 @@ import { useParams, Link } from 'react-router-dom'
 import { ArrowLeft, Film, Users, ImageIcon, RefreshCw } from 'lucide-react'
 import { useLibraryEntry } from '../../api/library'
 import { useItems } from '../../api/items'
+import type { SortField, SortDir } from '../../api/items'
 import { useActiveJobForEntry } from '../../api/jobs'
 import { refreshStudio } from '../../api/commands'
+import { useStatusOverlay } from '../../hooks/useStatusOverlay'
 import { Hero } from '../../components/layout/Hero'
 import { ItemCard } from '../../components/media/ItemCard'
 import { PersonCard } from '../../components/media/PersonCard'
 import { Badge } from '../../components/ui/Badge'
+import { Pagination } from '../../components/ui/Pagination'
 import { Skeleton } from '../../components/ui/Skeleton'
 import type { Person } from '../../types'
 
 const ACCENT = '#f43f5e'
+const LIMIT = 48
 
 export function StudioDetail() {
   const { id } = useParams<{ id: string }>()
@@ -21,8 +25,23 @@ export function StudioDetail() {
   const activeJob = useActiveJobForEntry(id!, 'RefreshStudio')
   const isRefreshing = activeJob !== null
 
+  const [sceneOffset, setSceneOffset] = useState(0)
+  const [sort, setSort] = useState<SortField>('date')
+  const [sortDir, setSortDir] = useState<SortDir>('desc')
+  const [alwaysShowStatus, toggleStatus] = useStatusOverlay('afterdark')
+
+  const changeSort = (newSort: SortField) => {
+    if (newSort === sort) {
+      setSortDir(d => d === 'desc' ? 'asc' : 'desc')
+    } else {
+      setSort(newSort)
+      setSortDir(newSort === 'date' ? 'desc' : 'asc')
+    }
+    setSceneOffset(0)
+  }
+
   const { data: scenesPage } = useItems(
-    { libraryEntryId: id!, limit: 200 },
+    { libraryEntryId: id!, sort, sortDir, limit: LIMIT, offset: sceneOffset },
     isRefreshing ? 2000 : undefined,
   )
   const scenes = scenesPage?.data ?? []
@@ -141,17 +160,49 @@ export function StudioDetail() {
         )}
 
         {/* Scenes */}
-        {scenes.length > 0 && (
+        {(scenes.length > 0 || sceneOffset > 0) && (
           <section>
-            <h2 className="text-xs font-semibold text-white/35 uppercase tracking-widest mb-4 flex items-center gap-2">
-              <Film size={13} style={{ color: ACCENT }} />
-              Scenes
-            </h2>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xs font-semibold text-white/35 uppercase tracking-widest flex items-center gap-2">
+                <Film size={13} style={{ color: ACCENT }} />
+                Scenes
+              </h2>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={toggleStatus}
+                  className={[
+                    'text-xs px-2.5 py-1 rounded-lg border transition-colors',
+                    alwaysShowStatus
+                      ? 'border-transparent text-white'
+                      : 'border-white/10 text-white/40 hover:text-white/70',
+                  ].join(' ')}
+                  style={alwaysShowStatus ? { background: ACCENT + '22', color: ACCENT, borderColor: ACCENT + '44' } : {}}
+                >
+                  Status
+                </button>
+                {([['date', 'Date'], ['title', 'A–Z']] as [SortField, string][]).map(([key, label]) => (
+                  <button
+                    key={key}
+                    onClick={() => changeSort(key)}
+                    className={[
+                      'text-xs px-2.5 py-1 rounded-lg border transition-colors',
+                      sort === key
+                        ? 'border-transparent text-white'
+                        : 'border-white/10 text-white/40 hover:text-white/70 hover:border-white/20',
+                    ].join(' ')}
+                    style={sort === key ? { background: ACCENT + '33', color: ACCENT, borderColor: ACCENT + '55' } : {}}
+                  >
+                    {label}{sort === key ? (sortDir === 'asc' ? ' ↑' : ' ↓') : ''}
+                  </button>
+                ))}
+              </div>
+            </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
               {scenes.map(scene => (
-                <ItemCard key={scene.id} item={scene} href={`/afterdark/scenes/${scene.id}`} aspect="16/9" accent={ACCENT} showPeople />
+                <ItemCard key={scene.id} item={scene} href={`/afterdark/scenes/${scene.id}`} aspect="16/9" accent={ACCENT} showPeople alwaysShowStatus={alwaysShowStatus} />
               ))}
             </div>
+            <Pagination total={scenesPage?.total ?? 0} limit={LIMIT} offset={sceneOffset} onChange={setSceneOffset} accent={ACCENT} />
           </section>
         )}
 

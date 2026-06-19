@@ -495,6 +495,44 @@ func TestItems_ListByLibraryEntry(t *testing.T) {
 	}
 }
 
+func TestItems_List_SortByTitle(t *testing.T) {
+	h := newHandler(t)
+
+	w := do(t, h, http.MethodPost, "/api/v1/library-entries", map[string]any{
+		"contentType": "adult", "kind": "studio", "name": "S",
+	})
+	var studio struct {
+		ID string `json:"id"`
+	}
+	decodeJSON(t, w, &studio)
+
+	for _, title := range []string{"Zebra Scene", "Apple Scene", "Mango Scene"} {
+		do(t, h, http.MethodPost, "/api/v1/items", map[string]any{
+			"libraryEntryId": studio.ID, "title": title,
+		})
+	}
+
+	w = do(t, h, http.MethodGet, "/api/v1/items?libraryEntryId="+studio.ID+"&sort=title&sortDir=asc", nil)
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", w.Code)
+	}
+	var resp struct {
+		Data []struct {
+			Title string `json:"title"`
+		} `json:"data"`
+	}
+	decodeJSON(t, w, &resp)
+	if len(resp.Data) != 3 {
+		t.Fatalf("data len = %d, want 3", len(resp.Data))
+	}
+	if resp.Data[0].Title != "Apple Scene" {
+		t.Errorf("first item = %q, want Apple Scene", resp.Data[0].Title)
+	}
+	if resp.Data[2].Title != "Zebra Scene" {
+		t.Errorf("last item = %q, want Zebra Scene", resp.Data[2].Title)
+	}
+}
+
 // ── People ────────────────────────────────────────────────────────────────────
 
 func TestPeople_Create_WithAliases(t *testing.T) {

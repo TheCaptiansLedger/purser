@@ -1,5 +1,5 @@
 import { useParams, Link } from 'react-router-dom'
-import { ArrowLeft, Calendar, Clock, User, ImageIcon } from 'lucide-react'
+import { Calendar, Clock, User, ImageIcon } from 'lucide-react'
 import { useItem } from '../../api/items'
 import { useLibraryEntry } from '../../api/library'
 import { Hero } from '../../components/layout/Hero'
@@ -24,9 +24,17 @@ export function SceneDetail() {
   return (
     <div>
       <div className="px-8 pt-6">
-        <Link to="/afterdark" className="inline-flex items-center gap-1.5 text-sm text-white/40 hover:text-white/70 transition-colors">
-          <ArrowLeft size={14} /> AfterDark
-        </Link>
+        <nav className="flex items-center gap-1.5 text-sm text-white/40">
+          <Link to="/afterdark/studios" className="hover:text-white/70 transition-colors">Studios</Link>
+          {entry && (
+            <>
+              <span className="text-white/20">›</span>
+              <Link to={`/afterdark/studios/${entry.id}`} className="hover:text-white/70 transition-colors">{entry.name}</Link>
+            </>
+          )}
+          <span className="text-white/20">›</span>
+          <span className="text-white/60 truncate max-w-xs">{item.title}</span>
+        </nav>
       </div>
 
       {/* Hero — 16:9 cover */}

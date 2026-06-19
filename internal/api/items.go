@@ -125,6 +125,8 @@ func (h *itemHandler) list(w http.ResponseWriter, r *http.Request) {
 		Monitored:      boolPtr(r, "monitored"),
 		PersonID:       q.Get("personId"),
 		Search:         q.Get("search"),
+		Sort:           q.Get("sort"),
+		SortDir:        q.Get("sortDir"),
 		Limit:          limit,
 		Offset:         offset,
 	}

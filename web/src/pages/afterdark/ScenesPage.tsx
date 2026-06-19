@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Film } from 'lucide-react'
 import { useItems } from '../../api/items'
+import type { SortField, SortDir } from '../../api/items'
 import { useStatusOverlay } from '../../hooks/useStatusOverlay'
 import { PageHeader } from '../../components/layout/PageHeader'
 import { ItemCard } from '../../components/media/ItemCard'
@@ -14,13 +15,27 @@ const LIMIT = 48
 export function ScenesPage() {
   const [search, setSearch] = useState('')
   const [offset, setOffset] = useState(0)
+  const [sort, setSort] = useState<SortField>('date')
+  const [sortDir, setSortDir] = useState<SortDir>('desc')
   const [alwaysShowStatus, toggleStatus] = useStatusOverlay('afterdark')
 
   const resetPage = (v: string) => { setSearch(v); setOffset(0) }
 
+  const changeSort = (newSort: SortField) => {
+    if (newSort === sort) {
+      setSortDir(d => d === 'desc' ? 'asc' : 'desc')
+    } else {
+      setSort(newSort)
+      setSortDir(newSort === 'date' ? 'desc' : 'asc')
+    }
+    setOffset(0)
+  }
+
   const adultScenes = useItems({
     contentType: 'adult',
     search: search || undefined,
+    sort,
+    sortDir,
     limit: LIMIT,
     offset,
   })
@@ -28,20 +43,25 @@ export function ScenesPage() {
   const javScenes = useItems({
     contentType: 'jav',
     search: search || undefined,
+    sort,
+    sortDir,
     limit: LIMIT,
     offset,
   })
 
   const loading = adultScenes.isLoading || javScenes.isLoading
 
-  // Merge adult + jav, interleaved by date (newest first)
   const allScenes = [
     ...(adultScenes.data?.data ?? []),
     ...(javScenes.data?.data ?? []),
   ].sort((a, b) => {
+    if (sort === 'title') {
+      const cmp = a.title.localeCompare(b.title)
+      return sortDir === 'asc' ? cmp : -cmp
+    }
     const da = a.date ? new Date(a.date).getTime() : 0
     const db = b.date ? new Date(b.date).getTime() : 0
-    return db - da
+    return sortDir === 'asc' ? da - db : db - da
   })
 
   const total = (adultScenes.data?.total ?? 0) + (javScenes.data?.total ?? 0)
@@ -57,6 +77,24 @@ export function ScenesPage() {
         statusOverlay={{ value: alwaysShowStatus, onToggle: toggleStatus }}
       />
       <div className="px-8 py-6">
+        <div className="flex items-center gap-2 mb-4">
+          <span className="text-xs text-white/30 uppercase tracking-widest mr-1">Sort</span>
+          {([['date', 'Date'], ['title', 'A–Z']] as [SortField, string][]).map(([key, label]) => (
+            <button
+              key={key}
+              onClick={() => changeSort(key)}
+              className={[
+                'text-xs px-3 py-1 rounded-lg border transition-colors',
+                sort === key
+                  ? 'border-transparent text-white'
+                  : 'border-white/10 text-white/40 hover:text-white/70 hover:border-white/20',
+              ].join(' ')}
+              style={sort === key ? { background: ACCENT + '33', color: ACCENT, borderColor: ACCENT + '55' } : {}}
+            >
+              {label}{sort === key ? (sortDir === 'asc' ? ' ↑' : ' ↓') : ''}
+            </button>
+          ))}
+        </div>
         {loading ? (
           <SkeletonGrid count={24} aspect="16/9" />
         ) : !allScenes.length ? (
