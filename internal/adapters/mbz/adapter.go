@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"purser/internal/config"
 	"purser/internal/domain"
@@ -58,7 +59,7 @@ func New(cfg config.MetadataSourceConfig) *Adapter {
 }
 
 // Name returns the identifier for this metadata source.
-func (a *Adapter) Name() string { return "musicbrainz" }
+func (a *Adapter) Name() string { return string(domain.SourceMusicBrainz) }
 
 // ContentTypes returns the content types this adapter can provide metadata for.
 func (a *Adapter) ContentTypes() []domain.ContentType {
@@ -110,6 +111,7 @@ func (a *Adapter) get(ctx context.Context, url string, out any) error {
 }
 
 func (a *Adapter) doGet(ctx context.Context, rawURL string, out any) error {
+	slog.Debug("mbz: GET", "url", rawURL)
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, rawURL, nil)
 	if err != nil {
 		return err

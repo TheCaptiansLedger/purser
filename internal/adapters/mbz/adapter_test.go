@@ -15,8 +15,8 @@ import (
 
 func TestAdapter_Name(t *testing.T) {
 	a := mbz.New(config.MetadataSourceConfig{})
-	if got := a.Name(); got != "musicbrainz" {
-		t.Errorf("Name() = %q, want musicbrainz", got)
+	if got := a.Name(); got != string(domain.SourceMusicBrainz) {
+		t.Errorf("Name() = %q, want %q", got, domain.SourceMusicBrainz)
 	}
 }
 

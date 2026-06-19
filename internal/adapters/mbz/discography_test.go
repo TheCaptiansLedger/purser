@@ -13,7 +13,7 @@ import (
 func TestFetchEntryContent_Success(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		w.Write([]byte(`{"release-group-count":2,"release-groups":[{"id":"abc-123","title":"Nevermind","releases":[{"date":"1991-09-24"},{"date":"1991-01-01"}]},{"id":"def-456","title":"In Utero","releases":[{"date":"1993"}]}]}`)) //nolint:errcheck
+		w.Write([]byte(`{"release-group-count":2,"release-groups":[{"id":"abc-123","title":"Nevermind","first-release-date":"1991-09-24"},{"id":"def-456","title":"In Utero","first-release-date":"1993"}]}`)) //nolint:errcheck
 	}))
 	defer srv.Close()
 
@@ -35,10 +35,10 @@ func TestFetchEntryContent_Success(t *testing.T) {
 		t.Errorf("groups[0].Title = %q, want Nevermind", groups[0].Title)
 	}
 	if groups[0].Year != 1991 {
-		t.Errorf("groups[0].Year = %d, want 1991 (earliest of two releases)", groups[0].Year)
+		t.Errorf("groups[0].Year = %d, want 1991 (from first-release-date)", groups[0].Year)
 	}
 	if groups[1].Year != 1993 {
-		t.Errorf("groups[1].Year = %d, want 1993", groups[1].Year)
+		t.Errorf("groups[1].Year = %d, want 1993 (year parsed from partial date)", groups[1].Year)
 	}
 }
 

@@ -114,7 +114,7 @@ func TestFetchGroupContent_RoundTrip(t *testing.T) {
 		w.Header().Set("Content-Type", "application/json")
 		switch {
 		case strings.Contains(r.URL.Path, "release-group"):
-			w.Write([]byte(`{"release-group-count":1,"release-groups":[{"id":"rg-nirvana-nevermind","title":"Nevermind","releases":[{"date":"1991-09-24"}]}]}`)) //nolint:errcheck
+			w.Write([]byte(`{"release-group-count":1,"release-groups":[{"id":"rg-nirvana-nevermind","title":"Nevermind","first-release-date":"1991-09-24"}]}`)) //nolint:errcheck
 		case r.URL.Query().Get("release-group") != "":
 			w.Write([]byte(releaseListJSON)) //nolint:errcheck
 		default:

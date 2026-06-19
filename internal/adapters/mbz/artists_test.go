@@ -5,11 +5,10 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
-	"testing"
-
 	"purser/internal/adapters/mbz"
 	"purser/internal/config"
 	"purser/internal/domain"
+	"testing"
 )
 
 const artistsFixture = `{
@@ -57,9 +56,9 @@ func TestSearchStudios_HappyPath(t *testing.T) {
 		t.Errorf("Overview = %q, want British-American rock band", got.Overview)
 	}
 
-	// type:Group must be part of the Lucene query, not a separate URL param
-	if receivedQuery != "Fleetwood Mac AND type:Group" {
-		t.Errorf("Lucene query = %q, want %q", receivedQuery, "Fleetwood Mac AND type:Group")
+	// no type filter — both groups and solo artists must appear in results
+	if receivedQuery != "Fleetwood Mac" {
+		t.Errorf("Lucene query = %q, want %q (no type filter)", receivedQuery, "Fleetwood Mac")
 	}
 }
 
@@ -79,7 +78,7 @@ func TestSearchStudios_TypeNotSeparateParam(t *testing.T) {
 		t.Fatal("no request received")
 	}
 	if capturedURL.Query().Get("type") != "" {
-		t.Error("'type' must not appear as a standalone URL parameter — it belongs in the Lucene query")
+		t.Error("'type' must not appear as a standalone URL parameter")
 	}
 }
 

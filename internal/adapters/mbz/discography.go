@@ -3,6 +3,7 @@ package mbz
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"net/url"
 	"purser/internal/domain"
 	"strconv"
@@ -15,34 +16,42 @@ type mbzReleaseGroupResponse struct {
 	Count         int               `json:"release-group-count"`
 }
 
+// mbzReleaseGroup is the shape returned by the release-group browse endpoint.
+// first-release-date is always present in browse responses; inc=releases is NOT
+// a valid parameter on that endpoint and will return HTTP 400.
 type mbzReleaseGroup struct {
-	ID       string       `json:"id"`
-	Title    string       `json:"title"`
-	Releases []mbzRelease `json:"releases"`
-}
-
-type mbzRelease struct {
-	Date string `json:"date"` // "YYYY", "YYYY-MM", or "YYYY-MM-DD"
+	ID               string `json:"id"`
+	Title            string `json:"title"`
+	FirstReleaseDate string `json:"first-release-date"`
+	PrimaryType      string `json:"primary-type"`
 }
 
 // ── MetadataSource ────────────────────────────────────────────────────────────
 
 // FetchEntryContent fetches an artist's release groups (albums, EPs, singles, etc.)
-// as paginated ExternalGroups. Items is always nil — tracks are fetched later via
-// FetchGroupContent once that is implemented.
+// as paginated ExternalGroups. Items is always nil — tracks are fetched via
+// FetchGroupContent for each release group.
+//
+// MBZ browse endpoint: GET /ws/2/release-group?artist=<MBID>&limit=N&offset=N&fmt=json
+// first-release-date is included in every release-group object by default.
+// inc=releases is NOT supported on this endpoint and returns HTTP 400.
 func (a *Adapter) FetchEntryContent(ctx context.Context, artistMBID string, page, perPage int) ([]*domain.ExternalGroup, []*domain.ExternalItem, int, error) {
 	params := url.Values{}
 	params.Set("artist", artistMBID)
-	params.Set("inc", "releases")
 	params.Set("fmt", "json")
 	params.Set("limit", strconv.Itoa(perPage))
 	params.Set("offset", strconv.Itoa((page-1)*perPage))
 	u := fmt.Sprintf("%srelease-group?%s", a.baseURL, params.Encode())
 
+	slog.Debug("mbz: FetchEntryContent", "artist", artistMBID, "page", page, "url", u)
+
 	var resp mbzReleaseGroupResponse
 	if err := a.get(ctx, u, &resp); err != nil {
+		slog.Warn("mbz: FetchEntryContent failed", "artist", artistMBID, "error", err)
 		return nil, nil, 0, err
 	}
+
+	slog.Debug("mbz: FetchEntryContent result", "artist", artistMBID, "total", resp.Count, "page_count", len(resp.ReleaseGroups))
 
 	groups := make([]*domain.ExternalGroup, len(resp.ReleaseGroups))
 	for i := range resp.ReleaseGroups {
@@ -58,19 +67,8 @@ func toExternalGroup(rg *mbzReleaseGroup) *domain.ExternalGroup {
 		Source:     domain.SourceMusicBrainz,
 		ExternalID: rg.ID,
 		Title:      rg.Title,
-		Year:       earliestYear(rg.Releases),
-		Number:     0,
+		Year:       parseYear(rg.FirstReleaseDate),
 	}
-}
-
-func earliestYear(releases []mbzRelease) int {
-	year := 0
-	for _, r := range releases {
-		if y := parseYear(r.Date); y > 0 && (year == 0 || y < year) {
-			year = y
-		}
-	}
-	return year
 }
 
 func parseYear(date string) int {

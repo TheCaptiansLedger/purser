@@ -3,6 +3,7 @@ package mbz
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"net/url"
 	"purser/internal/domain"
 	"strconv"
@@ -23,13 +24,17 @@ type mbzArtist struct {
 
 // ── MetadataSource ────────────────────────────────────────────────────────────
 
-// SearchStudios queries MusicBrainz for bands, orchestras, and ensembles by name.
+// SearchStudios queries MusicBrainz for artists by name. No type filter is applied
+// so both groups (Fleetwood Mac) and solo artists (Stevie Nicks) are returned.
 func (a *Adapter) SearchStudios(ctx context.Context, query string, limit int) ([]*domain.ExternalStudio, error) {
-	u := a.artistURL(query, "Group", limit)
+	u := a.artistURL(query, "", limit)
+	slog.Debug("mbz: SearchStudios", "query", query, "url", u)
 	var resp mbzArtistResponse
 	if err := a.get(ctx, u, &resp); err != nil {
+		slog.Warn("mbz: SearchStudios failed", "query", query, "error", err)
 		return nil, err
 	}
+	slog.Debug("mbz: SearchStudios result", "query", query, "count", len(resp.Artists))
 	out := make([]*domain.ExternalStudio, len(resp.Artists))
 	for i := range resp.Artists {
 		out[i] = artistToStudio(&resp.Artists[i])
@@ -37,13 +42,16 @@ func (a *Adapter) SearchStudios(ctx context.Context, query string, limit int) ([
 	return out, nil
 }
 
-// SearchPeople queries MusicBrainz for individual artists by name.
+// SearchPeople queries MusicBrainz for individual artists (type:Person) by name.
 func (a *Adapter) SearchPeople(ctx context.Context, query string, limit int) ([]*domain.ExternalPerson, error) {
 	u := a.artistURL(query, "Person", limit)
+	slog.Debug("mbz: SearchPeople", "query", query, "url", u)
 	var resp mbzArtistResponse
 	if err := a.get(ctx, u, &resp); err != nil {
+		slog.Warn("mbz: SearchPeople failed", "query", query, "error", err)
 		return nil, err
 	}
+	slog.Debug("mbz: SearchPeople result", "query", query, "count", len(resp.Artists))
 	out := make([]*domain.ExternalPerson, len(resp.Artists))
 	for i := range resp.Artists {
 		out[i] = artistToPerson(&resp.Artists[i])
