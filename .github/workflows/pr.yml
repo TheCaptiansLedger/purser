@@ -2,7 +2,7 @@ name: PR
 
 on:
   pull_request:
-    branches: [main]
+    branches: [develop, main]
     types: [opened, edited, synchronize, reopened]
 
 permissions:

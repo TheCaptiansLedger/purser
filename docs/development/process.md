@@ -10,9 +10,9 @@
    ```
 2a. assign the status:in-progress label and comment on the issue "Starting to work on this"
 
-3. **Create a topic branch** from `main`:
+3. **Create a topic branch** from `develop`:
    ```bash
-   git checkout main && git pull
+   git checkout develop && git pull
    git checkout -b feature/<number>-short-description
    ```
    Use `fix/` prefix for bug fixes, `chore/` for maintenance.

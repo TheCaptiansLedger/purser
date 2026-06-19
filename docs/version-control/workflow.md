@@ -1,5 +1,19 @@
 # Version Control Workflow
 
+## Branching Model
+
+Day-to-day work targets `develop`. Releases happen when `develop` is merged into `main`.
+
+```
+feature/* ──┐
+fix/*    ───┼──► develop ──► main (release)
+chore/*  ──┘
+```
+
+- `develop` is the default branch — all feature/fix/chore PRs target it
+- `main` is the release branch — only receives PRs from `develop`
+- Merging `develop` → `main` triggers semantic-release, container build, and release notes
+
 ## Branch Naming
 
 ```
