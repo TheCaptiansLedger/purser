@@ -21,11 +21,6 @@ func (a *Adapter) FindByExternalID(_ context.Context, _ string) (*domain.Externa
 	return nil, ports.ErrNotSupported
 }
 
-// FetchEntryContent returns ErrNotSupported — implemented in a follow-up issue.
-func (a *Adapter) FetchEntryContent(_ context.Context, _ string, _, _ int) ([]*domain.ExternalGroup, []*domain.ExternalItem, int, error) {
-	return nil, nil, 0, ports.ErrNotSupported
-}
-
 // FetchGroupContent returns ErrNotSupported — implemented in a follow-up issue.
 func (a *Adapter) FetchGroupContent(_ context.Context, _ string, _, _ int) ([]*domain.ExternalItem, int, error) {
 	return nil, 0, ports.ErrNotSupported
