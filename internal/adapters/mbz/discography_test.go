@@ -6,6 +6,7 @@ import (
 	"net/http/httptest"
 	"purser/internal/adapters/mbz"
 	"purser/internal/config"
+	"purser/internal/domain"
 	"strings"
 	"testing"
 )
@@ -22,7 +23,7 @@ func TestFetchEntryContent_Success(t *testing.T) {
 	defer srv.Close()
 
 	a := mbz.New(config.MetadataSourceConfig{URL: srv.URL})
-	groups, items, total, err := a.FetchEntryContent(context.Background(), "some-mbid", 1, 10)
+	groups, items, total, err := a.FetchEntryContent(context.Background(), domain.ContentTypeMusic, "some-mbid", 1, 10)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -63,7 +64,7 @@ func TestFetchEntryContent_Empty(t *testing.T) {
 	defer srv.Close()
 
 	a := mbz.New(config.MetadataSourceConfig{URL: srv.URL})
-	groups, _, total, err := a.FetchEntryContent(context.Background(), "some-mbid", 1, 10)
+	groups, _, total, err := a.FetchEntryContent(context.Background(), domain.ContentTypeMusic, "some-mbid", 1, 10)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -85,7 +86,7 @@ func TestFetchEntryContent_PaginationOffset(t *testing.T) {
 	defer srv.Close()
 
 	a := mbz.New(config.MetadataSourceConfig{URL: srv.URL})
-	_, _, _, _ = a.FetchEntryContent(context.Background(), "some-mbid", 3, 10)
+	_, _, _, _ = a.FetchEntryContent(context.Background(), domain.ContentTypeMusic, "some-mbid", 3, 10)
 	if !strings.Contains(query, "offset=20") {
 		t.Errorf("expected offset=20 for page=3 perPage=10, got query: %s", query)
 	}

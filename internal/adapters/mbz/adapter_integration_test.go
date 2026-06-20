@@ -142,7 +142,7 @@ func TestMBZ_FindByExternalID(t *testing.T) {
 	ctx, cancel := integrationCtx(t)
 	defer cancel()
 
-	item, err := a.FindByExternalID(ctx, beatlesMBID)
+	item, err := a.FindByExternalID(ctx, domain.ContentTypeMusic, beatlesMBID)
 	if err != nil {
 		t.Fatalf("FindByExternalID: %v", err)
 	}
@@ -164,7 +164,7 @@ func TestMBZ_FindByExternalID_NotFound(t *testing.T) {
 	ctx, cancel := integrationCtx(t)
 	defer cancel()
 
-	_, err := a.FindByExternalID(ctx, "00000000-0000-0000-0000-000000000000")
+	_, err := a.FindByExternalID(ctx, domain.ContentTypeMusic, "00000000-0000-0000-0000-000000000000")
 	if !errors.Is(err, ports.ErrNotFound) {
 		t.Errorf("expected ports.ErrNotFound for nonexistent MBID, got: %v", err)
 	}
@@ -189,7 +189,7 @@ func TestMBZ_FetchEntryContent(t *testing.T) {
 	ctx, cancel := integrationCtx(t)
 	defer cancel()
 
-	groups, items, total, err := a.FetchEntryContent(ctx, beatlesMBID, 1, 10)
+	groups, items, total, err := a.FetchEntryContent(ctx, domain.ContentTypeMusic, beatlesMBID, 1, 10)
 	if err != nil {
 		t.Fatalf("FetchEntryContent: %v", err)
 	}
@@ -282,7 +282,7 @@ func TestMBZ_FetchGroupContent(t *testing.T) {
 	defer cancel2()
 
 	rgMBID := groups[0].ExternalID
-	items, total, err := a.FetchGroupContent(ctx2, rgMBID, 1, 50)
+	items, total, err := a.FetchGroupContent(ctx2, domain.ContentTypeMusic, rgMBID, 1, 50)
 	if err != nil {
 		t.Fatalf("FetchGroupContent(%q): %v", rgMBID, err)
 	}

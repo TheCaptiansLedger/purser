@@ -20,7 +20,7 @@ func TestFindByExternalID_Success(t *testing.T) {
 	defer srv.Close()
 
 	a := mbz.New(config.MetadataSourceConfig{URL: srv.URL})
-	item, err := a.FindByExternalID(context.Background(), "abc-123")
+	item, err := a.FindByExternalID(context.Background(), domain.ContentTypeMusic, "abc-123")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -42,7 +42,7 @@ func TestFindByExternalID_NotFound(t *testing.T) {
 	defer srv.Close()
 
 	a := mbz.New(config.MetadataSourceConfig{URL: srv.URL})
-	_, err := a.FindByExternalID(context.Background(), "does-not-exist")
+	_, err := a.FindByExternalID(context.Background(), domain.ContentTypeMusic, "does-not-exist")
 	if !errors.Is(err, ports.ErrNotFound) {
 		t.Errorf("expected ports.ErrNotFound, got: %v", err)
 	}

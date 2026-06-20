@@ -88,7 +88,7 @@ func (a *Adapter) FetchEntryPeople(ctx context.Context, artistMBID string) ([]*d
 
 // FindByExternalID fetches a single artist by MBID.
 // Returns ports.ErrNotFound when the MBID does not exist in MusicBrainz.
-func (a *Adapter) FindByExternalID(ctx context.Context, id string) (*domain.ExternalItem, error) {
+func (a *Adapter) FindByExternalID(ctx context.Context, _ domain.ContentType, id string) (*domain.ExternalItem, error) {
 	params := url.Values{}
 	params.Set("inc", "url-rels")
 	params.Set("fmt", "json")

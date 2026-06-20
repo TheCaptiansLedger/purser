@@ -225,13 +225,18 @@ func (h *metadataHandler) importAlbum(w http.ResponseWriter, r *http.Request) {
 
 // ── Discography ───────────────────────────────────────────────────────────────
 
-// GET /api/v1/metadata/discography?source=musicbrainz&externalId={mbid}&page=1&pageSize=50
+// GET /api/v1/metadata/discography?source=mbz&contentType=music&externalId={mbid}&page=1&pageSize=50
 func (h *metadataHandler) discography(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query()
 	source := domain.ExternalIDSource(q.Get("source"))
 	externalID := q.Get("externalId")
-	if source == "" || externalID == "" {
-		writeError(w, http.StatusBadRequest, "MISSING_PARAMS", "source and externalId are required")
+	contentType := domain.ContentType(q.Get("contentType"))
+	if source == "" || externalID == "" || contentType == "" {
+		writeError(w, http.StatusBadRequest, "MISSING_PARAMS", "source, contentType, and externalId are required")
+		return
+	}
+	if !contentType.Valid() {
+		writeError(w, http.StatusBadRequest, "INVALID_CONTENT_TYPE", "invalid contentType")
 		return
 	}
 	page := 1
@@ -242,7 +247,7 @@ func (h *metadataHandler) discography(w http.ResponseWriter, r *http.Request) {
 	if ps, err := strconv.Atoi(q.Get("pageSize")); err == nil && ps > 0 {
 		pageSize = ps
 	}
-	groups, total, err := h.svc.FetchArtistDiscography(r.Context(), source, externalID, page, pageSize)
+	groups, total, err := h.svc.FetchArtistDiscography(r.Context(), source, contentType, externalID, page, pageSize)
 	if err != nil {
 		if errs.IsValidation(err) {
 			writeError(w, http.StatusBadRequest, "UNKNOWN_SOURCE", err.Error())

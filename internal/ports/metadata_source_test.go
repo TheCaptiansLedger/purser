@@ -28,15 +28,15 @@ func (s *stubMetadataSource) FindByHash(_ context.Context, _ string) (*domain.Ex
 	return nil, ports.ErrNotSupported
 }
 
-func (s *stubMetadataSource) FindByExternalID(_ context.Context, _ string) (*domain.ExternalItem, error) {
+func (s *stubMetadataSource) FindByExternalID(_ context.Context, _ domain.ContentType, _ string) (*domain.ExternalItem, error) {
 	return nil, ports.ErrNotFound
 }
 
-func (s *stubMetadataSource) FetchEntryContent(_ context.Context, _ string, _, _ int) ([]*domain.ExternalGroup, []*domain.ExternalItem, int, error) {
+func (s *stubMetadataSource) FetchEntryContent(_ context.Context, _ domain.ContentType, _ string, _, _ int) ([]*domain.ExternalGroup, []*domain.ExternalItem, int, error) {
 	return nil, nil, 0, ports.ErrNotSupported
 }
 
-func (s *stubMetadataSource) FetchGroupContent(_ context.Context, _ string, _, _ int) ([]*domain.ExternalItem, int, error) {
+func (s *stubMetadataSource) FetchGroupContent(_ context.Context, _ domain.ContentType, _ string, _, _ int) ([]*domain.ExternalItem, int, error) {
 	return nil, 0, ports.ErrNotSupported
 }
 

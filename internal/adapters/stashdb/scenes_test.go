@@ -56,7 +56,7 @@ func TestFetchEntryContent_ReturnsItemsFlat(t *testing.T) {
 	defer srv.Close()
 
 	a := newTestAdapter(srv)
-	groups, items, total, err := a.FetchEntryContent(context.Background(), "studio-001", 1, 10)
+	groups, items, total, err := a.FetchEntryContent(context.Background(), domain.ContentTypeAdult, "studio-001", 1, 10)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -98,7 +98,7 @@ func TestFetchGroupContent_NotSupported(t *testing.T) {
 	defer srv.Close()
 
 	a := newTestAdapter(srv)
-	_, _, err := a.FetchGroupContent(context.Background(), "any-id", 1, 100)
+	_, _, err := a.FetchGroupContent(context.Background(), domain.ContentTypeAdult, "any-id", 1, 100)
 	if !errors.Is(err, ports.ErrNotSupported) {
 		t.Errorf("expected ErrNotSupported, got %v", err)
 	}
@@ -243,7 +243,7 @@ func TestFindByExternalID_Found(t *testing.T) {
 	defer srv.Close()
 
 	a := newTestAdapter(srv)
-	item, err := a.FindByExternalID(context.Background(), "scene-by-id-001")
+	item, err := a.FindByExternalID(context.Background(), domain.ContentTypeAdult, "scene-by-id-001")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -263,7 +263,7 @@ func TestFindByExternalID_NotFound(t *testing.T) {
 	defer srv.Close()
 
 	a := newTestAdapter(srv)
-	_, err := a.FindByExternalID(context.Background(), "no-such-id")
+	_, err := a.FindByExternalID(context.Background(), domain.ContentTypeAdult, "no-such-id")
 	if !errors.Is(err, ports.ErrNotFound) {
 		t.Errorf("expected ErrNotFound, got %v", err)
 	}

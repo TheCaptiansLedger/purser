@@ -6,6 +6,7 @@ import (
 	"net/http/httptest"
 	"purser/internal/adapters/mbz"
 	"purser/internal/config"
+	"purser/internal/domain"
 	"strings"
 	"testing"
 )
@@ -48,7 +49,7 @@ func TestFetchGroupContent_Success(t *testing.T) {
 	defer srv.Close()
 
 	a := mbz.New(config.MetadataSourceConfig{URL: srv.URL})
-	items, total, err := a.FetchGroupContent(context.Background(), "rg-001", 1, 10)
+	items, total, err := a.FetchGroupContent(context.Background(), domain.ContentTypeMusic, "rg-001", 1, 10)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -75,7 +76,7 @@ func TestFetchGroupContent_Pagination(t *testing.T) {
 	defer srv.Close()
 
 	a := mbz.New(config.MetadataSourceConfig{URL: srv.URL})
-	items, total, err := a.FetchGroupContent(context.Background(), "rg-001", 2, 1)
+	items, total, err := a.FetchGroupContent(context.Background(), domain.ContentTypeMusic, "rg-001", 2, 1)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -95,7 +96,7 @@ func TestFetchGroupContent_Empty(t *testing.T) {
 	defer srv.Close()
 
 	a := mbz.New(config.MetadataSourceConfig{URL: srv.URL})
-	items, total, err := a.FetchGroupContent(context.Background(), "rg-empty", 1, 10)
+	items, total, err := a.FetchGroupContent(context.Background(), domain.ContentTypeMusic, "rg-empty", 1, 10)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -125,7 +126,7 @@ func TestFetchGroupContent_RoundTrip(t *testing.T) {
 
 	a := mbz.New(config.MetadataSourceConfig{URL: srv.URL})
 
-	groups, _, _, err := a.FetchEntryContent(context.Background(), "artist-mbid", 1, 10)
+	groups, _, _, err := a.FetchEntryContent(context.Background(), domain.ContentTypeMusic, "artist-mbid", 1, 10)
 	if err != nil {
 		t.Fatalf("FetchEntryContent: %v", err)
 	}
@@ -136,7 +137,7 @@ func TestFetchGroupContent_RoundTrip(t *testing.T) {
 		t.Errorf("groups[0].ExternalID = %q, want %q", groups[0].ExternalID, rgID)
 	}
 
-	items, total, err := a.FetchGroupContent(context.Background(), groups[0].ExternalID, 1, 10)
+	items, total, err := a.FetchGroupContent(context.Background(), domain.ContentTypeMusic, groups[0].ExternalID, 1, 10)
 	if err != nil {
 		t.Fatalf("FetchGroupContent with release-group MBID: %v", err)
 	}

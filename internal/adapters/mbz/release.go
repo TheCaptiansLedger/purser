@@ -43,7 +43,7 @@ type mbzTrack struct {
 // release-group to its canonical release, then fetch track recordings.
 // Tracks are flattened across discs; page/perPage slicing is applied locally
 // because MusicBrainz does not paginate at the track level.
-func (a *Adapter) FetchGroupContent(ctx context.Context, releaseGroupMBID string, page, perPage int) ([]*domain.ExternalItem, int, error) {
+func (a *Adapter) FetchGroupContent(ctx context.Context, _ domain.ContentType, releaseGroupMBID string, page, perPage int) ([]*domain.ExternalItem, int, error) {
 	releaseMBID, err := a.resolveToReleaseMBID(ctx, releaseGroupMBID)
 	if err != nil {
 		return nil, 0, err

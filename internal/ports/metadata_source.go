@@ -43,22 +43,26 @@ type MetadataSource interface {
 	FindByHash(ctx context.Context, hash string) (*domain.ExternalItem, error)
 
 	// FindByExternalID fetches a fully-detailed item by its ID in this source's database.
+	// contentType tells the adapter which endpoint to call for sources that serve
+	// multiple content types (e.g. fanart.tv covers music, TV, and movies).
 	// Used to hydrate a search candidate before the metadata edit screen.
-	FindByExternalID(ctx context.Context, id string) (*domain.ExternalItem, error)
+	FindByExternalID(ctx context.Context, contentType domain.ContentType, id string) (*domain.ExternalItem, error)
 
 	// FetchEntryContent fetches the direct children of a library entry, paginated.
+	// contentType tells the adapter which endpoint to call for multi-type sources.
 	// For flat hierarchies (adult/jav studios, book series) groups is nil and items
 	// contains the leaf content directly.
 	// For deep hierarchies (TV shows, music artists) items is nil and groups contains
 	// the intermediate layer (seasons, albums); call FetchGroupContent for each group
 	// to retrieve its items.
 	// Returns ErrNotSupported for content types the source does not handle.
-	FetchEntryContent(ctx context.Context, externalID string, page, perPage int) ([]*domain.ExternalGroup, []*domain.ExternalItem, int, error)
+	FetchEntryContent(ctx context.Context, contentType domain.ContentType, externalID string, page, perPage int) ([]*domain.ExternalGroup, []*domain.ExternalItem, int, error)
 
 	// FetchGroupContent fetches items within a group (season→episodes, album→tracks),
-	// paginated. Returns ErrNotSupported for sources or content types without this
+	// paginated. contentType tells the adapter which endpoint to call for multi-type
+	// sources. Returns ErrNotSupported for sources or content types without this
 	// level of hierarchy.
-	FetchGroupContent(ctx context.Context, groupExternalID string, page, perPage int) ([]*domain.ExternalItem, int, error)
+	FetchGroupContent(ctx context.Context, contentType domain.ContentType, groupExternalID string, page, perPage int) ([]*domain.ExternalItem, int, error)
 
 	// FetchEntryPeople returns people directly associated with a library entry
 	// (e.g., band members for a music artist). Returns ErrNotSupported for sources

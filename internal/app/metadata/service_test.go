@@ -100,18 +100,18 @@ func (s *stubSource) FindByHash(_ context.Context, _ string) (*domain.ExternalIt
 	return nil, ports.ErrNotSupported
 }
 
-func (s *stubSource) FindByExternalID(_ context.Context, _ string) (*domain.ExternalItem, error) {
+func (s *stubSource) FindByExternalID(_ context.Context, _ domain.ContentType, _ string) (*domain.ExternalItem, error) {
 	return nil, ports.ErrNotFound
 }
 
-func (s *stubSource) FetchEntryContent(_ context.Context, _ string, page, _ int) ([]*domain.ExternalGroup, []*domain.ExternalItem, int, error) {
+func (s *stubSource) FetchEntryContent(_ context.Context, _ domain.ContentType, _ string, page, _ int) ([]*domain.ExternalGroup, []*domain.ExternalItem, int, error) {
 	if page == 1 {
 		return nil, s.scenes, s.total, nil
 	}
 	return nil, nil, s.total, nil
 }
 
-func (s *stubSource) FetchGroupContent(_ context.Context, _ string, _, _ int) ([]*domain.ExternalItem, int, error) {
+func (s *stubSource) FetchGroupContent(_ context.Context, _ domain.ContentType, _ string, _, _ int) ([]*domain.ExternalItem, int, error) {
 	return nil, 0, ports.ErrNotSupported
 }
 
@@ -692,18 +692,18 @@ func (s *stubMusicSource) FindByHash(_ context.Context, _ string) (*domain.Exter
 	return nil, ports.ErrNotSupported
 }
 
-func (s *stubMusicSource) FindByExternalID(_ context.Context, _ string) (*domain.ExternalItem, error) {
+func (s *stubMusicSource) FindByExternalID(_ context.Context, _ domain.ContentType, _ string) (*domain.ExternalItem, error) {
 	return nil, ports.ErrNotFound
 }
 
-func (s *stubMusicSource) FetchEntryContent(_ context.Context, _ string, page, _ int) ([]*domain.ExternalGroup, []*domain.ExternalItem, int, error) {
+func (s *stubMusicSource) FetchEntryContent(_ context.Context, _ domain.ContentType, _ string, page, _ int) ([]*domain.ExternalGroup, []*domain.ExternalItem, int, error) {
 	if page == 1 {
 		return s.albums, nil, len(s.albums), nil
 	}
 	return nil, nil, len(s.albums), nil
 }
 
-func (s *stubMusicSource) FetchGroupContent(_ context.Context, groupExtID string, page, _ int) ([]*domain.ExternalItem, int, error) {
+func (s *stubMusicSource) FetchGroupContent(_ context.Context, _ domain.ContentType, groupExtID string, page, _ int) ([]*domain.ExternalItem, int, error) {
 	tracks := s.tracks[groupExtID]
 	if page == 1 {
 		return tracks, len(tracks), nil
@@ -944,7 +944,7 @@ func TestFetchArtistDiscography_ReturnsGroups(t *testing.T) {
 	src, albums, _ := twoAlbumsWithTracks()
 	svc := metadata.New([]ports.MetadataSource{src}, nil, newStubEntryRepo(), nil, &stubItemRepo{}, &stubPersonRepo{}, &stubTagRepo{}, &stubExternalIDRepo{}, "")
 
-	groups, total, err := svc.FetchArtistDiscography(context.Background(), domain.SourceMusicBrainz, "artist-mbz-1", 1, 50)
+	groups, total, err := svc.FetchArtistDiscography(context.Background(), domain.SourceMusicBrainz, domain.ContentTypeMusic, "artist-mbz-1", 1, 50)
 	if err != nil {
 		t.Fatalf("FetchArtistDiscography: %v", err)
 	}
@@ -958,7 +958,7 @@ func TestFetchArtistDiscography_ReturnsGroups(t *testing.T) {
 
 func TestFetchArtistDiscography_UnknownSource(t *testing.T) {
 	svc := newService()
-	_, _, err := svc.FetchArtistDiscography(context.Background(), "nonexistent", "some-id", 1, 50)
+	_, _, err := svc.FetchArtistDiscography(context.Background(), "nonexistent", domain.ContentTypeMusic, "some-id", 1, 50)
 	if err == nil {
 		t.Fatal("expected error for unknown source, got nil")
 	}

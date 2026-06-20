@@ -135,6 +135,7 @@ func (s *Service) SearchPeople(ctx context.Context, query string, contentType do
 func (s *Service) FetchArtistDiscography(
 	ctx context.Context,
 	source domain.ExternalIDSource,
+	contentType domain.ContentType,
 	externalID string,
 	page, perPage int,
 ) ([]*domain.ExternalGroup, int, error) {
@@ -148,7 +149,7 @@ func (s *Service) FetchArtistDiscography(
 	if src == nil {
 		return nil, 0, errs.Validation(fmt.Sprintf("unknown metadata source %q", source))
 	}
-	groups, _, total, err := src.FetchEntryContent(ctx, externalID, page, perPage)
+	groups, _, total, err := src.FetchEntryContent(ctx, contentType, externalID, page, perPage)
 	if err != nil {
 		return nil, 0, fmt.Errorf("fetch artist discography: %w", err)
 	}
@@ -203,7 +204,7 @@ func (s *Service) ImportAlbum(ctx context.Context, req *ImportAlbumRequest) (*do
 		return nil, fmt.Errorf("import album: save group: %w", err)
 	}
 
-	pending, err := s.collectNewGroupTracks(ctx, src, req.ExternalID)
+	pending, err := s.collectNewGroupTracks(ctx, src, req.ExternalID, entry.ContentType)
 	if err != nil {
 		return nil, fmt.Errorf("import album: %w", err)
 	}
@@ -222,11 +223,11 @@ func (s *Service) ImportAlbum(ctx context.Context, req *ImportAlbumRequest) (*do
 
 // collectNewGroupTracks pages through FetchGroupContent for a single group and
 // returns tracks not already present in the library.
-func (s *Service) collectNewGroupTracks(ctx context.Context, src ports.MetadataSource, groupExtID string) ([]*domain.ExternalItem, error) {
+func (s *Service) collectNewGroupTracks(ctx context.Context, src ports.MetadataSource, groupExtID string, contentType domain.ContentType) ([]*domain.ExternalItem, error) {
 	const perPage = 100
 	var tracks []*domain.ExternalItem
 	for page := 1; ; page++ {
-		extItems, trackTotal, err := src.FetchGroupContent(ctx, groupExtID, page, perPage)
+		extItems, trackTotal, err := src.FetchGroupContent(ctx, contentType, groupExtID, page, perPage)
 		if err != nil {
 			return nil, fmt.Errorf("fetch tracks page %d: %w", page, err)
 		}
@@ -519,12 +520,12 @@ func (s *Service) ImportPerson(ctx context.Context, req *ImportPersonRequest) (*
 
 // collectNewItems pages through src for the given entry external ID and returns
 // external items that do not yet have a corresponding item record.
-func (s *Service) collectNewItems(ctx context.Context, src ports.MetadataSource, entryName, srcExtID string) ([]*domain.ExternalItem, error) {
+func (s *Service) collectNewItems(ctx context.Context, src ports.MetadataSource, entryName, srcExtID string, contentType domain.ContentType) ([]*domain.ExternalItem, error) {
 	const perPage = 100
 	var newExtItems []*domain.ExternalItem
 
 	for page := 1; ; page++ {
-		_, extItems, total, err := src.FetchEntryContent(ctx, srcExtID, page, perPage)
+		_, extItems, total, err := src.FetchEntryContent(ctx, contentType, srcExtID, page, perPage)
 		if err != nil {
 			return nil, fmt.Errorf("refresh studio %q: page %d: %w", entryName, page, err)
 		}
@@ -556,7 +557,7 @@ func (s *Service) RefreshStudio(ctx context.Context, entryID string, p ports.Pro
 		return fmt.Errorf("refresh studio %q: no configured metadata source has an external ID for this entry", entry.Name)
 	}
 
-	newExtItems, err := s.collectNewItems(ctx, src, entry.Name, srcExtID)
+	newExtItems, err := s.collectNewItems(ctx, src, entry.Name, srcExtID, entry.ContentType)
 	if err != nil {
 		return err
 	}
@@ -666,7 +667,7 @@ func (s *Service) RefreshArtist(ctx context.Context, entryID string, p ports.Pro
 
 	s.importArtistPeople(ctx, src, entryID, srcExtID)
 
-	newTracks, err := s.collectArtistTracks(ctx, src, entry.Name, albums)
+	newTracks, err := s.collectArtistTracks(ctx, src, entry.Name, albums, entry.ContentType)
 	if err != nil {
 		return err
 	}
@@ -774,7 +775,7 @@ func (s *Service) resolveArtistAlbums(ctx context.Context, src ports.MetadataSou
 	}
 
 	for page := 1; ; page++ {
-		extGroups, _, albumTotal, err := src.FetchEntryContent(ctx, srcExtID, page, perPage)
+		extGroups, _, albumTotal, err := src.FetchEntryContent(ctx, entry.ContentType, srcExtID, page, perPage)
 		if err != nil {
 			return nil, fmt.Errorf("refresh artist %q: fetch albums page %d: %w", entry.Name, page, err)
 		}
@@ -875,13 +876,13 @@ func albumMetadata(eg *domain.ExternalGroup) map[string]any {
 // collectArtistTracks pages through FetchGroupContent for each album and
 // returns tracks not already present in the library. Albums that fail track
 // lookup are logged and skipped rather than aborting the entire refresh.
-func (s *Service) collectArtistTracks(ctx context.Context, src ports.MetadataSource, entryName string, albums []artistAlbum) ([]artistTrack, error) {
+func (s *Service) collectArtistTracks(ctx context.Context, src ports.MetadataSource, entryName string, albums []artistAlbum, contentType domain.ContentType) ([]artistTrack, error) {
 	const perPage = 100
 	var tracks []artistTrack
 
 	for _, album := range albums {
 		for page := 1; ; page++ {
-			extItems, trackTotal, err := src.FetchGroupContent(ctx, album.extGroup.ExternalID, page, perPage)
+			extItems, trackTotal, err := src.FetchGroupContent(ctx, contentType, album.extGroup.ExternalID, page, perPage)
 			if err != nil {
 				slog.Warn("refresh artist: fetch tracks", "entry", entryName, "album", album.extGroup.Title, "error", err)
 				break

@@ -133,7 +133,7 @@ func (a *Adapter) FindByHash(ctx context.Context, hash string) (*domain.External
 
 // FindByExternalID fetches a single scene by its StashDB ID.
 // Returns ports.ErrNotFound when the ID does not exist in StashDB.
-func (a *Adapter) FindByExternalID(ctx context.Context, id string) (*domain.ExternalItem, error) {
+func (a *Adapter) FindByExternalID(ctx context.Context, _ domain.ContentType, id string) (*domain.ExternalItem, error) {
 	var resp struct {
 		FindScene *gqlScene `json:"findScene"`
 	}
@@ -149,7 +149,7 @@ func (a *Adapter) FindByExternalID(ctx context.Context, id string) (*domain.Exte
 // FetchEntryContent pages through all scenes for a studio. StashDB scenes are
 // flat — groups is always nil; items contains the page of scenes; total is the
 // scene count across all pages.
-func (a *Adapter) FetchEntryContent(ctx context.Context, externalID string, page, perPage int) ([]*domain.ExternalGroup, []*domain.ExternalItem, int, error) {
+func (a *Adapter) FetchEntryContent(ctx context.Context, _ domain.ContentType, externalID string, page, perPage int) ([]*domain.ExternalGroup, []*domain.ExternalItem, int, error) {
 	var resp struct {
 		QueryScenes struct {
 			Count  int        `json:"count"`
@@ -174,7 +174,7 @@ func (a *Adapter) FetchEntryContent(ctx context.Context, externalID string, page
 
 // FetchGroupContent returns ErrNotSupported — StashDB scenes are flat; there is
 // no intermediate group layer between a studio and its scenes.
-func (a *Adapter) FetchGroupContent(_ context.Context, _ string, _, _ int) ([]*domain.ExternalItem, int, error) {
+func (a *Adapter) FetchGroupContent(_ context.Context, _ domain.ContentType, _ string, _, _ int) ([]*domain.ExternalItem, int, error) {
 	return nil, 0, ports.ErrNotSupported
 }
 

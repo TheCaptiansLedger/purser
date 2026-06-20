@@ -36,7 +36,7 @@ type mbzReleaseGroup struct {
 // MBZ browse endpoint: GET /ws/2/release-group?artist=<MBID>&limit=N&offset=N&fmt=json
 // first-release-date is included in every release-group object by default.
 // inc=releases is NOT supported on this endpoint and returns HTTP 400.
-func (a *Adapter) FetchEntryContent(ctx context.Context, artistMBID string, page, perPage int) ([]*domain.ExternalGroup, []*domain.ExternalItem, int, error) {
+func (a *Adapter) FetchEntryContent(ctx context.Context, _ domain.ContentType, artistMBID string, page, perPage int) ([]*domain.ExternalGroup, []*domain.ExternalItem, int, error) {
 	params := url.Values{}
 	params.Set("artist", artistMBID)
 	params.Set("fmt", "json")
