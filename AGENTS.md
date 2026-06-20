@@ -61,3 +61,19 @@ Do not read all project documentation. Determine what the task touches, then loa
 - [docs/technical/acquisition-pipeline.md](docs/technical/acquisition-pipeline.md)
 - [docs/technical/ports.md](docs/technical/ports.md)
 - [docs/architecture/overview.md](docs/architecture/overview.md)
+
+---
+
+## Diagnostic Rules
+
+### "X is not displayed" bugs
+Start in the UI layer. The first tool call must be against a UI file — component, type, or API hook. Before opening any Go file:
+1. Find the component that renders X and check whether it reads the relevant field at all.
+2. Check that the field exists on the TypeScript type (`web/src/types/index.ts`).
+3. Only if both are wired up correctly, then check the API response (curl or network tab).
+4. Only if the API response is wrong, go into the Go handler or service.
+
+"Nothing displayed" is a UI bug until the network response proves otherwise.
+
+### API response / TypeScript type parity (code review step)
+Every field the Go API returns must exist on the corresponding TypeScript interface in `web/src/types/index.ts`. When reviewing or writing a change that adds a field to a Go response struct, verify the matching TypeScript interface has that field. When a field is missing from the TypeScript type, the compiler gives no error unless a component actually tries to use it — so the gap is invisible until runtime.

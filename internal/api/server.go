@@ -32,7 +32,6 @@ func New(
 	peopleSvc *people.Service,
 	metaSvc *metadata.Service,
 	tagRepo ports.TagRepository,
-	imageRepo ports.ImageRepository,
 	jobQueue ports.JobQueue,
 	uiFS fs.FS,
 ) *Server {
@@ -40,7 +39,7 @@ func New(
 		router: chi.NewRouter(),
 		port:   port,
 	}
-	s.mount(mediaPath, cfg, db, libSvc, peopleSvc, metaSvc, tagRepo, imageRepo, jobQueue, uiFS)
+	s.mount(mediaPath, cfg, db, libSvc, peopleSvc, metaSvc, tagRepo, jobQueue, uiFS)
 	return s
 }
 
@@ -52,7 +51,6 @@ func (s *Server) mount(
 	peopleSvc *people.Service,
 	metaSvc *metadata.Service,
 	tagRepo ports.TagRepository,
-	imageRepo ports.ImageRepository,
 	jobQueue ports.JobQueue,
 	uiFS fs.FS,
 ) {
@@ -66,30 +64,24 @@ func (s *Server) mount(
 		cfgH := &configHandler{cfg: cfg}
 		r.Get("/config", cfgH.get)
 
-		imgEntityH := &entityImagesHandler{repo: imageRepo, libSvc: libSvc, peopleSvc: peopleSvc}
-
 		entryH := &libraryEntryHandler{svc: libSvc}
 		r.Route("/library-entries", func(r chi.Router) {
 			entryH.routes(r)
-			r.Route("/{id}/images", imgEntityH.routesFor("library_entry"))
 		})
 
 		groupH := &groupHandler{svc: libSvc}
 		r.Route("/groups", func(r chi.Router) {
 			groupH.routes(r)
-			r.Route("/{id}/images", imgEntityH.routesFor("group"))
 		})
 
 		itemH := &itemHandler{svc: libSvc}
 		r.Route("/items", func(r chi.Router) {
 			itemH.routes(r)
-			r.Route("/{id}/images", imgEntityH.routesFor("item"))
 		})
 
 		peopleH := &peopleHandler{svc: peopleSvc}
 		r.Route("/people", func(r chi.Router) {
 			peopleH.routes(r)
-			r.Route("/{id}/images", imgEntityH.routesFor("person"))
 		})
 
 		tagH := &tagHandler{repo: tagRepo}

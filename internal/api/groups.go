@@ -33,6 +33,7 @@ type groupResponse struct {
 	Overview       string               `json:"overview"`
 	Monitored      bool                 `json:"monitored"`
 	MonitorMode    string               `json:"monitorMode"`
+	CoverURL       string               `json:"coverUrl,omitempty"`
 	ExternalIDs    []externalIDResponse `json:"externalIds"`
 	Metadata       map[string]any       `json:"metadata,omitempty"`
 }
@@ -48,6 +49,7 @@ func toGroupResponse(g *domain.Group) *groupResponse {
 		Overview:       g.Overview,
 		Monitored:      g.Monitored,
 		MonitorMode:    string(g.MonitorMode),
+		CoverURL:       imageURL("groups", g.ID, g.CoverPath),
 		Metadata:       g.Metadata,
 		ExternalIDs:    []externalIDResponse{},
 	}

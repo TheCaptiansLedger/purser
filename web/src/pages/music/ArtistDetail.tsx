@@ -39,17 +39,29 @@ function albumSectionToken(album: Group): string {
 
 function AlbumCard({ album, artistId }: { album: Group; artistId: string }) {
   const queryClient = useQueryClient()
+  const [imgFailed, setImgFailed] = useState(false)
 
   const toggleMonitor = useMutation({
     mutationFn: () => patchGroup(album.id, { monitored: !album.monitored }),
     onSuccess: () => void queryClient.invalidateQueries({ queryKey: ['groups'] }),
   })
 
+  const showCover = !!album.coverUrl && !imgFailed
+
   return (
     <div className="group flex flex-col gap-2">
       <div className="relative rounded-xl overflow-hidden bg-white/4 border border-white/5 group-hover:border-white/15 transition-all duration-200 group-hover:scale-[1.02]" style={{ aspectRatio: '1/1' }}>
         <Link to={`/music/${artistId}/albums/${album.id}`} className="block w-full h-full flex items-center justify-center">
-          <ImageIcon size={32} className="text-white/10" strokeWidth={1} />
+          {showCover ? (
+            <img
+              src={album.coverUrl}
+              alt={album.title}
+              className="w-full h-full object-cover"
+              onError={() => setImgFailed(true)}
+            />
+          ) : (
+            <ImageIcon size={32} className="text-white/10" strokeWidth={1} />
+          )}
         </Link>
 
         {/* Hover ring */}

@@ -14,4 +14,5 @@ type Group struct {
 	MonitorMode    MonitorMode
 	ExternalIDs    []ExternalID
 	Metadata       map[string]any
+	CoverPath      string
 }

@@ -44,8 +44,12 @@ export function AlbumsPage() {
                   to={`/music/${group.libraryEntryId}/albums/${group.id}`}
                   className="group relative rounded-lg overflow-hidden bg-white/5 border border-white/8 hover:border-white/15 transition-all duration-200"
                 >
-                  <div className="aspect-square bg-white/5 flex items-center justify-center">
-                    <Disc3 size={48} className="text-white/20" />
+                  <div className="aspect-square bg-white/5 flex items-center justify-center overflow-hidden">
+                    {group.coverUrl ? (
+                      <img src={group.coverUrl} alt={group.title} className="w-full h-full object-cover" />
+                    ) : (
+                      <Disc3 size={48} className="text-white/20" />
+                    )}
                   </div>
                   <div className="p-3">
                     <p className="text-sm font-medium text-white/90 truncate">{group.title}</p>

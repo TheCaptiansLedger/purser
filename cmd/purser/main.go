@@ -75,21 +75,20 @@ func run(cfgPath string) error {
 	personRepo := db.NewPersonRepo(database)
 	tagRepo := db.NewTagRepo(database)
 	extIDRepo := db.NewExternalIDRepo(database)
-	imageRepo := db.NewImageRepo(database, []string{"fanart", "stashdb", "mbz"})
 
 	jobQueue := jobsadapter.New(cfg.Server.Workers)
 	defer jobQueue.Close()
 
 	libSvc := library.New(entryRepo, groupRepo, itemRepo, personRepo)
 	peopleSvc := people.New(personRepo)
-	metaSvc := metadata.New(buildSources(cfg), jobQueue, entryRepo, groupRepo, itemRepo, personRepo, tagRepo, extIDRepo, imageRepo, cfg.Media.Path)
+	metaSvc := metadata.New(buildSources(cfg), jobQueue, entryRepo, groupRepo, itemRepo, personRepo, tagRepo, extIDRepo, cfg.Media.Path)
 
 	uiFS, err := fs.Sub(web.Dist, "dist")
 	if err != nil {
 		return fmt.Errorf("load embedded UI: %w", err)
 	}
 
-	srv := api.New(cfg.Server.Port, cfg.Media.Path, cfg, database, libSvc, peopleSvc, metaSvc, tagRepo, imageRepo, jobQueue, uiFS)
+	srv := api.New(cfg.Server.Port, cfg.Media.Path, cfg, database, libSvc, peopleSvc, metaSvc, tagRepo, jobQueue, uiFS)
 
 	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer cancel()
@@ -116,6 +115,7 @@ func buildSources(cfg *config.Config) []ports.MetadataSource {
 		sources = append(sources, mbz.New(cfg.Sources.MusicBrainz))
 	}
 	if cfg.Sources.Fanart.Enabled {
+		slog.Info("source enabled", "name", "fanart")
 		sources = append(sources, fanart.New(cfg.Sources.Fanart))
 	}
 	return sources

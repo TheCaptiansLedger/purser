@@ -188,8 +188,7 @@ func newService() *metadata.Service {
 		&stubPersonRepo{},
 		&stubTagRepo{},
 		&stubExternalIDRepo{},
-		nil, // no image repo
-		"",  // no media path — image fetching is skipped when empty
+		"", // no media path — image fetching is skipped when empty
 	)
 }
 
@@ -269,7 +268,7 @@ func TestImportStudio_KindArtist(t *testing.T) {
 
 func TestImportStudio_Idempotent(t *testing.T) {
 	entryRepo := newStubEntryRepo()
-	svc := metadata.New(nil, nil, entryRepo, nil, &stubItemRepo{}, &stubPersonRepo{}, &stubTagRepo{}, &stubExternalIDRepo{}, nil, "")
+	svc := metadata.New(nil, nil, entryRepo, nil, &stubItemRepo{}, &stubPersonRepo{}, &stubTagRepo{}, &stubExternalIDRepo{}, "")
 
 	req := &metadata.ImportStudioRequest{
 		Source:      domain.SourceStashDB,
@@ -285,7 +284,7 @@ func TestImportStudio_Idempotent(t *testing.T) {
 
 	// Seed the external ID repo with the saved entry so the second call finds it.
 	seededRepo := &seededExternalIDRepo{id: res1.Studio.ID}
-	svc2 := metadata.New(nil, nil, entryRepo, nil, &stubItemRepo{}, &stubPersonRepo{}, &stubTagRepo{}, seededRepo, nil, "")
+	svc2 := metadata.New(nil, nil, entryRepo, nil, &stubItemRepo{}, &stubPersonRepo{}, &stubTagRepo{}, seededRepo, "")
 
 	res2, err := svc2.ImportStudio(context.Background(), req)
 	if err != nil {
@@ -331,7 +330,6 @@ func refreshSvc(scenes []*domain.ExternalItem, entryRepo *stubEntryRepo, itemRep
 		&stubPersonRepo{},
 		&stubTagRepo{},
 		&stubExternalIDRepo{},
-		nil,
 		"",
 	)
 }
@@ -427,7 +425,6 @@ func TestImportStudio_AutoImport_EnqueuesJob(t *testing.T) {
 		&stubPersonRepo{},
 		&stubTagRepo{},
 		&stubExternalIDRepo{},
-		nil,
 		"",
 	)
 
@@ -460,7 +457,6 @@ func TestImportStudio_AutoImport_KindArtist_EnqueuesRefreshArtist(t *testing.T) 
 		&stubPersonRepo{},
 		&stubTagRepo{},
 		&stubExternalIDRepo{},
-		nil,
 		"",
 	)
 
@@ -494,7 +490,6 @@ func TestImportStudio_AutoImport_False_NoJob(t *testing.T) {
 		&stubPersonRepo{},
 		&stubTagRepo{},
 		&stubExternalIDRepo{},
-		nil,
 		"",
 	)
 
@@ -591,7 +586,7 @@ func TestRefreshStudio_ImportsPerformers(t *testing.T) {
 	entryRepo.data[entry.ID] = entry
 
 	src := &stubSource{scenes: scenesWithPeopleAndTags(), total: 2}
-	svc := metadata.New([]ports.MetadataSource{src}, nil, entryRepo, nil, itemRepo, personRepo, &stubTagRepo{}, &stubExternalIDRepo{}, nil, "")
+	svc := metadata.New([]ports.MetadataSource{src}, nil, entryRepo, nil, itemRepo, personRepo, &stubTagRepo{}, &stubExternalIDRepo{}, "")
 
 	if err := svc.RefreshStudio(context.Background(), entry.ID, nil); err != nil {
 		t.Fatalf("RefreshStudio: %v", err)
@@ -623,7 +618,7 @@ func TestRefreshStudio_ImportsTags(t *testing.T) {
 	entryRepo.data[entry.ID] = entry
 
 	src := &stubSource{scenes: scenesWithPeopleAndTags(), total: 2}
-	svc := metadata.New([]ports.MetadataSource{src}, nil, entryRepo, nil, itemRepo, &stubPersonRepo{}, tagRepo, &stubExternalIDRepo{}, nil, "")
+	svc := metadata.New([]ports.MetadataSource{src}, nil, entryRepo, nil, itemRepo, &stubPersonRepo{}, tagRepo, &stubExternalIDRepo{}, "")
 
 	if err := svc.RefreshStudio(context.Background(), entry.ID, nil); err != nil {
 		t.Fatalf("RefreshStudio: %v", err)
@@ -760,7 +755,6 @@ func artistRefreshSvc(src *stubMusicSource, entryRepo *stubEntryRepo, groupRepo 
 		&stubPersonRepo{},
 		&stubTagRepo{},
 		&stubExternalIDRepo{},
-		nil,
 		"",
 	)
 }
@@ -910,7 +904,7 @@ func TestRefreshArtist_SkipsDuplicates(t *testing.T) {
 	for _, it := range itemRepo.items {
 		seeded.itemIDs["mbz:"+it.ExternalIDs[0].Value] = it.ID
 	}
-	svc2 := metadata.New([]ports.MetadataSource{src}, nil, entryRepo, groupRepo, itemRepo, &stubPersonRepo{}, &stubTagRepo{}, seeded, nil, "")
+	svc2 := metadata.New([]ports.MetadataSource{src}, nil, entryRepo, groupRepo, itemRepo, &stubPersonRepo{}, &stubTagRepo{}, seeded, "")
 
 	if err := svc2.RefreshArtist(context.Background(), entry.ID, nil); err != nil {
 		t.Fatalf("second RefreshArtist: %v", err)
@@ -948,7 +942,7 @@ func (r *seededArtistExternalIDRepo) FindEntity(_ context.Context, entityType, s
 
 func TestFetchArtistDiscography_ReturnsGroups(t *testing.T) {
 	src, albums, _ := twoAlbumsWithTracks()
-	svc := metadata.New([]ports.MetadataSource{src}, nil, newStubEntryRepo(), nil, &stubItemRepo{}, &stubPersonRepo{}, &stubTagRepo{}, &stubExternalIDRepo{}, nil, "")
+	svc := metadata.New([]ports.MetadataSource{src}, nil, newStubEntryRepo(), nil, &stubItemRepo{}, &stubPersonRepo{}, &stubTagRepo{}, &stubExternalIDRepo{}, "")
 
 	groups, total, err := svc.FetchArtistDiscography(context.Background(), domain.SourceMusicBrainz, domain.ContentTypeMusic, "artist-mbz-1", 1, 50)
 	if err != nil {
@@ -985,7 +979,6 @@ func importAlbumSvc(src *stubMusicSource, entryRepo *stubEntryRepo, groupRepo *s
 		&stubPersonRepo{},
 		&stubTagRepo{},
 		&stubExternalIDRepo{},
-		nil,
 		"",
 	)
 }
@@ -1061,7 +1054,7 @@ func TestImportAlbum_Idempotent(t *testing.T) {
 		groupIDs: map[string]string{"mbz:" + albums[0].ExternalID: g1.ID},
 		itemIDs:  make(map[string]string),
 	}
-	svc2 := metadata.New([]ports.MetadataSource{src}, nil, entryRepo, groupRepo, itemRepo, &stubPersonRepo{}, &stubTagRepo{}, seeded, nil, "")
+	svc2 := metadata.New([]ports.MetadataSource{src}, nil, entryRepo, groupRepo, itemRepo, &stubPersonRepo{}, &stubTagRepo{}, seeded, "")
 
 	g2, err := svc2.ImportAlbum(context.Background(), req)
 	if err != nil {

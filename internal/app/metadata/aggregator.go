@@ -7,36 +7,38 @@ import (
 	"purser/internal/domain"
 	"purser/internal/ports"
 	"sync"
-
-	"github.com/google/uuid"
 )
 
 // Aggregator fans out metadata queries to all enabled providers for a content
-// type, merges results ordered by provider priority, and persists images.
+// type and merges results ordered by provider priority.
 // sources[0] is the primary; all source failures are treated equally — logged
 // and skipped. An error is returned only when no sources produced a result.
 type Aggregator struct {
-	sources   []ports.MetadataSource
-	imageRepo ports.ImageRepository
+	sources []ports.MetadataSource
 }
 
 // NewAggregator constructs an Aggregator. sources must be ordered by descending
 // priority (index 0 = primary).
-func NewAggregator(sources []ports.MetadataSource, imageRepo ports.ImageRepository) *Aggregator {
-	return &Aggregator{sources: sources, imageRepo: imageRepo}
+func NewAggregator(sources []ports.MetadataSource) *Aggregator {
+	return &Aggregator{sources: sources}
 }
 
 // FindByExternalID fans out to all sources that support contentType, merges
-// results ordered by source priority, persists images, and returns the merged
-// item. externalID is the provider-specific identifier passed to each source;
-// entityID is the internal library_entry UUID used when persisting images.
+// results ordered by source priority, and returns the merged item.
 // All source failures are logged and skipped; an error is returned only if no
 // sources returned a result.
 func (a *Aggregator) FindByExternalID(ctx context.Context, contentType domain.ContentType, externalID, entityID string) (*domain.ExternalItem, error) {
 	matching := a.sourcesFor(contentType)
 	if len(matching) == 0 {
+		slog.Warn("metadata aggregator: no sources configured", "content_type", contentType, "external_id", externalID)
 		return nil, fmt.Errorf("metadata aggregator: no sources configured for %q", contentType)
 	}
+
+	sourceNames := make([]string, len(matching))
+	for i, src := range matching {
+		sourceNames[i] = src.Name()
+	}
+	slog.Info("metadata aggregator: fan-out", "content_type", contentType, "external_id", externalID, "entity_id", entityID, "sources", sourceNames)
 
 	type fanResult struct {
 		priority int
@@ -77,13 +79,14 @@ func (a *Aggregator) FindByExternalID(ctx context.Context, contentType domain.Co
 		return nil, fmt.Errorf("metadata aggregator: all sources failed for %q in %q", externalID, contentType)
 	}
 
-	a.persistImages(ctx, "library_entry", entityID, merged.Images)
+	slog.Info("metadata aggregator: merged", "content_type", contentType, "external_id", externalID, "images", len(merged.Images))
 	return merged, nil
 }
 
 // SearchItems fans out to all sources that support contentType and returns the
 // combined results. Errors from individual sources are logged and skipped.
 func (a *Aggregator) SearchItems(ctx context.Context, contentType domain.ContentType, title string, limit int) ([]*domain.ExternalItem, error) {
+	slog.Info("metadata aggregator: SearchItems", "content_type", contentType, "title", title, "limit", limit)
 	matching := a.sourcesFor(contentType)
 
 	type result struct{ items []*domain.ExternalItem }
@@ -138,28 +141,6 @@ func (a *Aggregator) FetchEntryContent(ctx context.Context, contentType domain.C
 		all = append(all, r.items...)
 	}
 	return all, nil
-}
-
-func (a *Aggregator) persistImages(ctx context.Context, entityType, entityID string, images []domain.ExternalImage) {
-	if a.imageRepo == nil || len(images) == 0 {
-		return
-	}
-	stored := make([]domain.StoredImage, 0, len(images))
-	for _, img := range images {
-		stored = append(stored, domain.StoredImage{
-			ID:         uuid.New().String(),
-			EntityType: entityType,
-			EntityID:   entityID,
-			ImageType:  img.Type,
-			URL:        img.URL,
-			Source:     img.Source,
-			Width:      img.Width,
-			Height:     img.Height,
-		})
-	}
-	if err := a.imageRepo.Upsert(ctx, stored); err != nil {
-		slog.Warn("metadata aggregator: persist images failed", "entity_type", entityType, "entity_id", entityID, "error", err)
-	}
 }
 
 func (a *Aggregator) sourcesFor(contentType domain.ContentType) []ports.MetadataSource {

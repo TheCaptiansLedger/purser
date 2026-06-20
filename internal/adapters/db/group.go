@@ -19,7 +19,7 @@ func NewGroupRepo(db *sql.DB) ports.GroupRepository {
 
 const groupSelectCols = `
 	id, library_entry_id, title, sort_name, number, year, overview,
-	monitored, monitor_mode, metadata
+	monitored, monitor_mode, metadata, cover_path
 `
 
 func scanGroup(row interface{ Scan(...any) error }) (*domain.Group, error) {
@@ -31,7 +31,7 @@ func scanGroup(row interface{ Scan(...any) error }) (*domain.Group, error) {
 	)
 	if err := row.Scan(
 		&g.ID, &g.LibraryEntryID, &g.Title, &g.SortName, &g.Number, &g.Year, &g.Overview,
-		&monitored, &monitorMode, &metadata,
+		&monitored, &monitorMode, &metadata, &g.CoverPath,
 	); err != nil {
 		return nil, err
 	}
@@ -104,8 +104,8 @@ func (r *groupRepo) Save(ctx context.Context, g *domain.Group) error {
 		ctx, `
 		INSERT INTO groups(
 			id, library_entry_id, title, sort_name, number, year, overview,
-			monitored, monitor_mode, metadata
-		) VALUES(?,?,?,?,?,?,?,?,?,?)
+			monitored, monitor_mode, metadata, cover_path
+		) VALUES(?,?,?,?,?,?,?,?,?,?,?)
 		ON CONFLICT(id) DO UPDATE SET
 			library_entry_id = excluded.library_entry_id,
 			title            = excluded.title,
@@ -115,9 +115,10 @@ func (r *groupRepo) Save(ctx context.Context, g *domain.Group) error {
 			overview         = excluded.overview,
 			monitored        = excluded.monitored,
 			monitor_mode     = excluded.monitor_mode,
-			metadata         = excluded.metadata`,
+			metadata         = excluded.metadata,
+			cover_path       = excluded.cover_path`,
 		g.ID, g.LibraryEntryID, g.Title, g.SortName, g.Number, g.Year, g.Overview,
-		boolToInt(g.Monitored), string(g.MonitorMode), marshalMeta(g.Metadata),
+		boolToInt(g.Monitored), string(g.MonitorMode), marshalMeta(g.Metadata), g.CoverPath,
 	); err != nil {
 		return fmt.Errorf("upsert group: %w", err)
 	}

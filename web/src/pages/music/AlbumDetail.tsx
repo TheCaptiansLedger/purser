@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { ArrowLeft, Music2, Eye, EyeOff, SkipForward, BookmarkCheck } from 'lucide-react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
@@ -100,9 +101,12 @@ export function AlbumDetail() {
     onSuccess: () => void queryClient.invalidateQueries({ queryKey: ['groups'] }),
   })
 
+  const [imgFailed, setImgFailed] = useState(false)
+
   if (isLoading) return <div className="px-8 py-10"><Skeleton className="h-48 w-full" /></div>
   if (!album) return null
 
+  const showCover = !!album.coverUrl && !imgFailed
   const totalRuntime = tracks.reduce((s, t) => s + t.runtimeSeconds, 0)
   const wantedCount  = tracks.filter(t => t.status === 'wanted').length
   const importedCount = tracks.filter(t => t.status === 'imported').length
@@ -117,7 +121,16 @@ export function AlbumDetail() {
 
       <div className="flex gap-6 items-start mb-8">
         <div className="shrink-0 w-40 h-40 rounded-xl overflow-hidden bg-white/5 border border-white/8 flex items-center justify-center shadow-2xl">
-          <Music2 size={48} className="text-white/10" strokeWidth={1} />
+          {showCover ? (
+            <img
+              src={album.coverUrl}
+              alt={album.title}
+              className="w-full h-full object-cover"
+              onError={() => setImgFailed(true)}
+            />
+          ) : (
+            <Music2 size={48} className="text-white/10" strokeWidth={1} />
+          )}
         </div>
         <div>
           <p className="text-xs font-medium uppercase tracking-widest mb-1" style={{ color: ACCENT }}>Album</p>

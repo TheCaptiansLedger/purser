@@ -62,7 +62,7 @@ func (a *Adapter) get(ctx context.Context, path string, out any) error {
 	q.Set("api_key", a.apiKey)
 	u.RawQuery = q.Encode()
 
-	slog.Debug("fanart: GET", "path", path)
+	slog.Info("fanart: GET", "path", path)
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), nil)
 	if err != nil {
 		return err

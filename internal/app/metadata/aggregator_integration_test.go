@@ -5,7 +5,6 @@ package metadata_test
 import (
 	"context"
 	"os"
-	"purser/internal/adapters/db"
 	"purser/internal/adapters/fanart"
 	"purser/internal/adapters/mbz"
 	"purser/internal/app/metadata"
@@ -26,18 +25,11 @@ func TestMetadataAggregator_FindByExternalID_Music(t *testing.T) {
 		t.Fatal("PURSER_SOURCES_FANART_API_KEY is required; set it to run aggregator integration tests")
 	}
 
-	database, err := db.Open(t.TempDir() + "/aggregator_test.db")
-	if err != nil {
-		t.Fatalf("open test db: %v", err)
-	}
-	t.Cleanup(func() { _ = database.Close() })
-
-	imageRepo := db.NewImageRepo(database, []string{"musicbrainz", "fanart"})
 	sources := []ports.MetadataSource{
 		mbz.New(config.MetadataSourceConfig{}),
 		fanart.New(config.MetadataSourceConfig{APIKey: apiKey}),
 	}
-	agg := metadata.NewAggregator(sources, imageRepo)
+	agg := metadata.NewAggregator(sources)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
@@ -73,13 +65,5 @@ func TestMetadataAggregator_FindByExternalID_Music(t *testing.T) {
 	}
 	if len(imageTypes) < 2 {
 		t.Errorf("Images contain only %d distinct ImageType value(s); want >= 2", len(imageTypes))
-	}
-
-	stored, err := imageRepo.List(ctx, "library_entry", testEntityID, nil)
-	if err != nil {
-		t.Fatalf("imageRepo.List: %v", err)
-	}
-	if len(stored) == 0 {
-		t.Error("ImageRepository has no rows for Radiohead after FindByExternalID")
 	}
 }

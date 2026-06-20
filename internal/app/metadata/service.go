@@ -46,12 +46,11 @@ func New(
 	people ports.PersonRepository,
 	tags ports.TagRepository,
 	externalIDs ports.ExternalIDRepository,
-	imageRepo ports.ImageRepository,
 	mediaPath string,
 ) *Service {
 	return &Service{
 		sources:     sources,
-		agg:         NewAggregator(sources, imageRepo),
+		agg:         NewAggregator(sources),
 		jobs:        jobs,
 		entries:     entries,
 		groups:      groups,
@@ -669,10 +668,8 @@ func (s *Service) RefreshArtist(ctx context.Context, entryID string, p ports.Pro
 	}
 
 	s.importArtistPeople(ctx, src, entryID, srcExtID)
-
-	if _, aggErr := s.agg.FindByExternalID(ctx, entry.ContentType, srcExtID, entry.ID); aggErr != nil {
-		slog.Warn("refresh artist: aggregate images", "entry_id", entryID, "error", aggErr)
-	}
+	s.fetchArtistHeroImage(ctx, entry, srcExtID)
+	s.fetchAlbumCovers(ctx, entry.ContentType, srcExtID, albums)
 
 	newTracks, err := s.collectArtistTracks(ctx, src, entry.Name, albums, entry.ContentType)
 	if err != nil {
@@ -753,11 +750,122 @@ func (s *Service) importArtistPeople(ctx context.Context, src ports.MetadataSour
 		if personID == "" {
 			continue
 		}
+		if ep.Source == domain.SourceMusicBrainz && ep.ExternalID != "" {
+			s.fetchPersonHeroImage(ctx, personID, ep.ExternalID)
+		}
 		if saveErr := s.entries.SavePerson(ctx, entryID, domain.EntryPerson{
 			PersonID: personID,
 			Role:     string(ep.Role),
 		}); saveErr != nil {
 			slog.Warn("refresh artist: link member", "entry_id", entryID, "person_id", personID, "error", saveErr)
+		}
+	}
+}
+
+// fetchArtistHeroImage calls the aggregator for artist-level images and
+// downloads the first hero image to disk when entry.ImagePath is not yet set.
+func (s *Service) fetchArtistHeroImage(ctx context.Context, entry *domain.LibraryEntry, srcExtID string) {
+	merged, err := s.agg.FindByExternalID(ctx, entry.ContentType, srcExtID, entry.ID)
+	if err != nil {
+		slog.Warn("refresh artist: aggregate images", "entry_id", entry.ID, "error", err)
+		return
+	}
+	if entry.ImagePath != "" || s.mediaPath == "" {
+		return
+	}
+	for _, img := range merged.Images {
+		if img.Type == domain.ImageTypeHero {
+			if ext := s.fetchImage(ctx, img.URL, "entries", entry.ID); ext != "" {
+				entry.ImagePath = ext
+				if saveErr := s.entries.Save(ctx, entry); saveErr != nil {
+					slog.Warn("refresh artist: save entry image path", "entry_id", entry.ID, "error", saveErr)
+				}
+			}
+			return
+		}
+	}
+}
+
+// fetchAlbumCovers downloads the first album cover for each album that does not
+// already have one. It calls the fanart source directly since fanart.tv returns
+// all album artwork in a single /music/{mbid} response.
+func (s *Service) fetchAlbumCovers(ctx context.Context, contentType domain.ContentType, artistMBID string, albums []artistAlbum) {
+	fanartSrc := s.sourceByName(string(domain.SourceFanart))
+	if fanartSrc == nil || s.mediaPath == "" {
+		return
+	}
+
+	_, items, _, err := fanartSrc.FetchEntryContent(ctx, contentType, artistMBID, 1, 1000)
+	if err != nil {
+		if !errors.Is(err, ports.ErrNotSupported) {
+			slog.Warn("refresh artist: fetch album covers", "artist_mbid", artistMBID, "error", err)
+		}
+		return
+	}
+
+	coverByMBID := make(map[string]string, len(items))
+	for _, item := range items {
+		rgMBID, ok := item.ExternalIDs["mbid"]
+		if !ok || len(item.Images) == 0 {
+			continue
+		}
+		coverByMBID[rgMBID] = item.Images[0].URL
+	}
+	slog.Info("refresh artist: album covers", "artist_mbid", artistMBID, "fanart_covers", len(coverByMBID), "library_albums", len(albums))
+
+	for _, album := range albums {
+		g, err := s.groups.Get(ctx, album.internalID)
+		if err != nil {
+			slog.Warn("refresh artist: load group for cover", "group_id", album.internalID, "error", err)
+			continue
+		}
+		if g.CoverPath != "" {
+			continue
+		}
+		coverURL, ok := coverByMBID[album.extGroup.ExternalID]
+		if !ok {
+			continue
+		}
+		ext := s.fetchImage(ctx, coverURL, "groups", g.ID)
+		if ext == "" {
+			continue
+		}
+		g.CoverPath = ext
+		if err := s.groups.Save(ctx, g); err != nil {
+			slog.Warn("refresh artist: save album cover", "group_id", g.ID, "error", err)
+		}
+	}
+}
+
+// fetchPersonHeroImage downloads the first hero image for a person from fanart.tv
+// using their MusicBrainz artist MBID. It is a no-op when the person already
+// has an image, when fanart is not configured, or when the person has no
+// fanart.tv page (ErrNotFound is silently discarded).
+func (s *Service) fetchPersonHeroImage(ctx context.Context, personID, mbid string) {
+	if s.mediaPath == "" {
+		return
+	}
+	fanartSrc := s.sourceByName(string(domain.SourceFanart))
+	if fanartSrc == nil {
+		return
+	}
+	person, err := s.people.Get(ctx, personID)
+	if err != nil || person.ImagePath != "" {
+		return
+	}
+	item, err := fanartSrc.FindByExternalID(ctx, domain.ContentTypeMusic, mbid)
+	if err != nil {
+		return
+	}
+	for _, img := range item.Images {
+		if img.Type == domain.ImageTypeHero {
+			if ext := s.fetchImage(ctx, img.URL, "people", personID); ext != "" {
+				person.ImagePath = ext
+				if saveErr := s.people.Save(ctx, person); saveErr != nil {
+					slog.Warn("refresh artist: save person image", "person_id", personID, "error", saveErr)
+				}
+			}
+			return
 		}
 	}
 }

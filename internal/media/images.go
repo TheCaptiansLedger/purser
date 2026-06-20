@@ -16,7 +16,7 @@ func ImagePath(base, entityType, id, ext string) string {
 // EnsureDirs creates the top-level entity subdirectories under base.
 // Shard directories are created lazily on first write.
 func EnsureDirs(base string) error {
-	for _, sub := range []string{"entries", "items", "people"} {
+	for _, sub := range []string{"entries", "items", "people", "groups"} {
 		if err := os.MkdirAll(filepath.Join(base, sub), 0o750); err != nil {
 			return fmt.Errorf("create media dir %s: %w", sub, err)
 		}

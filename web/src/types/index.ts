@@ -153,6 +153,7 @@ export interface Group {
   overview: string
   monitored: boolean
   monitorMode: MonitorMode
+  coverUrl?: string
   metadata?: Record<string, unknown>
 }
 

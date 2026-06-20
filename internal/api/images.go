@@ -22,7 +22,7 @@ func (h *imageHandler) get(w http.ResponseWriter, r *http.Request) {
 	entityID := chi.URLParam(r, "entityID")
 
 	switch entityType {
-	case "people", "entries", "items":
+	case "people", "entries", "items", "groups":
 	default:
 		http.NotFound(w, r)
 		return

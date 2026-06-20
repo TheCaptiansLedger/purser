@@ -62,43 +62,6 @@ func (s *aggStubSource) FetchEntryPeople(_ context.Context, _ string) ([]*domain
 	return nil, ports.ErrNotSupported
 }
 
-type stubImageRepo struct {
-	stored    []domain.StoredImage
-	upsertErr error
-}
-
-func (r *stubImageRepo) Upsert(_ context.Context, images []domain.StoredImage) error {
-	if r.upsertErr != nil {
-		return r.upsertErr
-	}
-	r.stored = append(r.stored, images...)
-	return nil
-}
-
-func (r *stubImageRepo) List(_ context.Context, entityType, entityID string, imageType *domain.ImageType) ([]domain.StoredImage, error) {
-	var out []domain.StoredImage
-	for _, img := range r.stored {
-		if img.EntityType == entityType && img.EntityID == entityID {
-			if imageType == nil || img.ImageType == *imageType {
-				out = append(out, img)
-			}
-		}
-	}
-	return out, nil
-}
-
-func (r *stubImageRepo) GetSelection(_ context.Context, _, _ string, _ domain.ImageType) (*domain.StoredImage, error) {
-	return nil, nil //nolint:nilnil // stub: no selection is a valid state for tests
-}
-
-func (r *stubImageRepo) SetSelection(_ context.Context, _, _ string, _ domain.ImageType, _ string) error {
-	return nil
-}
-
-func (r *stubImageRepo) ClearSelection(_ context.Context, _, _ string, _ domain.ImageType) error {
-	return nil
-}
-
 // ── FindByExternalID ──────────────────────────────────────────────────────────
 
 func TestAggregator_FindByExternalID_MergesInPriorityOrder(t *testing.T) {
@@ -121,8 +84,7 @@ func TestAggregator_FindByExternalID_MergesInPriorityOrder(t *testing.T) {
 			},
 		},
 	}
-	imageRepo := &stubImageRepo{}
-	agg := metadata.NewAggregator([]ports.MetadataSource{primary, supplemental}, imageRepo)
+	agg := metadata.NewAggregator([]ports.MetadataSource{primary, supplemental})
 
 	item, err := agg.FindByExternalID(context.Background(), domain.ContentTypeMusic, "some-id", "some-entity-id")
 	if err != nil {
@@ -154,7 +116,7 @@ func TestAggregator_FindByExternalID_PrimaryFails_SupplementalReturned(t *testin
 			Title:  "Fallback Title",
 		},
 	}
-	agg := metadata.NewAggregator([]ports.MetadataSource{primary, supplemental}, &stubImageRepo{})
+	agg := metadata.NewAggregator([]ports.MetadataSource{primary, supplemental})
 
 	item, err := agg.FindByExternalID(context.Background(), domain.ContentTypeMusic, "some-id", "some-entity-id")
 	if err != nil {
@@ -176,7 +138,7 @@ func TestAggregator_FindByExternalID_AllFail_ReturnsError(t *testing.T) {
 		contentTypes: []domain.ContentType{domain.ContentTypeMusic},
 		findErr:      errors.New("supplemental down"),
 	}
-	agg := metadata.NewAggregator([]ports.MetadataSource{primary, supplemental}, &stubImageRepo{})
+	agg := metadata.NewAggregator([]ports.MetadataSource{primary, supplemental})
 
 	_, err := agg.FindByExternalID(context.Background(), domain.ContentTypeMusic, "some-id", "some-entity-id")
 	if err == nil {
@@ -189,49 +151,11 @@ func TestAggregator_FindByExternalID_NoMatchingSources_ReturnsError(t *testing.T
 		name:         "tmdb",
 		contentTypes: []domain.ContentType{domain.ContentTypeMovie},
 	}
-	agg := metadata.NewAggregator([]ports.MetadataSource{src}, &stubImageRepo{})
+	agg := metadata.NewAggregator([]ports.MetadataSource{src})
 
 	_, err := agg.FindByExternalID(context.Background(), domain.ContentTypeMusic, "some-id", "some-entity-id")
 	if err == nil {
 		t.Fatal("expected error when no sources match content type, got nil")
-	}
-}
-
-func TestAggregator_FindByExternalID_PersistsImagesWithEntityInfo(t *testing.T) {
-	const (
-		externalID = "artist-mbid-123"
-		entityID   = "internal-entry-uuid-abc"
-	)
-	src := &aggStubSource{
-		name:         "fanart",
-		contentTypes: []domain.ContentType{domain.ContentTypeMusic},
-		findItem: &domain.ExternalItem{
-			Source: "fanart",
-			Images: []domain.ExternalImage{
-				{Type: domain.ImageTypeBanner, URL: "https://example.com/banner.jpg"},
-				{Type: domain.ImageTypeBackground, URL: "https://example.com/bg.jpg"},
-			},
-		},
-	}
-	imageRepo := &stubImageRepo{}
-	agg := metadata.NewAggregator([]ports.MetadataSource{src}, imageRepo)
-
-	_, err := agg.FindByExternalID(context.Background(), domain.ContentTypeMusic, externalID, entityID)
-	if err != nil {
-		t.Fatalf("FindByExternalID: %v", err)
-	}
-
-	stored, _ := imageRepo.List(context.Background(), "library_entry", entityID, nil)
-	if len(stored) != 2 {
-		t.Errorf("stored image count = %d, want 2", len(stored))
-	}
-	for _, img := range stored {
-		if img.EntityType != "library_entry" {
-			t.Errorf("EntityType = %q, want library_entry", img.EntityType)
-		}
-		if img.EntityID != entityID {
-			t.Errorf("EntityID = %q, want %q (must be internal UUID, not external ID)", img.EntityID, entityID)
-		}
 	}
 }
 
@@ -253,7 +177,7 @@ func TestAggregator_SearchItems_CombinesAcrossSources(t *testing.T) {
 			{Source: "lastfm", Title: "Karma Police"},
 		},
 	}
-	agg := metadata.NewAggregator([]ports.MetadataSource{src1, src2}, nil)
+	agg := metadata.NewAggregator([]ports.MetadataSource{src1, src2})
 
 	items, err := agg.SearchItems(context.Background(), domain.ContentTypeMusic, "creep", 10)
 	if err != nil {
@@ -275,7 +199,7 @@ func TestAggregator_SearchItems_SourceErrorSkipped(t *testing.T) {
 		contentTypes: []domain.ContentType{domain.ContentTypeMusic},
 		searchErr:    errors.New("service unavailable"),
 	}
-	agg := metadata.NewAggregator([]ports.MetadataSource{good, bad}, nil)
+	agg := metadata.NewAggregator([]ports.MetadataSource{good, bad})
 
 	items, err := agg.SearchItems(context.Background(), domain.ContentTypeMusic, "creep", 10)
 	if err != nil {
@@ -304,7 +228,7 @@ func TestAggregator_FetchEntryContent_CombinesAcrossSources(t *testing.T) {
 			{Source: "fanart", Title: "The Bends", Images: []domain.ExternalImage{{Type: domain.ImageTypePoster, URL: "https://example.com/bends.jpg"}}},
 		},
 	}
-	agg := metadata.NewAggregator([]ports.MetadataSource{src1, src2}, nil)
+	agg := metadata.NewAggregator([]ports.MetadataSource{src1, src2})
 
 	items, err := agg.FetchEntryContent(context.Background(), domain.ContentTypeMusic, "radiohead-id")
 	if err != nil {
