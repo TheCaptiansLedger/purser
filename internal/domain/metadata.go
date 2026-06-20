@@ -10,12 +10,35 @@ type ExternalItem struct {
 	ContentType ContentType
 	Title       string
 	Overview    string
+	Year        int
 	Date        time.Time
 	RuntimeSecs int
 	ImageURL    string
 	Studio      *ExternalStudio
 	People      []*ExternalPerson
 	Tags        []string
+	Genres      []string
+	ExternalIDs map[string]string
+	Images      []ExternalImage
+}
+
+// ExternalImage is image metadata returned by a metadata source for a given entity.
+// Source is empty when returned by a provider; it is stamped by MergeExternalItems
+// from the SourcedExternalItem wrapper so the merged result carries its origin.
+type ExternalImage struct {
+	Type   ImageType
+	URL    string
+	Width  int
+	Height int
+	Source string
+}
+
+// SourcedExternalItem pairs an ExternalItem with the name of the provider that
+// produced it. The aggregator constructs this slice before calling MergeExternalItems,
+// ordered by provider priority (index 0 = primary/highest priority).
+type SourcedExternalItem struct {
+	Source string // provider name: "musicbrainz", "fanart", "lastfm", etc.
+	Item   *ExternalItem
 }
 
 // ExternalStudio carries studio or network data returned by a metadata source.
