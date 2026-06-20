@@ -107,5 +107,6 @@ func (a *Adapter) FindByExternalID(ctx context.Context, _ domain.ContentType, id
 		ContentType: domain.ContentTypeMusic,
 		Title:       artist.Name,
 		Overview:    artist.Disambiguation,
+		ExternalIDs: map[string]string{"mbid": artist.ID},
 	}, nil
 }
