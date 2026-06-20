@@ -82,7 +82,7 @@ func run(cfgPath string) error {
 
 	libSvc := library.New(entryRepo, groupRepo, itemRepo, personRepo)
 	peopleSvc := people.New(personRepo)
-	metaSvc := metadata.New(buildSources(cfg), jobQueue, entryRepo, groupRepo, itemRepo, personRepo, tagRepo, extIDRepo, cfg.Media.Path)
+	metaSvc := metadata.New(buildSources(cfg), jobQueue, entryRepo, groupRepo, itemRepo, personRepo, tagRepo, extIDRepo, imageRepo, cfg.Media.Path)
 
 	uiFS, err := fs.Sub(web.Dist, "dist")
 	if err != nil {

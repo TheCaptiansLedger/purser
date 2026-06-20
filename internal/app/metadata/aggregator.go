@@ -28,9 +28,11 @@ func NewAggregator(sources []ports.MetadataSource, imageRepo ports.ImageReposito
 
 // FindByExternalID fans out to all sources that support contentType, merges
 // results ordered by source priority, persists images, and returns the merged
-// item. All source failures are logged and skipped; an error is returned only
-// if no sources returned a result.
-func (a *Aggregator) FindByExternalID(ctx context.Context, contentType domain.ContentType, id string) (*domain.ExternalItem, error) {
+// item. externalID is the provider-specific identifier passed to each source;
+// entityID is the internal library_entry UUID used when persisting images.
+// All source failures are logged and skipped; an error is returned only if no
+// sources returned a result.
+func (a *Aggregator) FindByExternalID(ctx context.Context, contentType domain.ContentType, externalID, entityID string) (*domain.ExternalItem, error) {
 	matching := a.sourcesFor(contentType)
 	if len(matching) == 0 {
 		return nil, fmt.Errorf("metadata aggregator: no sources configured for %q", contentType)
@@ -48,7 +50,7 @@ func (a *Aggregator) FindByExternalID(ctx context.Context, contentType domain.Co
 		wg.Add(1)
 		go func(priority int, src ports.MetadataSource) {
 			defer wg.Done()
-			item, err := src.FindByExternalID(ctx, contentType, id)
+			item, err := src.FindByExternalID(ctx, contentType, externalID)
 			ch <- fanResult{priority: priority, source: src.Name(), item: item, err: err}
 		}(i, src)
 	}
@@ -72,10 +74,10 @@ func (a *Aggregator) FindByExternalID(ctx context.Context, contentType domain.Co
 
 	merged := domain.MergeExternalItems(sourced)
 	if merged == nil {
-		return nil, fmt.Errorf("metadata aggregator: all sources failed for %q in %q", id, contentType)
+		return nil, fmt.Errorf("metadata aggregator: all sources failed for %q in %q", externalID, contentType)
 	}
 
-	a.persistImages(ctx, "library_entry", id, merged.Images)
+	a.persistImages(ctx, "library_entry", entityID, merged.Images)
 	return merged, nil
 }
 

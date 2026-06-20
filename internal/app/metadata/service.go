@@ -25,6 +25,7 @@ import (
 // importing search results into the library as domain entities.
 type Service struct {
 	sources     []ports.MetadataSource
+	agg         *Aggregator
 	jobs        ports.JobQueue
 	entries     ports.LibraryEntryRepository
 	groups      ports.GroupRepository
@@ -45,10 +46,12 @@ func New(
 	people ports.PersonRepository,
 	tags ports.TagRepository,
 	externalIDs ports.ExternalIDRepository,
+	imageRepo ports.ImageRepository,
 	mediaPath string,
 ) *Service {
 	return &Service{
 		sources:     sources,
+		agg:         NewAggregator(sources, imageRepo),
 		jobs:        jobs,
 		entries:     entries,
 		groups:      groups,
@@ -666,6 +669,10 @@ func (s *Service) RefreshArtist(ctx context.Context, entryID string, p ports.Pro
 	}
 
 	s.importArtistPeople(ctx, src, entryID, srcExtID)
+
+	if _, aggErr := s.agg.FindByExternalID(ctx, entry.ContentType, srcExtID, entry.ID); aggErr != nil {
+		slog.Warn("refresh artist: aggregate images", "entry_id", entryID, "error", aggErr)
+	}
 
 	newTracks, err := s.collectArtistTracks(ctx, src, entry.Name, albums, entry.ContentType)
 	if err != nil {

@@ -46,9 +46,9 @@ func newHandlerWithDB(t *testing.T) (http.Handler, *sql.DB) {
 	jobQueue := jobsadapter.New(1)
 	t.Cleanup(jobQueue.Close)
 
-	metaSvc := metadata.New(nil, jobQueue, dbadapter.NewLibraryEntryRepo(database), dbadapter.NewGroupRepo(database), dbadapter.NewItemRepo(database), dbadapter.NewPersonRepo(database), dbadapter.NewTagRepo(database), dbadapter.NewExternalIDRepo(database), "")
-
 	imageRepo := dbadapter.NewImageRepo(database, nil)
+
+	metaSvc := metadata.New(nil, jobQueue, dbadapter.NewLibraryEntryRepo(database), dbadapter.NewGroupRepo(database), dbadapter.NewItemRepo(database), dbadapter.NewPersonRepo(database), dbadapter.NewTagRepo(database), dbadapter.NewExternalIDRepo(database), imageRepo, "")
 
 	uiFS, _ := fs.Sub(web.Dist, "dist")
 	cfg := &config.Config{
@@ -1515,9 +1515,9 @@ func TestJobs_Cancel_SetsStatus(t *testing.T) {
 		dbadapter.NewPersonRepo(database),
 	)
 	peopleSvc := people.New(dbadapter.NewPersonRepo(database))
-	metaSvc := metadata.New(nil, nil, dbadapter.NewLibraryEntryRepo(database), dbadapter.NewGroupRepo(database), dbadapter.NewItemRepo(database), dbadapter.NewPersonRepo(database), dbadapter.NewTagRepo(database), dbadapter.NewExternalIDRepo(database), "")
 	tagRepo := dbadapter.NewTagRepo(database)
 	imageRepo := dbadapter.NewImageRepo(database, nil)
+	metaSvc := metadata.New(nil, nil, dbadapter.NewLibraryEntryRepo(database), dbadapter.NewGroupRepo(database), dbadapter.NewItemRepo(database), dbadapter.NewPersonRepo(database), dbadapter.NewTagRepo(database), dbadapter.NewExternalIDRepo(database), imageRepo, "")
 	uiFS, _ := fs.Sub(web.Dist, "dist")
 	cfg := &config.Config{
 		Server:   config.ServerConfig{Port: 0, Workers: 1},

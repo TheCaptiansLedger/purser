@@ -42,7 +42,8 @@ func TestMetadataAggregator_FindByExternalID_Music(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	item, err := agg.FindByExternalID(ctx, domain.ContentTypeMusic, radioheadMBID)
+	const testEntityID = "test-entity-uuid-radiohead"
+	item, err := agg.FindByExternalID(ctx, domain.ContentTypeMusic, radioheadMBID, testEntityID)
 	if err != nil {
 		t.Fatalf("FindByExternalID: %v", err)
 	}
@@ -74,7 +75,7 @@ func TestMetadataAggregator_FindByExternalID_Music(t *testing.T) {
 		t.Errorf("Images contain only %d distinct ImageType value(s); want >= 2", len(imageTypes))
 	}
 
-	stored, err := imageRepo.List(ctx, "library_entry", radioheadMBID, nil)
+	stored, err := imageRepo.List(ctx, "library_entry", testEntityID, nil)
 	if err != nil {
 		t.Fatalf("imageRepo.List: %v", err)
 	}

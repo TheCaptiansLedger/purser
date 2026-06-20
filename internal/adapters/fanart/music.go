@@ -133,14 +133,10 @@ func collectArtistImages(resp *fanartArtistResponse) []domain.ExternalImage {
 	var images []domain.ExternalImage
 	for _, img := range resp.ArtistThumb {
 		if img.URL != "" {
-			images = append(images, domain.ExternalImage{Type: domain.ImageTypeThumbnail, URL: img.URL})
+			images = append(images, domain.ExternalImage{Type: domain.ImageTypeHero, URL: img.URL})
 		}
 	}
-	for _, img := range resp.ArtistBackground {
-		if img.URL != "" {
-			images = append(images, domain.ExternalImage{Type: domain.ImageTypeBackground, URL: img.URL})
-		}
-	}
+	// ArtistBackground is not a valid music library_entry image slot — skipped.
 	for _, img := range resp.MusicBanner {
 		if img.URL != "" {
 			images = append(images, domain.ExternalImage{Type: domain.ImageTypeBanner, URL: img.URL})

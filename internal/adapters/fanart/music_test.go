@@ -62,19 +62,16 @@ func TestFindByExternalID_Music_HappyPath(t *testing.T) {
 		}
 	}
 
-	if byType[domain.ImageTypeThumbnail] != 1 {
-		t.Errorf("thumbnail count = %d, want 1 (from artistthumb)", byType[domain.ImageTypeThumbnail])
-	}
-	if byType[domain.ImageTypeBackground] != 1 {
-		t.Errorf("background count = %d, want 1 (from artistbackground)", byType[domain.ImageTypeBackground])
+	if byType[domain.ImageTypeHero] != 1 {
+		t.Errorf("hero count = %d, want 1 (from artistthumb)", byType[domain.ImageTypeHero])
 	}
 	if byType[domain.ImageTypeBanner] != 1 {
 		t.Errorf("banner count = %d, want 1 (from musicbanner)", byType[domain.ImageTypeBanner])
 	}
-	// hdmusiclogo and cdart must not appear.
+	// artistbackground, hdmusiclogo, and cdart must not appear.
 	total := len(item.Images)
-	if total != 3 {
-		t.Errorf("total images = %d, want 3 (hdmusiclogo and cdart skipped)", total)
+	if total != 2 {
+		t.Errorf("total images = %d, want 2 (artistbackground, hdmusiclogo, cdart skipped)", total)
 	}
 }
 
