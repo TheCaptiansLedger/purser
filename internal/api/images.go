@@ -1,6 +1,7 @@
 package api
 
 import (
+	"log/slog"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -34,6 +35,8 @@ func (h *imageHandler) get(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	slog.Debug("image.get", "entity_type", entityType, "entity_id", entityID)
+
 	shard := entityID
 	if len(entityID) >= 2 {
 		shard = entityID[:2]
@@ -45,12 +48,15 @@ func (h *imageHandler) get(w http.ResponseWriter, r *http.Request) {
 			http.NotFound(w, r)
 			return
 		}
+		slog.Debug("image.candidate", "path", candidate)
 		if _, err := os.Stat(candidate); err == nil { //nolint:gosec
+			slog.Debug("image.served", "path", candidate)
 			http.ServeFile(w, r, candidate) //nolint:gosec
 			return
 		}
 	}
 
+	slog.Debug("image.not_found", "entity_type", entityType, "entity_id", entityID)
 	http.NotFound(w, r)
 }
 
