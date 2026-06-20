@@ -99,6 +99,10 @@ type MetadataSourcesConfig struct {
 	// Set UserAgent to a descriptive string per MusicBrainz policy.
 	MusicBrainz MetadataSourceConfig `mapstructure:"musicbrainz"`
 
+	// Fanart — artist and album images for music, TV, and movies (fanart.tv). API key required.
+	//  PURSER_SOURCES_FANART_API_KEY=abc123
+	Fanart MetadataSourceConfig `mapstructure:"fanart"`
+
 	// LastFM — artist and track metadata enrichment (last.fm).
 	LastFM MetadataSourceConfig `mapstructure:"lastfm"`
 
@@ -183,6 +187,10 @@ func Load(path string) (*Config, error) {
 	v.SetDefault("sources.musicbrainz.url", "")
 	v.SetDefault("sources.musicbrainz.api_key", "")
 	v.SetDefault("sources.musicbrainz.user_agent", "purser/1.0 (https://github.com/purser-app/purser)")
+	v.SetDefault("sources.fanart.enabled", false)
+	v.SetDefault("sources.fanart.url", "")
+	v.SetDefault("sources.fanart.api_key", "")
+	v.SetDefault("sources.fanart.user_agent", "")
 	v.SetDefault("sources.lastfm.enabled", false)
 	v.SetDefault("sources.lastfm.url", "")
 	v.SetDefault("sources.lastfm.api_key", "")

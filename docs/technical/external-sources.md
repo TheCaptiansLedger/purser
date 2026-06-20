@@ -11,6 +11,7 @@ Adapters live in `internal/adapters/<source>/`. Each implements the `MetadataSou
 | TMDB | `internal/adapters/tmdb/` | movie, tv | API key |
 | TVDB | `internal/adapters/tvdb/` | tv | API key |
 | MusicBrainz | `internal/adapters/mbz/` | music | none (rate-limited) |
+| fanart.tv | `internal/adapters/fanart/` | music (tv, movie planned) | API key |
 
 ## Notes
 

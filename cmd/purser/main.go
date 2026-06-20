@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/signal"
 	"purser/internal/adapters/db"
+	"purser/internal/adapters/fanart"
 	"purser/internal/adapters/mbz"
 	"purser/internal/adapters/stashdb"
 	"purser/internal/api"
@@ -112,6 +113,9 @@ func buildSources(cfg *config.Config) []ports.MetadataSource {
 	}
 	if cfg.Sources.MusicBrainz.Enabled {
 		sources = append(sources, mbz.New(cfg.Sources.MusicBrainz))
+	}
+	if cfg.Sources.Fanart.Enabled {
+		sources = append(sources, fanart.New(cfg.Sources.Fanart))
 	}
 	return sources
 }

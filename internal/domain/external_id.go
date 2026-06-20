@@ -12,6 +12,7 @@ const (
 	SourceMusicBrainz ExternalIDSource = "mbz"
 	SourceJavLibrary  ExternalIDSource = "javlibrary"
 	SourceR18         ExternalIDSource = "r18"
+	SourceFanart      ExternalIDSource = "fanart"
 	SourceDiscogs     ExternalIDSource = "discogs"
 	SourceMAL         ExternalIDSource = "mal"
 	SourceAniList     ExternalIDSource = "anilist"

@@ -95,6 +95,7 @@ go test -tags integration -timeout 300s ./internal/adapters/...
 | `tmdb` | `PURSER_SOURCES_TMDB_API_KEY` | Bearer token (API Read Access Token) |
 | `tvdb` | `PURSER_SOURCES_TVDB_API_KEY` | API key; adapter exchanges for JWT |
 | `mbz` | _(none)_ | Public API; integration tests always run |
+| `fanart` | `PURSER_SOURCES_FANART_API_KEY` | |
 | `lastfm` | `PURSER_SOURCES_LASTFM_API_KEY` | |
 
 ## Frontend Rules
