@@ -1,5 +1,7 @@
 package domain
 
+import "time"
+
 // ImageType identifies the visual slot an image occupies for a given entity.
 type ImageType string
 
@@ -32,6 +34,19 @@ var imageSlots = map[imageKey][]ImageType{
 	{"item", "adult"}:          {ImageTypeThumbnail, ImageTypeBanner},
 	{"item", "movie"}:          {ImageTypePoster, ImageTypeThumbnail},
 	{"item", "jav"}:            {ImageTypeThumbnail, ImageTypeBanner},
+}
+
+// StoredImage is a persisted image record in the images table.
+type StoredImage struct {
+	ID         string
+	EntityType string
+	EntityID   string
+	ImageType  ImageType
+	URL        string
+	Source     string
+	Width      int
+	Height     int
+	AddedAt    time.Time
 }
 
 // ApplicableImageTypes returns the ordered image slots for a (contentType, entityType) pair.

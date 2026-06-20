@@ -1335,6 +1335,202 @@ func TestImageSchema_Constraints(t *testing.T) {
 	}
 }
 
+// ── ImageRepo ─────────────────────────────────────────────────────────────────
+
+func TestImageRepo_Upsert_Idempotent(t *testing.T) {
+	repo := NewImageRepo(setupTestDB(t), []string{"stashdb", "tpdb"})
+	ctx := context.Background()
+
+	images := []domain.StoredImage{
+		{EntityType: "person", EntityID: "p1", ImageType: domain.ImageTypePoster, URL: "https://example.com/a.jpg", Source: "stashdb"},
+		{EntityType: "person", EntityID: "p1", ImageType: domain.ImageTypePoster, URL: "https://example.com/b.jpg", Source: "tpdb"},
+	}
+
+	if err := repo.Upsert(ctx, images); err != nil {
+		t.Fatalf("first Upsert: %v", err)
+	}
+	if err := repo.Upsert(ctx, images); err != nil {
+		t.Fatalf("second Upsert: %v", err)
+	}
+
+	got, err := repo.List(ctx, "person", "p1", nil)
+	if err != nil {
+		t.Fatalf("List: %v", err)
+	}
+	if len(got) != 2 {
+		t.Errorf("image count = %d, want 2 (idempotent upsert)", len(got))
+	}
+}
+
+func TestImageRepo_List_TypeFilter(t *testing.T) {
+	repo := NewImageRepo(setupTestDB(t), nil)
+	ctx := context.Background()
+
+	images := []domain.StoredImage{
+		{EntityType: "person", EntityID: "p1", ImageType: domain.ImageTypePoster, URL: "https://example.com/poster.jpg", Source: "stashdb"},
+		{EntityType: "person", EntityID: "p1", ImageType: domain.ImageTypeHero, URL: "https://example.com/hero.jpg", Source: "stashdb"},
+	}
+	if err := repo.Upsert(ctx, images); err != nil {
+		t.Fatalf("Upsert: %v", err)
+	}
+
+	posterType := domain.ImageTypePoster
+	got, err := repo.List(ctx, "person", "p1", &posterType)
+	if err != nil {
+		t.Fatalf("List: %v", err)
+	}
+	if len(got) != 1 {
+		t.Errorf("filtered count = %d, want 1", len(got))
+	}
+	if got[0].ImageType != domain.ImageTypePoster {
+		t.Errorf("image type = %q, want poster", got[0].ImageType)
+	}
+}
+
+func TestImageRepo_GetSelection_AutoSelect(t *testing.T) {
+	repo := NewImageRepo(setupTestDB(t), []string{"stashdb", "tpdb"})
+	ctx := context.Background()
+
+	// Insert tpdb first so ordering by added_at would favour it without priority logic.
+	images := []domain.StoredImage{
+		{EntityType: "person", EntityID: "p1", ImageType: domain.ImageTypePoster, URL: "https://example.com/a.jpg", Source: "tpdb"},
+		{EntityType: "person", EntityID: "p1", ImageType: domain.ImageTypePoster, URL: "https://example.com/b.jpg", Source: "stashdb"},
+	}
+	if err := repo.Upsert(ctx, images); err != nil {
+		t.Fatalf("Upsert: %v", err)
+	}
+
+	got, err := repo.GetSelection(ctx, "person", "p1", domain.ImageTypePoster)
+	if err != nil {
+		t.Fatalf("GetSelection: %v", err)
+	}
+	if got == nil {
+		t.Fatal("expected image, got nil")
+	}
+	if got.Source != "stashdb" {
+		t.Errorf("source = %q, want stashdb (index 0 = highest priority)", got.Source)
+	}
+}
+
+func TestImageRepo_GetSelection_ExplicitOverridesAuto(t *testing.T) {
+	repo := NewImageRepo(setupTestDB(t), []string{"stashdb", "tpdb"})
+	ctx := context.Background()
+
+	images := []domain.StoredImage{
+		{EntityType: "person", EntityID: "p1", ImageType: domain.ImageTypePoster, URL: "https://example.com/a.jpg", Source: "stashdb"},
+		{EntityType: "person", EntityID: "p1", ImageType: domain.ImageTypePoster, URL: "https://example.com/b.jpg", Source: "tpdb"},
+	}
+	if err := repo.Upsert(ctx, images); err != nil {
+		t.Fatalf("Upsert: %v", err)
+	}
+
+	all, err := repo.List(ctx, "person", "p1", nil)
+	if err != nil {
+		t.Fatalf("List: %v", err)
+	}
+	var tpdbID string
+	for _, img := range all {
+		if img.Source == "tpdb" {
+			tpdbID = img.ID
+		}
+	}
+	if tpdbID == "" {
+		t.Fatal("tpdb image not found after Upsert")
+	}
+
+	if err := repo.SetSelection(ctx, "person", "p1", domain.ImageTypePoster, tpdbID); err != nil {
+		t.Fatalf("SetSelection: %v", err)
+	}
+
+	got, err := repo.GetSelection(ctx, "person", "p1", domain.ImageTypePoster)
+	if err != nil {
+		t.Fatalf("GetSelection: %v", err)
+	}
+	if got == nil {
+		t.Fatal("expected image, got nil")
+	}
+	if got.Source != "tpdb" {
+		t.Errorf("source = %q, want tpdb (explicit selection overrides priority)", got.Source)
+	}
+}
+
+func TestImageRepo_ClearSelection(t *testing.T) {
+	repo := NewImageRepo(setupTestDB(t), []string{"stashdb", "tpdb"})
+	ctx := context.Background()
+
+	images := []domain.StoredImage{
+		{EntityType: "person", EntityID: "p1", ImageType: domain.ImageTypePoster, URL: "https://example.com/a.jpg", Source: "stashdb"},
+		{EntityType: "person", EntityID: "p1", ImageType: domain.ImageTypePoster, URL: "https://example.com/b.jpg", Source: "tpdb"},
+	}
+	if err := repo.Upsert(ctx, images); err != nil {
+		t.Fatalf("Upsert: %v", err)
+	}
+
+	all, err := repo.List(ctx, "person", "p1", nil)
+	if err != nil {
+		t.Fatalf("List: %v", err)
+	}
+	var tpdbID string
+	for _, img := range all {
+		if img.Source == "tpdb" {
+			tpdbID = img.ID
+		}
+	}
+
+	if err := repo.SetSelection(ctx, "person", "p1", domain.ImageTypePoster, tpdbID); err != nil {
+		t.Fatalf("SetSelection: %v", err)
+	}
+	if err := repo.ClearSelection(ctx, "person", "p1", domain.ImageTypePoster); err != nil {
+		t.Fatalf("ClearSelection: %v", err)
+	}
+
+	got, err := repo.GetSelection(ctx, "person", "p1", domain.ImageTypePoster)
+	if err != nil {
+		t.Fatalf("GetSelection after clear: %v", err)
+	}
+	if got == nil {
+		t.Fatal("expected image after clear, got nil")
+	}
+	if got.Source != "stashdb" {
+		t.Errorf("source = %q, want stashdb (auto-select after clear)", got.Source)
+	}
+}
+
+func TestImageRepo_GetSelection_DeletedImageHandled(t *testing.T) {
+	database := setupTestDB(t)
+	repo := NewImageRepo(database, []string{"stashdb"})
+	ctx := context.Background()
+
+	images := []domain.StoredImage{
+		{EntityType: "person", EntityID: "p1", ImageType: domain.ImageTypePoster, URL: "https://example.com/a.jpg", Source: "stashdb"},
+	}
+	if err := repo.Upsert(ctx, images); err != nil {
+		t.Fatalf("Upsert: %v", err)
+	}
+
+	all, err := repo.List(ctx, "person", "p1", nil)
+	if err != nil || len(all) != 1 {
+		t.Fatalf("List: err=%v, count=%d, want 1", err, len(all))
+	}
+
+	if err := repo.SetSelection(ctx, "person", "p1", domain.ImageTypePoster, all[0].ID); err != nil {
+		t.Fatalf("SetSelection: %v", err)
+	}
+
+	// Delete the image row directly; ON DELETE SET NULL keeps the selection row with image_id=NULL.
+	if _, err := database.Exec(`DELETE FROM images WHERE id = ?`, all[0].ID); err != nil {
+		t.Fatalf("delete image row: %v", err)
+	}
+
+	got, err := repo.GetSelection(ctx, "person", "p1", domain.ImageTypePoster)
+	if err != nil {
+		t.Fatalf("GetSelection after image delete: %v", err)
+	}
+	if got != nil {
+		t.Errorf("expected nil (no images remain), got %+v", got)
+	}
+}
+
 func TestLibraryEntryRepo_List_PersonIDFilter(t *testing.T) {
 	db := setupTestDB(t)
 	entryRepo := NewLibraryEntryRepo(db)
