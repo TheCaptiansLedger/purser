@@ -75,6 +75,7 @@ func run(cfgPath string) error {
 	personRepo := db.NewPersonRepo(database)
 	tagRepo := db.NewTagRepo(database)
 	extIDRepo := db.NewExternalIDRepo(database)
+	imageRepo := db.NewImageRepo(database, []string{"fanart", "stashdb", "mbz"})
 
 	jobQueue := jobsadapter.New(cfg.Server.Workers)
 	defer jobQueue.Close()
@@ -88,7 +89,7 @@ func run(cfgPath string) error {
 		return fmt.Errorf("load embedded UI: %w", err)
 	}
 
-	srv := api.New(cfg.Server.Port, cfg.Media.Path, cfg, database, libSvc, peopleSvc, metaSvc, tagRepo, jobQueue, uiFS)
+	srv := api.New(cfg.Server.Port, cfg.Media.Path, cfg, database, libSvc, peopleSvc, metaSvc, tagRepo, imageRepo, jobQueue, uiFS)
 
 	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer cancel()

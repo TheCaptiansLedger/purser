@@ -48,6 +48,8 @@ func newHandlerWithDB(t *testing.T) (http.Handler, *sql.DB) {
 
 	metaSvc := metadata.New(nil, jobQueue, dbadapter.NewLibraryEntryRepo(database), dbadapter.NewGroupRepo(database), dbadapter.NewItemRepo(database), dbadapter.NewPersonRepo(database), dbadapter.NewTagRepo(database), dbadapter.NewExternalIDRepo(database), "")
 
+	imageRepo := dbadapter.NewImageRepo(database, nil)
+
 	uiFS, _ := fs.Sub(web.Dist, "dist")
 	cfg := &config.Config{
 		Server:   config.ServerConfig{Port: 0, Workers: 1},
@@ -63,7 +65,7 @@ func newHandlerWithDB(t *testing.T) (http.Handler, *sql.DB) {
 		},
 		Log: config.LogConfig{Level: "info", Format: "text"},
 	}
-	return api.New(0, "", cfg, database, libSvc, peopleSvc, metaSvc, tagRepo, jobQueue, uiFS).Handler(), database
+	return api.New(0, "", cfg, database, libSvc, peopleSvc, metaSvc, tagRepo, imageRepo, jobQueue, uiFS).Handler(), database
 }
 
 // newHandler builds a full server backed by a temp-file SQLite database.
@@ -1515,13 +1517,14 @@ func TestJobs_Cancel_SetsStatus(t *testing.T) {
 	peopleSvc := people.New(dbadapter.NewPersonRepo(database))
 	metaSvc := metadata.New(nil, nil, dbadapter.NewLibraryEntryRepo(database), dbadapter.NewGroupRepo(database), dbadapter.NewItemRepo(database), dbadapter.NewPersonRepo(database), dbadapter.NewTagRepo(database), dbadapter.NewExternalIDRepo(database), "")
 	tagRepo := dbadapter.NewTagRepo(database)
+	imageRepo := dbadapter.NewImageRepo(database, nil)
 	uiFS, _ := fs.Sub(web.Dist, "dist")
 	cfg := &config.Config{
 		Server:   config.ServerConfig{Port: 0, Workers: 1},
 		Database: config.DatabaseConfig{Driver: "sqlite", DSN: dbPath},
 		Log:      config.LogConfig{Level: "info", Format: "text"},
 	}
-	h := api.New(0, "", cfg, database, libSvc, peopleSvc, metaSvc, tagRepo, jobQueue, uiFS).Handler()
+	h := api.New(0, "", cfg, database, libSvc, peopleSvc, metaSvc, tagRepo, imageRepo, jobQueue, uiFS).Handler()
 
 	// DELETE /api/v1/jobs/:id should cancel it.
 	w := do(t, h, http.MethodDelete, "/api/v1/jobs/"+submitted.ID, nil)
@@ -1956,5 +1959,308 @@ func TestItems_Patch_Status_ImportedCannotBeSkipped(t *testing.T) {
 	decodeJSON(t, w, &resp)
 	if resp.Code != "INVALID_STATUS" {
 		t.Errorf("code = %q, want INVALID_STATUS", resp.Code)
+	}
+}
+
+// ── Entity images ─────────────────────────────────────────────────────────────
+
+func seedImage(t *testing.T, db *sql.DB, id, entityType, entityID, imageType, source string) {
+	t.Helper()
+	_, err := db.ExecContext(t.Context(),
+		`INSERT INTO images (id, entity_type, entity_id, image_type, url, source, width, height, added_at)
+		 VALUES (?, ?, ?, ?, ?, ?, 1000, 1000, datetime('now'))`,
+		id, entityType, entityID, imageType, "https://example.com/"+id+".jpg", source,
+	)
+	if err != nil {
+		t.Fatalf("seed image %s: %v", id, err)
+	}
+}
+
+func TestImages_LibraryEntry_EmptyReturnsSlice(t *testing.T) {
+	h := newHandler(t)
+
+	w := do(t, h, http.MethodPost, "/api/v1/library-entries", map[string]any{
+		"contentType": "adult", "kind": "studio", "name": "Studio A",
+	})
+	var entry struct {
+		ID string `json:"id"`
+	}
+	decodeJSON(t, w, &entry)
+
+	w = do(t, h, http.MethodGet, "/api/v1/library-entries/"+entry.ID+"/images", nil)
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", w.Code)
+	}
+	var resp struct {
+		Images []any `json:"images"`
+	}
+	decodeJSON(t, w, &resp)
+	if resp.Images == nil {
+		t.Error("images should be [] not null")
+	}
+	if len(resp.Images) != 0 {
+		t.Errorf("images len = %d, want 0", len(resp.Images))
+	}
+}
+
+func TestImages_LibraryEntry_ListAndSelect(t *testing.T) {
+	h, db := newHandlerWithDB(t)
+
+	w := do(t, h, http.MethodPost, "/api/v1/library-entries", map[string]any{
+		"contentType": "adult", "kind": "studio", "name": "Studio A",
+	})
+	var entry struct {
+		ID string `json:"id"`
+	}
+	decodeJSON(t, w, &entry)
+
+	seedImage(t, db, "img-1", "library_entry", entry.ID, "poster", "source_a")
+	seedImage(t, db, "img-2", "library_entry", entry.ID, "poster", "source_b")
+
+	// GET: both images returned, exactly one marked selected.
+	w = do(t, h, http.MethodGet, "/api/v1/library-entries/"+entry.ID+"/images", nil)
+	if w.Code != http.StatusOK {
+		t.Fatalf("list status = %d, want 200", w.Code)
+	}
+	var listResp struct {
+		Images []struct {
+			ID       string `json:"id"`
+			Selected bool   `json:"selected"`
+		} `json:"images"`
+	}
+	decodeJSON(t, w, &listResp)
+	if len(listResp.Images) != 2 {
+		t.Fatalf("images count = %d, want 2", len(listResp.Images))
+	}
+	selectedCount := 0
+	for _, img := range listResp.Images {
+		if img.Selected {
+			selectedCount++
+		}
+	}
+	if selectedCount != 1 {
+		t.Errorf("selected count = %d, want exactly 1", selectedCount)
+	}
+
+	// GET with type filter returns only images of that type.
+	w = do(t, h, http.MethodGet, "/api/v1/library-entries/"+entry.ID+"/images?type=poster", nil)
+	if w.Code != http.StatusOK {
+		t.Fatalf("filtered list status = %d, want 200", w.Code)
+	}
+	var filtered struct {
+		Images []any `json:"images"`
+	}
+	decodeJSON(t, w, &filtered)
+	if len(filtered.Images) != 2 {
+		t.Errorf("filtered images count = %d, want 2", len(filtered.Images))
+	}
+}
+
+func TestImages_LibraryEntry_PutSelectDeleteCycle(t *testing.T) {
+	h, db := newHandlerWithDB(t)
+
+	w := do(t, h, http.MethodPost, "/api/v1/library-entries", map[string]any{
+		"contentType": "adult", "kind": "studio", "name": "Studio A",
+	})
+	var entry struct {
+		ID string `json:"id"`
+	}
+	decodeJSON(t, w, &entry)
+
+	seedImage(t, db, "img-1", "library_entry", entry.ID, "poster", "source_a")
+	seedImage(t, db, "img-2", "library_entry", entry.ID, "poster", "source_b")
+
+	// PUT: select img-2.
+	w = do(t, h, http.MethodPut, "/api/v1/library-entries/"+entry.ID+"/images/poster/selected",
+		map[string]any{"image_id": "img-2"})
+	if w.Code != http.StatusOK {
+		t.Fatalf("PUT status = %d, want 200 — body: %s", w.Code, w.Body.String())
+	}
+	var putResp struct {
+		ID       string `json:"id"`
+		Selected bool   `json:"selected"`
+	}
+	decodeJSON(t, w, &putResp)
+	if putResp.ID != "img-2" {
+		t.Errorf("PUT response id = %q, want img-2", putResp.ID)
+	}
+	if !putResp.Selected {
+		t.Error("PUT response selected should be true")
+	}
+
+	// GET: img-2 should now be selected, img-1 should not.
+	w = do(t, h, http.MethodGet, "/api/v1/library-entries/"+entry.ID+"/images", nil)
+	var listResp struct {
+		Images []struct {
+			ID       string `json:"id"`
+			Selected bool   `json:"selected"`
+		} `json:"images"`
+	}
+	decodeJSON(t, w, &listResp)
+	for _, img := range listResp.Images {
+		if img.ID == "img-2" && !img.Selected {
+			t.Error("img-2 should be selected after PUT")
+		}
+		if img.ID == "img-1" && img.Selected {
+			t.Error("img-1 should not be selected after PUT to img-2")
+		}
+	}
+
+	// DELETE: clear selection.
+	w = do(t, h, http.MethodDelete, "/api/v1/library-entries/"+entry.ID+"/images/poster/selected", nil)
+	if w.Code != http.StatusNoContent {
+		t.Fatalf("DELETE status = %d, want 204", w.Code)
+	}
+
+	// GET after DELETE: auto-select takes over; exactly one image selected again.
+	w = do(t, h, http.MethodGet, "/api/v1/library-entries/"+entry.ID+"/images", nil)
+	decodeJSON(t, w, &listResp)
+	selectedCount := 0
+	for _, img := range listResp.Images {
+		if img.Selected {
+			selectedCount++
+		}
+	}
+	if selectedCount != 1 {
+		t.Errorf("after DELETE: selected count = %d, want 1 (auto-select)", selectedCount)
+	}
+}
+
+func TestImages_Put_ImageFromDifferentEntity_Returns404(t *testing.T) {
+	h, db := newHandlerWithDB(t)
+
+	w := do(t, h, http.MethodPost, "/api/v1/library-entries", map[string]any{
+		"contentType": "adult", "kind": "studio", "name": "Studio A",
+	})
+	var entryA struct {
+		ID string `json:"id"`
+	}
+	decodeJSON(t, w, &entryA)
+
+	w = do(t, h, http.MethodPost, "/api/v1/library-entries", map[string]any{
+		"contentType": "adult", "kind": "studio", "name": "Studio B",
+	})
+	var entryB struct {
+		ID string `json:"id"`
+	}
+	decodeJSON(t, w, &entryB)
+
+	// Seed an image that belongs to entryB, not entryA.
+	seedImage(t, db, "img-b", "library_entry", entryB.ID, "poster", "source_a")
+
+	w = do(t, h, http.MethodPut, "/api/v1/library-entries/"+entryA.ID+"/images/poster/selected",
+		map[string]any{"image_id": "img-b"})
+	if w.Code != http.StatusNotFound {
+		t.Fatalf("status = %d, want 404", w.Code)
+	}
+}
+
+func TestImages_Put_InvalidTypeForPerson_Returns422(t *testing.T) {
+	h := newHandler(t)
+
+	w := do(t, h, http.MethodPost, "/api/v1/people", map[string]any{"name": "Jane Doe"})
+	var person struct {
+		ID string `json:"id"`
+	}
+	decodeJSON(t, w, &person)
+
+	// "poster" is not a valid slot for person (valid: hero, banner, thumbnail).
+	w = do(t, h, http.MethodPut, "/api/v1/people/"+person.ID+"/images/poster/selected",
+		map[string]any{"image_id": "any-id"})
+	if w.Code != http.StatusUnprocessableEntity {
+		t.Fatalf("status = %d, want 422", w.Code)
+	}
+	var resp struct {
+		Code string `json:"code"`
+	}
+	decodeJSON(t, w, &resp)
+	if resp.Code != "INVALID_IMAGE_TYPE" {
+		t.Errorf("code = %q, want INVALID_IMAGE_TYPE", resp.Code)
+	}
+}
+
+func TestImages_Groups_EmptyReturnsSlice(t *testing.T) {
+	h := newHandler(t)
+
+	w := do(t, h, http.MethodPost, "/api/v1/library-entries", map[string]any{
+		"contentType": "tv", "kind": "series", "name": "Show",
+	})
+	var series struct {
+		ID string `json:"id"`
+	}
+	decodeJSON(t, w, &series)
+
+	w = do(t, h, http.MethodPost, "/api/v1/groups", map[string]any{
+		"libraryEntryId": series.ID, "title": "Season 1", "number": 1,
+	})
+	var group struct {
+		ID string `json:"id"`
+	}
+	decodeJSON(t, w, &group)
+
+	w = do(t, h, http.MethodGet, "/api/v1/groups/"+group.ID+"/images", nil)
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", w.Code)
+	}
+	var resp struct {
+		Images []any `json:"images"`
+	}
+	decodeJSON(t, w, &resp)
+	if resp.Images == nil {
+		t.Error("images should be [] not null")
+	}
+}
+
+func TestImages_Items_EmptyReturnsSlice(t *testing.T) {
+	h := newHandler(t)
+
+	w := do(t, h, http.MethodPost, "/api/v1/library-entries", map[string]any{
+		"contentType": "adult", "kind": "studio", "name": "Studio A",
+	})
+	var studio struct {
+		ID string `json:"id"`
+	}
+	decodeJSON(t, w, &studio)
+
+	w = do(t, h, http.MethodPost, "/api/v1/items", map[string]any{
+		"libraryEntryId": studio.ID, "title": "Scene 1",
+	})
+	var item struct {
+		ID string `json:"id"`
+	}
+	decodeJSON(t, w, &item)
+
+	w = do(t, h, http.MethodGet, "/api/v1/items/"+item.ID+"/images", nil)
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", w.Code)
+	}
+	var resp struct {
+		Images []any `json:"images"`
+	}
+	decodeJSON(t, w, &resp)
+	if resp.Images == nil {
+		t.Error("images should be [] not null")
+	}
+}
+
+func TestImages_People_EmptyReturnsSlice(t *testing.T) {
+	h := newHandler(t)
+
+	w := do(t, h, http.MethodPost, "/api/v1/people", map[string]any{"name": "Jane Doe"})
+	var person struct {
+		ID string `json:"id"`
+	}
+	decodeJSON(t, w, &person)
+
+	w = do(t, h, http.MethodGet, "/api/v1/people/"+person.ID+"/images", nil)
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", w.Code)
+	}
+	var resp struct {
+		Images []any `json:"images"`
+	}
+	decodeJSON(t, w, &resp)
+	if resp.Images == nil {
+		t.Error("images should be [] not null")
 	}
 }
