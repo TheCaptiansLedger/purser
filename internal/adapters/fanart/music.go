@@ -17,24 +17,19 @@ type fanartImage struct {
 }
 
 type fanartArtistResponse struct {
-	Name             string        `json:"name"`
-	MBID             string        `json:"mbid_id"`
-	ArtistThumb      []fanartImage `json:"artistthumb"`
-	ArtistBackground []fanartImage `json:"artistbackground"`
-	HDMusicLogo      []fanartImage `json:"hdmusiclogo"`
-	MusicBanner      []fanartImage `json:"musicbanner"`
-	CDArt            []fanartImage `json:"cdart"`
+	Name             string                 `json:"name"`
+	MBID             string                 `json:"mbid_id"`
+	ArtistThumb      []fanartImage          `json:"artistthumb"`
+	ArtistBackground []fanartImage          `json:"artistbackground"`
+	HDMusicLogo      []fanartImage          `json:"hdmusiclogo"`
+	MusicBanner      []fanartImage          `json:"musicbanner"`
+	CDArt            []fanartImage          `json:"cdart"`
+	Albums           map[string]fanartAlbum `json:"albums"`
 }
 
 type fanartAlbum struct {
 	AlbumCover []fanartImage `json:"albumcover"`
 	CDArt      []fanartImage `json:"cdart"`
-}
-
-type fanartAlbumsResponse struct {
-	Name   string                 `json:"name"`
-	MBID   string                 `json:"mbid_id"`
-	Albums map[string]fanartAlbum `json:"albums"`
 }
 
 // ── Routing ───────────────────────────────────────────────────────────────────
@@ -82,12 +77,13 @@ func (a *Adapter) findMusicByID(ctx context.Context, mbid string) (*domain.Exter
 	}, nil
 }
 
-// fetchMusicAlbums calls /music/albums/{mbid} and returns one ExternalItem per
-// release group that has at least one albumcover image. Map keys are sorted for
-// deterministic local pagination (fanart.tv returns all albums in one response).
+// fetchMusicAlbums calls /music/{mbid} (the same endpoint as FindByExternalID —
+// fanart.tv returns artist images and album artwork in a single response) and
+// returns one ExternalItem per release group that has at least one albumcover
+// image. Map keys are sorted for deterministic local pagination.
 func (a *Adapter) fetchMusicAlbums(ctx context.Context, artistMBID string, page, perPage int) ([]*domain.ExternalItem, int, error) {
-	var resp fanartAlbumsResponse
-	if err := a.get(ctx, fmt.Sprintf("music/albums/%s", artistMBID), &resp); err != nil {
+	var resp fanartArtistResponse
+	if err := a.get(ctx, fmt.Sprintf("music/%s", artistMBID), &resp); err != nil {
 		return nil, 0, err
 	}
 
