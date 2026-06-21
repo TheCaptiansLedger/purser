@@ -8,7 +8,6 @@ import (
 	"os"
 	"os/signal"
 	"purser/internal/adapters/db"
-	fsadapter "purser/internal/adapters/fs"
 	"purser/internal/adapters/fanart"
 	"purser/internal/adapters/mbz"
 	"purser/internal/adapters/stashdb"
@@ -21,6 +20,8 @@ import (
 	"purser/internal/version"
 	"purser/web"
 	"syscall"
+
+	fsadapter "purser/internal/adapters/fs"
 
 	"github.com/spf13/cobra"
 

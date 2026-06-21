@@ -11,11 +11,15 @@ import (
 	"time"
 )
 
+// ImageDownloader fetches remote images over HTTP and writes them to the
+// sharded media directory layout managed by this package.
 type ImageDownloader struct {
 	mediaPath string
 	client    *http.Client
 }
 
+// NewImageDownloader constructs an ImageDownloader rooted at mediaPath with a
+// 30-second HTTP timeout.
 func NewImageDownloader(mediaPath string) *ImageDownloader {
 	return &ImageDownloader{
 		mediaPath: mediaPath,
@@ -23,6 +27,9 @@ func NewImageDownloader(mediaPath string) *ImageDownloader {
 	}
 }
 
+// Download fetches the image at url and writes it under entityType/entityID in
+// the configured media directory. Returns the file extension (e.g. ".jpg") on
+// success, "" on any error (errors are logged internally).
 func (d *ImageDownloader) Download(ctx context.Context, url, entityType, entityID string) string {
 	destBase := ImagePath(d.mediaPath, entityType, entityID, "")
 	if err := os.MkdirAll(filepath.Dir(destBase), 0o750); err != nil {

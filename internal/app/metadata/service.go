@@ -1151,4 +1151,3 @@ func monitoredForMode(mode domain.MonitorMode, entryAddedAt, itemDate time.Time)
 func servesContentType(src ports.MetadataSource, contentType domain.ContentType) bool {
 	return slices.Contains(src.ContentTypes(), contentType)
 }
-

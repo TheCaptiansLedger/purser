@@ -8,6 +8,8 @@ import (
 	"io/fs"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"purser/internal/api"
 	"purser/internal/app/library"
 	"purser/internal/app/metadata"
@@ -19,6 +21,7 @@ import (
 	"time"
 
 	dbadapter "purser/internal/adapters/db"
+	fspkg "purser/internal/adapters/fs"
 	jobsadapter "purser/internal/adapters/jobs"
 )
 
@@ -73,6 +76,53 @@ func newHandler(t *testing.T) http.Handler {
 	t.Helper()
 	h, _ := newHandlerWithDB(t)
 	return h
+}
+
+// newHandlerWithMedia builds a full server with the given mediaPath wired into
+// the image handler, so tests can write real files and verify they are served.
+func newHandlerWithMedia(t *testing.T, mediaPath string) http.Handler {
+	t.Helper()
+	dbPath := t.TempDir() + "/test.db"
+	database, err := dbadapter.Open(dbPath)
+	if err != nil {
+		t.Fatalf("open test db: %v", err)
+	}
+	t.Cleanup(func() { database.Close() })
+
+	personRepo := dbadapter.NewPersonRepo(database)
+	libSvc := library.New(
+		dbadapter.NewLibraryEntryRepo(database),
+		dbadapter.NewGroupRepo(database),
+		dbadapter.NewItemRepo(database),
+		personRepo,
+	)
+	peopleSvc := people.New(personRepo)
+	tagRepo := dbadapter.NewTagRepo(database)
+
+	jobQueue := jobsadapter.New(1)
+	t.Cleanup(jobQueue.Close)
+
+	metaSvc := metadata.New(nil, jobQueue,
+		dbadapter.NewLibraryEntryRepo(database), dbadapter.NewGroupRepo(database),
+		dbadapter.NewItemRepo(database), dbadapter.NewPersonRepo(database),
+		dbadapter.NewTagRepo(database), dbadapter.NewExternalIDRepo(database), nil)
+
+	uiFS, _ := fs.Sub(web.Dist, "dist")
+	cfg := &config.Config{
+		Server:   config.ServerConfig{Port: 0, Workers: 1},
+		Database: config.DatabaseConfig{Driver: "sqlite", DSN: dbPath},
+		Media:    config.MediaConfig{Path: mediaPath},
+		Modules: config.ModulesConfig{
+			Movies:    config.ModuleConfig{Enabled: true},
+			TV:        config.ModuleConfig{Enabled: true},
+			Music:     config.ModuleConfig{Enabled: true},
+			Books:     config.ModuleConfig{Enabled: true},
+			AfterDark: config.ModuleConfig{Enabled: true},
+			JAV:       config.ModuleConfig{Enabled: true},
+		},
+		Log: config.LogConfig{Level: "info", Format: "text"},
+	}
+	return api.New(0, mediaPath, cfg, database, libSvc, peopleSvc, metaSvc, tagRepo, jobQueue, uiFS).Handler()
 }
 
 func do(t *testing.T, h http.Handler, method, path string, body any) *httptest.ResponseRecorder {
@@ -1958,5 +2008,95 @@ func TestItems_Patch_Status_ImportedCannotBeSkipped(t *testing.T) {
 	decodeJSON(t, w, &resp)
 	if resp.Code != "INVALID_STATUS" {
 		t.Errorf("code = %q, want INVALID_STATUS", resp.Code)
+	}
+}
+
+// ── Images ────────────────────────────────────────────────────────────────────
+
+func TestImages_Get_NotFound(t *testing.T) {
+	h := newHandlerWithMedia(t, t.TempDir())
+	w := do(t, h, http.MethodGet, "/api/v1/images/entries/doesnotexist", nil)
+	if w.Code != http.StatusNotFound {
+		t.Errorf("status = %d, want 404", w.Code)
+	}
+}
+
+func TestImages_Get_InvalidEntityType(t *testing.T) {
+	h := newHandlerWithMedia(t, t.TempDir())
+	w := do(t, h, http.MethodGet, "/api/v1/images/movies/some-id", nil)
+	if w.Code != http.StatusNotFound {
+		t.Errorf("status = %d, want 404", w.Code)
+	}
+}
+
+func TestImages_Get_PathTraversal_EntityID(t *testing.T) {
+	h := newHandlerWithMedia(t, t.TempDir())
+	w := do(t, h, http.MethodGet, "/api/v1/images/entries/..evil", nil)
+	if w.Code != http.StatusNotFound {
+		t.Errorf("status = %d, want 404", w.Code)
+	}
+}
+
+func TestImages_Get_ServesJPEG(t *testing.T) {
+	mediaPath := t.TempDir()
+	entityID := "abc123"
+	path := fspkg.ImagePath(mediaPath, "entries", entityID, ".jpg")
+	if err := os.MkdirAll(filepath.Dir(path), 0o750); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, []byte("\xff\xd8\xff"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	h := newHandlerWithMedia(t, mediaPath)
+	w := do(t, h, http.MethodGet, "/api/v1/images/entries/"+entityID, nil)
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", w.Code)
+	}
+	if ct := w.Result().Header.Get("Content-Type"); ct != "image/jpeg" {
+		t.Errorf("Content-Type = %q, want image/jpeg", ct)
+	}
+}
+
+func TestImages_Get_ServesPNG(t *testing.T) {
+	mediaPath := t.TempDir()
+	entityID := "def456"
+	path := fspkg.ImagePath(mediaPath, "entries", entityID, ".png")
+	if err := os.MkdirAll(filepath.Dir(path), 0o750); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, []byte("\x89PNG\r\n\x1a\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	h := newHandlerWithMedia(t, mediaPath)
+	w := do(t, h, http.MethodGet, "/api/v1/images/entries/"+entityID, nil)
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", w.Code)
+	}
+	if ct := w.Result().Header.Get("Content-Type"); ct != "image/png" {
+		t.Errorf("Content-Type = %q, want image/png", ct)
+	}
+}
+
+func TestImages_Get_MultipleExtensions(t *testing.T) {
+	mediaPath := t.TempDir()
+	entityID := "ghi789"
+	// Only .png exists — handler tries .jpg and .jpeg first, must still serve .png.
+	path := fspkg.ImagePath(mediaPath, "entries", entityID, ".png")
+	if err := os.MkdirAll(filepath.Dir(path), 0o750); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, []byte("\x89PNG\r\n\x1a\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	h := newHandlerWithMedia(t, mediaPath)
+	w := do(t, h, http.MethodGet, "/api/v1/images/entries/"+entityID, nil)
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", w.Code)
+	}
+	if ct := w.Result().Header.Get("Content-Type"); ct != "image/png" {
+		t.Errorf("Content-Type = %q, want image/png", ct)
 	}
 }

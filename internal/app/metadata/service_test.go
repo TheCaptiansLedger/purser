@@ -1111,8 +1111,10 @@ func TestRefreshStudio_FetchesImageForItemsWithURL(t *testing.T) {
 	entryRepo.data[entry.ID] = entry
 
 	scenes := []*domain.ExternalItem{
-		{Source: domain.SourceStashDB, ExternalID: "s-1", Title: "Scene 1",
-			Date: time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC), ImageURL: "https://example.com/cover.jpg"},
+		{
+			Source: domain.SourceStashDB, ExternalID: "s-1", Title: "Scene 1",
+			Date: time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC), ImageURL: "https://example.com/cover.jpg",
+		},
 	}
 	dl := &stubImageDownloader{ext: ".jpg"}
 	src := &stubSource{scenes: scenes, total: 1}
@@ -1154,8 +1156,10 @@ func TestRefreshStudio_ImageDownloaderFailure(t *testing.T) {
 	entryRepo.data[entry.ID] = entry
 
 	scenes := []*domain.ExternalItem{
-		{Source: domain.SourceStashDB, ExternalID: "s-1", Title: "Scene 1",
-			Date: time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC), ImageURL: "https://example.com/cover.jpg"},
+		{
+			Source: domain.SourceStashDB, ExternalID: "s-1", Title: "Scene 1",
+			Date: time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC), ImageURL: "https://example.com/cover.jpg",
+		},
 	}
 	dl := &stubImageDownloader{ext: ""}
 	src := &stubSource{scenes: scenes, total: 1}

@@ -7,10 +7,14 @@ import (
 	"path/filepath"
 )
 
+// ImagePath returns the on-disk path for an entity image using the sharded layout:
+// {base}/{entityType}/{id[0:2]}/{id}{ext}
 func ImagePath(base, entityType, id, ext string) string {
 	return filepath.Join(base, entityType, shard(id), id+ext)
 }
 
+// EnsureDirs creates the top-level entity subdirectories under base.
+// Shard directories are created lazily on first write.
 func EnsureDirs(base string) error {
 	for _, sub := range []string{"entries", "items", "people", "groups"} {
 		if err := os.MkdirAll(filepath.Join(base, sub), 0o750); err != nil {
@@ -20,6 +24,9 @@ func EnsureDirs(base string) error {
 	return nil
 }
 
+// MigrateFlat moves image files from the old flat layout ({base}/{type}/{id+ext})
+// to the sharded layout ({base}/{type}/{id[0:2]}/{id+ext}).
+// Files already inside a subdirectory are skipped.
 func MigrateFlat(base string) error {
 	for _, entityType := range []string{"entries", "items", "people"} {
 		dir := filepath.Join(base, entityType)
