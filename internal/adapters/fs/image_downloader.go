@@ -68,6 +68,7 @@ func (d *ImageDownloader) Download(ctx context.Context, url, entityType, entityI
 		_ = os.Remove(dest)
 		return ""
 	}
+	slog.Debug("image.downloaded", "url", url, "entity_type", entityType, "entity_id", entityID, "ext", ext)
 	return ext
 }
 

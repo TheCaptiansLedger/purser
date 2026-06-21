@@ -274,6 +274,7 @@ func (s *Service) importOrFindNetwork(ctx context.Context, req *ImportStudioRequ
 
 	if req.ParentExternalID != "" {
 		if id, err := s.externalIDs.FindEntity(ctx, "library_entry", src, req.ParentExternalID); err == nil {
+			slog.Debug("network.resolved", "parent_id", id, "created", false)
 			return id, nil, nil
 		} else if !errors.Is(err, errs.ErrNotFound) {
 			return "", nil, err
@@ -309,8 +310,10 @@ func (s *Service) importOrFindNetwork(ctx context.Context, req *ImportStudioRequ
 		ExternalIDs: extIDs,
 	}
 	if err := s.entries.Save(ctx, network); err != nil {
+		slog.Error("network.create.failed", "name", req.ParentName, "error", err)
 		return "", nil, err
 	}
+	slog.Debug("network.resolved", "parent_id", network.ID, "created", true)
 	return network.ID, network, nil
 }
 
@@ -497,6 +500,8 @@ func (s *Service) RefreshStudio(ctx context.Context, entryID string, p ports.Pro
 		return fmt.Errorf("refresh studio %q: no configured metadata source has an external ID for this entry", entry.Name)
 	}
 
+	slog.Info("studio.refresh.start", "entry_id", entryID, "name", entry.Name, "source", src.Name())
+
 	newExtItems, err := s.collectNewItems(ctx, src, entry.Name, srcExtID, entry.ContentType)
 	if err != nil {
 		return err
@@ -599,6 +604,8 @@ func (s *Service) RefreshArtist(ctx context.Context, entryID string, p ports.Pro
 	if src == nil {
 		return fmt.Errorf("refresh artist %q: no configured metadata source has an external ID for this entry", entry.Name)
 	}
+
+	slog.Info("artist.refresh.start", "entry_id", entryID, "name", entry.Name, "source", src.Name())
 
 	albums, err := s.resolveArtistAlbums(ctx, src, entry, srcExtID)
 	if err != nil {
