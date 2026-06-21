@@ -157,7 +157,8 @@ func TestConfig_Get(t *testing.T) {
 	}
 	var resp struct {
 		Server struct {
-			Port int `json:"port"`
+			Port    int `json:"port"`
+			Workers int `json:"workers"`
 		} `json:"server"`
 		Database struct {
 			Driver string `json:"driver"`
@@ -179,6 +180,9 @@ func TestConfig_Get(t *testing.T) {
 	if resp.Server.Port != 0 {
 		t.Errorf("port = %d, want 0", resp.Server.Port)
 	}
+	if resp.Server.Workers != 1 {
+		t.Errorf("workers = %d, want 1", resp.Server.Workers)
+	}
 	if resp.Database.Driver != "sqlite" {
 		t.Errorf("driver = %q, want sqlite", resp.Database.Driver)
 	}
@@ -190,6 +194,149 @@ func TestConfig_Get(t *testing.T) {
 	}
 	if resp.Log.Level != "info" {
 		t.Errorf("log level = %q, want info", resp.Log.Level)
+	}
+}
+
+func TestConfig_Get_Sources_NoKeysConfigured(t *testing.T) {
+	h := newHandler(t)
+	w := do(t, h, http.MethodGet, "/api/v1/config", nil)
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", w.Code)
+	}
+	var resp struct {
+		Sources struct {
+			StashDB struct {
+				Enabled bool   `json:"enabled"`
+				APIKey  string `json:"api_key"`
+			} `json:"stashdb"`
+			TMDB struct {
+				Enabled bool   `json:"enabled"`
+				APIKey  string `json:"api_key"`
+			} `json:"tmdb"`
+			MusicBrainz struct {
+				Enabled   bool   `json:"enabled"`
+				UserAgent string `json:"user_agent"`
+			} `json:"musicbrainz"`
+		} `json:"sources"`
+	}
+	decodeJSON(t, w, &resp)
+	if resp.Sources.StashDB.Enabled {
+		t.Error("stashdb should be disabled")
+	}
+	if resp.Sources.StashDB.APIKey != "" {
+		t.Errorf("stashdb api_key = %q, want empty string when no key configured", resp.Sources.StashDB.APIKey)
+	}
+	if resp.Sources.TMDB.Enabled {
+		t.Error("tmdb should be disabled")
+	}
+	if resp.Sources.TMDB.APIKey != "" {
+		t.Errorf("tmdb api_key = %q, want empty string when no key configured", resp.Sources.TMDB.APIKey)
+	}
+}
+
+func TestConfig_Get_Sources_KeysMasked(t *testing.T) {
+	dbPath := t.TempDir() + "/test.db"
+	database, err := dbadapter.Open(dbPath)
+	if err != nil {
+		t.Fatalf("open test db: %v", err)
+	}
+	t.Cleanup(func() { database.Close() })
+
+	personRepo := dbadapter.NewPersonRepo(database)
+	libSvc := library.New(
+		dbadapter.NewLibraryEntryRepo(database),
+		dbadapter.NewGroupRepo(database),
+		dbadapter.NewItemRepo(database),
+		personRepo,
+	)
+	peopleSvc := people.New(personRepo)
+	tagRepo := dbadapter.NewTagRepo(database)
+	jobQueue := jobsadapter.New(1)
+	t.Cleanup(jobQueue.Close)
+	metaSvc := metadata.New(nil, jobQueue, dbadapter.NewLibraryEntryRepo(database), dbadapter.NewGroupRepo(database), dbadapter.NewItemRepo(database), dbadapter.NewPersonRepo(database), dbadapter.NewTagRepo(database), dbadapter.NewExternalIDRepo(database), nil)
+	uiFS, _ := fs.Sub(web.Dist, "dist")
+
+	cfg := &config.Config{
+		Server:   config.ServerConfig{Port: 0, Workers: 2},
+		Database: config.DatabaseConfig{Driver: "sqlite", DSN: dbPath},
+		Sources: config.MetadataSourcesConfig{
+			StashDB: config.MetadataSourceConfig{Enabled: true, APIKey: "secret-stash-key"},
+			TMDB:    config.MetadataSourceConfig{Enabled: true, APIKey: "secret-tmdb-token"},
+			Stash:   config.MetadataSourceConfig{Enabled: true, URL: "http://stash.local:9999", APIKey: "local-key"},
+			MusicBrainz: config.MetadataSourceConfig{
+				Enabled:   true,
+				UserAgent: "purser/1.0 (test@example.com)",
+			},
+		},
+		Log: config.LogConfig{Level: "info", Format: "text"},
+	}
+	h := api.New(0, "", cfg, database, libSvc, peopleSvc, metaSvc, tagRepo, jobQueue, uiFS).Handler()
+
+	w := do(t, h, http.MethodGet, "/api/v1/config", nil)
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", w.Code)
+	}
+
+	var resp struct {
+		Server struct {
+			Workers int `json:"workers"`
+		} `json:"server"`
+		Sources struct {
+			StashDB struct {
+				Enabled bool   `json:"enabled"`
+				APIKey  string `json:"api_key"`
+			} `json:"stashdb"`
+			TMDB struct {
+				Enabled bool   `json:"enabled"`
+				APIKey  string `json:"api_key"`
+			} `json:"tmdb"`
+			Stash struct {
+				Enabled bool   `json:"enabled"`
+				URL     string `json:"url"`
+				APIKey  string `json:"api_key"`
+			} `json:"stash"`
+			MusicBrainz struct {
+				Enabled   bool   `json:"enabled"`
+				APIKey    string `json:"api_key"`
+				UserAgent string `json:"user_agent"`
+			} `json:"musicbrainz"`
+			TVDB struct {
+				Enabled bool   `json:"enabled"`
+				APIKey  string `json:"api_key"`
+			} `json:"tvdb"`
+		} `json:"sources"`
+	}
+	decodeJSON(t, w, &resp)
+
+	if resp.Server.Workers != 2 {
+		t.Errorf("workers = %d, want 2", resp.Server.Workers)
+	}
+	if !resp.Sources.StashDB.Enabled {
+		t.Error("stashdb should be enabled")
+	}
+	if resp.Sources.StashDB.APIKey != "***" {
+		t.Errorf("stashdb api_key = %q, want *** (masked)", resp.Sources.StashDB.APIKey)
+	}
+	if resp.Sources.TMDB.APIKey != "***" {
+		t.Errorf("tmdb api_key = %q, want *** (masked)", resp.Sources.TMDB.APIKey)
+	}
+	if resp.Sources.Stash.URL != "http://stash.local:9999" {
+		t.Errorf("stash url = %q, want http://stash.local:9999", resp.Sources.Stash.URL)
+	}
+	if resp.Sources.Stash.APIKey != "***" {
+		t.Errorf("stash api_key = %q, want *** (masked)", resp.Sources.Stash.APIKey)
+	}
+	if resp.Sources.MusicBrainz.APIKey != "" {
+		t.Errorf("musicbrainz api_key = %q, want empty (no key set)", resp.Sources.MusicBrainz.APIKey)
+	}
+	if resp.Sources.MusicBrainz.UserAgent != "purser/1.0 (test@example.com)" {
+		t.Errorf("musicbrainz user_agent = %q, want purser/1.0 (test@example.com)", resp.Sources.MusicBrainz.UserAgent)
+	}
+	if resp.Sources.TVDB.Enabled {
+		t.Error("tvdb should be disabled (not configured)")
+	}
+	if resp.Sources.TVDB.APIKey != "" {
+		t.Errorf("tvdb api_key = %q, want empty (not configured)", resp.Sources.TVDB.APIKey)
 	}
 }
 
