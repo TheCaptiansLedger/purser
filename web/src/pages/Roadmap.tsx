@@ -40,6 +40,15 @@ export interface GHIssue {
   assignees?: GHUser[]
 }
 
+export interface GHRelease {
+  id: number
+  tag_name: string
+  name: string
+  html_url: string
+  published_at: string
+  body: string
+}
+
 async function fetchIssues(state: 'open' | 'closed'): Promise<GHIssue[]> {
   const url = state === 'closed'
     ? `${GITHUB_API}/issues?state=closed&per_page=100`
@@ -47,6 +56,15 @@ async function fetchIssues(state: 'open' | 'closed'): Promise<GHIssue[]> {
   const res = await fetch(url, { headers: { Accept: 'application/vnd.github.v3+json' } })
   if (res.status === 403) throw new Error('GitHub API rate limited — try again in a minute.')
   if (!res.ok) throw new Error('Failed to fetch issues from GitHub.')
+  return res.json()
+}
+
+async function fetchReleases(): Promise<GHRelease[]> {
+  const res = await fetch(`${GITHUB_API}/releases`, {
+    headers: { Accept: 'application/vnd.github.v3+json' },
+  })
+  if (res.status === 403) throw new Error('GitHub API rate limited — try again in a minute.')
+  if (!res.ok) throw new Error('Failed to fetch releases from GitHub.')
   return res.json()
 }
 
@@ -200,6 +218,24 @@ function IssueCard({ issue, shipped = false }: { issue: GHIssue; shipped?: boole
   )
 }
 
+function ReleaseCard({ release }: { release: GHRelease }) {
+  return (
+    <a
+      href={release.html_url}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="group flex flex-col gap-2.5 p-3.5 rounded-xl border border-white/6 bg-white/3 hover:bg-white/6 hover:border-white/12 transition-all duration-150"
+    >
+      <div className="flex items-start justify-between gap-2">
+        <span className="text-[11px] font-mono text-emerald-400/70 shrink-0">{release.tag_name}</span>
+        <ExternalLink size={12} className="text-white/20 group-hover:text-white/50 transition-colors shrink-0" />
+      </div>
+      <p className="text-sm text-white/80 leading-snug line-clamp-2">{release.name || release.tag_name}</p>
+      <span className="text-[11px] text-white/25">{shortDate(release.published_at)}</span>
+    </a>
+  )
+}
+
 function KanbanColumn({ label, icon: Icon, accent, issues }: {
   status: string; label: string; icon: React.ElementType; accent: string; issues: GHIssue[]
 }) {
@@ -237,9 +273,9 @@ export function Roadmap() {
     staleTime: 5 * 60 * 1000,
   })
 
-  const closed = useQuery<GHIssue[], Error>({
-    queryKey: ['github-issues', 'closed'],
-    queryFn: () => fetchIssues('closed'),
+  const releases = useQuery<GHRelease[], Error>({
+    queryKey: ['github-releases'],
+    queryFn: fetchReleases,
     staleTime: 5 * 60 * 1000,
   })
 
@@ -253,24 +289,21 @@ export function Roadmap() {
     (i.labels.some(l => l.name === 'scope: epic') || i.labels.some(l => l.name === 'type: bug'))
 
   const openIssues = (open.data ?? []).filter(isVisible)
-  const shippedIssues = (closed.data ?? []).filter(
-    i => !i.pull_request && i.labels.some(l => l.name.startsWith('status:'))
-  )
 
   const activeAreas = AREAS.filter(area =>
     openIssues.some(i => getIssueArea(i) === area.id)
   )
 
-  const quarters = Array.from(new Set(
-    shippedIssues.filter(i => i.closed_at).map(i => getQuarterKey(i.closed_at!))
+  const releaseQuarters = Array.from(new Set(
+    (releases.data ?? []).map(r => getQuarterKey(r.published_at))
   )).sort((a, b) => b.localeCompare(a))
 
-  const isLoading = open.isLoading || closed.isLoading
-  const error = open.error?.message ?? closed.error?.message
+  const isLoading = open.isLoading
+  const error = open.error?.message ?? releases.error?.message
 
   function refetch() {
     open.refetch()
-    closed.refetch()
+    releases.refetch()
   }
 
   return (
@@ -442,34 +475,34 @@ export function Roadmap() {
       )}
 
       {/* Shipped Section */}
-      {(shippedIssues.length > 0 || (!closed.isLoading && shippedIssues.length === 0)) && (
+      {releases.data && (
         <div className="mt-16">
           <div className="flex items-center gap-3 mb-6">
             <CheckCircle2 size={16} className="text-emerald-400" />
             <h2 className="text-base font-semibold text-white/70">Shipped</h2>
-            <span className="text-xs text-white/30">{shippedIssues.length} features</span>
+            <span className="text-xs text-white/30">{releases.data.length} releases</span>
           </div>
 
-          {shippedIssues.length === 0 ? (
+          {releases.data.length === 0 ? (
             <div className="text-sm text-white/25 px-1">Nothing shipped yet.</div>
           ) : (
             <div className="flex flex-col gap-8">
-              {quarters.map(qKey => {
+              {releaseQuarters.map(qKey => {
                 const [year, q] = qKey.split('-')
-                const items = shippedIssues
-                  .filter(i => i.closed_at && getQuarterKey(i.closed_at) === qKey)
-                  .sort((a, b) => new Date(b.closed_at!).getTime() - new Date(a.closed_at!).getTime())
-                
+                const items = releases.data!
+                  .filter(r => getQuarterKey(r.published_at) === qKey)
+                  .sort((a, b) => new Date(b.published_at).getTime() - new Date(a.published_at).getTime())
+
                 if (items.length === 0) return null
 
                 return (
                   <div key={qKey}>
                     <div className="flex items-center gap-3 mb-4">
                       <span className="text-sm font-medium text-white/50">{q} {year}</span>
-                      <span className="text-xs text-white/25">{items.length} features</span>
+                      <span className="text-xs text-white/25">{items.length} releases</span>
                     </div>
                     <div className="grid grid-cols-3 gap-3">
-                      {items.map(i => <IssueCard key={i.id} issue={i} shipped />)}
+                      {items.map(r => <ReleaseCard key={r.id} release={r} />)}
                     </div>
                   </div>
                 )
