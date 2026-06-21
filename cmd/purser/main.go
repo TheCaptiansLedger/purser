@@ -9,6 +9,7 @@ import (
 	"os/signal"
 	"purser/internal/adapters/db"
 	"purser/internal/adapters/fanart"
+	"purser/internal/adapters/lastfm"
 	"purser/internal/adapters/mbz"
 	"purser/internal/adapters/stashdb"
 	"purser/internal/api"
@@ -114,6 +115,10 @@ func buildSources(cfg *config.Config) []ports.MetadataSource {
 	}
 	if cfg.Sources.MusicBrainz.Enabled {
 		sources = append(sources, mbz.New(cfg.Sources.MusicBrainz))
+	}
+	if cfg.Sources.LastFM.Enabled {
+		slog.Info("source enabled", "name", "lastfm")
+		sources = append(sources, lastfm.New(cfg.Sources.LastFM))
 	}
 	if cfg.Sources.Fanart.Enabled {
 		slog.Info("source enabled", "name", "fanart")
