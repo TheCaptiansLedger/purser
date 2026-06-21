@@ -2,7 +2,6 @@ package metadata_test
 
 import (
 	"context"
-	"fmt"
 	"purser/internal/app/errs"
 	"purser/internal/app/metadata"
 	"purser/internal/domain"
@@ -10,183 +9,6 @@ import (
 	"testing"
 	"time"
 )
-
-// ── stubs ─────────────────────────────────────────────────────────────────────
-
-type stubEntryRepo struct {
-	data map[string]*domain.LibraryEntry
-}
-
-func newStubEntryRepo() *stubEntryRepo {
-	return &stubEntryRepo{data: make(map[string]*domain.LibraryEntry)}
-}
-
-func (r *stubEntryRepo) Get(_ context.Context, id string) (*domain.LibraryEntry, error) {
-	e, ok := r.data[id]
-	if !ok {
-		return nil, fmt.Errorf("not found: %w", errs.ErrNotFound)
-	}
-	return e, nil
-}
-
-func (r *stubEntryRepo) List(_ context.Context, _ ports.LibraryFilter) ([]*domain.LibraryEntry, int, error) {
-	return nil, 0, nil
-}
-
-func (r *stubEntryRepo) Save(_ context.Context, e *domain.LibraryEntry) error {
-	r.data[e.ID] = e
-	return nil
-}
-
-func (r *stubEntryRepo) Delete(_ context.Context, id string) error {
-	delete(r.data, id)
-	return nil
-}
-
-func (r *stubEntryRepo) GetPeople(_ context.Context, _ string) ([]domain.EntryPerson, error) {
-	return nil, nil
-}
-
-func (r *stubEntryRepo) SavePerson(_ context.Context, _ string, _ domain.EntryPerson) error {
-	return nil
-}
-
-func (r *stubEntryRepo) RemovePerson(_ context.Context, _, _, _ string) error {
-	return nil
-}
-
-type stubItemRepo struct {
-	items []*domain.Item
-}
-
-func (r *stubItemRepo) Get(_ context.Context, _ string) (*domain.Item, error) {
-	return nil, fmt.Errorf("not found: %w", errs.ErrNotFound)
-}
-
-func (r *stubItemRepo) List(_ context.Context, _ ports.ItemFilter) ([]*domain.Item, int, error) {
-	return r.items, len(r.items), nil
-}
-
-func (r *stubItemRepo) Save(_ context.Context, item *domain.Item) error {
-	r.items = append(r.items, item)
-	return nil
-}
-func (r *stubItemRepo) Delete(_ context.Context, _ string) error { return nil }
-
-// stubSource is a hand-rolled MetadataSource that returns a fixed scene list.
-type stubSource struct {
-	scenes []*domain.ExternalItem
-	total  int
-}
-
-func (s *stubSource) Name() string { return "stashdb" }
-func (s *stubSource) ContentTypes() []domain.ContentType {
-	return []domain.ContentType{domain.ContentTypeAdult}
-}
-
-func (s *stubSource) SearchStudios(_ context.Context, _ string, _ int) ([]*domain.ExternalStudio, error) {
-	return nil, nil
-}
-
-func (s *stubSource) SearchPeople(_ context.Context, _ string, _ int) ([]*domain.ExternalPerson, error) {
-	return nil, nil
-}
-
-func (s *stubSource) SearchItems(_ context.Context, _ domain.ContentType, _ string, _ int) ([]*domain.ExternalItem, error) {
-	return nil, nil
-}
-
-func (s *stubSource) FindByHash(_ context.Context, _ string) (*domain.ExternalItem, error) {
-	return nil, ports.ErrNotSupported
-}
-
-func (s *stubSource) FindByExternalID(_ context.Context, _ domain.ContentType, _ string) (*domain.ExternalItem, error) {
-	return nil, ports.ErrNotFound
-}
-
-func (s *stubSource) FetchEntryContent(_ context.Context, _ domain.ContentType, _ string, page, _ int) ([]*domain.ExternalGroup, []*domain.ExternalItem, int, error) {
-	if page == 1 {
-		return nil, s.scenes, s.total, nil
-	}
-	return nil, nil, s.total, nil
-}
-
-func (s *stubSource) FetchGroupContent(_ context.Context, _ domain.ContentType, _ string, _, _ int) ([]*domain.ExternalItem, int, error) {
-	return nil, 0, ports.ErrNotSupported
-}
-
-func (s *stubSource) FetchEntryPeople(_ context.Context, _ string) ([]*domain.ExternalPerson, error) {
-	return nil, ports.ErrNotSupported
-}
-
-type stubJobQueue struct {
-	submitted []string
-}
-
-func (q *stubJobQueue) Submit(_ context.Context, name string, _ map[string]any, _ ports.JobFunc) (*domain.Job, error) {
-	q.submitted = append(q.submitted, name)
-	return &domain.Job{Name: name, Status: domain.JobStatusQueued}, nil
-}
-
-func (q *stubJobQueue) Get(_ context.Context, _ string) (*domain.Job, error) {
-	return nil, ports.ErrNotFound
-}
-func (q *stubJobQueue) List(_ context.Context) ([]*domain.Job, error) { return nil, nil }
-func (q *stubJobQueue) Cancel(_ context.Context, _ string) error      { return nil }
-
-type stubPersonRepo struct {
-	saved []*domain.Person
-}
-
-func (r *stubPersonRepo) Get(_ context.Context, _ string) (*domain.Person, error) {
-	return nil, fmt.Errorf("not found: %w", errs.ErrNotFound)
-}
-
-func (r *stubPersonRepo) List(_ context.Context, _ ports.PersonFilter) ([]*domain.Person, int, error) {
-	return nil, 0, nil
-}
-
-func (r *stubPersonRepo) Save(_ context.Context, p *domain.Person) error {
-	r.saved = append(r.saved, p)
-	return nil
-}
-func (r *stubPersonRepo) Delete(_ context.Context, _ string) error { return nil }
-
-type stubTagRepo struct {
-	saved []*domain.Tag
-}
-
-func (r *stubTagRepo) Get(_ context.Context, _ string) (*domain.Tag, error) {
-	return nil, ports.ErrNotFound
-}
-
-func (r *stubTagRepo) List(_ context.Context, _ ports.TagFilter) ([]*domain.Tag, error) {
-	return r.saved, nil
-}
-
-func (r *stubTagRepo) Save(_ context.Context, t *domain.Tag) error {
-	r.saved = append(r.saved, t)
-	return nil
-}
-func (r *stubTagRepo) Delete(_ context.Context, _ string) error { return nil }
-
-// stubExternalIDRepo returns ErrNotFound for every lookup, simulating a fresh
-// database where no external IDs have been imported yet.
-type stubExternalIDRepo struct{}
-
-func (r *stubExternalIDRepo) FindEntity(_ context.Context, _, _, _ string) (string, error) {
-	return "", fmt.Errorf("not found: %w", errs.ErrNotFound)
-}
-
-type stubImageDownloader struct {
-	ext   string
-	calls []string
-}
-
-func (d *stubImageDownloader) Download(_ context.Context, url, _, _ string) string {
-	d.calls = append(d.calls, url)
-	return d.ext
-}
 
 func newService() *metadata.Service {
 	return metadata.New(
@@ -198,7 +20,7 @@ func newService() *metadata.Service {
 		&stubPersonRepo{},
 		&stubTagRepo{},
 		&stubExternalIDRepo{},
-		nil, // no downloader — image fetching is skipped when nil
+		&stubImageDownloader{ext: ".jpg"},
 	)
 }
 
@@ -308,12 +130,6 @@ func TestImportStudio_Idempotent(t *testing.T) {
 	}
 }
 
-type seededExternalIDRepo struct{ id string }
-
-func (r *seededExternalIDRepo) FindEntity(_ context.Context, _, _, _ string) (string, error) {
-	return r.id, nil
-}
-
 // ── RefreshStudio ─────────────────────────────────────────────────────────────
 
 // threeScenes returns 3 ExternalItems with distinct dates:
@@ -340,7 +156,7 @@ func refreshSvc(scenes []*domain.ExternalItem, entryRepo *stubEntryRepo, itemRep
 		&stubPersonRepo{},
 		&stubTagRepo{},
 		&stubExternalIDRepo{},
-		nil,
+		&stubImageDownloader{ext: ".jpg"},
 	)
 }
 
@@ -648,83 +464,6 @@ func TestRefreshStudio_ImportsTags(t *testing.T) {
 	}
 }
 
-// ── RefreshArtist stubs ───────────────────────────────────────────────────────
-
-type stubGroupRepo struct {
-	groups []*domain.Group
-}
-
-func (r *stubGroupRepo) Get(_ context.Context, id string) (*domain.Group, error) {
-	for _, g := range r.groups {
-		if g.ID == id {
-			return g, nil
-		}
-	}
-	return nil, fmt.Errorf("not found: %w", errs.ErrNotFound)
-}
-
-func (r *stubGroupRepo) List(_ context.Context, _ ports.GroupFilter) ([]*domain.Group, error) {
-	return r.groups, nil
-}
-
-func (r *stubGroupRepo) Save(_ context.Context, g *domain.Group) error {
-	r.groups = append(r.groups, g)
-	return nil
-}
-
-func (r *stubGroupRepo) Delete(_ context.Context, _ string) error { return nil }
-
-// stubMusicSource returns albums via FetchEntryContent and per-album tracks via
-// FetchGroupContent. Name() returns "mbz" to match artist entry external IDs.
-type stubMusicSource struct {
-	albums []*domain.ExternalGroup
-	tracks map[string][]*domain.ExternalItem // groupExternalID → tracks
-}
-
-func (s *stubMusicSource) Name() string { return "mbz" }
-func (s *stubMusicSource) ContentTypes() []domain.ContentType {
-	return []domain.ContentType{domain.ContentTypeMusic}
-}
-
-func (s *stubMusicSource) SearchStudios(_ context.Context, _ string, _ int) ([]*domain.ExternalStudio, error) {
-	return nil, nil
-}
-
-func (s *stubMusicSource) SearchPeople(_ context.Context, _ string, _ int) ([]*domain.ExternalPerson, error) {
-	return nil, nil
-}
-
-func (s *stubMusicSource) SearchItems(_ context.Context, _ domain.ContentType, _ string, _ int) ([]*domain.ExternalItem, error) {
-	return nil, nil
-}
-
-func (s *stubMusicSource) FindByHash(_ context.Context, _ string) (*domain.ExternalItem, error) {
-	return nil, ports.ErrNotSupported
-}
-
-func (s *stubMusicSource) FindByExternalID(_ context.Context, _ domain.ContentType, _ string) (*domain.ExternalItem, error) {
-	return nil, ports.ErrNotFound
-}
-
-func (s *stubMusicSource) FetchEntryContent(_ context.Context, _ domain.ContentType, _ string, page, _ int) ([]*domain.ExternalGroup, []*domain.ExternalItem, int, error) {
-	if page == 1 {
-		return s.albums, nil, len(s.albums), nil
-	}
-	return nil, nil, len(s.albums), nil
-}
-
-func (s *stubMusicSource) FetchGroupContent(_ context.Context, _ domain.ContentType, groupExtID string, page, _ int) ([]*domain.ExternalItem, int, error) {
-	tracks := s.tracks[groupExtID]
-	if page == 1 {
-		return tracks, len(tracks), nil
-	}
-	return nil, len(tracks), nil
-}
-
-func (s *stubMusicSource) FetchEntryPeople(_ context.Context, _ string) ([]*domain.ExternalPerson, error) {
-	return nil, ports.ErrNotSupported
-}
-
 func artistEntry(mode domain.MonitorMode, addedAt time.Time) *domain.LibraryEntry {
 	return &domain.LibraryEntry{
 		ID:          "artist-entry-1",
@@ -925,27 +664,6 @@ func TestRefreshArtist_SkipsDuplicates(t *testing.T) {
 	if len(itemRepo.items) != firstItems {
 		t.Errorf("item count after second refresh = %d, want %d (no duplicates)", len(itemRepo.items), firstItems)
 	}
-}
-
-// seededArtistExternalIDRepo returns known IDs for groups and items already imported.
-type seededArtistExternalIDRepo struct {
-	groupIDs map[string]string // "source:extID" → internal group ID
-	itemIDs  map[string]string // "source:extID" → internal item ID
-}
-
-func (r *seededArtistExternalIDRepo) FindEntity(_ context.Context, entityType, source, value string) (string, error) {
-	key := source + ":" + value
-	switch entityType {
-	case "group":
-		if id, ok := r.groupIDs[key]; ok {
-			return id, nil
-		}
-	case "item":
-		if id, ok := r.itemIDs[key]; ok {
-			return id, nil
-		}
-	}
-	return "", fmt.Errorf("not found: %w", errs.ErrNotFound)
 }
 
 // ── FetchArtistDiscography ────────────────────────────────────────────────────
