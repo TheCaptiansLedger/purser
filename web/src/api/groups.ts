@@ -2,6 +2,17 @@ import { useQuery } from '@tanstack/react-query'
 import { get, getPage, patch } from './client'
 import type { Group, ContentType } from '../types'
 
+export type YearSortDir = 'asc' | 'desc'
+
+export function sortGroupsByYear(groups: Group[], dir: YearSortDir): Group[] {
+  return [...groups].sort((a, b) => {
+    if (a.year === 0 && b.year === 0) return 0
+    if (a.year === 0) return 1
+    if (b.year === 0) return -1
+    return dir === 'asc' ? a.year - b.year : b.year - a.year
+  })
+}
+
 export function useGroups(libraryEntryId: string) {
   return useQuery({
     queryKey: ['groups', { libraryEntryId }],

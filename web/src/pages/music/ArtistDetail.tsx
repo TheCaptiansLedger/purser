@@ -1,9 +1,10 @@
 import { useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
-import { ArrowLeft, ImageIcon, ChevronLeft, ChevronRight, Disc3, Users } from 'lucide-react'
+import { ArrowLeft, ImageIcon, ChevronLeft, ChevronRight, Disc3, Users, ArrowUpNarrowWide, ArrowDownNarrowWide } from 'lucide-react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useLibraryEntry } from '../../api/library'
-import { useGroups, patchGroup } from '../../api/groups'
+import { useGroups, patchGroup, sortGroupsByYear } from '../../api/groups'
+import type { YearSortDir } from '../../api/groups'
 import { Hero } from '../../components/layout/Hero'
 import { PersonCard } from '../../components/media/PersonCard'
 import { Badge } from '../../components/ui/Badge'
@@ -100,16 +101,19 @@ function DiscographySection({
   section,
   albums,
   artistId,
+  sortDir,
 }: {
   section: DiscographySection
   albums: Group[]
   artistId: string
+  sortDir: YearSortDir
 }) {
   const [page, setPage] = useState(0)
   if (albums.length === 0) return null
 
-  const pages = Math.ceil(albums.length / PAGE_SIZE)
-  const slice = albums.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE)
+  const sorted = sortGroupsByYear(albums, sortDir)
+  const pages = Math.ceil(sorted.length / PAGE_SIZE)
+  const slice = sorted.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE)
 
   return (
     <div>
@@ -155,6 +159,7 @@ function DiscographySection({
 export function ArtistDetail() {
   const { id } = useParams<{ id: string }>()
   const [tab, setTab] = useState<ArtistTab>('discography')
+  const [sortDir, setSortDir] = useState<YearSortDir>('desc')
 
   const { data: entry, isLoading } = useLibraryEntry(id!)
   const { data: albumsPage } = useGroups(id!)
@@ -208,23 +213,37 @@ export function ArtistDetail() {
         )}
 
         {/* Inline tab strip */}
-        <div className="flex gap-1 mb-8">
-          {TABS.map(({ id: tid, label, icon: Icon }) => (
+        <div className="flex items-center justify-between mb-8">
+          <div className="flex gap-1">
+            {TABS.map(({ id: tid, label, icon: Icon }) => (
+              <button
+                key={tid}
+                onClick={() => setTab(tid)}
+                className={[
+                  'flex items-center gap-1.5 px-3 h-8 rounded-lg text-xs font-medium transition-all duration-150',
+                  tab === tid
+                    ? 'text-white'
+                    : 'text-white/40 hover:text-white/65 hover:bg-white/5',
+                ].join(' ')}
+                style={tab === tid ? { background: ACCENT + '28', color: ACCENT } : {}}
+              >
+                <Icon size={13} />
+                {label}
+              </button>
+            ))}
+          </div>
+          {tab === 'discography' && (
             <button
-              key={tid}
-              onClick={() => setTab(tid)}
-              className={[
-                'flex items-center gap-1.5 px-3 h-8 rounded-lg text-xs font-medium transition-all duration-150',
-                tab === tid
-                  ? 'text-white'
-                  : 'text-white/40 hover:text-white/65 hover:bg-white/5',
-              ].join(' ')}
-              style={tab === tid ? { background: ACCENT + '28', color: ACCENT } : {}}
+              type="button"
+              onClick={() => setSortDir(d => d === 'asc' ? 'desc' : 'asc')}
+              title={sortDir === 'asc' ? 'Oldest first — click for newest first' : 'Newest first — click for oldest first'}
+              className="inline-flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-lg border transition-colors"
+              style={{ borderColor: 'rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.4)' }}
             >
-              <Icon size={13} />
-              {label}
+              {sortDir === 'asc' ? <ArrowUpNarrowWide size={13} /> : <ArrowDownNarrowWide size={13} />}
+              {sortDir === 'asc' ? 'Oldest first' : 'Newest first'}
             </button>
-          ))}
+          )}
         </div>
 
         {/* Discography tab */}
@@ -239,6 +258,7 @@ export function ArtistDetail() {
                   section={section}
                   albums={bySection[section.token] ?? []}
                   artistId={id!}
+                  sortDir={sortDir}
                 />
               ))}
             </div>
