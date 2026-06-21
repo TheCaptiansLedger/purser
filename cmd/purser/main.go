@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/signal"
 	"purser/internal/adapters/db"
+	fsadapter "purser/internal/adapters/fs"
 	"purser/internal/adapters/fanart"
 	"purser/internal/adapters/mbz"
 	"purser/internal/adapters/stashdb"
@@ -81,7 +82,7 @@ func run(cfgPath string) error {
 
 	libSvc := library.New(entryRepo, groupRepo, itemRepo, personRepo)
 	peopleSvc := people.New(personRepo)
-	metaSvc := metadata.New(buildSources(cfg), jobQueue, entryRepo, groupRepo, itemRepo, personRepo, tagRepo, extIDRepo, cfg.Media.Path)
+	metaSvc := metadata.New(buildSources(cfg), jobQueue, entryRepo, groupRepo, itemRepo, personRepo, tagRepo, extIDRepo, fsadapter.NewImageDownloader(cfg.Media.Path))
 
 	uiFS, err := fs.Sub(web.Dist, "dist")
 	if err != nil {

@@ -4,14 +4,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io"
 	"log/slog"
-	"net/http"
-	"os"
-	"path/filepath"
 	"purser/internal/app/errs"
 	"purser/internal/domain"
-	"purser/internal/media"
 	"purser/internal/ports"
 	"slices"
 	"strings"
@@ -33,7 +28,7 @@ type Service struct {
 	people      ports.PersonRepository
 	tags        ports.TagRepository
 	externalIDs ports.ExternalIDRepository
-	mediaPath   string
+	downloader  ports.ImageDownloader
 }
 
 // New constructs a metadata Service wired to the given sources and repositories.
@@ -46,7 +41,7 @@ func New(
 	people ports.PersonRepository,
 	tags ports.TagRepository,
 	externalIDs ports.ExternalIDRepository,
-	mediaPath string,
+	downloader ports.ImageDownloader,
 ) *Service {
 	return &Service{
 		sources:     sources,
@@ -58,7 +53,7 @@ func New(
 		people:      people,
 		tags:        tags,
 		externalIDs: externalIDs,
-		mediaPath:   mediaPath,
+		downloader:  downloader,
 	}
 }
 
@@ -346,8 +341,8 @@ func (s *Service) importOrFindNetwork(ctx context.Context, req *ImportStudioRequ
 
 	networkID := uuid.New().String()
 	var imagePath string
-	if req.ParentImageURL != "" && s.mediaPath != "" {
-		imagePath = s.fetchImage(ctx, req.ParentImageURL, "entries", networkID)
+	if req.ParentImageURL != "" && s.downloader != nil {
+		imagePath = s.downloader.Download(ctx, req.ParentImageURL, "entries", networkID)
 	}
 	meta := map[string]any{}
 	if req.ParentWebsiteURL != "" {
@@ -413,8 +408,8 @@ func (s *Service) ImportStudio(ctx context.Context, req *ImportStudioRequest) (*
 	studioID := uuid.New().String()
 
 	var imagePath string
-	if req.ImageURL != "" && s.mediaPath != "" {
-		imagePath = s.fetchImage(ctx, req.ImageURL, "entries", studioID)
+	if req.ImageURL != "" && s.downloader != nil {
+		imagePath = s.downloader.Download(ctx, req.ImageURL, "entries", studioID)
 	}
 
 	meta := buildEntryMeta(req, kind)
@@ -494,8 +489,8 @@ func (s *Service) ImportPerson(ctx context.Context, req *ImportPersonRequest) (*
 	personID := uuid.New().String()
 
 	var imagePath string
-	if req.ImageURL != "" && s.mediaPath != "" {
-		imagePath = s.fetchImage(ctx, req.ImageURL, "people", personID)
+	if req.ImageURL != "" && s.downloader != nil {
+		imagePath = s.downloader.Download(ctx, req.ImageURL, "people", personID)
 	}
 
 	p := &domain.Person{
@@ -591,8 +586,8 @@ func (s *Service) RefreshStudio(ctx context.Context, entryID string, p ports.Pro
 		itemID := uuid.New().String()
 
 		var coverPath string
-		if ei.ImageURL != "" && s.mediaPath != "" {
-			coverPath = s.fetchImage(ctx, ei.ImageURL, "items", itemID)
+		if ei.ImageURL != "" && s.downloader != nil {
+			coverPath = s.downloader.Download(ctx, ei.ImageURL, "items", itemID)
 		}
 
 		monitored := monitoredForMode(entry.MonitorMode, entry.AddedAt, ei.Date)
@@ -694,8 +689,8 @@ func (s *Service) RefreshArtist(ctx context.Context, entryID string, p ports.Pro
 	for i, tr := range newTracks {
 		itemID := uuid.New().String()
 		var coverPath string
-		if tr.extItem.ImageURL != "" && s.mediaPath != "" {
-			coverPath = s.fetchImage(ctx, tr.extItem.ImageURL, "items", itemID)
+		if tr.extItem.ImageURL != "" && s.downloader != nil {
+			coverPath = s.downloader.Download(ctx, tr.extItem.ImageURL, "items", itemID)
 		}
 		monitored := monitoredForMode(entry.MonitorMode, entry.AddedAt, tr.extItem.Date)
 		if entry.MonitorMode == domain.MonitorLatest {
@@ -770,12 +765,12 @@ func (s *Service) fetchArtistHeroImage(ctx context.Context, entry *domain.Librar
 		slog.Warn("refresh artist: aggregate images", "entry_id", entry.ID, "error", err)
 		return
 	}
-	if entry.ImagePath != "" || s.mediaPath == "" {
+	if entry.ImagePath != "" || s.downloader == nil {
 		return
 	}
 	for _, img := range merged.Images {
 		if img.Type == domain.ImageTypeHero {
-			if ext := s.fetchImage(ctx, img.URL, "entries", entry.ID); ext != "" {
+			if ext := s.downloader.Download(ctx, img.URL, "entries", entry.ID); ext != "" {
 				entry.ImagePath = ext
 				if saveErr := s.entries.Save(ctx, entry); saveErr != nil {
 					slog.Warn("refresh artist: save entry image path", "entry_id", entry.ID, "error", saveErr)
@@ -791,7 +786,7 @@ func (s *Service) fetchArtistHeroImage(ctx context.Context, entry *domain.Librar
 // all album artwork in a single /music/{mbid} response.
 func (s *Service) fetchAlbumCovers(ctx context.Context, contentType domain.ContentType, artistMBID string, albums []artistAlbum) {
 	fanartSrc := s.sourceByName(string(domain.SourceFanart))
-	if fanartSrc == nil || s.mediaPath == "" {
+	if fanartSrc == nil || s.downloader == nil {
 		return
 	}
 
@@ -826,7 +821,7 @@ func (s *Service) fetchAlbumCovers(ctx context.Context, contentType domain.Conte
 		if !ok {
 			continue
 		}
-		ext := s.fetchImage(ctx, coverURL, "groups", g.ID)
+		ext := s.downloader.Download(ctx, coverURL, "groups", g.ID)
 		if ext == "" {
 			continue
 		}
@@ -842,7 +837,7 @@ func (s *Service) fetchAlbumCovers(ctx context.Context, contentType domain.Conte
 // has an image, when fanart is not configured, or when the person has no
 // fanart.tv page (ErrNotFound is silently discarded).
 func (s *Service) fetchPersonHeroImage(ctx context.Context, personID, mbid string) {
-	if s.mediaPath == "" {
+	if s.downloader == nil {
 		return
 	}
 	fanartSrc := s.sourceByName(string(domain.SourceFanart))
@@ -859,7 +854,7 @@ func (s *Service) fetchPersonHeroImage(ctx context.Context, personID, mbid strin
 	}
 	for _, img := range item.Images {
 		if img.Type == domain.ImageTypeHero {
-			if ext := s.fetchImage(ctx, img.URL, "people", personID); ext != "" {
+			if ext := s.downloader.Download(ctx, img.URL, "people", personID); ext != "" {
 				person.ImagePath = ext
 				if saveErr := s.people.Save(ctx, person); saveErr != nil {
 					slog.Warn("refresh artist: save person image", "person_id", personID, "error", saveErr)
@@ -1099,8 +1094,8 @@ func (s *Service) resolveOrCreatePerson(ctx context.Context, ep *domain.External
 
 	personID := uuid.New().String()
 	var imagePath string
-	if ep.ImageURL != "" && s.mediaPath != "" {
-		imagePath = s.fetchImage(ctx, ep.ImageURL, "people", personID)
+	if ep.ImageURL != "" && s.downloader != nil {
+		imagePath = s.downloader.Download(ctx, ep.ImageURL, "people", personID)
 	}
 
 	person := &domain.Person{
@@ -1157,67 +1152,3 @@ func servesContentType(src ports.MetadataSource, contentType domain.ContentType)
 	return slices.Contains(src.ContentTypes(), contentType)
 }
 
-// fetchImage downloads url to the entity's image location and returns the file
-// extension (e.g. ".jpg"). Returns "" on error (non-fatal; logged only).
-func (s *Service) fetchImage(ctx context.Context, url, entityType, entityID string) string {
-	destBase := media.ImagePath(s.mediaPath, entityType, entityID, "")
-	if err := os.MkdirAll(filepath.Dir(destBase), 0o750); err != nil {
-		slog.Warn("failed to create image dir", "error", err)
-		return ""
-	}
-
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
-	if err != nil {
-		slog.Warn("failed to build image request", "url", url, "error", err)
-		return ""
-	}
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		slog.Warn("failed to fetch image", "url", url, "error", err)
-		return ""
-	}
-	defer func() { _ = resp.Body.Close() }()
-
-	if resp.StatusCode != http.StatusOK {
-		slog.Warn("unexpected status fetching image", "url", url, "status", resp.StatusCode)
-		return ""
-	}
-
-	ext := extFromContentType(resp.Header.Get("Content-Type"))
-	dest := filepath.Clean(destBase + ext)
-	if !strings.HasPrefix(dest, filepath.Clean(s.mediaPath)) {
-		slog.Warn("image path outside media dir", "path", dest)
-		return ""
-	}
-	f, err := os.Create(dest) //nolint:gosec
-	if err != nil {
-		slog.Warn("failed to create image file", "path", dest, "error", err)
-		return ""
-	}
-	defer func() { _ = f.Close() }()
-
-	if _, err := io.Copy(f, resp.Body); err != nil {
-		slog.Warn("failed to write image", "path", dest, "error", err)
-		_ = os.Remove(dest)
-		return ""
-	}
-
-	return ext
-}
-
-func extFromContentType(ct string) string {
-	switch {
-	case strings.Contains(ct, "jpeg"):
-		return ".jpg"
-	case strings.Contains(ct, "png"):
-		return ".png"
-	case strings.Contains(ct, "webp"):
-		return ".webp"
-	case strings.Contains(ct, "gif"):
-		return ".gif"
-	case strings.Contains(ct, "svg"):
-		return ".svg"
-	default:
-		return ".jpg"
-	}
-}

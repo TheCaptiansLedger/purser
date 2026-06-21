@@ -178,6 +178,16 @@ func (r *stubExternalIDRepo) FindEntity(_ context.Context, _, _, _ string) (stri
 	return "", fmt.Errorf("not found: %w", errs.ErrNotFound)
 }
 
+type stubImageDownloader struct {
+	ext   string
+	calls []string
+}
+
+func (d *stubImageDownloader) Download(_ context.Context, url, _, _ string) string {
+	d.calls = append(d.calls, url)
+	return d.ext
+}
+
 func newService() *metadata.Service {
 	return metadata.New(
 		nil, // no metadata sources needed for import tests
@@ -188,7 +198,7 @@ func newService() *metadata.Service {
 		&stubPersonRepo{},
 		&stubTagRepo{},
 		&stubExternalIDRepo{},
-		"", // no media path — image fetching is skipped when empty
+		nil, // no downloader — image fetching is skipped when nil
 	)
 }
 
@@ -268,7 +278,7 @@ func TestImportStudio_KindArtist(t *testing.T) {
 
 func TestImportStudio_Idempotent(t *testing.T) {
 	entryRepo := newStubEntryRepo()
-	svc := metadata.New(nil, nil, entryRepo, nil, &stubItemRepo{}, &stubPersonRepo{}, &stubTagRepo{}, &stubExternalIDRepo{}, "")
+	svc := metadata.New(nil, nil, entryRepo, nil, &stubItemRepo{}, &stubPersonRepo{}, &stubTagRepo{}, &stubExternalIDRepo{}, nil)
 
 	req := &metadata.ImportStudioRequest{
 		Source:      domain.SourceStashDB,
@@ -284,7 +294,7 @@ func TestImportStudio_Idempotent(t *testing.T) {
 
 	// Seed the external ID repo with the saved entry so the second call finds it.
 	seededRepo := &seededExternalIDRepo{id: res1.Studio.ID}
-	svc2 := metadata.New(nil, nil, entryRepo, nil, &stubItemRepo{}, &stubPersonRepo{}, &stubTagRepo{}, seededRepo, "")
+	svc2 := metadata.New(nil, nil, entryRepo, nil, &stubItemRepo{}, &stubPersonRepo{}, &stubTagRepo{}, seededRepo, nil)
 
 	res2, err := svc2.ImportStudio(context.Background(), req)
 	if err != nil {
@@ -330,7 +340,7 @@ func refreshSvc(scenes []*domain.ExternalItem, entryRepo *stubEntryRepo, itemRep
 		&stubPersonRepo{},
 		&stubTagRepo{},
 		&stubExternalIDRepo{},
-		"",
+		nil,
 	)
 }
 
@@ -425,7 +435,7 @@ func TestImportStudio_AutoImport_EnqueuesJob(t *testing.T) {
 		&stubPersonRepo{},
 		&stubTagRepo{},
 		&stubExternalIDRepo{},
-		"",
+		nil,
 	)
 
 	_, err := svc.ImportStudio(context.Background(), &metadata.ImportStudioRequest{
@@ -457,7 +467,7 @@ func TestImportStudio_AutoImport_KindArtist_EnqueuesRefreshArtist(t *testing.T) 
 		&stubPersonRepo{},
 		&stubTagRepo{},
 		&stubExternalIDRepo{},
-		"",
+		nil,
 	)
 
 	_, err := svc.ImportStudio(context.Background(), &metadata.ImportStudioRequest{
@@ -490,7 +500,7 @@ func TestImportStudio_AutoImport_False_NoJob(t *testing.T) {
 		&stubPersonRepo{},
 		&stubTagRepo{},
 		&stubExternalIDRepo{},
-		"",
+		nil,
 	)
 
 	_, err := svc.ImportStudio(context.Background(), &metadata.ImportStudioRequest{
@@ -586,7 +596,7 @@ func TestRefreshStudio_ImportsPerformers(t *testing.T) {
 	entryRepo.data[entry.ID] = entry
 
 	src := &stubSource{scenes: scenesWithPeopleAndTags(), total: 2}
-	svc := metadata.New([]ports.MetadataSource{src}, nil, entryRepo, nil, itemRepo, personRepo, &stubTagRepo{}, &stubExternalIDRepo{}, "")
+	svc := metadata.New([]ports.MetadataSource{src}, nil, entryRepo, nil, itemRepo, personRepo, &stubTagRepo{}, &stubExternalIDRepo{}, nil)
 
 	if err := svc.RefreshStudio(context.Background(), entry.ID, nil); err != nil {
 		t.Fatalf("RefreshStudio: %v", err)
@@ -618,7 +628,7 @@ func TestRefreshStudio_ImportsTags(t *testing.T) {
 	entryRepo.data[entry.ID] = entry
 
 	src := &stubSource{scenes: scenesWithPeopleAndTags(), total: 2}
-	svc := metadata.New([]ports.MetadataSource{src}, nil, entryRepo, nil, itemRepo, &stubPersonRepo{}, tagRepo, &stubExternalIDRepo{}, "")
+	svc := metadata.New([]ports.MetadataSource{src}, nil, entryRepo, nil, itemRepo, &stubPersonRepo{}, tagRepo, &stubExternalIDRepo{}, nil)
 
 	if err := svc.RefreshStudio(context.Background(), entry.ID, nil); err != nil {
 		t.Fatalf("RefreshStudio: %v", err)
@@ -755,7 +765,7 @@ func artistRefreshSvc(src *stubMusicSource, entryRepo *stubEntryRepo, groupRepo 
 		&stubPersonRepo{},
 		&stubTagRepo{},
 		&stubExternalIDRepo{},
-		"",
+		nil,
 	)
 }
 
@@ -904,7 +914,7 @@ func TestRefreshArtist_SkipsDuplicates(t *testing.T) {
 	for _, it := range itemRepo.items {
 		seeded.itemIDs["mbz:"+it.ExternalIDs[0].Value] = it.ID
 	}
-	svc2 := metadata.New([]ports.MetadataSource{src}, nil, entryRepo, groupRepo, itemRepo, &stubPersonRepo{}, &stubTagRepo{}, seeded, "")
+	svc2 := metadata.New([]ports.MetadataSource{src}, nil, entryRepo, groupRepo, itemRepo, &stubPersonRepo{}, &stubTagRepo{}, seeded, nil)
 
 	if err := svc2.RefreshArtist(context.Background(), entry.ID, nil); err != nil {
 		t.Fatalf("second RefreshArtist: %v", err)
@@ -942,7 +952,7 @@ func (r *seededArtistExternalIDRepo) FindEntity(_ context.Context, entityType, s
 
 func TestFetchArtistDiscography_ReturnsGroups(t *testing.T) {
 	src, albums, _ := twoAlbumsWithTracks()
-	svc := metadata.New([]ports.MetadataSource{src}, nil, newStubEntryRepo(), nil, &stubItemRepo{}, &stubPersonRepo{}, &stubTagRepo{}, &stubExternalIDRepo{}, "")
+	svc := metadata.New([]ports.MetadataSource{src}, nil, newStubEntryRepo(), nil, &stubItemRepo{}, &stubPersonRepo{}, &stubTagRepo{}, &stubExternalIDRepo{}, nil)
 
 	groups, total, err := svc.FetchArtistDiscography(context.Background(), domain.SourceMusicBrainz, domain.ContentTypeMusic, "artist-mbz-1", 1, 50)
 	if err != nil {
@@ -979,7 +989,7 @@ func importAlbumSvc(src *stubMusicSource, entryRepo *stubEntryRepo, groupRepo *s
 		&stubPersonRepo{},
 		&stubTagRepo{},
 		&stubExternalIDRepo{},
-		"",
+		nil,
 	)
 }
 
@@ -1054,7 +1064,7 @@ func TestImportAlbum_Idempotent(t *testing.T) {
 		groupIDs: map[string]string{"mbz:" + albums[0].ExternalID: g1.ID},
 		itemIDs:  make(map[string]string),
 	}
-	svc2 := metadata.New([]ports.MetadataSource{src}, nil, entryRepo, groupRepo, itemRepo, &stubPersonRepo{}, &stubTagRepo{}, seeded, "")
+	svc2 := metadata.New([]ports.MetadataSource{src}, nil, entryRepo, groupRepo, itemRepo, &stubPersonRepo{}, &stubTagRepo{}, seeded, nil)
 
 	g2, err := svc2.ImportAlbum(context.Background(), req)
 	if err != nil {
@@ -1089,6 +1099,76 @@ func TestImportAlbum_UnknownSource(t *testing.T) {
 	}
 	if !errs.IsValidation(err) {
 		t.Errorf("expected ValidationError, got: %v", err)
+	}
+}
+
+// ── RefreshStudio image downloader ────────────────────────────────────────────
+
+func TestRefreshStudio_FetchesImageForItemsWithURL(t *testing.T) {
+	entryRepo := newStubEntryRepo()
+	itemRepo := &stubItemRepo{}
+	entry := studioEntry(domain.MonitorAll, time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC))
+	entryRepo.data[entry.ID] = entry
+
+	scenes := []*domain.ExternalItem{
+		{Source: domain.SourceStashDB, ExternalID: "s-1", Title: "Scene 1",
+			Date: time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC), ImageURL: "https://example.com/cover.jpg"},
+	}
+	dl := &stubImageDownloader{ext: ".jpg"}
+	src := &stubSource{scenes: scenes, total: 1}
+	svc := metadata.New([]ports.MetadataSource{src}, nil, entryRepo, nil, itemRepo, &stubPersonRepo{}, &stubTagRepo{}, &stubExternalIDRepo{}, dl)
+
+	if err := svc.RefreshStudio(context.Background(), entry.ID, nil); err != nil {
+		t.Fatalf("RefreshStudio: %v", err)
+	}
+	if len(dl.calls) != 1 || dl.calls[0] != "https://example.com/cover.jpg" {
+		t.Errorf("Download calls = %v, want [https://example.com/cover.jpg]", dl.calls)
+	}
+	if itemRepo.items[0].CoverPath != ".jpg" {
+		t.Errorf("CoverPath = %q, want .jpg", itemRepo.items[0].CoverPath)
+	}
+}
+
+func TestRefreshStudio_SkipsImageForItemsWithoutURL(t *testing.T) {
+	entryRepo := newStubEntryRepo()
+	itemRepo := &stubItemRepo{}
+	entry := studioEntry(domain.MonitorAll, time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC))
+	entryRepo.data[entry.ID] = entry
+
+	dl := &stubImageDownloader{ext: ".jpg"}
+	src := &stubSource{scenes: threeScenes(), total: 3}
+	svc := metadata.New([]ports.MetadataSource{src}, nil, entryRepo, nil, itemRepo, &stubPersonRepo{}, &stubTagRepo{}, &stubExternalIDRepo{}, dl)
+
+	if err := svc.RefreshStudio(context.Background(), entry.ID, nil); err != nil {
+		t.Fatalf("RefreshStudio: %v", err)
+	}
+	if len(dl.calls) != 0 {
+		t.Errorf("Download called %d times, want 0 (no ImageURL on scenes)", len(dl.calls))
+	}
+}
+
+func TestRefreshStudio_ImageDownloaderFailure(t *testing.T) {
+	entryRepo := newStubEntryRepo()
+	itemRepo := &stubItemRepo{}
+	entry := studioEntry(domain.MonitorAll, time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC))
+	entryRepo.data[entry.ID] = entry
+
+	scenes := []*domain.ExternalItem{
+		{Source: domain.SourceStashDB, ExternalID: "s-1", Title: "Scene 1",
+			Date: time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC), ImageURL: "https://example.com/cover.jpg"},
+	}
+	dl := &stubImageDownloader{ext: ""}
+	src := &stubSource{scenes: scenes, total: 1}
+	svc := metadata.New([]ports.MetadataSource{src}, nil, entryRepo, nil, itemRepo, &stubPersonRepo{}, &stubTagRepo{}, &stubExternalIDRepo{}, dl)
+
+	if err := svc.RefreshStudio(context.Background(), entry.ID, nil); err != nil {
+		t.Fatalf("RefreshStudio failed on downloader error: %v", err)
+	}
+	if len(itemRepo.items) != 1 {
+		t.Fatalf("item count = %d, want 1 (refresh must complete despite downloader failure)", len(itemRepo.items))
+	}
+	if itemRepo.items[0].CoverPath != "" {
+		t.Errorf("CoverPath = %q, want empty on downloader failure", itemRepo.items[0].CoverPath)
 	}
 }
 
