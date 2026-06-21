@@ -16,7 +16,8 @@ import {
   Folder,
   Settings,
   HelpCircle,
-  Layout
+  Layout,
+  Sparkles
 } from 'lucide-react'
 
 const GITHUB_REPO = 'TheCaptiansLedger/purser'
@@ -50,7 +51,8 @@ async function fetchIssues(state: 'open' | 'closed'): Promise<GHIssue[]> {
 }
 
 const COLUMNS = [
-  { status: 'ready',       label: 'Planned',     icon: Lightbulb,    accent: '#6366f1' },
+  { status: 'proposed',    label: 'Proposed',     icon: Sparkles,     accent: '#8b5cf6' },
+  { status: 'ready',       label: 'Planned',      icon: Lightbulb,    accent: '#6366f1' },
   { status: 'in-progress', label: 'In Progress',  icon: Wrench,       accent: '#f59e0b' },
   { status: 'blocked',     label: 'Blocked',      icon: Ban,          accent: '#ef4444' },
 ]
@@ -76,6 +78,12 @@ const AREA_ICONS: Record<string, React.ElementType> = {
 }
 
 export function hasStatus(issue: GHIssue, status: string) {
+  if (status === 'proposed') {
+    return (
+      !issue.labels.some(l => l.name.startsWith('status:')) ||
+      issue.labels.some(l => l.name === 'status: proposed')
+    )
+  }
   return issue.labels.some(l => l.name === `status: ${status}`)
 }
 
@@ -93,7 +101,11 @@ export function getIssueArea(issue: GHIssue): string {
 }
 
 function displayLabels(labels: GHLabel[]) {
-  return labels.filter(l => !l.name.startsWith('status:') && !l.name.startsWith('area:')).slice(0, 3)
+  return labels.filter(l =>
+    !l.name.startsWith('status:') &&
+    !l.name.startsWith('area:') &&
+    !l.name.startsWith('scope:')
+  ).slice(0, 3)
 }
 
 function relativeDate(dateStr: string) {
@@ -235,9 +247,12 @@ export function Roadmap() {
     return (localStorage.getItem('purser:roadmap:viewMode') as 'kanban' | 'swimlanes') || 'swimlanes'
   })
 
-  const openIssues = (open.data ?? []).filter(
-    i => !i.pull_request && i.labels.some(l => l.name.startsWith('status:'))
-  )
+  const isVisible = (i: GHIssue) =>
+    !i.pull_request &&
+    !i.labels.some(l => l.name === 'scope: task') &&
+    (i.labels.some(l => l.name === 'scope: epic') || i.labels.some(l => l.name === 'type: bug'))
+
+  const openIssues = (open.data ?? []).filter(isVisible)
   const shippedIssues = (closed.data ?? []).filter(
     i => !i.pull_request && i.labels.some(l => l.name.startsWith('status:'))
   )
@@ -332,7 +347,7 @@ export function Roadmap() {
 
       {/* Main Board Content */}
       {isLoading && openIssues.length === 0 ? (
-        <div className="grid grid-cols-3 gap-6">
+        <div className="grid grid-cols-4 gap-6">
           {COLUMNS.map(col => (
             <div key={col.status} className="flex flex-col gap-3">
               <div className="h-6 w-28 rounded-lg bg-white/5 animate-pulse" />
@@ -349,7 +364,7 @@ export function Roadmap() {
       ) : viewMode === 'swimlanes' ? (
         <div className="flex flex-col gap-8">
           {/* Global Column Headers for Swimlanes */}
-          <div className="grid grid-cols-3 gap-6 mb-2 px-1">
+          <div className="grid grid-cols-4 gap-6 mb-2 px-1">
             {COLUMNS.map(col => {
               const Icon = col.icon
               const count = openIssues.filter(i => hasStatus(i, col.status)).length
@@ -391,8 +406,8 @@ export function Roadmap() {
                     </span>
                   </div>
 
-                  {/* 3 Columns under this Swimlane */}
-                  <div className="grid grid-cols-3 gap-6">
+                  {/* 4 Columns under this Swimlane */}
+                  <div className="grid grid-cols-4 gap-6">
                     {COLUMNS.map(col => {
                       const colIssues = areaIssues.filter(i => hasStatus(i, col.status))
                       return (
@@ -415,7 +430,7 @@ export function Roadmap() {
         </div>
       ) : (
         /* Standard Kanban Board */
-        <div className="grid grid-cols-3 gap-6">
+        <div className="grid grid-cols-4 gap-6">
           {COLUMNS.map(col => (
             <KanbanColumn
               key={col.status}
