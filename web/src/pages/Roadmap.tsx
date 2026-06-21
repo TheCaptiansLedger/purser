@@ -328,7 +328,7 @@ function ShippedColumn({ releases, issueMap }: { releases: GHRelease[]; issueMap
   )
 
   return (
-    <div className="flex flex-col gap-3 w-72 shrink-0">
+    <div className="flex flex-col gap-3 flex-1 min-w-64">
       <div className="flex items-center justify-between px-1">
         <div className="flex items-center gap-2">
           <CheckCircle2 size={14} className="text-emerald-400" />
@@ -528,7 +528,7 @@ export function Roadmap() {
 
       {/* Board + Shipped flex row */}
       <div className="flex gap-6 items-start">
-        <div className="flex-1 min-w-0">
+        <div className="flex-[3] min-w-0">
           {isLoading && openIssues.length === 0 ? (
             <div className="grid grid-cols-4 gap-6">
               {COLUMNS.map(col => (
