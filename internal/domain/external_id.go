@@ -13,6 +13,7 @@ const (
 	SourceJavLibrary  ExternalIDSource = "javlibrary"
 	SourceR18         ExternalIDSource = "r18"
 	SourceFanart      ExternalIDSource = "fanart"
+	SourceTheAudioDB  ExternalIDSource = "audiodb"
 	SourceDiscogs     ExternalIDSource = "discogs"
 	SourceMAL         ExternalIDSource = "mal"
 	SourceAniList     ExternalIDSource = "anilist"

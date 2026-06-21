@@ -77,6 +77,8 @@ type ModuleConfig struct {
 //	PURSER_SOURCES_MUSICBRAINZ_ENABLED=true
 //	PURSER_SOURCES_MUSICBRAINZ_USER_AGENT=myapp/1.0 (contact@example.com)
 //	PURSER_SOURCES_LASTFM_API_KEY=abc123
+//	PURSER_SOURCES_THEAUDIODB_ENABLED=true
+//	PURSER_SOURCES_THEAUDIODB_API_KEY=123
 //	PURSER_SOURCES_OPENLIBRARY_ENABLED=true
 type MetadataSourcesConfig struct {
 	// StashDB — adult and JAV scenes, performers, studios (stashdb.org).
@@ -105,6 +107,12 @@ type MetadataSourcesConfig struct {
 
 	// LastFM — artist and track metadata enrichment (last.fm).
 	LastFM MetadataSourceConfig `mapstructure:"lastfm"`
+
+	// TheAudioDB — artist images and album art via MBID lookup (theaudiodb.com).
+	// Free tier uses API key "123".
+	//  PURSER_SOURCES_THEAUDIODB_ENABLED=true
+	//  PURSER_SOURCES_THEAUDIODB_API_KEY=123
+	TheAudioDB MetadataSourceConfig `mapstructure:"theaudiodb"`
 
 	// OpenLibrary — books, authors, publishers. No API key required.
 	OpenLibrary MetadataSourceConfig `mapstructure:"openlibrary"`
@@ -195,6 +203,10 @@ func Load(path string) (*Config, error) {
 	v.SetDefault("sources.lastfm.url", "")
 	v.SetDefault("sources.lastfm.api_key", "")
 	v.SetDefault("sources.lastfm.user_agent", "")
+	v.SetDefault("sources.theaudiodb.enabled", false)
+	v.SetDefault("sources.theaudiodb.url", "")
+	v.SetDefault("sources.theaudiodb.api_key", "")
+	v.SetDefault("sources.theaudiodb.user_agent", "")
 	v.SetDefault("sources.openlibrary.enabled", false)
 	v.SetDefault("sources.openlibrary.url", "")
 	v.SetDefault("sources.openlibrary.api_key", "")

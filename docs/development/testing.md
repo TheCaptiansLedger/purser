@@ -97,6 +97,7 @@ go test -tags integration -timeout 300s ./internal/adapters/...
 | `mbz` | _(none)_ | Public API; integration tests always run |
 | `fanart` | `PURSER_SOURCES_FANART_API_KEY` | |
 | `lastfm` | `PURSER_SOURCES_LASTFM_API_KEY` | |
+| `theaudiodb` | `PURSER_SOURCES_THEAUDIODB_API_KEY` | Free tier uses key `123` |
 
 ## Frontend Rules
 

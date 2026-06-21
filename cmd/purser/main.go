@@ -11,6 +11,7 @@ import (
 	"purser/internal/adapters/fanart"
 	"purser/internal/adapters/mbz"
 	"purser/internal/adapters/stashdb"
+	"purser/internal/adapters/theaudiodb"
 	"purser/internal/api"
 	"purser/internal/app/library"
 	"purser/internal/app/metadata"
@@ -118,6 +119,10 @@ func buildSources(cfg *config.Config) []ports.MetadataSource {
 	if cfg.Sources.Fanart.Enabled {
 		slog.Info("source enabled", "name", "fanart")
 		sources = append(sources, fanart.New(cfg.Sources.Fanart))
+	}
+	if cfg.Sources.TheAudioDB.Enabled {
+		slog.Info("source enabled", "name", "audiodb")
+		sources = append(sources, theaudiodb.New(cfg.Sources.TheAudioDB))
 	}
 	return sources
 }
