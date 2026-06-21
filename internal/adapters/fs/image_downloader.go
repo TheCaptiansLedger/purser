@@ -7,7 +7,6 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
-	"purser/internal/media"
 	"strings"
 	"time"
 )
@@ -25,7 +24,7 @@ func NewImageDownloader(mediaPath string) *ImageDownloader {
 }
 
 func (d *ImageDownloader) Download(ctx context.Context, url, entityType, entityID string) string {
-	destBase := media.ImagePath(d.mediaPath, entityType, entityID, "")
+	destBase := ImagePath(d.mediaPath, entityType, entityID, "")
 	if err := os.MkdirAll(filepath.Dir(destBase), 0o750); err != nil {
 		slog.Warn("failed to create image dir", "error", err)
 		return ""

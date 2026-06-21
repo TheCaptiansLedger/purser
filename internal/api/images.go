@@ -8,6 +8,8 @@ import (
 	"strings"
 
 	"github.com/go-chi/chi/v5"
+
+	fs "purser/internal/adapters/fs"
 )
 
 type imageHandler struct {
@@ -37,13 +39,9 @@ func (h *imageHandler) get(w http.ResponseWriter, r *http.Request) {
 
 	slog.Debug("image.get", "entity_type", entityType, "entity_id", entityID)
 
-	shard := entityID
-	if len(entityID) >= 2 {
-		shard = entityID[:2]
-	}
 	base := filepath.Clean(h.basePath)
 	for _, ext := range []string{".jpg", ".jpeg", ".png", ".webp", ".svg"} {
-		candidate := filepath.Join(h.basePath, entityType, shard, entityID+ext)
+		candidate := fs.ImagePath(h.basePath, entityType, entityID, ext)
 		if !strings.HasPrefix(filepath.Clean(candidate), base) {
 			http.NotFound(w, r)
 			return

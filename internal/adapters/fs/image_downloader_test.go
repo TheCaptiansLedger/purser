@@ -4,7 +4,6 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
-	"purser/internal/media"
 	"testing"
 )
 
@@ -20,7 +19,7 @@ func TestImageDownloader_HappyPath(t *testing.T) {
 	if ext != ".jpg" {
 		t.Fatalf("ext = %q, want .jpg", ext)
 	}
-	if _, err := os.Stat(media.ImagePath(dir, "entries", "abc123", ".jpg")); err != nil {
+	if _, err := os.Stat(ImagePath(dir, "entries", "abc123", ".jpg")); err != nil {
 		t.Errorf("file missing: %v", err)
 	}
 }
@@ -36,7 +35,7 @@ func TestImageDownloader_HTTP500(t *testing.T) {
 	if ext != "" {
 		t.Errorf("ext = %q, want empty on HTTP 500", ext)
 	}
-	if _, err := os.Stat(media.ImagePath(dir, "entries", "abc123", ".jpg")); err == nil {
+	if _, err := os.Stat(ImagePath(dir, "entries", "abc123", ".jpg")); err == nil {
 		t.Error("file created despite HTTP 500")
 	}
 }

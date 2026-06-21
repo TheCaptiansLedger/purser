@@ -17,7 +17,6 @@ import (
 	"purser/internal/app/metadata"
 	"purser/internal/app/people"
 	"purser/internal/config"
-	"purser/internal/media"
 	"purser/internal/ports"
 	"purser/internal/version"
 	"purser/web"
@@ -57,10 +56,10 @@ func run(cfgPath string) error {
 	slog.SetDefault(newLogger(cfg.Log))
 	slog.Info("purser starting", "port", cfg.Server.Port, "db_driver", cfg.Database.Driver)
 
-	if err := media.MigrateFlat(cfg.Media.Path); err != nil {
+	if err := fsadapter.MigrateFlat(cfg.Media.Path); err != nil {
 		return fmt.Errorf("migrate media: %w", err)
 	}
-	if err := media.EnsureDirs(cfg.Media.Path); err != nil {
+	if err := fsadapter.EnsureDirs(cfg.Media.Path); err != nil {
 		return fmt.Errorf("ensure media dirs: %w", err)
 	}
 
