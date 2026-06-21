@@ -958,6 +958,78 @@ func TestRefreshArtist_HeroImagePrefersAudioDB(t *testing.T) {
 	}
 }
 
+func TestRefreshArtist_PersonImagePrefersAudioDB(t *testing.T) {
+	// Band member is imported via MBZ FetchEntryPeople.
+	// Both mbz (priority 0) and audiodb (priority 1) return hero images for
+	// the member's MBID. The audiodb image must win.
+	entryRepo := newStubEntryRepo()
+	groupRepo := &stubGroupRepo{}
+	itemRepo := &stubItemRepo{}
+	personRepo := &stubPersonRepo{}
+	entry := artistEntry(domain.MonitorAll, time.Date(2020, 1, 1, 0, 0, 0, 0, time.UTC))
+	entryRepo.data[entry.ID] = entry
+
+	member := &domain.ExternalPerson{
+		Source:     domain.SourceMusicBrainz,
+		ExternalID: "member-mbid",
+		Name:       "David Coverdale",
+		Role:       domain.RoleArtist,
+	}
+	mbzSrc := &stubMusicSource{
+		albums: []*domain.ExternalGroup{},
+		tracks: map[string][]*domain.ExternalItem{},
+		people: []*domain.ExternalPerson{member},
+		findItem: &domain.ExternalItem{
+			Source: domain.SourceMusicBrainz,
+			Images: []domain.ExternalImage{
+				{Type: domain.ImageTypeHero, URL: "https://mbz.example.com/member-hero.jpg"},
+			},
+		},
+	}
+	audiodbSrc := &stubImageSource{
+		sourceName: string(domain.SourceTheAudioDB),
+		findItem: &domain.ExternalItem{
+			Source: domain.SourceTheAudioDB,
+			Images: []domain.ExternalImage{
+				{Type: domain.ImageTypeHero, URL: "https://audiodb.example.com/member-hero.jpg"},
+			},
+		},
+	}
+
+	dl := &stubImageDownloader{ext: ".jpg"}
+	svc := metadata.New(
+		[]ports.MetadataSource{mbzSrc, audiodbSrc},
+		nil,
+		entryRepo,
+		groupRepo,
+		itemRepo,
+		personRepo,
+		&stubTagRepo{},
+		&stubExternalIDRepo{},
+		dl,
+	)
+
+	if err := svc.RefreshArtist(context.Background(), entry.ID, nil); err != nil {
+		t.Fatalf("RefreshArtist: %v", err)
+	}
+	if len(personRepo.saved) == 0 {
+		t.Fatal("expected person record to be saved")
+	}
+	if personRepo.saved[0].ImagePath != ".jpg" {
+		t.Fatalf("person ImagePath = %q, want .jpg", personRepo.saved[0].ImagePath)
+	}
+	var memberImageURL string
+	for _, url := range dl.calls {
+		if url == "https://audiodb.example.com/member-hero.jpg" || url == "https://mbz.example.com/member-hero.jpg" {
+			memberImageURL = url
+			break
+		}
+	}
+	if memberImageURL != "https://audiodb.example.com/member-hero.jpg" {
+		t.Errorf("person image URL = %q, want audiodb hero image", memberImageURL)
+	}
+}
+
 func TestRefreshArtist_GroupLinkedToItem(t *testing.T) {
 	entryRepo := newStubEntryRepo()
 	groupRepo := &stubGroupRepo{}

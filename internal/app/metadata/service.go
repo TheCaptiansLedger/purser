@@ -802,35 +802,30 @@ func (s *Service) fetchAlbumCovers(ctx context.Context, contentType domain.Conte
 	}
 }
 
-// fetchPersonHeroImage downloads the first hero image for a person from fanart.tv
-// using their MusicBrainz artist MBID. It is a no-op when the person already
-// has an image, when fanart is not configured, or when the person has no
-// fanart.tv page (ErrNotFound is silently discarded).
+// fetchPersonHeroImage downloads the best available hero image for a person
+// using their MusicBrainz artist MBID. Image source priority mirrors
+// fetchArtistHeroImage: TheAudioDB → Fanart → any. It is a no-op when the
+// person already has an image or no downloader is configured.
 func (s *Service) fetchPersonHeroImage(ctx context.Context, personID, mbid string) {
 	if s.downloader == nil {
-		return
-	}
-	fanartSrc := s.sourceByName(string(domain.SourceFanart))
-	if fanartSrc == nil {
 		return
 	}
 	person, err := s.people.Get(ctx, personID)
 	if err != nil || person.ImagePath != "" {
 		return
 	}
-	item, err := fanartSrc.FindByExternalID(ctx, domain.ContentTypeMusic, mbid)
+	merged, err := s.agg.FindByExternalID(ctx, domain.ContentTypeMusic, mbid, personID)
 	if err != nil {
 		return
 	}
-	for _, img := range item.Images {
-		if img.Type == domain.ImageTypeHero {
-			if ext := s.downloader.Download(ctx, img.URL, "people", personID); ext != "" {
-				person.ImagePath = ext
-				if saveErr := s.people.Save(ctx, person); saveErr != nil {
-					slog.Warn("refresh artist: save person image", "person_id", personID, "error", saveErr)
-				}
-			}
-			return
+	url := preferredHeroURL(merged.Images)
+	if url == "" {
+		return
+	}
+	if ext := s.downloader.Download(ctx, url, "people", personID); ext != "" {
+		person.ImagePath = ext
+		if saveErr := s.people.Save(ctx, person); saveErr != nil {
+			slog.Warn("refresh artist: save person image", "person_id", personID, "error", saveErr)
 		}
 	}
 }

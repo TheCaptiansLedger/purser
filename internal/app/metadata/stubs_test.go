@@ -103,7 +103,12 @@ type stubPersonRepo struct {
 	saved []*domain.Person
 }
 
-func (r *stubPersonRepo) Get(_ context.Context, _ string) (*domain.Person, error) {
+func (r *stubPersonRepo) Get(_ context.Context, id string) (*domain.Person, error) {
+	for _, p := range r.saved {
+		if p.ID == id {
+			return p, nil
+		}
+	}
 	return nil, fmt.Errorf("not found: %w", errs.ErrNotFound)
 }
 
@@ -249,6 +254,7 @@ type stubMusicSource struct {
 	albums   []*domain.ExternalGroup
 	tracks   map[string][]*domain.ExternalItem // groupExternalID → tracks
 	findItem *domain.ExternalItem              // if non-nil, returned by FindByExternalID
+	people   []*domain.ExternalPerson          // if non-nil, returned by FetchEntryPeople
 }
 
 func (s *stubMusicSource) Name() string { return "mbz" }
@@ -296,6 +302,9 @@ func (s *stubMusicSource) FetchGroupContent(_ context.Context, _ domain.ContentT
 }
 
 func (s *stubMusicSource) FetchEntryPeople(_ context.Context, _ string) ([]*domain.ExternalPerson, error) {
+	if s.people != nil {
+		return s.people, nil
+	}
 	return nil, ports.ErrNotSupported
 }
 
