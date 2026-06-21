@@ -894,6 +894,70 @@ func TestRefreshStudio_ImageDownloaderFailure(t *testing.T) {
 	}
 }
 
+func TestRefreshArtist_HeroImagePrefersAudioDB(t *testing.T) {
+	// Two sources both return a hero image for the same artist.
+	// mbz is priority 0 (registered first), audiodb is priority 1.
+	// The fix must pick the audiodb image regardless of registration order.
+	entryRepo := newStubEntryRepo()
+	groupRepo := &stubGroupRepo{}
+	itemRepo := &stubItemRepo{}
+	entry := &domain.LibraryEntry{
+		ID:          "artist-image-test",
+		ContentType: domain.ContentTypeMusic,
+		Kind:        domain.KindArtist,
+		Name:        "Whitesnake",
+		MonitorMode: domain.MonitorAll,
+		ExternalIDs: []domain.ExternalID{{Source: domain.SourceMusicBrainz, Value: "whitesnake-mbid"}},
+	}
+	entryRepo.data[entry.ID] = entry
+
+	mbzSrc := &stubMusicSource{
+		albums: []*domain.ExternalGroup{},
+		tracks: map[string][]*domain.ExternalItem{},
+		findItem: &domain.ExternalItem{
+			Source: domain.SourceMusicBrainz,
+			Images: []domain.ExternalImage{
+				{Type: domain.ImageTypeHero, URL: "https://mbz.example.com/hero.jpg"},
+			},
+		},
+	}
+	audiodbSrc := &stubImageSource{
+		sourceName: string(domain.SourceTheAudioDB),
+		findItem: &domain.ExternalItem{
+			Source: domain.SourceTheAudioDB,
+			Images: []domain.ExternalImage{
+				{Type: domain.ImageTypeHero, URL: "https://audiodb.example.com/hero.jpg"},
+			},
+		},
+	}
+
+	dl := &stubImageDownloader{ext: ".jpg"}
+	svc := metadata.New(
+		[]ports.MetadataSource{mbzSrc, audiodbSrc},
+		nil,
+		entryRepo,
+		groupRepo,
+		itemRepo,
+		&stubPersonRepo{},
+		&stubTagRepo{},
+		&stubExternalIDRepo{},
+		dl,
+	)
+
+	if err := svc.RefreshArtist(context.Background(), entry.ID, nil); err != nil {
+		t.Fatalf("RefreshArtist: %v", err)
+	}
+	if len(dl.calls) == 0 {
+		t.Fatal("expected hero image download, got none")
+	}
+	if dl.calls[0] != "https://audiodb.example.com/hero.jpg" {
+		t.Errorf("Download URL = %q, want audiodb hero image", dl.calls[0])
+	}
+	if entry.ImagePath != ".jpg" {
+		t.Errorf("entry.ImagePath = %q, want .jpg", entry.ImagePath)
+	}
+}
+
 func TestRefreshArtist_GroupLinkedToItem(t *testing.T) {
 	entryRepo := newStubEntryRepo()
 	groupRepo := &stubGroupRepo{}

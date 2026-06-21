@@ -143,8 +143,10 @@ func (a *Aggregator) FetchEntryContent(ctx context.Context, contentType domain.C
 	return all, nil
 }
 
-// SearchStudios fans out to all sources that support contentType and returns
-// the combined studio results. Errors from individual sources are logged and skipped.
+// SearchStudios fans out to all sources that support contentType, combines
+// the results, and deduplicates by ExternalID. When two sources return the
+// same MBID, the TheAudioDB result is preferred over any other source.
+// Errors from individual sources are logged and skipped.
 func (a *Aggregator) SearchStudios(ctx context.Context, query string, contentType domain.ContentType, limit int) ([]*domain.ExternalStudio, error) {
 	matching := a.sourcesFor(contentType)
 
@@ -169,7 +171,53 @@ func (a *Aggregator) SearchStudios(ctx context.Context, query string, contentTyp
 	for r := range ch {
 		all = append(all, r.studios...)
 	}
-	return all, nil
+	return deduplicateStudios(all), nil
+}
+
+// deduplicateStudios removes studios that share an ExternalID.
+//
+// When MusicBrainz and TheAudioDB return the same MBID, MBZ is kept as the
+// canonical source (it supports album fetching via FetchEntryContent) but the
+// ImageURL is filled from TheAudioDB when MBZ has none. TheAudioDB-only entries
+// pass through when no non-audiodb counterpart exists. Studios with an empty
+// ExternalID are never deduplicated. Insertion order is stable.
+func deduplicateStudios(studios []*domain.ExternalStudio) []*domain.ExternalStudio {
+	// First pass: collect TheAudioDB images keyed by MBID.
+	audiodbImages := make(map[string]string)
+	for _, s := range studios {
+		if s.Source == domain.SourceTheAudioDB && s.ExternalID != "" && s.ImageURL != "" {
+			audiodbImages[s.ExternalID] = s.ImageURL
+		}
+	}
+
+	seen := make(map[string]int) // ExternalID → index in out
+	out := make([]*domain.ExternalStudio, 0, len(studios))
+	for _, s := range studios {
+		if s.ExternalID == "" {
+			out = append(out, s)
+			continue
+		}
+		idx, ok := seen[s.ExternalID]
+		if !ok {
+			entry := *s
+			if entry.ImageURL == "" {
+				entry.ImageURL = audiodbImages[entry.ExternalID]
+			}
+			seen[s.ExternalID] = len(out)
+			out = append(out, &entry)
+			continue
+		}
+		// Duplicate MBID: if the slot is currently audiodb-sourced and the new
+		// entry is not, promote the non-audiodb entry so album fetching works.
+		if out[idx].Source == domain.SourceTheAudioDB && s.Source != domain.SourceTheAudioDB {
+			entry := *s
+			if entry.ImageURL == "" {
+				entry.ImageURL = audiodbImages[entry.ExternalID]
+			}
+			out[idx] = &entry
+		}
+	}
+	return out
 }
 
 // SearchPeople fans out to all sources that support contentType and returns

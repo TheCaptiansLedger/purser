@@ -267,6 +267,122 @@ func TestAggregator_SearchStudios_NoMatchingSources(t *testing.T) {
 	}
 }
 
+func TestAggregator_SearchStudios_DeduplicatesByMBID(t *testing.T) {
+	mbz := &aggStubSource{
+		name:         "mbz",
+		contentTypes: []domain.ContentType{domain.ContentTypeMusic},
+		searchStudios: []*domain.ExternalStudio{
+			{Source: domain.SourceMusicBrainz, ExternalID: "mbid-whitesnake", Name: "Whitesnake"},
+		},
+	}
+	audiodb := &aggStubSource{
+		name:         "audiodb",
+		contentTypes: []domain.ContentType{domain.ContentTypeMusic},
+		searchStudios: []*domain.ExternalStudio{
+			{Source: domain.SourceTheAudioDB, ExternalID: "mbid-whitesnake", Name: "Whitesnake"},
+		},
+	}
+	agg := metadata.NewAggregator([]ports.MetadataSource{mbz, audiodb})
+
+	studios, err := agg.SearchStudios(context.Background(), "whitesnake", domain.ContentTypeMusic, 10)
+	if err != nil {
+		t.Fatalf("SearchStudios: %v", err)
+	}
+	if len(studios) != 1 {
+		t.Errorf("studio count = %d, want 1 (duplicate MBID deduplicated)", len(studios))
+	}
+}
+
+func TestAggregator_SearchStudios_MBZSourceWithAudioDBImage(t *testing.T) {
+	// When both sources return the same MBID, the MBZ entry is kept as the
+	// canonical source (it supports album fetching). The audiodb image URL is
+	// applied to the MBZ entry so the UI can show a thumbnail.
+	mbz := &aggStubSource{
+		name:         "mbz",
+		contentTypes: []domain.ContentType{domain.ContentTypeMusic},
+		searchStudios: []*domain.ExternalStudio{
+			{Source: domain.SourceMusicBrainz, ExternalID: "mbid-whitesnake", Name: "Whitesnake"},
+		},
+	}
+	audiodb := &aggStubSource{
+		name:         "audiodb",
+		contentTypes: []domain.ContentType{domain.ContentTypeMusic},
+		searchStudios: []*domain.ExternalStudio{
+			{Source: domain.SourceTheAudioDB, ExternalID: "mbid-whitesnake", Name: "Whitesnake", ImageURL: "https://audiodb.example.com/thumb.jpg"},
+		},
+	}
+	agg := metadata.NewAggregator([]ports.MetadataSource{mbz, audiodb})
+
+	studios, err := agg.SearchStudios(context.Background(), "whitesnake", domain.ContentTypeMusic, 10)
+	if err != nil {
+		t.Fatalf("SearchStudios: %v", err)
+	}
+	if len(studios) != 1 {
+		t.Fatalf("studio count = %d, want 1", len(studios))
+	}
+	if studios[0].Source != domain.SourceMusicBrainz {
+		t.Errorf("Source = %q, want MusicBrainz (canonical source for album fetching)", studios[0].Source)
+	}
+	if studios[0].ImageURL != "https://audiodb.example.com/thumb.jpg" {
+		t.Errorf("ImageURL = %q, want audiodb thumbnail", studios[0].ImageURL)
+	}
+}
+
+func TestAggregator_SearchStudios_AudioDBFirstStillPromotesMBZ(t *testing.T) {
+	// audiodb result arrives before mbz in the combined slice (simulates the case
+	// where audiodb is priority 0 or its goroutine finishes first).
+	audiodb := &aggStubSource{
+		name:         "audiodb",
+		contentTypes: []domain.ContentType{domain.ContentTypeMusic},
+		searchStudios: []*domain.ExternalStudio{
+			{Source: domain.SourceTheAudioDB, ExternalID: "mbid-whitesnake", Name: "Whitesnake", ImageURL: "https://audiodb.example.com/thumb.jpg"},
+		},
+	}
+	mbz := &aggStubSource{
+		name:         "mbz",
+		contentTypes: []domain.ContentType{domain.ContentTypeMusic},
+		searchStudios: []*domain.ExternalStudio{
+			{Source: domain.SourceMusicBrainz, ExternalID: "mbid-whitesnake", Name: "Whitesnake"},
+		},
+	}
+	// audiodb is first in sources so its results appear first in the combined slice.
+	agg := metadata.NewAggregator([]ports.MetadataSource{audiodb, mbz})
+
+	studios, err := agg.SearchStudios(context.Background(), "whitesnake", domain.ContentTypeMusic, 10)
+	if err != nil {
+		t.Fatalf("SearchStudios: %v", err)
+	}
+	if len(studios) != 1 {
+		t.Fatalf("studio count = %d, want 1", len(studios))
+	}
+	if studios[0].Source != domain.SourceMusicBrainz {
+		t.Errorf("Source = %q, want MusicBrainz even when audiodb arrives first", studios[0].Source)
+	}
+	if studios[0].ImageURL != "https://audiodb.example.com/thumb.jpg" {
+		t.Errorf("ImageURL = %q, want audiodb thumbnail preserved after promotion", studios[0].ImageURL)
+	}
+}
+
+func TestAggregator_SearchStudios_PreservesDistinctMBIDs(t *testing.T) {
+	mbz := &aggStubSource{
+		name:         "mbz",
+		contentTypes: []domain.ContentType{domain.ContentTypeMusic},
+		searchStudios: []*domain.ExternalStudio{
+			{Source: domain.SourceMusicBrainz, ExternalID: "mbid-whitesnake", Name: "Whitesnake"},
+			{Source: domain.SourceMusicBrainz, ExternalID: "mbid-deep-purple", Name: "Deep Purple"},
+		},
+	}
+	agg := metadata.NewAggregator([]ports.MetadataSource{mbz})
+
+	studios, err := agg.SearchStudios(context.Background(), "rock", domain.ContentTypeMusic, 10)
+	if err != nil {
+		t.Fatalf("SearchStudios: %v", err)
+	}
+	if len(studios) != 2 {
+		t.Errorf("studio count = %d, want 2 (distinct MBIDs preserved)", len(studios))
+	}
+}
+
 // ── SearchPeople ──────────────────────────────────────────────────────────────
 
 func TestAggregator_SearchPeople_FanOut(t *testing.T) {

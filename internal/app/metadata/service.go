@@ -708,7 +708,8 @@ func (s *Service) importArtistPeople(ctx context.Context, src ports.MetadataSour
 }
 
 // fetchArtistHeroImage calls the aggregator for artist-level images and
-// downloads the first hero image to disk when entry.ImagePath is not yet set.
+// downloads the preferred hero image to disk when entry.ImagePath is not yet set.
+// Image source priority: TheAudioDB → Fanart → any other source.
 func (s *Service) fetchArtistHeroImage(ctx context.Context, entry *domain.LibraryEntry, srcExtID string) {
 	merged, err := s.agg.FindByExternalID(ctx, entry.ContentType, srcExtID, entry.ID)
 	if err != nil {
@@ -718,17 +719,36 @@ func (s *Service) fetchArtistHeroImage(ctx context.Context, entry *domain.Librar
 	if entry.ImagePath != "" || s.downloader == nil {
 		return
 	}
-	for _, img := range merged.Images {
-		if img.Type == domain.ImageTypeHero {
-			if ext := s.downloader.Download(ctx, img.URL, "entries", entry.ID); ext != "" {
-				entry.ImagePath = ext
-				if saveErr := s.entries.Save(ctx, entry); saveErr != nil {
-					slog.Warn("refresh artist: save entry image path", "entry_id", entry.ID, "error", saveErr)
-				}
-			}
-			return
+	url := preferredHeroURL(merged.Images)
+	if url == "" {
+		return
+	}
+	if ext := s.downloader.Download(ctx, url, "entries", entry.ID); ext != "" {
+		entry.ImagePath = ext
+		if saveErr := s.entries.Save(ctx, entry); saveErr != nil {
+			slog.Warn("refresh artist: save entry image path", "entry_id", entry.ID, "error", saveErr)
 		}
 	}
+}
+
+// preferredHeroURL returns the URL of the best available hero image from images,
+// preferring TheAudioDB over Fanart over any other source. Returns "" when no
+// hero image exists.
+func preferredHeroURL(images []domain.ExternalImage) string {
+	priority := []string{string(domain.SourceTheAudioDB), string(domain.SourceFanart)}
+	for _, src := range priority {
+		for _, img := range images {
+			if img.Type == domain.ImageTypeHero && img.Source == src {
+				return img.URL
+			}
+		}
+	}
+	for _, img := range images {
+		if img.Type == domain.ImageTypeHero {
+			return img.URL
+		}
+	}
+	return ""
 }
 
 // fetchAlbumCovers downloads the first album cover for each album that does not
