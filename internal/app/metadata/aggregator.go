@@ -143,6 +143,64 @@ func (a *Aggregator) FetchEntryContent(ctx context.Context, contentType domain.C
 	return all, nil
 }
 
+// SearchStudios fans out to all sources that support contentType and returns
+// the combined studio results. Errors from individual sources are logged and skipped.
+func (a *Aggregator) SearchStudios(ctx context.Context, query string, contentType domain.ContentType, limit int) ([]*domain.ExternalStudio, error) {
+	matching := a.sourcesFor(contentType)
+
+	type result struct{ studios []*domain.ExternalStudio }
+	ch := make(chan result, len(matching))
+	var wg sync.WaitGroup
+	for _, src := range matching {
+		wg.Add(1)
+		go func(src ports.MetadataSource) {
+			defer wg.Done()
+			studios, err := src.SearchStudios(ctx, query, limit)
+			if err != nil {
+				slog.Warn("metadata aggregator: SearchStudios failed", "source", src.Name(), "error", err)
+				return
+			}
+			ch <- result{studios}
+		}(src)
+	}
+	go func() { wg.Wait(); close(ch) }()
+
+	var all []*domain.ExternalStudio
+	for r := range ch {
+		all = append(all, r.studios...)
+	}
+	return all, nil
+}
+
+// SearchPeople fans out to all sources that support contentType and returns
+// the combined people results. Errors from individual sources are logged and skipped.
+func (a *Aggregator) SearchPeople(ctx context.Context, query string, contentType domain.ContentType, limit int) ([]*domain.ExternalPerson, error) {
+	matching := a.sourcesFor(contentType)
+
+	type result struct{ people []*domain.ExternalPerson }
+	ch := make(chan result, len(matching))
+	var wg sync.WaitGroup
+	for _, src := range matching {
+		wg.Add(1)
+		go func(src ports.MetadataSource) {
+			defer wg.Done()
+			people, err := src.SearchPeople(ctx, query, limit)
+			if err != nil {
+				slog.Warn("metadata aggregator: SearchPeople failed", "source", src.Name(), "error", err)
+				return
+			}
+			ch <- result{people}
+		}(src)
+	}
+	go func() { wg.Wait(); close(ch) }()
+
+	var all []*domain.ExternalPerson
+	for r := range ch {
+		all = append(all, r.people...)
+	}
+	return all, nil
+}
+
 func (a *Aggregator) sourcesFor(contentType domain.ContentType) []ports.MetadataSource {
 	var result []ports.MetadataSource
 	for _, src := range a.sources {

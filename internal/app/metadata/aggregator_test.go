@@ -12,14 +12,18 @@ import (
 // ── stubs ─────────────────────────────────────────────────────────────────────
 
 type aggStubSource struct {
-	name         string
-	contentTypes []domain.ContentType
-	findItem     *domain.ExternalItem
-	findErr      error
-	searchItems  []*domain.ExternalItem
-	searchErr    error
-	contentItems []*domain.ExternalItem
-	contentErr   error
+	name             string
+	contentTypes     []domain.ContentType
+	findItem         *domain.ExternalItem
+	findErr          error
+	searchItems      []*domain.ExternalItem
+	searchErr        error
+	contentItems     []*domain.ExternalItem
+	contentErr       error
+	searchStudios    []*domain.ExternalStudio
+	searchStudiosErr error
+	searchPeople     []*domain.ExternalPerson
+	searchPeopleErr  error
 }
 
 func (s *aggStubSource) Name() string {
@@ -31,11 +35,11 @@ func (s *aggStubSource) ContentTypes() []domain.ContentType {
 }
 
 func (s *aggStubSource) SearchStudios(_ context.Context, _ string, _ int) ([]*domain.ExternalStudio, error) {
-	return nil, ports.ErrNotSupported
+	return s.searchStudios, s.searchStudiosErr
 }
 
 func (s *aggStubSource) SearchPeople(_ context.Context, _ string, _ int) ([]*domain.ExternalPerson, error) {
-	return nil, ports.ErrNotSupported
+	return s.searchPeople, s.searchPeopleErr
 }
 
 func (s *aggStubSource) SearchItems(_ context.Context, _ domain.ContentType, _ string, _ int) ([]*domain.ExternalItem, error) {
@@ -207,6 +211,101 @@ func TestAggregator_SearchItems_SourceErrorSkipped(t *testing.T) {
 	}
 	if len(items) != 1 {
 		t.Errorf("item count = %d, want 1 (only from good source)", len(items))
+	}
+}
+
+// ── SearchStudios ─────────────────────────────────────────────────────────────
+
+func TestAggregator_SearchStudios_FanOut(t *testing.T) {
+	src1 := &aggStubSource{
+		name: "stashdb", contentTypes: []domain.ContentType{domain.ContentTypeAdult},
+		searchStudios: []*domain.ExternalStudio{{Name: "Studio A"}},
+	}
+	src2 := &aggStubSource{
+		name: "tpdb", contentTypes: []domain.ContentType{domain.ContentTypeAdult},
+		searchStudios: []*domain.ExternalStudio{{Name: "Studio B"}, {Name: "Studio C"}},
+	}
+	agg := metadata.NewAggregator([]ports.MetadataSource{src1, src2})
+
+	studios, err := agg.SearchStudios(context.Background(), "studio", domain.ContentTypeAdult, 10)
+	if err != nil {
+		t.Fatalf("SearchStudios: %v", err)
+	}
+	if len(studios) != 3 {
+		t.Errorf("studio count = %d, want 3 (1 from src1 + 2 from src2)", len(studios))
+	}
+}
+
+func TestAggregator_SearchStudios_SourceError(t *testing.T) {
+	good := &aggStubSource{
+		name: "stashdb", contentTypes: []domain.ContentType{domain.ContentTypeAdult},
+		searchStudios: []*domain.ExternalStudio{{Name: "Studio A"}},
+	}
+	bad := &aggStubSource{
+		name: "tpdb", contentTypes: []domain.ContentType{domain.ContentTypeAdult},
+		searchStudiosErr: errors.New("service unavailable"),
+	}
+	agg := metadata.NewAggregator([]ports.MetadataSource{good, bad})
+
+	studios, err := agg.SearchStudios(context.Background(), "studio", domain.ContentTypeAdult, 10)
+	if err != nil {
+		t.Fatalf("SearchStudios should not error when one source fails: %v", err)
+	}
+	if len(studios) != 1 {
+		t.Errorf("studio count = %d, want 1 (only from good source)", len(studios))
+	}
+}
+
+func TestAggregator_SearchStudios_NoMatchingSources(t *testing.T) {
+	agg := metadata.NewAggregator(nil)
+	studios, err := agg.SearchStudios(context.Background(), "studio", domain.ContentTypeAdult, 10)
+	if err != nil {
+		t.Fatalf("SearchStudios with no sources: %v", err)
+	}
+	if len(studios) != 0 {
+		t.Errorf("studio count = %d, want 0", len(studios))
+	}
+}
+
+// ── SearchPeople ──────────────────────────────────────────────────────────────
+
+func TestAggregator_SearchPeople_FanOut(t *testing.T) {
+	src1 := &aggStubSource{
+		name: "stashdb", contentTypes: []domain.ContentType{domain.ContentTypeAdult},
+		searchPeople: []*domain.ExternalPerson{{Name: "Alice"}},
+	}
+	src2 := &aggStubSource{
+		name: "tpdb", contentTypes: []domain.ContentType{domain.ContentTypeAdult},
+		searchPeople: []*domain.ExternalPerson{{Name: "Bob"}, {Name: "Carol"}},
+	}
+	agg := metadata.NewAggregator([]ports.MetadataSource{src1, src2})
+
+	people, err := agg.SearchPeople(context.Background(), "query", domain.ContentTypeAdult, 10)
+	if err != nil {
+		t.Fatalf("SearchPeople: %v", err)
+	}
+	if len(people) != 3 {
+		t.Errorf("people count = %d, want 3 (1 from src1 + 2 from src2)", len(people))
+	}
+}
+
+func TestAggregator_SearchPeople_SourceError(t *testing.T) {
+	good := &aggStubSource{
+		name: "stashdb", contentTypes: []domain.ContentType{domain.ContentTypeAdult},
+		searchPeople: []*domain.ExternalPerson{{Name: "Alice"}},
+	}
+	bad := &aggStubSource{
+		name: "tpdb", contentTypes: []domain.ContentType{domain.ContentTypeAdult},
+		searchPeopleErr: errors.New("service unavailable"),
+	}
+	agg := metadata.NewAggregator([]ports.MetadataSource{good, bad})
+
+	people, err := agg.SearchPeople(context.Background(), "query", domain.ContentTypeAdult, 10)
+	if err != nil {
+		t.Fatalf("SearchPeople should not error when one source fails: %v", err)
+	}
+	if len(people) != 1 {
+		t.Errorf("people count = %d, want 1 (only from good source)", len(people))
 	}
 }
 

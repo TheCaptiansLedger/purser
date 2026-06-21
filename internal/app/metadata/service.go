@@ -10,7 +10,6 @@ import (
 	"purser/internal/ports"
 	"slices"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/google/uuid"
@@ -62,68 +61,12 @@ func New(
 // SearchStudios queries all sources that serve contentType and merges the results.
 // Errors from individual sources are logged but do not abort the fan-out.
 func (s *Service) SearchStudios(ctx context.Context, query string, contentType domain.ContentType, limit int) ([]*domain.ExternalStudio, error) {
-	type result struct {
-		studios []*domain.ExternalStudio
-	}
-	ch := make(chan result, len(s.sources))
-
-	var wg sync.WaitGroup
-	for _, src := range s.sources {
-		if !servesContentType(src, contentType) {
-			continue
-		}
-		wg.Add(1)
-		go func(src ports.MetadataSource) {
-			defer wg.Done()
-			studios, err := src.SearchStudios(ctx, query, limit)
-			if err != nil {
-				slog.Warn("metadata search studios failed", "source", src.Name(), "error", err)
-				return
-			}
-			ch <- result{studios}
-		}(src)
-	}
-
-	go func() { wg.Wait(); close(ch) }()
-
-	var all []*domain.ExternalStudio
-	for r := range ch {
-		all = append(all, r.studios...)
-	}
-	return all, nil
+	return s.agg.SearchStudios(ctx, query, contentType, limit)
 }
 
 // SearchPeople queries all sources that serve contentType and merges the results.
 func (s *Service) SearchPeople(ctx context.Context, query string, contentType domain.ContentType, limit int) ([]*domain.ExternalPerson, error) {
-	type result struct {
-		people []*domain.ExternalPerson
-	}
-	ch := make(chan result, len(s.sources))
-
-	var wg sync.WaitGroup
-	for _, src := range s.sources {
-		if contentType != "" && !servesContentType(src, contentType) {
-			continue
-		}
-		wg.Add(1)
-		go func(src ports.MetadataSource) {
-			defer wg.Done()
-			people, err := src.SearchPeople(ctx, query, limit)
-			if err != nil {
-				slog.Warn("metadata search people failed", "source", src.Name(), "error", err)
-				return
-			}
-			ch <- result{people}
-		}(src)
-	}
-
-	go func() { wg.Wait(); close(ch) }()
-
-	var all []*domain.ExternalPerson
-	for r := range ch {
-		all = append(all, r.people...)
-	}
-	return all, nil
+	return s.agg.SearchPeople(ctx, query, contentType, limit)
 }
 
 // FetchArtistDiscography returns one page of release groups for the artist
