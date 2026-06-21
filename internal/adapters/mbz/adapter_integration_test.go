@@ -164,7 +164,7 @@ func TestMBZ_FindByExternalID_NotFound(t *testing.T) {
 	ctx, cancel := integrationCtx(t)
 	defer cancel()
 
-	_, err := a.FindByExternalID(ctx, domain.ContentTypeMusic, "00000000-0000-0000-0000-000000000000")
+	_, err := a.FindByExternalID(ctx, domain.ContentTypeMusic, "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa")
 	if !errors.Is(err, ports.ErrNotFound) {
 		t.Errorf("expected ports.ErrNotFound for nonexistent MBID, got: %v", err)
 	}
@@ -203,8 +203,6 @@ func TestMBZ_FetchEntryContent(t *testing.T) {
 		t.Fatal("groups is empty; expected at least one release-group on page 1")
 	}
 
-	// Each release group must have a non-empty ID, title, and a recognised primary type.
-	// The status=Official filter means bootlegs and promos must not appear.
 	for i, g := range groups {
 		if g.ExternalID == "" {
 			t.Errorf("groups[%d].ExternalID is empty", i)
@@ -273,7 +271,7 @@ func TestMBZ_FetchGroupContent(t *testing.T) {
 	ctx1, cancel1 := integrationCtx(t)
 	defer cancel1()
 
-	groups, _, _, err := a.FetchEntryContent(ctx1, beatlesMBID, 1, 5)
+	groups, _, _, err := a.FetchEntryContent(ctx1, domain.ContentTypeMusic, beatlesMBID, 1, 5)
 	if err != nil {
 		t.Fatalf("FetchEntryContent (setup): %v", err)
 	}

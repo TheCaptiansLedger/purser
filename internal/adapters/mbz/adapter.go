@@ -128,6 +128,14 @@ func (a *Adapter) doGet(ctx context.Context, rawURL string, out any) error {
 		return errNotFound
 	}
 
+	if resp.StatusCode == http.StatusBadRequest {
+		b, _ := io.ReadAll(resp.Body)
+		if strings.Contains(string(b), "Invalid mbid") {
+			return errNotFound
+		}
+		return fmt.Errorf("musicbrainz: HTTP %d: %s", resp.StatusCode, string(b))
+	}
+
 	if resp.StatusCode == http.StatusTooManyRequests {
 		wait := retryAfterDuration(resp.Header.Get("Retry-After"))
 		select {
@@ -136,6 +144,22 @@ func (a *Adapter) doGet(ctx context.Context, rawURL string, out any) error {
 		case <-time.After(wait):
 		}
 		return a.doGet(ctx, rawURL, out)
+	}
+
+	if resp.StatusCode == http.StatusServiceUnavailable {
+		b, _ := io.ReadAll(resp.Body)
+		if strings.Contains(string(b), "rate limit") {
+			// MBZ uses 503 (not 429) when sustained traffic exceeds their limit.
+			// Back off longer than the per-request gap before retrying.
+			wait := 5 * time.Second
+			select {
+			case <-ctx.Done():
+				return ctx.Err()
+			case <-time.After(wait):
+			}
+			return a.doGet(ctx, rawURL, out)
+		}
+		return fmt.Errorf("musicbrainz: HTTP %d: %s", resp.StatusCode, string(b))
 	}
 
 	if resp.StatusCode != http.StatusOK {

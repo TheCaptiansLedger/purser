@@ -7,7 +7,6 @@ import (
 	"purser/internal/adapters/mbz"
 	"purser/internal/config"
 	"purser/internal/domain"
-	"strings"
 	"testing"
 )
 
@@ -114,11 +113,14 @@ func TestFetchGroupContent_RoundTrip(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		switch {
-		case strings.Contains(r.URL.Path, "release-group"):
-			w.Write([]byte(`{"release-group-count":1,"release-groups":[{"id":"rg-nirvana-nevermind","title":"Nevermind","first-release-date":"1991-09-24"}]}`)) //nolint:errcheck
+		case r.URL.Query().Get("artist") != "":
+			// FetchEntryContent: Official release browse with embedded release-group.
+			w.Write([]byte(`{"release-count":1,"releases":[{"release-group":{"id":"rg-nirvana-nevermind","title":"Nevermind","first-release-date":"1991-09-24","primary-type":"Album"}}]}`)) //nolint:errcheck
 		case r.URL.Query().Get("release-group") != "":
+			// resolveToReleaseMBID: list releases for the release-group.
 			w.Write([]byte(releaseListJSON)) //nolint:errcheck
 		default:
+			// FetchGroupContent detail: track recordings for a specific release.
 			w.Write([]byte(twoDiscRelease)) //nolint:errcheck
 		}
 	}))

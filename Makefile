@@ -1,6 +1,6 @@
 COMPOSE := podman-compose -f ops/compose.yml
 
-.PHONY: build-web build-go test dev up down logs reset reset-data reset-media help
+.PHONY: build-web build-go test dev up down logs reset reset-data reset-media install-hooks help
 
 # ── Build ─────────────────────────────────────────────────────────────────────
 
@@ -14,6 +14,12 @@ build-go: ## Build the Go binary locally (no UI embed)
 
 test: ## Run all Go unit tests
 	go test -v ./...
+
+test-integration: ## Run integration tests (requires adapter credential env vars)
+	go test -tags integration -timeout 300s -v ./...
+
+install-hooks: ## Install git pre-commit hooks (run once after clone)
+	pre-commit install
 
 # ── Dev lifecycle ─────────────────────────────────────────────────────────────
 

@@ -86,8 +86,8 @@ query FindScene($id: ID!) {
 
 // StashDB uses OSHash as its primary fingerprint algorithm for video files.
 const findScenesByFingerprintQuery = `
-query FindScenesByFingerprints($fingerprints: [FingerprintQueryInput!]!) {
-  findScenesByFingerprints(fingerprints: $fingerprints) {` + sceneFields + `
+query FindScenesByFingerprints($fingerprints: [[FingerprintQueryInput!]!]!) {
+  findScenesBySceneFingerprints(fingerprints: $fingerprints) {` + sceneFields + `
   }
 }`
 
@@ -115,20 +115,20 @@ func (a *Adapter) SearchItems(ctx context.Context, contentType domain.ContentTyp
 // FindByHash looks up a scene by OSHash. Returns ports.ErrNotFound when no match exists.
 func (a *Adapter) FindByHash(ctx context.Context, hash string) (*domain.ExternalItem, error) {
 	var resp struct {
-		FindScenesByFingerprints []gqlScene `json:"findScenesByFingerprints"`
+		FindScenesBySceneFingerprints [][]gqlScene `json:"findScenesBySceneFingerprints"`
 	}
 	vars := map[string]any{
-		"fingerprints": []map[string]any{
-			{"hash": hash, "algorithm": "OSHASH"},
+		"fingerprints": [][]map[string]any{
+			{{"hash": hash, "algorithm": "OSHASH"}},
 		},
 	}
 	if err := a.gql(ctx, findScenesByFingerprintQuery, vars, &resp); err != nil {
 		return nil, err
 	}
-	if len(resp.FindScenesByFingerprints) == 0 {
+	if len(resp.FindScenesBySceneFingerprints) == 0 || len(resp.FindScenesBySceneFingerprints[0]) == 0 {
 		return nil, ports.ErrNotFound
 	}
-	return toExternalItem(&resp.FindScenesByFingerprints[0], domain.ContentTypeAdult), nil
+	return toExternalItem(&resp.FindScenesBySceneFingerprints[0][0], domain.ContentTypeAdult), nil
 }
 
 // FindByExternalID fetches a single scene by its StashDB ID.

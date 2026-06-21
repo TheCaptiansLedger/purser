@@ -160,25 +160,27 @@ func TestSearchItems_ReturnsItems(t *testing.T) {
 
 const findByHashFoundFixture = `{
   "data": {
-    "findScenesByFingerprints": [
-      {
-        "id": "hash-scene-001",
-        "title": "Hash Matched Scene",
-        "details": "",
-        "date": "",
-        "duration": 0,
-        "images": [],
-        "tags": [],
-        "studio": null,
-        "performers": []
-      }
+    "findScenesBySceneFingerprints": [
+      [
+        {
+          "id": "hash-scene-001",
+          "title": "Hash Matched Scene",
+          "details": "",
+          "date": "",
+          "duration": 0,
+          "images": [],
+          "tags": [],
+          "studio": null,
+          "performers": []
+        }
+      ]
     ]
   }
 }`
 
 const findByHashNotFoundFixture = `{
   "data": {
-    "findScenesByFingerprints": []
+    "findScenesBySceneFingerprints": [[]]
   }
 }`
 

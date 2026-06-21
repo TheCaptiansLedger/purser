@@ -55,6 +55,7 @@ func TestFanart_FindByExternalID_Music(t *testing.T) {
 		domain.ImageTypeThumbnail:  true,
 		domain.ImageTypeBackground: true,
 		domain.ImageTypeBanner:     true,
+		domain.ImageTypeHero:       true,
 	}
 
 	for _, img := range item.Images {
