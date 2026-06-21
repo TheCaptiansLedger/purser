@@ -7,8 +7,8 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"purser/pkg/httpclient"
 	"strings"
-	"time"
 )
 
 // ImageDownloader fetches remote images over HTTP and writes them to the
@@ -23,7 +23,7 @@ type ImageDownloader struct {
 func NewImageDownloader(mediaPath string) *ImageDownloader {
 	return &ImageDownloader{
 		mediaPath: mediaPath,
-		client:    &http.Client{Timeout: 30 * time.Second},
+		client:    httpclient.New(),
 	}
 }
 

@@ -5,14 +5,13 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"log/slog"
 	"net/http"
 	"net/url"
 	"purser/internal/config"
 	"purser/internal/domain"
 	"purser/internal/ports"
+	"purser/pkg/httpclient"
 	"strings"
-	"time"
 )
 
 // Compile-time interface check.
@@ -40,7 +39,7 @@ func New(cfg config.MetadataSourceConfig) *Adapter {
 	return &Adapter{
 		baseURL: base,
 		apiKey:  cfg.APIKey,
-		client:  &http.Client{Timeout: 30 * time.Second},
+		client:  httpclient.New(),
 	}
 }
 
@@ -62,7 +61,6 @@ func (a *Adapter) get(ctx context.Context, path string, out any) error {
 	q.Set("api_key", a.apiKey)
 	u.RawQuery = q.Encode()
 
-	slog.Info("fanart: GET", "path", path)
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), nil)
 	if err != nil {
 		return err

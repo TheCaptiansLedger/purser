@@ -10,7 +10,7 @@ import (
 	"purser/internal/config"
 	"purser/internal/domain"
 	"purser/internal/ports"
-	"time"
+	"purser/pkg/httpclient"
 )
 
 // Compile-time interface check.
@@ -45,7 +45,7 @@ func New(cfg config.MetadataSourceConfig) *Adapter {
 		apiKey:    cfg.APIKey,
 		baseURL:   base,
 		userAgent: ua,
-		client:    &http.Client{Timeout: 30 * time.Second},
+		client:    httpclient.New(),
 	}
 }
 

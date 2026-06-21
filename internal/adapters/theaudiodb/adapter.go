@@ -5,13 +5,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"log/slog"
 	"net/http"
 	"purser/internal/config"
 	"purser/internal/domain"
 	"purser/internal/ports"
+	"purser/pkg/httpclient"
 	"strings"
-	"time"
 )
 
 var _ ports.MetadataSource = (*Adapter)(nil)
@@ -39,7 +38,7 @@ func New(cfg config.MetadataSourceConfig) *Adapter {
 	return &Adapter{
 		baseURL: base,
 		apiKey:  cfg.APIKey,
-		client:  &http.Client{Timeout: 30 * time.Second},
+		client:  httpclient.New(),
 	}
 }
 
@@ -55,7 +54,6 @@ func (a *Adapter) ContentTypes() []domain.ContentType {
 func (a *Adapter) get(ctx context.Context, path string, out any) error {
 	u := a.baseURL + a.apiKey + "/" + path
 
-	slog.Info("theaudiodb: GET", "path", path)
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u, nil)
 	if err != nil {
 		return err
