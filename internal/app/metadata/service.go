@@ -752,14 +752,17 @@ func preferredHeroURL(images []domain.ExternalImage) string {
 }
 
 // fetchAlbumCovers downloads the first album cover for each album that does not
-// already have one. It tries Fanart.tv first, then TheAudioDB as a fallback,
-// so albums absent from Fanart still get art when TheAudioDB has them.
+// already have one. Fanart.tv is queried in a single batch call; TheAudioDB is
+// queried per-album via album-mb.php since its free-tier discography endpoint
+// does not return thumbnails.
 func (s *Service) fetchAlbumCovers(ctx context.Context, contentType domain.ContentType, artistMBID string, albums []artistAlbum) {
 	if s.downloader == nil {
 		return
 	}
 
-	coverByMBID := s.collectAlbumCovers(ctx, contentType, artistMBID)
+	coverByMBID := make(map[string]string)
+	s.collectFanartCovers(ctx, contentType, artistMBID, coverByMBID)
+	s.collectAudioDBCovers(ctx, contentType, albums, coverByMBID)
 	slog.Info("refresh artist: album covers", "artist_mbid", artistMBID, "covers", len(coverByMBID), "library_albums", len(albums))
 
 	for _, album := range albums {
@@ -786,33 +789,54 @@ func (s *Service) fetchAlbumCovers(ctx context.Context, contentType domain.Conte
 	}
 }
 
-// collectAlbumCovers queries Fanart.tv then TheAudioDB for album cover URLs,
-// returning the first-seen URL per release-group MBID. Fanart wins on conflict.
-func (s *Service) collectAlbumCovers(ctx context.Context, contentType domain.ContentType, artistMBID string) map[string]string {
-	coverByMBID := make(map[string]string)
-	for _, sourceName := range []string{string(domain.SourceFanart), string(domain.SourceTheAudioDB)} {
-		src := s.sourceByName(sourceName)
-		if src == nil {
+// collectFanartCovers calls Fanart.tv's FetchEntryContent with the artist MBID,
+// which returns all album cover URLs in a single response, and adds them to out.
+func (s *Service) collectFanartCovers(ctx context.Context, contentType domain.ContentType, artistMBID string, out map[string]string) {
+	src := s.sourceByName(string(domain.SourceFanart))
+	if src == nil {
+		return
+	}
+	_, items, _, err := src.FetchEntryContent(ctx, contentType, artistMBID, 1, 1000)
+	if err != nil {
+		if !errors.Is(err, ports.ErrNotSupported) {
+			slog.Warn("refresh artist: fetch fanart album covers", "artist_mbid", artistMBID, "error", err)
+		}
+		return
+	}
+	for _, item := range items {
+		rgMBID, ok := item.ExternalIDs["mbid"]
+		if !ok || len(item.Images) == 0 {
 			continue
 		}
-		_, items, _, err := src.FetchEntryContent(ctx, contentType, artistMBID, 1, 1000)
-		if err != nil {
-			if !errors.Is(err, ports.ErrNotSupported) {
-				slog.Warn("refresh artist: fetch album covers", "source", sourceName, "artist_mbid", artistMBID, "error", err)
-			}
-			continue
-		}
-		for _, item := range items {
-			rgMBID, ok := item.ExternalIDs["mbid"]
-			if !ok || len(item.Images) == 0 {
-				continue
-			}
-			if _, exists := coverByMBID[rgMBID]; !exists {
-				coverByMBID[rgMBID] = item.Images[0].URL
-			}
+		if _, exists := out[rgMBID]; !exists {
+			out[rgMBID] = item.Images[0].URL
 		}
 	}
-	return coverByMBID
+}
+
+// collectAudioDBCovers calls TheAudioDB's FetchGroupContent for each album that
+// does not already have a cover in out, filling in covers from album-mb.php.
+func (s *Service) collectAudioDBCovers(ctx context.Context, contentType domain.ContentType, albums []artistAlbum, out map[string]string) {
+	src := s.sourceByName(string(domain.SourceTheAudioDB))
+	if src == nil {
+		return
+	}
+	for _, album := range albums {
+		rgMBID := album.extGroup.ExternalID
+		if _, exists := out[rgMBID]; exists {
+			continue
+		}
+		items, _, err := src.FetchGroupContent(ctx, contentType, rgMBID, 1, 1)
+		if err != nil {
+			if !errors.Is(err, ports.ErrNotSupported) {
+				slog.Warn("refresh artist: fetch audiodb album cover", "mbid", rgMBID, "error", err)
+			}
+			continue
+		}
+		if len(items) > 0 && len(items[0].Images) > 0 {
+			out[rgMBID] = items[0].Images[0].URL
+		}
+	}
 }
 
 // fetchPersonHeroImage downloads the best available hero image for a person

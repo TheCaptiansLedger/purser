@@ -12,13 +12,16 @@ import (
 	"time"
 )
 
-const whitesnakeMBID = "5be36b67-c819-4337-bec6-b17e1cc9de70"
+const whitesnakeMBID = "5dedf5cf-a598-4408-9556-3bf3f149f3ba"
+
+// Come an' Get It — confirmed to have strAlbumThumb in TheAudioDB
+const whitesnakeAlbumMBID = "2d4dfb06-6a4f-311c-88e7-4a7eae7e08f6"
 
 func integrationAdapter(t *testing.T) *theaudiodb.Adapter {
 	t.Helper()
 	apiKey := os.Getenv("PURSER_SOURCES_THEAUDIODB_API_KEY")
 	if apiKey == "" {
-		apiKey = "123" // free-tier key
+		t.Skip("PURSER_SOURCES_THEAUDIODB_API_KEY not set (use 123 for free tier)")
 	}
 	return theaudiodb.New(config.MetadataSourceConfig{APIKey: apiKey})
 }
@@ -45,24 +48,22 @@ func TestIntegration_FindByExternalID_Artist(t *testing.T) {
 	}
 }
 
-func TestIntegration_FetchEntryContent_AlbumArt(t *testing.T) {
+func TestIntegration_FetchGroupContent_AlbumCover(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	_, items, total, err := integrationAdapter(t).FetchEntryContent(ctx, domain.ContentTypeMusic, whitesnakeMBID, 1, 100)
+	items, total, err := integrationAdapter(t).FetchGroupContent(ctx, domain.ContentTypeMusic, whitesnakeAlbumMBID, 1, 1)
 	if err != nil {
-		t.Fatalf("FetchEntryContent: %v", err)
+		t.Fatalf("FetchGroupContent: %v", err)
 	}
 	if total == 0 || len(items) == 0 {
-		t.Fatal("expected at least one album with cover art")
+		t.Fatal("expected album cover art for Come an' Get It")
 	}
-	for _, item := range items {
-		if item.ExternalIDs["mbid"] == "" {
-			t.Errorf("item missing mbid in ExternalIDs: %+v", item)
-		}
-		if len(item.Images) == 0 || item.Images[0].URL == "" {
-			t.Errorf("item missing cover image: mbid=%s", item.ExternalIDs["mbid"])
-		}
+	if len(items[0].Images) == 0 || items[0].Images[0].URL == "" {
+		t.Error("ImageURL (strAlbumThumb) should be non-empty")
+	}
+	if items[0].ExternalIDs["mbid"] == "" {
+		t.Error("ExternalIDs[mbid] should be non-empty")
 	}
 }
 
@@ -82,5 +83,8 @@ func TestIntegration_SearchStudios(t *testing.T) {
 	}
 	if results[0].ExternalID == "" {
 		t.Error("ExternalID should be non-empty")
+	}
+	if results[0].ImageURL == "" {
+		t.Error("ImageURL should be non-empty for Whitesnake")
 	}
 }

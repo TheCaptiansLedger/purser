@@ -21,9 +21,11 @@ func (a *Adapter) FindByHash(_ context.Context, _ string) (*domain.ExternalItem,
 	return nil, ports.ErrNotSupported
 }
 
-// FetchGroupContent returns ErrNotSupported — TheAudioDB has no per-track image data.
-func (a *Adapter) FetchGroupContent(_ context.Context, _ domain.ContentType, _ string, _, _ int) ([]*domain.ExternalItem, int, error) {
-	return nil, 0, ports.ErrNotSupported
+// FetchEntryContent returns ErrNotSupported — TheAudioDB's free-tier discography
+// endpoint does not return MBIDs or thumbnails; album covers are fetched per-album
+// via FetchGroupContent instead.
+func (a *Adapter) FetchEntryContent(_ context.Context, _ domain.ContentType, _ string, _, _ int) ([]*domain.ExternalGroup, []*domain.ExternalItem, int, error) {
+	return nil, nil, 0, ports.ErrNotSupported
 }
 
 // FetchEntryPeople returns ErrNotSupported — TheAudioDB does not model band membership.
