@@ -17,6 +17,10 @@ type artistRecord struct {
 	StrMusicBrainzID string `json:"strMusicBrainzID"`
 	StrBiographyEN   string `json:"strBiographyEN"`
 	StrArtistThumb   string `json:"strArtistThumb"`
+	StrArtistFanart  string `json:"strArtistFanart"`
+	StrArtistFanart2 string `json:"strArtistFanart2"`
+	StrArtistFanart3 string `json:"strArtistFanart3"`
+	StrArtistBanner  string `json:"strArtistBanner"`
 	StrWebsite       string `json:"strWebsite"`
 	StrGenre         string `json:"strGenre"`
 }
@@ -73,5 +77,23 @@ func (a *Adapter) findArtistByMBID(ctx context.Context, mbid string) (*domain.Ex
 		ContentType: domain.ContentTypeMusic,
 		Title:       r.StrArtist,
 		Overview:    r.StrBiographyEN,
+		ImageURL:    r.StrArtistThumb,
+		Images:      collectArtistImages(r),
 	}, nil
+}
+
+func collectArtistImages(r artistRecord) []domain.ExternalImage {
+	var images []domain.ExternalImage
+	if r.StrArtistThumb != "" {
+		images = append(images, domain.ExternalImage{Type: domain.ImageTypeHero, URL: r.StrArtistThumb})
+	}
+	for _, u := range []string{r.StrArtistFanart, r.StrArtistFanart2, r.StrArtistFanart3} {
+		if u != "" {
+			images = append(images, domain.ExternalImage{Type: domain.ImageTypeBackground, URL: u})
+		}
+	}
+	if r.StrArtistBanner != "" {
+		images = append(images, domain.ExternalImage{Type: domain.ImageTypeBanner, URL: r.StrArtistBanner})
+	}
+	return images
 }

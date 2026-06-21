@@ -16,6 +16,10 @@ const artistFixture = `{
     "strMusicBrainzID": "5be36b67-c819-4337-bec6-b17e1cc9de70",
     "strBiographyEN": "Whitesnake are a British rock band formed in 1978.",
     "strArtistThumb": "https://cdn.theaudiodb.com/images/media/artist/thumb/whitesnake.jpg",
+    "strArtistFanart": "https://cdn.theaudiodb.com/images/media/artist/fanart/whitesnake-fanart1.jpg",
+    "strArtistFanart2": "https://cdn.theaudiodb.com/images/media/artist/fanart/whitesnake-fanart2.jpg",
+    "strArtistFanart3": "",
+    "strArtistBanner": "https://cdn.theaudiodb.com/images/media/artist/banner/whitesnake-banner.jpg",
     "strWebsite": "www.whitesnake.com",
     "strGenre": "Rock"
   }]
@@ -123,6 +127,67 @@ func TestSearchStudios_SkipsNoMBID(t *testing.T) {
 	}
 	if len(results) != 0 {
 		t.Errorf("expected 0 results (no MBID skipped), got %d", len(results))
+	}
+}
+
+func TestFindByExternalID_Music_Images(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(artistFixture))
+	}))
+	defer srv.Close()
+
+	item, err := newTestAdapter(srv).FindByExternalID(context.Background(), domain.ContentTypeMusic, "5be36b67-c819-4337-bec6-b17e1cc9de70")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if item.ImageURL == "" {
+		t.Error("ImageURL should be non-empty")
+	}
+	// fixture has thumb(hero) + 2 fanarts(background) + banner; fanart3 is empty and skipped
+	if len(item.Images) != 4 {
+		t.Errorf("expected 4 images, got %d", len(item.Images))
+	}
+	counts := make(map[domain.ImageType]int)
+	for _, img := range item.Images {
+		counts[img.Type]++
+	}
+	if counts[domain.ImageTypeHero] != 1 {
+		t.Errorf("expected 1 hero image, got %d", counts[domain.ImageTypeHero])
+	}
+	if counts[domain.ImageTypeBackground] != 2 {
+		t.Errorf("expected 2 background images, got %d", counts[domain.ImageTypeBackground])
+	}
+	if counts[domain.ImageTypeBanner] != 1 {
+		t.Errorf("expected 1 banner image, got %d", counts[domain.ImageTypeBanner])
+	}
+}
+
+func TestFindByExternalID_Music_ImagesSkipsEmpty(t *testing.T) {
+	const fixture = `{"artists": [{
+		"strArtist": "Test",
+		"strMusicBrainzID": "test-mbid",
+		"strArtistThumb": "https://example.com/thumb.jpg",
+		"strArtistFanart": "",
+		"strArtistFanart2": "",
+		"strArtistFanart3": "",
+		"strArtistBanner": ""
+	}]}`
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(fixture))
+	}))
+	defer srv.Close()
+
+	item, err := newTestAdapter(srv).FindByExternalID(context.Background(), domain.ContentTypeMusic, "test-mbid")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(item.Images) != 1 {
+		t.Errorf("expected 1 image (thumb only), got %d", len(item.Images))
+	}
+	if item.Images[0].Type != domain.ImageTypeHero {
+		t.Errorf("expected hero image type, got %s", item.Images[0].Type)
 	}
 }
 

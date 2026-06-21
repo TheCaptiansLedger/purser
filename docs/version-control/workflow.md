@@ -48,4 +48,4 @@ Rules:
 
 ## commits
 
-at the end of the session give your suggested commit message and a summary of the changes. 
+At the end of a session, present the suggested commit message and a summary of changes. Do NOT run `git commit` — the user commits manually.
