@@ -752,31 +752,15 @@ func preferredHeroURL(images []domain.ExternalImage) string {
 }
 
 // fetchAlbumCovers downloads the first album cover for each album that does not
-// already have one. It calls the fanart source directly since fanart.tv returns
-// all album artwork in a single /music/{mbid} response.
+// already have one. It tries Fanart.tv first, then TheAudioDB as a fallback,
+// so albums absent from Fanart still get art when TheAudioDB has them.
 func (s *Service) fetchAlbumCovers(ctx context.Context, contentType domain.ContentType, artistMBID string, albums []artistAlbum) {
-	fanartSrc := s.sourceByName(string(domain.SourceFanart))
-	if fanartSrc == nil || s.downloader == nil {
+	if s.downloader == nil {
 		return
 	}
 
-	_, items, _, err := fanartSrc.FetchEntryContent(ctx, contentType, artistMBID, 1, 1000)
-	if err != nil {
-		if !errors.Is(err, ports.ErrNotSupported) {
-			slog.Warn("refresh artist: fetch album covers", "artist_mbid", artistMBID, "error", err)
-		}
-		return
-	}
-
-	coverByMBID := make(map[string]string, len(items))
-	for _, item := range items {
-		rgMBID, ok := item.ExternalIDs["mbid"]
-		if !ok || len(item.Images) == 0 {
-			continue
-		}
-		coverByMBID[rgMBID] = item.Images[0].URL
-	}
-	slog.Info("refresh artist: album covers", "artist_mbid", artistMBID, "fanart_covers", len(coverByMBID), "library_albums", len(albums))
+	coverByMBID := s.collectAlbumCovers(ctx, contentType, artistMBID)
+	slog.Info("refresh artist: album covers", "artist_mbid", artistMBID, "covers", len(coverByMBID), "library_albums", len(albums))
 
 	for _, album := range albums {
 		g, err := s.groups.Get(ctx, album.internalID)
@@ -800,6 +784,35 @@ func (s *Service) fetchAlbumCovers(ctx context.Context, contentType domain.Conte
 			slog.Warn("refresh artist: save album cover", "group_id", g.ID, "error", err)
 		}
 	}
+}
+
+// collectAlbumCovers queries Fanart.tv then TheAudioDB for album cover URLs,
+// returning the first-seen URL per release-group MBID. Fanart wins on conflict.
+func (s *Service) collectAlbumCovers(ctx context.Context, contentType domain.ContentType, artistMBID string) map[string]string {
+	coverByMBID := make(map[string]string)
+	for _, sourceName := range []string{string(domain.SourceFanart), string(domain.SourceTheAudioDB)} {
+		src := s.sourceByName(sourceName)
+		if src == nil {
+			continue
+		}
+		_, items, _, err := src.FetchEntryContent(ctx, contentType, artistMBID, 1, 1000)
+		if err != nil {
+			if !errors.Is(err, ports.ErrNotSupported) {
+				slog.Warn("refresh artist: fetch album covers", "source", sourceName, "artist_mbid", artistMBID, "error", err)
+			}
+			continue
+		}
+		for _, item := range items {
+			rgMBID, ok := item.ExternalIDs["mbid"]
+			if !ok || len(item.Images) == 0 {
+				continue
+			}
+			if _, exists := coverByMBID[rgMBID]; !exists {
+				coverByMBID[rgMBID] = item.Images[0].URL
+			}
+		}
+	}
+	return coverByMBID
 }
 
 // fetchPersonHeroImage downloads the best available hero image for a person

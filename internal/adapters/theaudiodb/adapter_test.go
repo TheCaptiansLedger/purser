@@ -92,9 +92,9 @@ func TestAdapter_SearchItems_NotSupported(t *testing.T) {
 	}
 }
 
-func TestAdapter_FetchEntryContent_NotSupported(t *testing.T) {
+func TestAdapter_FetchEntryContent_NonMusicNotSupported(t *testing.T) {
 	a := theaudiodb.New(config.MetadataSourceConfig{})
-	_, _, _, err := a.FetchEntryContent(context.Background(), domain.ContentTypeMusic, "any-id", 1, 10)
+	_, _, _, err := a.FetchEntryContent(context.Background(), domain.ContentTypeAdult, "any-id", 1, 10)
 	if !errors.Is(err, ports.ErrNotSupported) {
 		t.Errorf("expected ErrNotSupported, got: %v", err)
 	}

@@ -21,11 +21,6 @@ func (a *Adapter) FindByHash(_ context.Context, _ string) (*domain.ExternalItem,
 	return nil, ports.ErrNotSupported
 }
 
-// FetchEntryContent returns ErrNotSupported — album art fetching is not yet implemented.
-func (a *Adapter) FetchEntryContent(_ context.Context, _ domain.ContentType, _ string, _, _ int) ([]*domain.ExternalGroup, []*domain.ExternalItem, int, error) {
-	return nil, nil, 0, ports.ErrNotSupported
-}
-
 // FetchGroupContent returns ErrNotSupported — TheAudioDB has no per-track image data.
 func (a *Adapter) FetchGroupContent(_ context.Context, _ domain.ContentType, _ string, _, _ int) ([]*domain.ExternalItem, int, error) {
 	return nil, 0, ports.ErrNotSupported
