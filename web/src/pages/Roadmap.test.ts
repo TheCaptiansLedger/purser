@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { hasStatus, getQuarterKey, getIssueArea, parseIssueRefs, GHIssue } from './Roadmap'
+import { hasStatus, getQuarterKey, getIssueArea, parseIssueRefs, sortedQuarterKeys, GHIssue, GHRelease } from './Roadmap'
 
 // Helper mock issue creator
 const createMockIssue = (labels: { name: string }[]): GHIssue => ({
@@ -50,6 +50,33 @@ describe('Roadmap Helper: parseIssueRefs', () => {
   })
   it('handles empty string', () => {
     expect(parseIssueRefs('')).toEqual([])
+  })
+})
+
+describe('sortedQuarterKeys', () => {
+  const rel = (published_at: string): GHRelease => ({
+    id: 1, tag_name: 'v0.1', name: 'v0.1', html_url: '', published_at, body: '',
+  })
+
+  it('returns quarter keys sorted latest first', () => {
+    const releases = [
+      rel('2026-01-15T00:00:00Z'),
+      rel('2026-06-01T00:00:00Z'),
+      rel('2025-09-01T00:00:00Z'),
+    ]
+    expect(sortedQuarterKeys(releases)).toEqual(['2026-Q2', '2026-Q1', '2025-Q3'])
+  })
+
+  it('deduplicates releases in the same quarter', () => {
+    const releases = [
+      rel('2026-01-01T00:00:00Z'),
+      rel('2026-02-15T00:00:00Z'),
+    ]
+    expect(sortedQuarterKeys(releases)).toEqual(['2026-Q1'])
+  })
+
+  it('returns empty array for no releases', () => {
+    expect(sortedQuarterKeys([])).toEqual([])
   })
 })
 

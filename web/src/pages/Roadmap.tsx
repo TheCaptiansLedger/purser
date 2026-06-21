@@ -115,6 +115,11 @@ export function getQuarterKey(dateStr: string) {
   return `${d.getUTCFullYear()}-Q${Math.floor(d.getUTCMonth() / 3) + 1}`
 }
 
+export function sortedQuarterKeys(releases: GHRelease[]): string[] {
+  return Array.from(new Set(releases.map(r => getQuarterKey(r.published_at))))
+    .sort((a, b) => b.localeCompare(a))
+}
+
 export function getIssueArea(issue: GHIssue): string {
   const areaLabel = issue.labels.find(l => l.name.startsWith('area:'))
   if (!areaLabel) return 'other'
@@ -259,6 +264,51 @@ function ReleaseCard({ release, linkedIssues }: { release: GHRelease; linkedIssu
   )
 }
 
+function ShippedColumn({ releases, issueMap }: { releases: GHRelease[]; issueMap: Map<number, GHIssue> }) {
+  const quarterKeys = sortedQuarterKeys(releases)
+  return (
+    <div className="flex flex-col gap-3 w-72 shrink-0">
+      <div className="flex items-center justify-between px-1">
+        <div className="flex items-center gap-2">
+          <CheckCircle2 size={14} className="text-emerald-400" />
+          <span className="text-sm font-medium text-white/70">Shipped</span>
+        </div>
+        <span
+          className="text-xs font-semibold px-2 py-0.5 rounded-full"
+          style={{ background: '#10b98122', color: '#10b981' }}
+        >
+          {releases.length}
+        </span>
+      </div>
+      <div className="flex flex-col">
+        {quarterKeys.map((qKey, idx) => {
+          const [year, q] = qKey.split('-')
+          const items = releases
+            .filter(r => getQuarterKey(r.published_at) === qKey)
+            .sort((a, b) => new Date(b.published_at).getTime() - new Date(a.published_at).getTime())
+          return (
+            <div key={qKey}>
+              {idx > 0 && <div className="border-t border-white/6 my-4" />}
+              <div className="flex items-center gap-2 mb-2 px-1">
+                <span className="text-[11px] font-medium text-white/35">{q} {year}</span>
+              </div>
+              <div className="flex flex-col gap-2">
+                {items.map(r => {
+                  const refs = parseIssueRefs(r.body ?? '')
+                  const linked = refs
+                    .map(n => issueMap.get(n))
+                    .filter((i): i is GHIssue => !!i && i.labels.some(l => l.name === 'scope: epic'))
+                  return <ReleaseCard key={r.id} release={r} linkedIssues={linked} />
+                })}
+              </div>
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
 function KanbanColumn({ label, icon: Icon, accent, issues }: {
   status: string; label: string; icon: React.ElementType; accent: string; issues: GHIssue[]
 }) {
@@ -323,10 +373,6 @@ export function Roadmap() {
     openIssues.some(i => getIssueArea(i) === area.id)
   )
 
-  const releaseQuarters = Array.from(new Set(
-    (releases.data ?? []).map(r => getQuarterKey(r.published_at))
-  )).sort((a, b) => b.localeCompare(a))
-
   const issueMap = new Map<number, GHIssue>(
     [...(open.data ?? []), ...(closed.data ?? [])].map(i => [i.number, i])
   )
@@ -341,7 +387,7 @@ export function Roadmap() {
   }
 
   return (
-    <div className="px-8 py-10 max-w-7xl">
+    <div className="px-8 py-10 max-w-screen-2xl">
       {/* Header */}
       <div className="flex items-center justify-between mb-8">
         <div>
@@ -412,145 +458,109 @@ export function Roadmap() {
         </div>
       )}
 
-      {/* Main Board Content */}
-      {isLoading && openIssues.length === 0 ? (
-        <div className="grid grid-cols-4 gap-6">
-          {COLUMNS.map(col => (
-            <div key={col.status} className="flex flex-col gap-3">
-              <div className="h-6 w-28 rounded-lg bg-white/5 animate-pulse" />
-              {[1, 2, 3].map(n => (
-                <div key={n} className="h-24 rounded-xl bg-white/3 animate-pulse" />
+      {/* Board + Shipped flex row */}
+      <div className="flex gap-6 items-start">
+        <div className="flex-1 min-w-0">
+          {isLoading && openIssues.length === 0 ? (
+            <div className="grid grid-cols-4 gap-6">
+              {COLUMNS.map(col => (
+                <div key={col.status} className="flex flex-col gap-3">
+                  <div className="h-6 w-28 rounded-lg bg-white/5 animate-pulse" />
+                  {[1, 2, 3].map(n => (
+                    <div key={n} className="h-24 rounded-xl bg-white/3 animate-pulse" />
+                  ))}
+                </div>
               ))}
             </div>
-          ))}
-        </div>
-      ) : openIssues.length === 0 ? (
-        <div className="text-center py-12 rounded-xl border border-white/6 bg-white/1 text-white/30 text-sm">
-          No active roadmap issues found.
-        </div>
-      ) : viewMode === 'swimlanes' ? (
-        <div className="flex flex-col gap-8">
-          {/* Global Column Headers for Swimlanes */}
-          <div className="grid grid-cols-4 gap-6 mb-2 px-1">
-            {COLUMNS.map(col => {
-              const Icon = col.icon
-              const count = openIssues.filter(i => hasStatus(i, col.status)).length
-              return (
-                <div key={col.status} className="flex items-center gap-2 pb-2 border-b border-white/4">
-                  <Icon size={14} style={{ color: col.accent }} />
-                  <span className="text-xs font-semibold text-white/60 uppercase tracking-wider">{col.label}</span>
-                  <span
-                    className="text-[10px] font-bold px-1.5 py-0.5 rounded-full"
-                    style={{ background: `${col.accent}15`, color: col.accent }}
-                  >
-                    {count}
-                  </span>
-                </div>
-              )
-            })}
-          </div>
-
-          {/* Swimlanes list */}
-          <div className="flex flex-col gap-6">
-            {activeAreas.map(area => {
-              const areaIssues = openIssues.filter(i => getIssueArea(i) === area.id)
-              const AreaIcon = AREA_ICONS[area.id] || HelpCircle
-
-              return (
-                <div
-                  key={area.id}
-                  className="flex flex-col gap-4 p-4 rounded-xl border border-white/6 bg-white/1 hover:border-white/10 transition-colors duration-150"
-                >
-                  {/* Swimlane Header */}
-                  <div className="flex items-center gap-2.5">
-                    <AreaIcon size={16} style={{ color: area.color }} />
-                    <span className="text-sm font-semibold text-white/95">{area.label}</span>
-                    <span
-                      className="text-[10px] px-2 py-0.5 rounded-full font-medium"
-                      style={{ background: `${area.color}15`, color: area.color }}
-                    >
-                      {areaIssues.length} open
-                    </span>
-                  </div>
-
-                  {/* 4 Columns under this Swimlane */}
-                  <div className="grid grid-cols-4 gap-6">
-                    {COLUMNS.map(col => {
-                      const colIssues = areaIssues.filter(i => hasStatus(i, col.status))
-                      return (
-                        <div key={col.status} className="flex flex-col gap-2.5 min-w-0">
-                          {colIssues.length === 0 ? (
-                            <div className="h-full min-h-[4rem] flex items-center justify-center rounded-xl border border-dashed border-white/4 bg-white/[0.01] text-center text-xs text-white/15">
-                              No {col.label.toLowerCase()}
-                            </div>
-                          ) : (
-                            colIssues.map(i => <IssueCard key={i.id} issue={i} />)
-                          )}
-                        </div>
-                      )
-                    })}
-                  </div>
-                </div>
-              )
-            })}
-          </div>
-        </div>
-      ) : (
-        /* Standard Kanban Board */
-        <div className="grid grid-cols-4 gap-6">
-          {COLUMNS.map(col => (
-            <KanbanColumn
-              key={col.status}
-              {...col}
-              issues={openIssues.filter(i => hasStatus(i, col.status))}
-            />
-          ))}
-        </div>
-      )}
-
-      {/* Shipped Section */}
-      {releases.data && (
-        <div className="mt-16">
-          <div className="flex items-center gap-3 mb-6">
-            <CheckCircle2 size={16} className="text-emerald-400" />
-            <h2 className="text-base font-semibold text-white/70">Shipped</h2>
-            <span className="text-xs text-white/30">{releases.data.length} releases</span>
-          </div>
-
-          {releases.data.length === 0 ? (
-            <div className="text-sm text-white/25 px-1">Nothing shipped yet.</div>
-          ) : (
+          ) : openIssues.length === 0 ? (
+            <div className="text-center py-12 rounded-xl border border-white/6 bg-white/1 text-white/30 text-sm">
+              No active roadmap issues found.
+            </div>
+          ) : viewMode === 'swimlanes' ? (
             <div className="flex flex-col gap-8">
-              {releaseQuarters.map(qKey => {
-                const [year, q] = qKey.split('-')
-                const items = releases.data!
-                  .filter(r => getQuarterKey(r.published_at) === qKey)
-                  .sort((a, b) => new Date(b.published_at).getTime() - new Date(a.published_at).getTime())
-
-                if (items.length === 0) return null
-
-                return (
-                  <div key={qKey}>
-                    <div className="flex items-center gap-3 mb-4">
-                      <span className="text-sm font-medium text-white/50">{q} {year}</span>
-                      <span className="text-xs text-white/25">{items.length} releases</span>
+              {/* Global Column Headers for Swimlanes */}
+              <div className="grid grid-cols-4 gap-6 mb-2 px-1">
+                {COLUMNS.map(col => {
+                  const Icon = col.icon
+                  const count = openIssues.filter(i => hasStatus(i, col.status)).length
+                  return (
+                    <div key={col.status} className="flex items-center gap-2 pb-2 border-b border-white/4">
+                      <Icon size={14} style={{ color: col.accent }} />
+                      <span className="text-xs font-semibold text-white/60 uppercase tracking-wider">{col.label}</span>
+                      <span
+                        className="text-[10px] font-bold px-1.5 py-0.5 rounded-full"
+                        style={{ background: `${col.accent}15`, color: col.accent }}
+                      >
+                        {count}
+                      </span>
                     </div>
-                    <div className="grid grid-cols-3 gap-3">
-                      {items.map(r => {
-                        const refs = parseIssueRefs(r.body ?? '')
-                        const linkedIssues = refs
-                          .map(n => issueMap.get(n))
-                          .filter((i): i is GHIssue => !!i && i.labels.some(l => l.name === 'scope: epic'))
-                        return <ReleaseCard key={r.id} release={r} linkedIssues={linkedIssues} />
-                      })}
+                  )
+                })}
+              </div>
+
+              {/* Swimlanes list */}
+              <div className="flex flex-col gap-6">
+                {activeAreas.map(area => {
+                  const areaIssues = openIssues.filter(i => getIssueArea(i) === area.id)
+                  const AreaIcon = AREA_ICONS[area.id] || HelpCircle
+
+                  return (
+                    <div
+                      key={area.id}
+                      className="flex flex-col gap-4 p-4 rounded-xl border border-white/6 bg-white/1 hover:border-white/10 transition-colors duration-150"
+                    >
+                      {/* Swimlane Header */}
+                      <div className="flex items-center gap-2.5">
+                        <AreaIcon size={16} style={{ color: area.color }} />
+                        <span className="text-sm font-semibold text-white/95">{area.label}</span>
+                        <span
+                          className="text-[10px] px-2 py-0.5 rounded-full font-medium"
+                          style={{ background: `${area.color}15`, color: area.color }}
+                        >
+                          {areaIssues.length} open
+                        </span>
+                      </div>
+
+                      {/* 4 Columns under this Swimlane */}
+                      <div className="grid grid-cols-4 gap-6">
+                        {COLUMNS.map(col => {
+                          const colIssues = areaIssues.filter(i => hasStatus(i, col.status))
+                          return (
+                            <div key={col.status} className="flex flex-col gap-2.5 min-w-0">
+                              {colIssues.length === 0 ? (
+                                <div className="h-full min-h-[4rem] flex items-center justify-center rounded-xl border border-dashed border-white/4 bg-white/[0.01] text-center text-xs text-white/15">
+                                  No {col.label.toLowerCase()}
+                                </div>
+                              ) : (
+                                colIssues.map(i => <IssueCard key={i.id} issue={i} />)
+                              )}
+                            </div>
+                          )
+                        })}
+                      </div>
                     </div>
-                  </div>
-                )
-              })}
+                  )
+                })}
+              </div>
+            </div>
+          ) : (
+            /* Standard Kanban Board */
+            <div className="grid grid-cols-4 gap-6">
+              {COLUMNS.map(col => (
+                <KanbanColumn
+                  key={col.status}
+                  {...col}
+                  issues={openIssues.filter(i => hasStatus(i, col.status))}
+                />
+              ))}
             </div>
           )}
         </div>
-      )}
+
+        {releases.data && releases.data.length > 0 && (
+          <ShippedColumn releases={releases.data} issueMap={issueMap} />
+        )}
+      </div>
     </div>
   )
 }
