@@ -39,6 +39,7 @@ type mbzReleaseGroup struct {
 func (a *Adapter) FetchEntryContent(ctx context.Context, _ domain.ContentType, artistMBID string, page, perPage int) ([]*domain.ExternalGroup, []*domain.ExternalItem, int, error) {
 	params := url.Values{}
 	params.Set("artist", artistMBID)
+	params.Set("status", "Official")
 	params.Set("fmt", "json")
 	params.Set("limit", strconv.Itoa(perPage))
 	params.Set("offset", strconv.Itoa((page-1)*perPage))

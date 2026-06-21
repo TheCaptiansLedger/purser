@@ -203,7 +203,8 @@ func TestMBZ_FetchEntryContent(t *testing.T) {
 		t.Fatal("groups is empty; expected at least one release-group on page 1")
 	}
 
-	// Each release group must have a non-empty ID and title.
+	// Each release group must have a non-empty ID, title, and a recognised primary type.
+	// The status=Official filter means bootlegs and promos must not appear.
 	for i, g := range groups {
 		if g.ExternalID == "" {
 			t.Errorf("groups[%d].ExternalID is empty", i)
@@ -217,6 +218,9 @@ func TestMBZ_FetchEntryContent(t *testing.T) {
 		// Year comes from first-release-date. Legitimately 0 if MBZ has no date, so just validate range.
 		if g.Year != 0 && (g.Year < 1900 || g.Year > 2100) {
 			t.Errorf("groups[%d].Year = %d, outside plausible range", i, g.Year)
+		}
+		if g.PrimaryType == "" {
+			t.Errorf("groups[%d].PrimaryType is empty; Official releases always carry a primary type", i)
 		}
 	}
 }

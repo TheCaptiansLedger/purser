@@ -91,3 +91,19 @@ func TestFetchEntryContent_PaginationOffset(t *testing.T) {
 		t.Errorf("expected offset=20 for page=3 perPage=10, got query: %s", query)
 	}
 }
+
+func TestFetchEntryContent_StatusOfficialFilter(t *testing.T) {
+	var query string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		query = r.URL.RawQuery
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`{"release-group-count": 0, "release-groups": []}`)) //nolint:errcheck
+	}))
+	defer srv.Close()
+
+	a := mbz.New(config.MetadataSourceConfig{URL: srv.URL})
+	_, _, _, _ = a.FetchEntryContent(context.Background(), domain.ContentTypeMusic, "some-mbid", 1, 10)
+	if !strings.Contains(query, "status=Official") {
+		t.Errorf("expected status=Official in query to exclude bootlegs and promos, got: %s", query)
+	}
+}
