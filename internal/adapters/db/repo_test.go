@@ -3,6 +3,7 @@ package db
 import (
 	"context"
 	"database/sql"
+	"purser/internal/app/errs"
 	"purser/internal/domain"
 	"purser/internal/ports"
 	"testing"
@@ -29,8 +30,8 @@ func TestOpen_CreatesSchema(t *testing.T) {
 	if err := database.QueryRow(`SELECT COUNT(*) FROM schema_migrations`).Scan(&count); err != nil {
 		t.Fatalf("schema_migrations missing: %v", err)
 	}
-	if count != 7 {
-		t.Errorf("migration count = %d, want 7", count)
+	if count != 8 {
+		t.Errorf("migration count = %d, want 8", count)
 	}
 
 	tables := []string{
@@ -38,7 +39,7 @@ func TestOpen_CreatesSchema(t *testing.T) {
 		"people", "people_aliases", "item_people",
 		"external_ids", "tags", "item_tags", "entry_tags",
 		"media_files", "releases", "downloads",
-		"entry_people",
+		"entry_people", "settings",
 	}
 	for _, table := range tables {
 		var n int
@@ -1259,6 +1260,58 @@ func TestLibraryEntryRepo_RemovePerson(t *testing.T) {
 	}
 	if len(people) != 0 {
 		t.Errorf("people count = %d, want 0 after remove", len(people))
+	}
+}
+
+// ── SettingsRepo ──────────────────────────────────────────────────────────────
+
+func TestSettingsRepo_GetMissingKey(t *testing.T) {
+	repo := NewSettingsRepo(setupTestDB(t))
+	ctx := context.Background()
+
+	_, err := repo.Get(ctx, "does.not.exist")
+	if err == nil {
+		t.Fatal("expected error for missing key, got nil")
+	}
+	if !errs.IsNotFound(err) {
+		t.Errorf("expected ErrNotFound, got %v", err)
+	}
+}
+
+func TestSettingsRepo_SetAndGet(t *testing.T) {
+	repo := NewSettingsRepo(setupTestDB(t))
+	ctx := context.Background()
+
+	if err := repo.Set(ctx, "setup_complete", "true"); err != nil {
+		t.Fatalf("Set: %v", err)
+	}
+
+	got, err := repo.Get(ctx, "setup_complete")
+	if err != nil {
+		t.Fatalf("Get: %v", err)
+	}
+	if got != "true" {
+		t.Errorf("Get = %q, want %q", got, "true")
+	}
+}
+
+func TestSettingsRepo_Set_Upsert(t *testing.T) {
+	repo := NewSettingsRepo(setupTestDB(t))
+	ctx := context.Background()
+
+	if err := repo.Set(ctx, "modules.movies.enabled", "false"); err != nil {
+		t.Fatalf("Set initial: %v", err)
+	}
+	if err := repo.Set(ctx, "modules.movies.enabled", "true"); err != nil {
+		t.Fatalf("Set upsert: %v", err)
+	}
+
+	got, err := repo.Get(ctx, "modules.movies.enabled")
+	if err != nil {
+		t.Fatalf("Get after upsert: %v", err)
+	}
+	if got != "true" {
+		t.Errorf("Get after upsert = %q, want %q", got, "true")
 	}
 }
 

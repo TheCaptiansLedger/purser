@@ -114,3 +114,9 @@ type MediaFileRepository interface {
 	Save(ctx context.Context, f *domain.MediaFile) error
 	Delete(ctx context.Context, id string) error
 }
+
+// SettingsRepository persists runtime configuration key-value pairs.
+type SettingsRepository interface {
+	Get(ctx context.Context, key string) (string, error) // returns errs.ErrNotFound if missing
+	Set(ctx context.Context, key, value string) error
+}
