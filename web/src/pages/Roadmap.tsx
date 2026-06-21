@@ -59,6 +59,11 @@ async function fetchIssues(state: 'open' | 'closed'): Promise<GHIssue[]> {
   return res.json()
 }
 
+export function parseIssueRefs(body: string): number[] {
+  const matches = body.match(/#(\d+)/g) ?? []
+  return [...new Set(matches.map(m => parseInt(m.slice(1), 10)))]
+}
+
 async function fetchReleases(): Promise<GHRelease[]> {
   const res = await fetch(`${GITHUB_API}/releases`, {
     headers: { Accept: 'application/vnd.github.v3+json' },
@@ -218,7 +223,7 @@ function IssueCard({ issue, shipped = false }: { issue: GHIssue; shipped?: boole
   )
 }
 
-function ReleaseCard({ release }: { release: GHRelease }) {
+function ReleaseCard({ release, linkedIssues }: { release: GHRelease; linkedIssues: GHIssue[] }) {
   return (
     <a
       href={release.html_url}
@@ -232,6 +237,24 @@ function ReleaseCard({ release }: { release: GHRelease }) {
       </div>
       <p className="text-sm text-white/80 leading-snug line-clamp-2">{release.name || release.tag_name}</p>
       <span className="text-[11px] text-white/25">{shortDate(release.published_at)}</span>
+      {linkedIssues.length > 0 && (
+        <div className="mt-1 flex flex-col gap-1 border-t border-white/6 pt-2">
+          {linkedIssues.map(i => (
+            <a
+              key={i.id}
+              href={i.html_url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-1.5 text-[11px] text-white/45 hover:text-white/75 transition-colors"
+              onClick={e => e.stopPropagation()}
+            >
+              <CheckCircle2 size={10} className="text-emerald-400/60 shrink-0" />
+              <span className="text-white/30 shrink-0">#{i.number}</span>
+              <span className="truncate">{i.title}</span>
+            </a>
+          ))}
+        </div>
+      )}
     </a>
   )
 }
@@ -273,6 +296,12 @@ export function Roadmap() {
     staleTime: 5 * 60 * 1000,
   })
 
+  const closed = useQuery<GHIssue[], Error>({
+    queryKey: ['github-issues', 'closed'],
+    queryFn: () => fetchIssues('closed'),
+    staleTime: 5 * 60 * 1000,
+  })
+
   const releases = useQuery<GHRelease[], Error>({
     queryKey: ['github-releases'],
     queryFn: fetchReleases,
@@ -298,11 +327,16 @@ export function Roadmap() {
     (releases.data ?? []).map(r => getQuarterKey(r.published_at))
   )).sort((a, b) => b.localeCompare(a))
 
-  const isLoading = open.isLoading
-  const error = open.error?.message ?? releases.error?.message
+  const issueMap = new Map<number, GHIssue>(
+    [...(open.data ?? []), ...(closed.data ?? [])].map(i => [i.number, i])
+  )
+
+  const isLoading = open.isLoading || closed.isLoading
+  const error = open.error?.message ?? closed.error?.message ?? releases.error?.message
 
   function refetch() {
     open.refetch()
+    closed.refetch()
     releases.refetch()
   }
 
@@ -502,7 +536,13 @@ export function Roadmap() {
                       <span className="text-xs text-white/25">{items.length} releases</span>
                     </div>
                     <div className="grid grid-cols-3 gap-3">
-                      {items.map(r => <ReleaseCard key={r.id} release={r} />)}
+                      {items.map(r => {
+                        const refs = parseIssueRefs(r.body ?? '')
+                        const linkedIssues = refs
+                          .map(n => issueMap.get(n))
+                          .filter((i): i is GHIssue => !!i && i.labels.some(l => l.name === 'scope: epic'))
+                        return <ReleaseCard key={r.id} release={r} linkedIssues={linkedIssues} />
+                      })}
                     </div>
                   </div>
                 )

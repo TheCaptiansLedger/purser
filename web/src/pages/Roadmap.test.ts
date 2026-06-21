@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { hasStatus, getQuarterKey, getIssueArea, GHIssue } from './Roadmap'
+import { hasStatus, getQuarterKey, getIssueArea, parseIssueRefs, GHIssue } from './Roadmap'
 
 // Helper mock issue creator
 const createMockIssue = (labels: { name: string }[]): GHIssue => ({
@@ -35,6 +35,21 @@ describe('Roadmap Helper: getQuarterKey', () => {
     expect(getQuarterKey('2026-06-17T08:00:00Z')).toBe('2026-Q2')
     expect(getQuarterKey('2026-07-01T00:00:00Z')).toBe('2026-Q3')
     expect(getQuarterKey('2026-12-31T23:59:59Z')).toBe('2026-Q4')
+  })
+})
+
+describe('Roadmap Helper: parseIssueRefs', () => {
+  it('extracts issue numbers from markdown body', () => {
+    expect(parseIssueRefs('Closes #42 and fixes #7')).toEqual([42, 7])
+  })
+  it('deduplicates repeated refs', () => {
+    expect(parseIssueRefs('see #10, #10, #11')).toEqual([10, 11])
+  })
+  it('returns empty array for no refs', () => {
+    expect(parseIssueRefs('No issue refs here')).toEqual([])
+  })
+  it('handles empty string', () => {
+    expect(parseIssueRefs('')).toEqual([])
   })
 })
 
