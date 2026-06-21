@@ -73,6 +73,31 @@ async function fetchReleases(): Promise<GHRelease[]> {
   return res.json()
 }
 
+export function uniqueContributors(
+  commits: Array<{ author: { login: string; avatar_url: string } | null }>
+): GHUser[] {
+  const seen = new Set<string>()
+  const result: GHUser[] = []
+  for (const c of commits) {
+    if (c.author && !seen.has(c.author.login)) {
+      seen.add(c.author.login)
+      result.push({ login: c.author.login, avatar_url: c.author.avatar_url })
+    }
+  }
+  return result
+}
+
+async function fetchReleaseContributors(prevTag: string | null, currentTag: string): Promise<GHUser[]> {
+  const url = prevTag
+    ? `${GITHUB_API}/compare/${prevTag}...${currentTag}`
+    : `${GITHUB_API}/commits?sha=${currentTag}&per_page=100`
+  const res = await fetch(url, { headers: { Accept: 'application/vnd.github.v3+json' } })
+  if (res.status === 403) throw new Error('GitHub API rate limited — try again in a minute.')
+  if (!res.ok) throw new Error('Failed to fetch release contributors.')
+  const data = await res.json()
+  return uniqueContributors(prevTag ? data.commits : data)
+}
+
 const COLUMNS = [
   { status: 'proposed',    label: 'Proposed',     icon: Sparkles,     accent: '#8b5cf6' },
   { status: 'ready',       label: 'Planned',      icon: Lightbulb,    accent: '#6366f1' },
@@ -153,20 +178,22 @@ function shortDate(dateStr: string) {
   return new Date(dateStr).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
 }
 
-function ContributorAvatar({ user, role }: { user: GHUser; role: 'creator' | 'assignee' }) {
+function ContributorAvatar({ user, role }: { user: GHUser; role: 'creator' | 'assignee' | 'contributor' }) {
+  const imgClass = role === 'creator'
+    ? 'border-indigo-500/40 opacity-70 group-hover/avatar:opacity-100'
+    : role === 'assignee'
+    ? 'border-emerald-500/40 opacity-55 group-hover/avatar:opacity-100 hover:scale-105'
+    : 'border-teal-500/40 opacity-55 group-hover/avatar:opacity-100 hover:scale-105'
+  const label = role === 'creator' ? 'Creator' : role === 'assignee' ? 'Assignee' : 'Contributor'
   return (
     <div className="relative group/avatar">
       <img
         src={user.avatar_url}
         alt={user.login}
-        className={`w-5 h-5 rounded-full border shrink-0 transition-all ${
-          role === 'creator'
-            ? 'border-indigo-500/40 opacity-70 group-hover/avatar:opacity-100'
-            : 'border-emerald-500/40 opacity-55 group-hover/avatar:opacity-100 hover:scale-105'
-        }`}
+        className={`w-5 h-5 rounded-full border shrink-0 transition-all ${imgClass}`}
       />
       <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 hidden group-hover/avatar:block bg-zinc-950 text-[9px] text-white/90 px-1.5 py-0.5 rounded border border-white/10 whitespace-nowrap z-30 shadow-lg pointer-events-none">
-        {role === 'creator' ? 'Creator' : 'Assignee'}: {user.login}
+        {label}: {user.login}
       </span>
     </div>
   )
@@ -228,7 +255,11 @@ function IssueCard({ issue, shipped = false }: { issue: GHIssue; shipped?: boole
   )
 }
 
-function ReleaseCard({ release, linkedIssues }: { release: GHRelease; linkedIssues: GHIssue[] }) {
+function ReleaseCard({ release, linkedIssues, contributors = [] }: {
+  release: GHRelease
+  linkedIssues: GHIssue[]
+  contributors?: GHUser[]
+}) {
   return (
     <a
       href={release.html_url}
@@ -241,7 +272,16 @@ function ReleaseCard({ release, linkedIssues }: { release: GHRelease; linkedIssu
         <ExternalLink size={12} className="text-white/20 group-hover:text-white/50 transition-colors shrink-0" />
       </div>
       <p className="text-sm text-white/80 leading-snug line-clamp-2">{release.name || release.tag_name}</p>
-      <span className="text-[11px] text-white/25">{shortDate(release.published_at)}</span>
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-[11px] text-white/25">{shortDate(release.published_at)}</span>
+        {contributors.length > 0 && (
+          <div className="flex items-center -space-x-1">
+            {contributors.map(u => (
+              <ContributorAvatar key={u.login} user={u} role="contributor" />
+            ))}
+          </div>
+        )}
+      </div>
       {linkedIssues.length > 0 && (
         <div className="mt-1 flex flex-col gap-1 border-t border-white/6 pt-2">
           {linkedIssues.map(i => (
@@ -264,8 +304,29 @@ function ReleaseCard({ release, linkedIssues }: { release: GHRelease; linkedIssu
   )
 }
 
+function ReleaseCardWithContributors({ release, prevTag, linkedIssues }: {
+  release: GHRelease
+  prevTag: string | null
+  linkedIssues: GHIssue[]
+}) {
+  const { data: contributors } = useQuery<GHUser[], Error>({
+    queryKey: ['release-contributors', release.tag_name],
+    queryFn: () => fetchReleaseContributors(prevTag, release.tag_name),
+    staleTime: 60 * 60 * 1000,
+  })
+  return <ReleaseCard release={release} linkedIssues={linkedIssues} contributors={contributors ?? []} />
+}
+
 function ShippedColumn({ releases, issueMap }: { releases: GHRelease[]; issueMap: Map<number, GHIssue> }) {
   const quarterKeys = sortedQuarterKeys(releases)
+
+  const oldestFirst = [...releases].sort(
+    (a, b) => new Date(a.published_at).getTime() - new Date(b.published_at).getTime()
+  )
+  const prevTagMap = new Map<string, string | null>(
+    oldestFirst.map((r, idx) => [r.tag_name, idx === 0 ? null : oldestFirst[idx - 1].tag_name])
+  )
+
   return (
     <div className="flex flex-col gap-3 w-72 shrink-0">
       <div className="flex items-center justify-between px-1">
@@ -298,7 +359,14 @@ function ShippedColumn({ releases, issueMap }: { releases: GHRelease[]; issueMap
                   const linked = refs
                     .map(n => issueMap.get(n))
                     .filter((i): i is GHIssue => !!i && i.labels.some(l => l.name === 'scope: epic'))
-                  return <ReleaseCard key={r.id} release={r} linkedIssues={linked} />
+                  return (
+                    <ReleaseCardWithContributors
+                      key={r.id}
+                      release={r}
+                      prevTag={prevTagMap.get(r.tag_name) ?? null}
+                      linkedIssues={linked}
+                    />
+                  )
                 })}
               </div>
             </div>

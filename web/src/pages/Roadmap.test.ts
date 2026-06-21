@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { hasStatus, getQuarterKey, getIssueArea, parseIssueRefs, sortedQuarterKeys, GHIssue, GHRelease } from './Roadmap'
+import { hasStatus, getQuarterKey, getIssueArea, parseIssueRefs, sortedQuarterKeys, uniqueContributors, GHIssue, GHRelease } from './Roadmap'
 
 // Helper mock issue creator
 const createMockIssue = (labels: { name: string }[]): GHIssue => ({
@@ -50,6 +50,34 @@ describe('Roadmap Helper: parseIssueRefs', () => {
   })
   it('handles empty string', () => {
     expect(parseIssueRefs('')).toEqual([])
+  })
+})
+
+describe('uniqueContributors', () => {
+  const user = (login: string) => ({ login, avatar_url: `https://avatar/${login}` })
+
+  it('returns unique contributors in first-seen order', () => {
+    const commits = [
+      { author: user('alice') },
+      { author: user('bob') },
+      { author: user('alice') },
+    ]
+    const result = uniqueContributors(commits)
+    expect(result.map(u => u.login)).toEqual(['alice', 'bob'])
+  })
+
+  it('skips commits with no linked GitHub account', () => {
+    const commits = [
+      { author: null },
+      { author: user('carol') },
+      { author: null },
+    ]
+    const result = uniqueContributors(commits)
+    expect(result.map(u => u.login)).toEqual(['carol'])
+  })
+
+  it('returns empty array for empty input', () => {
+    expect(uniqueContributors([])).toEqual([])
   })
 })
 
