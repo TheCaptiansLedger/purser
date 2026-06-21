@@ -66,7 +66,8 @@ func newHandlerWithDB(t *testing.T) (http.Handler, *sql.DB) {
 		},
 		Log: config.LogConfig{Level: "info", Format: "text"},
 	}
-	return api.New(0, "", cfg, database, libSvc, peopleSvc, metaSvc, tagRepo, jobQueue, uiFS).Handler(), database
+	settingsRepo := dbadapter.NewSettingsRepo(database)
+	return api.New(0, "", cfg, database, libSvc, peopleSvc, metaSvc, tagRepo, jobQueue, settingsRepo, uiFS).Handler(), database
 }
 
 // newHandler builds a full server backed by a temp-file SQLite database.
@@ -122,7 +123,8 @@ func newHandlerWithMedia(t *testing.T, mediaPath string) http.Handler {
 		},
 		Log: config.LogConfig{Level: "info", Format: "text"},
 	}
-	return api.New(0, mediaPath, cfg, database, libSvc, peopleSvc, metaSvc, tagRepo, jobQueue, uiFS).Handler()
+	settingsRepo := dbadapter.NewSettingsRepo(database)
+	return api.New(0, mediaPath, cfg, database, libSvc, peopleSvc, metaSvc, tagRepo, jobQueue, settingsRepo, uiFS).Handler()
 }
 
 func do(t *testing.T, h http.Handler, method, path string, body any) *httptest.ResponseRecorder {
@@ -270,7 +272,7 @@ func TestConfig_Get_Sources_KeysMasked(t *testing.T) {
 		},
 		Log: config.LogConfig{Level: "info", Format: "text"},
 	}
-	h := api.New(0, "", cfg, database, libSvc, peopleSvc, metaSvc, tagRepo, jobQueue, uiFS).Handler()
+	h := api.New(0, "", cfg, database, libSvc, peopleSvc, metaSvc, tagRepo, jobQueue, dbadapter.NewSettingsRepo(database), uiFS).Handler()
 
 	w := do(t, h, http.MethodGet, "/api/v1/config", nil)
 	if w.Code != http.StatusOK {
@@ -1718,7 +1720,7 @@ func TestJobs_Cancel_SetsStatus(t *testing.T) {
 		Database: config.DatabaseConfig{Driver: "sqlite", DSN: dbPath},
 		Log:      config.LogConfig{Level: "info", Format: "text"},
 	}
-	h := api.New(0, "", cfg, database, libSvc, peopleSvc, metaSvc, tagRepo, jobQueue, uiFS).Handler()
+	h := api.New(0, "", cfg, database, libSvc, peopleSvc, metaSvc, tagRepo, jobQueue, dbadapter.NewSettingsRepo(database), uiFS).Handler()
 
 	// DELETE /api/v1/jobs/:id should cancel it.
 	w := do(t, h, http.MethodDelete, "/api/v1/jobs/"+submitted.ID, nil)
@@ -2245,5 +2247,43 @@ func TestImages_Get_MultipleExtensions(t *testing.T) {
 	}
 	if ct := w.Result().Header.Get("Content-Type"); ct != "image/png" {
 		t.Errorf("Content-Type = %q, want image/png", ct)
+	}
+}
+
+// ── Setup ─────────────────────────────────────────────────────────────────────
+
+func TestSetup_Status_Fresh(t *testing.T) {
+	h := newHandler(t)
+	w := do(t, h, http.MethodGet, "/api/v1/setup/status", nil)
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", w.Code)
+	}
+	var resp struct {
+		Complete bool `json:"complete"`
+	}
+	decodeJSON(t, w, &resp)
+	if resp.Complete {
+		t.Error("complete should be false on a fresh database")
+	}
+}
+
+func TestSetup_StatusAfterComplete(t *testing.T) {
+	h := newHandler(t)
+
+	w := do(t, h, http.MethodPost, "/api/v1/setup/complete", nil)
+	if w.Code != http.StatusNoContent {
+		t.Fatalf("complete status = %d, want 204", w.Code)
+	}
+
+	w = do(t, h, http.MethodGet, "/api/v1/setup/status", nil)
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", w.Code)
+	}
+	var resp struct {
+		Complete bool `json:"complete"`
+	}
+	decodeJSON(t, w, &resp)
+	if !resp.Complete {
+		t.Error("complete should be true after POST /setup/complete")
 	}
 }
