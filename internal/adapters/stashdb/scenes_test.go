@@ -270,3 +270,80 @@ func TestFindByExternalID_NotFound(t *testing.T) {
 		t.Errorf("expected ErrNotFound, got %v", err)
 	}
 }
+
+// The test server returns the same JSON body for all 3 parallel GQL requests;
+// each deserializer only reads its own key, so setting the target key while
+// leaving the others absent (null) routes the result correctly.
+
+const findByIDStudioFixture = `{
+  "data": {
+    "findScene": null,
+    "findPerformer": null,
+    "findStudio": {
+      "id": "studio-uuid-001",
+      "name": "Test Studio",
+      "images": [{"url": "https://example.com/studio-logo.jpg"}]
+    }
+  }
+}`
+
+func TestFindByExternalID_StudioID(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(findByIDStudioFixture)) //nolint:errcheck
+	}))
+	defer srv.Close()
+
+	a := newTestAdapter(srv)
+	item, err := a.FindByExternalID(context.Background(), domain.ContentTypeAdult, "studio-uuid-001")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if item.ExternalID != "studio-uuid-001" {
+		t.Errorf("ExternalID = %q, want studio-uuid-001", item.ExternalID)
+	}
+	if len(item.Images) != 1 {
+		t.Fatalf("Images length = %d, want 1", len(item.Images))
+	}
+	if item.Images[0].URL != "https://example.com/studio-logo.jpg" {
+		t.Errorf("Images[0].URL = %q, want studio logo URL", item.Images[0].URL)
+	}
+}
+
+const findByIDPerformerFixture = `{
+  "data": {
+    "findScene": null,
+    "findPerformer": {
+      "id": "performer-uuid-001",
+      "name": "Alex Coal",
+      "images": [{"url": "https://example.com/performer-photo.jpg"}]
+    },
+    "findStudio": null
+  }
+}`
+
+func TestFindByExternalID_PerformerID(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(findByIDPerformerFixture)) //nolint:errcheck
+	}))
+	defer srv.Close()
+
+	a := newTestAdapter(srv)
+	item, err := a.FindByExternalID(context.Background(), domain.ContentTypeAdult, "performer-uuid-001")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if item.ExternalID != "performer-uuid-001" {
+		t.Errorf("ExternalID = %q, want performer-uuid-001", item.ExternalID)
+	}
+	if len(item.Images) != 1 {
+		t.Fatalf("Images length = %d, want 1", len(item.Images))
+	}
+	if item.Images[0].URL != "https://example.com/performer-photo.jpg" {
+		t.Errorf("Images[0].URL = %q, want performer photo URL", item.Images[0].URL)
+	}
+	if item.Images[0].Type != domain.ImageTypeHero {
+		t.Errorf("Images[0].Type = %q, want %q", item.Images[0].Type, domain.ImageTypeHero)
+	}
+}

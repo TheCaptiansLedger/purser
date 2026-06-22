@@ -3,6 +3,7 @@ package stashdb
 import (
 	"context"
 	"purser/internal/domain"
+	"purser/internal/ports"
 )
 
 // ── GraphQL response types ────────────────────────────────────────────────────
@@ -44,7 +45,41 @@ query SearchStudios($term: String!) {
   }
 }`
 
+const findStudioByIDQuery = `
+query FindStudio($id: ID!) {
+  findStudio(id: $id) {
+    id name images { url }
+  }
+}`
+
 // ── MetadataSource ────────────────────────────────────────────────────────────
+
+// findStudioByID fetches a studio by its StashDB ID and returns an ExternalItem
+// carrying the studio's images. Returns ports.ErrNotFound when the ID is not a studio.
+func (a *Adapter) findStudioByID(ctx context.Context, id string) (*domain.ExternalItem, error) {
+	var resp struct {
+		FindStudio *gqlStudio `json:"findStudio"`
+	}
+	if err := a.gql(ctx, findStudioByIDQuery, map[string]any{"id": id}, &resp); err != nil {
+		return nil, err
+	}
+	if resp.FindStudio == nil {
+		return nil, ports.ErrNotFound
+	}
+	s := resp.FindStudio
+	images := make([]domain.ExternalImage, 0, len(s.Images))
+	for _, img := range s.Images {
+		if img.URL != "" {
+			images = append(images, domain.ExternalImage{Type: domain.ImageTypePoster, URL: img.URL})
+		}
+	}
+	return &domain.ExternalItem{
+		Source:     domain.SourceStashDB,
+		ExternalID: s.ID,
+		Title:      s.Name,
+		Images:     images,
+	}, nil
+}
 
 // SearchStudios queries StashDB for studios matching the given search string.
 func (a *Adapter) SearchStudios(ctx context.Context, query string, limit int) ([]*domain.ExternalStudio, error) {

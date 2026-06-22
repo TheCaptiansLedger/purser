@@ -4,6 +4,7 @@ import (
 	"context"
 	"purser/internal/domain"
 	"purser/internal/ports"
+	"sync"
 	"time"
 )
 
@@ -131,9 +132,52 @@ func (a *Adapter) FindByHash(ctx context.Context, hash string) (*domain.External
 	return toExternalItem(&resp.FindScenesBySceneFingerprints[0][0], domain.ContentTypeAdult), nil
 }
 
-// FindByExternalID fetches a single scene by its StashDB ID.
-// Returns ports.ErrNotFound when the ID does not exist in StashDB.
+// FindByExternalID resolves a StashDB UUID to its entity — scene, performer, or
+// studio — by querying all three endpoints in parallel. This is necessary because
+// the same external-ID slot is used for entries (studios), items (scenes), and
+// people (performers), and the UUID namespace is flat within StashDB.
 func (a *Adapter) FindByExternalID(ctx context.Context, _ domain.ContentType, id string) (*domain.ExternalItem, error) {
+	type result struct {
+		item *domain.ExternalItem
+		err  error
+	}
+
+	sceneCh := make(chan result, 1)
+	perfCh := make(chan result, 1)
+	studioCh := make(chan result, 1)
+
+	var wg sync.WaitGroup
+	wg.Add(3)
+	go func() {
+		defer wg.Done()
+		item, err := a.findSceneByID(ctx, id)
+		sceneCh <- result{item, err}
+	}()
+	go func() {
+		defer wg.Done()
+		item, err := a.findPerformerByID(ctx, id)
+		perfCh <- result{item, err}
+	}()
+	go func() {
+		defer wg.Done()
+		item, err := a.findStudioByID(ctx, id)
+		studioCh <- result{item, err}
+	}()
+	wg.Wait()
+
+	if r := <-sceneCh; r.item != nil {
+		return r.item, nil
+	}
+	if r := <-perfCh; r.item != nil {
+		return r.item, nil
+	}
+	if r := <-studioCh; r.item != nil {
+		return r.item, nil
+	}
+	return nil, ports.ErrNotFound
+}
+
+func (a *Adapter) findSceneByID(ctx context.Context, id string) (*domain.ExternalItem, error) {
 	var resp struct {
 		FindScene *gqlScene `json:"findScene"`
 	}
@@ -202,6 +246,13 @@ func toExternalItem(s *gqlScene, contentType domain.ContentType) *domain.Externa
 	}
 	if len(s.Images) > 0 {
 		e.ImageURL = s.Images[0].URL
+		images := make([]domain.ExternalImage, 0, len(s.Images))
+		for _, img := range s.Images {
+			if img.URL != "" {
+				images = append(images, domain.ExternalImage{Type: domain.ImageTypeThumbnail, URL: img.URL})
+			}
+		}
+		e.Images = images
 	}
 	for _, t := range s.Tags {
 		e.Tags = append(e.Tags, t.Name)

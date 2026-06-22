@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"purser/internal/domain"
+	"purser/internal/ports"
 	"strings"
 )
 
@@ -47,6 +48,13 @@ type gqlPerformer struct {
 
 // ── Queries ───────────────────────────────────────────────────────────────────
 
+const findPerformerByIDQuery = `
+query FindPerformer($id: ID!) {
+  findPerformer(id: $id) {
+    id name images { url }
+  }
+}`
+
 const searchPeopleQuery = `
 query SearchPerformers($name: String!, $limit: Int!) {
   queryPerformers(input: {
@@ -77,6 +85,34 @@ query SearchPerformers($name: String!, $limit: Int!) {
 }`
 
 // ── MetadataSource ────────────────────────────────────────────────────────────
+
+// findPerformerByID fetches a performer by their StashDB ID and returns an
+// ExternalItem carrying the performer's images. Returns ports.ErrNotFound when
+// the ID is not a performer.
+func (a *Adapter) findPerformerByID(ctx context.Context, id string) (*domain.ExternalItem, error) {
+	var resp struct {
+		FindPerformer *gqlPerformer `json:"findPerformer"`
+	}
+	if err := a.gql(ctx, findPerformerByIDQuery, map[string]any{"id": id}, &resp); err != nil {
+		return nil, err
+	}
+	if resp.FindPerformer == nil {
+		return nil, ports.ErrNotFound
+	}
+	p := resp.FindPerformer
+	images := make([]domain.ExternalImage, 0, len(p.Images))
+	for _, img := range p.Images {
+		if img.URL != "" {
+			images = append(images, domain.ExternalImage{Type: domain.ImageTypeHero, URL: img.URL})
+		}
+	}
+	return &domain.ExternalItem{
+		Source:     domain.SourceStashDB,
+		ExternalID: p.ID,
+		Title:      p.Name,
+		Images:     images,
+	}, nil
+}
 
 // SearchPeople queries StashDB for performers matching the given search string.
 func (a *Adapter) SearchPeople(ctx context.Context, query string, limit int) ([]*domain.ExternalPerson, error) {
