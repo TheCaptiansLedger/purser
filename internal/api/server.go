@@ -34,6 +34,7 @@ func New(
 	tagRepo ports.TagRepository,
 	jobQueue ports.JobQueue,
 	settingsRepo ports.SettingsRepository,
+	cfgSvc ports.ConfigService,
 	sources []ports.MetadataSource,
 	uiFS fs.FS,
 ) *Server {
@@ -41,7 +42,7 @@ func New(
 		router: chi.NewRouter(),
 		port:   port,
 	}
-	s.mount(mediaPath, cfg, db, libSvc, peopleSvc, metaSvc, tagRepo, jobQueue, settingsRepo, sources, uiFS)
+	s.mount(mediaPath, cfg, db, libSvc, peopleSvc, metaSvc, tagRepo, jobQueue, settingsRepo, cfgSvc, sources, uiFS)
 	return s
 }
 
@@ -55,6 +56,7 @@ func (s *Server) mount(
 	tagRepo ports.TagRepository,
 	jobQueue ports.JobQueue,
 	settingsRepo ports.SettingsRepository,
+	cfgSvc ports.ConfigService,
 	sources []ports.MetadataSource,
 	uiFS fs.FS,
 ) {
@@ -65,7 +67,7 @@ func (s *Server) mount(
 	r.Use(requestLogger)
 
 	r.Route("/api/v1", func(r chi.Router) {
-		cfgH := &configHandler{cfg: cfg}
+		cfgH := &configHandler{cfg: cfg, cfgSvc: cfgSvc}
 		r.Get("/config", cfgH.get)
 
 		entryH := &libraryEntryHandler{svc: libSvc}

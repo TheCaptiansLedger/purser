@@ -48,6 +48,15 @@ func (s *Service) Get(ctx context.Context, key string) (string, error) {
 	return s.v.GetString(key), nil
 }
 
+// LockedKeys returns a map of every operator-managed key to true.
+func (s *Service) LockedKeys() map[string]bool {
+	out := make(map[string]bool, len(s.locked))
+	for k := range s.locked {
+		out[k] = true
+	}
+	return out
+}
+
 // Set writes a runtime config value to the DB.
 // Returns errs.ErrLocked if the key is currently managed by the operator.
 func (s *Service) Set(ctx context.Context, key, value string) error {

@@ -4,10 +4,12 @@ import (
 	"net/http"
 	"net/url"
 	"purser/internal/config"
+	"purser/internal/ports"
 )
 
 type configHandler struct {
-	cfg *config.Config
+	cfg    *config.Config
+	cfgSvc ports.ConfigService
 }
 
 // Response types mirror the YAML config structure exactly.
@@ -19,6 +21,7 @@ type configResponse struct {
 	Modules  modulesCfgResponse  `json:"modules"`
 	Sources  sourcesCfgResponse  `json:"sources"`
 	Log      logCfgResponse      `json:"log"`
+	Locked   map[string]bool     `json:"locked"`
 }
 
 type serverCfgResponse struct {
@@ -76,6 +79,10 @@ type logCfgResponse struct {
 
 func (h *configHandler) get(w http.ResponseWriter, _ *http.Request) {
 	c := h.cfg
+	locked := h.cfgSvc.LockedKeys()
+	if locked == nil {
+		locked = map[string]bool{}
+	}
 	writeJSON(w, http.StatusOK, configResponse{
 		Server:   serverCfgResponse{Port: c.Server.Port, Workers: c.Server.Workers},
 		Database: databaseCfgResponse{Driver: c.Database.Driver, DSN: maskDSN(c.Database.DSN)},
@@ -100,7 +107,8 @@ func (h *configHandler) get(w http.ResponseWriter, _ *http.Request) {
 			TheAudioDB:  maskSource(c.Sources.TheAudioDB),
 			OpenLibrary: maskSource(c.Sources.OpenLibrary),
 		},
-		Log: logCfgResponse{Level: c.Log.Level, Format: c.Log.Format},
+		Log:    logCfgResponse{Level: c.Log.Level, Format: c.Log.Format},
+		Locked: locked,
 	})
 }
 

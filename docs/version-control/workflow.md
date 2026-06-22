@@ -42,7 +42,8 @@ Rules:
 - No period at the end of the subject line
 - Do not add Co-Authored-By AI attribution
 - Body should contain a small paragraph on the WHY not the WHAT. WHY is this code going in? what does it add for the user or project? 
-- footers should include breaking changes and a resolves: issue #xxx or Part-Of: issue #xxx if not fully resolving issue
+- footers must use GitHub's exact auto-close syntax — `Closes #xxx` or `Resolves #xxx` (no "issue" between the keyword and the number; that word breaks GitHub's parser and prevents auto-close)
+- use `Part-Of: #xxx` when the commit only partially resolves an issue
 
 ```
 

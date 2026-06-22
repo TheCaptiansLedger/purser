@@ -13,6 +13,7 @@ import (
 	"purser/internal/adapters/stashdb"
 	"purser/internal/adapters/theaudiodb"
 	"purser/internal/api"
+	appconfig "purser/internal/app/config"
 	"purser/internal/app/library"
 	"purser/internal/app/metadata"
 	"purser/internal/app/people"
@@ -50,7 +51,7 @@ func main() {
 }
 
 func run(cfgPath string) error {
-	cfg, err := config.Load(cfgPath)
+	cfg, v, locked, err := config.LoadFull(cfgPath)
 	if err != nil {
 		return fmt.Errorf("load config: %w", err)
 	}
@@ -78,6 +79,7 @@ func run(cfgPath string) error {
 	tagRepo := db.NewTagRepo(database)
 	extIDRepo := db.NewExternalIDRepo(database)
 	settingsRepo := db.NewSettingsRepo(database)
+	cfgSvc := appconfig.New(v, locked, settingsRepo)
 
 	jobQueue := jobsadapter.New(cfg.Server.Workers)
 	defer jobQueue.Close()
@@ -92,7 +94,7 @@ func run(cfgPath string) error {
 		return fmt.Errorf("load embedded UI: %w", err)
 	}
 
-	srv := api.New(cfg.Server.Port, cfg.Media.Path, cfg, database, libSvc, peopleSvc, metaSvc, tagRepo, jobQueue, settingsRepo, sources, uiFS)
+	srv := api.New(cfg.Server.Port, cfg.Media.Path, cfg, database, libSvc, peopleSvc, metaSvc, tagRepo, jobQueue, settingsRepo, cfgSvc, sources, uiFS)
 
 	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer cancel()

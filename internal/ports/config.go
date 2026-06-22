@@ -18,4 +18,9 @@ type ConfigService interface {
 	// IsLocked reports whether the key is managed by the operator
 	// (set via env var or YAML file) and therefore not writable via the UI.
 	IsLocked(key string) bool
+
+	// LockedKeys returns a map of every operator-managed key to true.
+	// Keys absent from the map are not locked. Used to populate the locked
+	// field in the GET /api/v1/config response.
+	LockedKeys() map[string]bool
 }

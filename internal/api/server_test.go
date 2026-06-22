@@ -27,6 +27,15 @@ import (
 	jobsadapter "purser/internal/adapters/jobs"
 )
 
+// noopConfigSvc is a ConfigService stub that reports no locked keys.
+// Used in tests that don't exercise operator-locking behaviour.
+type noopConfigSvc struct{}
+
+func (noopConfigSvc) Get(_ context.Context, _ string) (string, error) { return "", nil }
+func (noopConfigSvc) Set(_ context.Context, _, _ string) error        { return nil }
+func (noopConfigSvc) IsLocked(_ string) bool                          { return false }
+func (noopConfigSvc) LockedKeys() map[string]bool                     { return map[string]bool{} }
+
 // newHandlerWithDB builds a full server backed by a temp-file SQLite database
 // and returns both the HTTP handler and the underlying database for test setup.
 func newHandlerWithDB(t *testing.T) (http.Handler, *sql.DB) {
@@ -69,7 +78,7 @@ func newHandlerWithDB(t *testing.T) (http.Handler, *sql.DB) {
 		Log: config.LogConfig{Level: "info", Format: "text"},
 	}
 	settingsRepo := dbadapter.NewSettingsRepo(database)
-	return api.New(0, "", cfg, database, libSvc, peopleSvc, metaSvc, tagRepo, jobQueue, settingsRepo, nil, uiFS).Handler(), database
+	return api.New(0, "", cfg, database, libSvc, peopleSvc, metaSvc, tagRepo, jobQueue, settingsRepo, noopConfigSvc{}, nil, uiFS).Handler(), database
 }
 
 // newHandler builds a full server backed by a temp-file SQLite database.
@@ -126,7 +135,7 @@ func newHandlerWithMedia(t *testing.T, mediaPath string) http.Handler {
 		Log: config.LogConfig{Level: "info", Format: "text"},
 	}
 	settingsRepo := dbadapter.NewSettingsRepo(database)
-	return api.New(0, mediaPath, cfg, database, libSvc, peopleSvc, metaSvc, tagRepo, jobQueue, settingsRepo, nil, uiFS).Handler()
+	return api.New(0, mediaPath, cfg, database, libSvc, peopleSvc, metaSvc, tagRepo, jobQueue, settingsRepo, noopConfigSvc{}, nil, uiFS).Handler()
 }
 
 func do(t *testing.T, h http.Handler, method, path string, body any) *httptest.ResponseRecorder {
@@ -274,7 +283,7 @@ func TestConfig_Get_Sources_KeysMasked(t *testing.T) {
 		},
 		Log: config.LogConfig{Level: "info", Format: "text"},
 	}
-	h := api.New(0, "", cfg, database, libSvc, peopleSvc, metaSvc, tagRepo, jobQueue, dbadapter.NewSettingsRepo(database), nil, uiFS).Handler()
+	h := api.New(0, "", cfg, database, libSvc, peopleSvc, metaSvc, tagRepo, jobQueue, dbadapter.NewSettingsRepo(database), noopConfigSvc{}, nil, uiFS).Handler()
 
 	w := do(t, h, http.MethodGet, "/api/v1/config", nil)
 	if w.Code != http.StatusOK {
@@ -341,6 +350,26 @@ func TestConfig_Get_Sources_KeysMasked(t *testing.T) {
 	}
 	if resp.Sources.TVDB.APIKey != "" {
 		t.Errorf("tvdb api_key = %q, want empty (not configured)", resp.Sources.TVDB.APIKey)
+	}
+}
+
+func TestConfig_Get_LockedEmpty(t *testing.T) {
+	h := newHandler(t)
+	w := do(t, h, http.MethodGet, "/api/v1/config", nil)
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", w.Code)
+	}
+	var resp struct {
+		Locked map[string]bool `json:"locked"`
+	}
+	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if resp.Locked == nil {
+		t.Error("locked field is nil, want empty map")
+	}
+	if len(resp.Locked) != 0 {
+		t.Errorf("locked has %d keys, want 0 (noopConfigSvc returns none)", len(resp.Locked))
 	}
 }
 
@@ -1722,7 +1751,7 @@ func TestJobs_Cancel_SetsStatus(t *testing.T) {
 		Database: config.DatabaseConfig{Driver: "sqlite", DSN: dbPath},
 		Log:      config.LogConfig{Level: "info", Format: "text"},
 	}
-	h := api.New(0, "", cfg, database, libSvc, peopleSvc, metaSvc, tagRepo, jobQueue, dbadapter.NewSettingsRepo(database), nil, uiFS).Handler()
+	h := api.New(0, "", cfg, database, libSvc, peopleSvc, metaSvc, tagRepo, jobQueue, dbadapter.NewSettingsRepo(database), noopConfigSvc{}, nil, uiFS).Handler()
 
 	// DELETE /api/v1/jobs/:id should cancel it.
 	w := do(t, h, http.MethodDelete, "/api/v1/jobs/"+submitted.ID, nil)
@@ -2355,7 +2384,7 @@ func newHandlerWithSources(t *testing.T, sources []ports.MetadataSource) http.Ha
 		Database: config.DatabaseConfig{Driver: "sqlite", DSN: dbPath},
 		Log:      config.LogConfig{Level: "info", Format: "text"},
 	}
-	return api.New(0, "", cfg, database, libSvc, peopleSvc, metaSvc, tagRepo, jobQueue, dbadapter.NewSettingsRepo(database), sources, uiFS).Handler()
+	return api.New(0, "", cfg, database, libSvc, peopleSvc, metaSvc, tagRepo, jobQueue, dbadapter.NewSettingsRepo(database), noopConfigSvc{}, sources, uiFS).Handler()
 }
 
 func TestVerify_BadJSON(t *testing.T) {
