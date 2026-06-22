@@ -10,6 +10,7 @@ import { refreshStudio } from '../../api/commands'
 import { useStatusOverlay } from '../../hooks/useStatusOverlay'
 import { useEditForm } from '../../hooks/useEditForm'
 import { EditDrawer } from '../../components/edit/EditDrawer'
+import { ImageSelector } from '../../components/edit/ImageSelector'
 import { FormField } from '../../components/edit/FormField'
 import { TextInput } from '../../components/edit/fields/TextInput'
 import { Textarea } from '../../components/edit/fields/Textarea'
@@ -26,7 +27,7 @@ const LIMIT = 48
 
 type StudioFormValues = { name: string; overview: string }
 
-function StudioEditDrawer({ entry, onClose }: { entry: LibraryEntry; onClose: () => void }) {
+function StudioEditDrawer({ entry, onClose, onImageSet }: { entry: LibraryEntry; onClose: () => void; onImageSet: () => void }) {
   const queryClient = useQueryClient()
   const form = useEditForm<StudioFormValues>({
     initial: { name: entry.name, overview: entry.overview ?? '' },
@@ -60,6 +61,15 @@ function StudioEditDrawer({ entry, onClose }: { entry: LibraryEntry; onClose: ()
           <Textarea value={form.values.overview} onChange={v => form.setField('overview', v)} rows={6} />
         </FormField>
       </div>
+      <ImageSelector
+        entityType="library-entries"
+        entityId={entry.id}
+        currentImageUrl={entry.imageUrl}
+        onImageSet={() => {
+          queryClient.invalidateQueries({ queryKey: ['library-entries', entry.id] })
+          onImageSet()
+        }}
+      />
     </EditDrawer>
   )
 }
@@ -94,6 +104,7 @@ export function StudioDetail() {
 
   const [editOpen, setEditOpen] = useState(false)
   const [submitting, setSubmitting] = useState(false)
+  const [imgVersion, setImgVersion] = useState(0)
 
   const handleRefresh = async () => {
     if (submitting || isRefreshing) return
@@ -141,6 +152,10 @@ export function StudioDetail() {
     ? activeJob.message ?? `${activeJob.current}/${activeJob.total} scenes`
     : 'Refresh'
 
+  const effectiveImageUrl = imgVersion && entry.imageUrl
+    ? `${entry.imageUrl}?v=${imgVersion}`
+    : entry.imageUrl
+
   return (
     <div>
       <div className="px-8 pt-6 flex items-center justify-between">
@@ -170,12 +185,12 @@ export function StudioDetail() {
         </div>
       </div>
 
-      <Hero backdropUrl={entry.imageUrl} accent={ACCENT}>
+      <Hero backdropUrl={effectiveImageUrl} accent={ACCENT}>
         <div className="flex gap-6 items-end">
           {/* Logo / thumbnail */}
           <div className="shrink-0 w-40 rounded-xl overflow-hidden border border-white/10 shadow-2xl" style={{ aspectRatio: '16/9' }}>
-            {entry.imageUrl ? (
-              <img src={entry.imageUrl} alt={entry.name} className="w-full h-full object-contain p-2" />
+            {effectiveImageUrl ? (
+              <img src={effectiveImageUrl} alt={entry.name} className="w-full h-full object-contain p-2" />
             ) : (
               <div className="w-full h-full bg-white/5 flex items-center justify-center">
                 <ImageIcon size={32} className="text-white/15" strokeWidth={1} />
@@ -279,7 +294,7 @@ export function StudioDetail() {
       </div>
 
       {editOpen && (
-        <StudioEditDrawer entry={entry} onClose={() => setEditOpen(false)} />
+        <StudioEditDrawer entry={entry} onClose={() => setEditOpen(false)} onImageSet={() => setImgVersion(v => v + 1)} />
       )}
     </div>
   )

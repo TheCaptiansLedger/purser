@@ -1,3 +1,11 @@
+export interface ProviderImage {
+  url: string
+  type: string
+  source: string
+  width: number
+  height: number
+}
+
 export interface Page<T> {
   data: T[]
   total: number

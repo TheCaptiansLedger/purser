@@ -57,6 +57,7 @@ func (h *imageHandler) get(w http.ResponseWriter, r *http.Request) {
 		slog.Debug("image.candidate", "path", candidate)
 		if _, err := os.Stat(candidate); err == nil { //nolint:gosec
 			slog.Debug("image.served", "path", candidate)
+			w.Header().Set("Cache-Control", "no-cache")
 			http.ServeFile(w, r, candidate) //nolint:gosec
 			return
 		}
@@ -122,6 +123,7 @@ func (h *entityImageSetHandler) setEntryImage(w http.ResponseWriter, r *http.Req
 		writeError(w, http.StatusUnprocessableEntity, "IMAGE_ERROR", "failed to save image")
 		return
 	}
+	removeEntityImagesExcept(h.mediaPath, "entries", id, ext)
 	e.ImagePath = ext
 	if err := h.libSvc.SaveEntry(r.Context(), e); handleErr(w, err) {
 		return
@@ -165,6 +167,7 @@ func (h *entityImageSetHandler) setGroupImage(w http.ResponseWriter, r *http.Req
 		writeError(w, http.StatusUnprocessableEntity, "IMAGE_ERROR", "failed to save image")
 		return
 	}
+	removeEntityImagesExcept(h.mediaPath, "groups", id, ext)
 	g.CoverPath = ext
 	if err := h.libSvc.SaveGroup(r.Context(), g); handleErr(w, err) {
 		return
@@ -208,6 +211,7 @@ func (h *entityImageSetHandler) setItemImage(w http.ResponseWriter, r *http.Requ
 		writeError(w, http.StatusUnprocessableEntity, "IMAGE_ERROR", "failed to save image")
 		return
 	}
+	removeEntityImagesExcept(h.mediaPath, "items", id, ext)
 	item.CoverPath = ext
 	if err := h.libSvc.SaveItem(r.Context(), item); handleErr(w, err) {
 		return
@@ -251,6 +255,7 @@ func (h *entityImageSetHandler) setPersonImage(w http.ResponseWriter, r *http.Re
 		writeError(w, http.StatusUnprocessableEntity, "IMAGE_ERROR", "failed to save image")
 		return
 	}
+	removeEntityImagesExcept(h.mediaPath, "people", id, ext)
 	p.ImagePath = ext
 	if err := h.peopleSvc.SavePerson(r.Context(), p); handleErr(w, err) {
 		return
@@ -376,6 +381,18 @@ func atomicWriteImage(dir, dest string, head []byte, rest io.Reader) error {
 // removeEntityImages deletes all known image extension variants for the entity.
 func removeEntityImages(mediaPath, entityType, id string) {
 	for _, ext := range []string{".jpg", ".jpeg", ".png", ".webp", ".svg", ".gif"} {
+		_ = os.Remove(fsadapter.ImagePath(mediaPath, entityType, id, ext)) //nolint:gosec // G703: id validated by safeEntityID before reaching this call
+	}
+}
+
+// removeEntityImagesExcept deletes all extension variants for the entity except keepExt.
+// Called after a new image is saved so stale files from previous uploads or downloads
+// cannot shadow the new one in the extension-ordered serve loop.
+func removeEntityImagesExcept(mediaPath, entityType, id, keepExt string) {
+	for _, ext := range []string{".jpg", ".jpeg", ".png", ".webp", ".svg", ".gif"} {
+		if ext == keepExt {
+			continue
+		}
 		_ = os.Remove(fsadapter.ImagePath(mediaPath, entityType, id, ext)) //nolint:gosec // G703: id validated by safeEntityID before reaching this call
 	}
 }
