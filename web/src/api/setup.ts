@@ -1,8 +1,13 @@
 import { useMutation, useQuery } from '@tanstack/react-query'
-import { get, postEmpty } from './client'
+import { get, post, postEmpty } from './client'
 
 export interface SetupStatus {
   complete: boolean
+}
+
+export interface VerifySourceResponse {
+  ok: boolean
+  error?: string
 }
 
 export function useSetupStatus() {
@@ -16,5 +21,11 @@ export function useSetupStatus() {
 export function useCompleteSetup() {
   return useMutation({
     mutationFn: () => postEmpty('/setup/complete'),
+  })
+}
+
+export function useVerifySource() {
+  return useMutation({
+    mutationFn: (source: string) => post<VerifySourceResponse>('/verify/source', { source }),
   })
 }

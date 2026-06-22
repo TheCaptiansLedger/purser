@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { StepIndicator } from '../../components/ui/StepIndicator'
-import { useCompleteSetup } from '../../api/setup'
+import { useCompleteSetup, useVerifySource } from '../../api/setup'
 
 const TOTAL_STEPS = 5
 
@@ -55,6 +55,91 @@ export const MODULE_META: Record<ModuleKey, ModuleMeta> = {
     description: 'Catalogue your reading list with author profiles, series grouping, and cover art.',
     icon:        '📚',
   },
+}
+
+// ── Source definitions ────────────────────────────────────────────────────────
+
+export type SourceID = 'tmdb' | 'tvdb' | 'mbz' | 'audiodb' | 'fanart' | 'stashdb'
+
+export interface SourceDef {
+  id: SourceID
+  label: string
+  requiresApiKey: boolean
+  hasEndpointUrl: boolean
+  defaultEndpointUrl?: string
+}
+
+export const SOURCE_DEFS: Record<SourceID, SourceDef> = {
+  tmdb: {
+    id: 'tmdb',
+    label: 'TMDB',
+    requiresApiKey: true,
+    hasEndpointUrl: false,
+  },
+  tvdb: {
+    id: 'tvdb',
+    label: 'TVDB',
+    requiresApiKey: true,
+    hasEndpointUrl: false,
+  },
+  mbz: {
+    id: 'mbz',
+    label: 'MusicBrainz',
+    requiresApiKey: false,
+    hasEndpointUrl: false,
+  },
+  audiodb: {
+    id: 'audiodb',
+    label: 'TheAudioDB',
+    requiresApiKey: true,
+    hasEndpointUrl: false,
+  },
+  fanart: {
+    id: 'fanart',
+    label: 'fanart.tv',
+    requiresApiKey: true,
+    hasEndpointUrl: false,
+  },
+  stashdb: {
+    id: 'stashdb',
+    label: 'StashDB',
+    requiresApiKey: true,
+    hasEndpointUrl: true,
+    defaultEndpointUrl: 'https://stashdb.org/graphql',
+  },
+}
+
+export const MODULE_SOURCES: Record<ModuleKey, SourceID[]> = {
+  movies:    ['tmdb'],
+  tv:        ['tvdb', 'tmdb'],
+  music:     ['mbz', 'audiodb', 'fanart'],
+  afterdark: ['stashdb'],
+  books:     [],
+}
+
+export function sourcesForModules(modules: ModuleState): SourceDef[] {
+  const seen = new Set<SourceID>()
+  const result: SourceDef[] = []
+  for (const key of Object.keys(MODULE_SOURCES) as ModuleKey[]) {
+    if (!modules[key]) continue
+    for (const id of MODULE_SOURCES[key]) {
+      if (!seen.has(id)) {
+        seen.add(id)
+        result.push(SOURCE_DEFS[id])
+      }
+    }
+  }
+  return result
+}
+
+export function canProceedFromSources(
+  defs: SourceDef[],
+  statuses: Record<string, 'idle' | 'loading' | 'ok' | 'error'>,
+  skipped: Record<string, boolean>,
+): boolean {
+  return defs
+    .filter((d) => d.requiresApiKey)
+    .every((d) => statuses[d.id] === 'ok' || skipped[d.id])
 }
 
 // ── Step 1: Welcome ───────────────────────────────────────────────────────────
@@ -111,10 +196,9 @@ interface ModulesStepProps {
   modules:  ModuleState
   onToggle: (key: ModuleKey) => void
   onNext:   () => void
-  loading:  boolean
 }
 
-function ModulesStep({ modules, onToggle, onNext, loading }: ModulesStepProps) {
+function ModulesStep({ modules, onToggle, onNext }: ModulesStepProps) {
   const keys = Object.keys(MODULE_META) as ModuleKey[]
   const anyEnabled = keys.some((k) => modules[k])
 
@@ -176,7 +260,209 @@ function ModulesStep({ modules, onToggle, onNext, loading }: ModulesStepProps) {
 
       <button
         onClick={onNext}
-        disabled={!anyEnabled || loading}
+        disabled={!anyEnabled}
+        className="w-full py-3 px-6 rounded-xl bg-indigo-600 hover:bg-indigo-500 disabled:bg-gray-800 disabled:text-gray-600 disabled:cursor-not-allowed text-white font-semibold text-base transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 focus:ring-offset-gray-950"
+      >
+        Next
+      </button>
+    </div>
+  )
+}
+
+// ── Step 3: Metadata sources ──────────────────────────────────────────────────
+
+type SourceStatus = 'idle' | 'loading' | 'ok' | 'error'
+
+interface SourceRowState {
+  apiKey: string
+  endpointUrl: string
+  status: SourceStatus
+  errorMessage: string
+  skipped: boolean
+}
+
+function makeInitialSourceState(defs: SourceDef[]): Record<string, SourceRowState> {
+  return Object.fromEntries(
+    defs.map((d) => [
+      d.id,
+      {
+        apiKey: '',
+        endpointUrl: d.defaultEndpointUrl ?? '',
+        status: 'idle' as SourceStatus,
+        errorMessage: '',
+        skipped: false,
+      },
+    ]),
+  )
+}
+
+interface SourceRowProps {
+  def: SourceDef
+  state: SourceRowState
+  onApiKeyChange: (value: string) => void
+  onEndpointUrlChange: (value: string) => void
+  onTest: () => void
+  onSkip: () => void
+}
+
+function SourceRow({ def, state, onApiKeyChange, onEndpointUrlChange, onTest, onSkip }: SourceRowProps) {
+  const { status, skipped, errorMessage } = state
+
+  return (
+    <div className="rounded-xl border border-gray-800 bg-gray-900/40 p-4 flex flex-col gap-3">
+      <div className="flex items-center justify-between">
+        <span className="font-semibold text-sm text-white">{def.label}</span>
+        {status === 'ok' && (
+          <span className="flex items-center gap-1.5 text-xs text-green-400 font-medium">
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+            </svg>
+            Connected
+          </span>
+        )}
+        {skipped && status !== 'ok' && (
+          <span className="text-xs text-gray-500 font-medium">Skipped</span>
+        )}
+      </div>
+
+      {!def.requiresApiKey ? (
+        <p className="text-xs text-gray-500">Pre-configured — no API key required.</p>
+      ) : skipped ? (
+        <button
+          onClick={onSkip}
+          className="text-xs text-indigo-400 hover:text-indigo-300 text-left transition-colors"
+        >
+          Undo skip
+        </button>
+      ) : (
+        <>
+          {def.hasEndpointUrl && (
+            <input
+              type="url"
+              placeholder="Endpoint URL"
+              value={state.endpointUrl}
+              onChange={(e) => onEndpointUrlChange(e.target.value)}
+              disabled={status === 'loading' || status === 'ok'}
+              className="w-full rounded-lg border border-gray-700 bg-gray-800 px-3 py-2 text-sm text-white placeholder-gray-600 focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-50"
+            />
+          )}
+          <input
+            type="password"
+            placeholder="API Key"
+            value={state.apiKey}
+            onChange={(e) => onApiKeyChange(e.target.value)}
+            disabled={status === 'loading' || status === 'ok'}
+            className="w-full rounded-lg border border-gray-700 bg-gray-800 px-3 py-2 text-sm text-white placeholder-gray-600 focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-50"
+          />
+
+          {errorMessage && (
+            <p className="text-xs text-red-400">{errorMessage}</p>
+          )}
+
+          <div className="flex items-center gap-3">
+            <button
+              onClick={onTest}
+              disabled={status === 'loading' || status === 'ok'}
+              className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 disabled:bg-gray-700 disabled:text-gray-500 disabled:cursor-not-allowed text-white text-xs font-semibold transition-colors"
+            >
+              {status === 'loading' && (
+                <svg className="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+                </svg>
+              )}
+              Test connection
+            </button>
+            <button
+              onClick={onSkip}
+              className="text-xs text-gray-500 hover:text-gray-300 transition-colors"
+            >
+              Skip
+            </button>
+          </div>
+        </>
+      )}
+    </div>
+  )
+}
+
+interface MetadataSourcesStepProps {
+  modules:  ModuleState
+  onNext:   () => void
+  loading:  boolean
+}
+
+function MetadataSourcesStep({ modules, onNext, loading }: MetadataSourcesStepProps) {
+  const defs = sourcesForModules(modules)
+  const [sourceStates, setSourceStates] = useState<Record<string, SourceRowState>>(
+    () => makeInitialSourceState(defs),
+  )
+  const { mutate: verifySource } = useVerifySource()
+
+  function updateSource(id: string, patch: Partial<SourceRowState>) {
+    setSourceStates((prev) => ({ ...prev, [id]: { ...prev[id], ...patch } }))
+  }
+
+  function handleTest(def: SourceDef) {
+    updateSource(def.id, { status: 'loading', errorMessage: '' })
+    verifySource(def.id, {
+      onSuccess: (res) => {
+        if (res.ok) {
+          updateSource(def.id, { status: 'ok', errorMessage: '' })
+        } else {
+          updateSource(def.id, { status: 'error', errorMessage: res.error ?? 'Verification failed.' })
+        }
+      },
+      onError: (err) => {
+        updateSource(def.id, {
+          status: 'error',
+          errorMessage: err instanceof Error ? err.message : 'Verification failed.',
+        })
+      },
+    })
+  }
+
+  function handleSkip(id: string) {
+    setSourceStates((prev) => ({
+      ...prev,
+      [id]: { ...prev[id], skipped: !prev[id].skipped, status: 'idle', errorMessage: '' },
+    }))
+  }
+
+  const statuses = Object.fromEntries(
+    Object.entries(sourceStates).map(([id, s]) => [id, s.status]),
+  )
+  const skipped = Object.fromEntries(
+    Object.entries(sourceStates).map(([id, s]) => [id, s.skipped]),
+  )
+  const canProceed = canProceedFromSources(defs, statuses, skipped)
+
+  return (
+    <div className="flex flex-col gap-6">
+      <div className="flex flex-col gap-1">
+        <h2 className="text-2xl font-bold text-white">Metadata sources</h2>
+        <p className="text-sm text-gray-400">
+          Connect the sources that power your library. Test each key before continuing.
+        </p>
+      </div>
+
+      <div className="flex flex-col gap-3">
+        {defs.map((def) => (
+          <SourceRow
+            key={def.id}
+            def={def}
+            state={sourceStates[def.id]}
+            onApiKeyChange={(v) => updateSource(def.id, { apiKey: v, status: 'idle', errorMessage: '' })}
+            onEndpointUrlChange={(v) => updateSource(def.id, { endpointUrl: v, status: 'idle', errorMessage: '' })}
+            onTest={() => handleTest(def)}
+            onSkip={() => handleSkip(def.id)}
+          />
+        ))}
+      </div>
+
+      <button
+        onClick={onNext}
+        disabled={!canProceed || loading}
         className="w-full py-3 px-6 rounded-xl bg-indigo-600 hover:bg-indigo-500 disabled:bg-gray-800 disabled:text-gray-600 disabled:cursor-not-allowed text-white font-semibold text-base transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 focus:ring-offset-gray-950"
       >
         {loading ? 'Saving…' : 'Next'}
@@ -197,7 +483,7 @@ export function SetupPage() {
     setModules((prev) => ({ ...prev, [key]: !prev[key] }))
   }
 
-  function handleModulesNext() {
+  function handleSourcesNext() {
     mutate(undefined, {
       onSuccess: () => navigate('/', { replace: true }),
     })
@@ -213,7 +499,13 @@ export function SetupPage() {
           <ModulesStep
             modules={modules}
             onToggle={toggleModule}
-            onNext={handleModulesNext}
+            onNext={() => setStep(3)}
+          />
+        )}
+        {step === 3 && (
+          <MetadataSourcesStep
+            modules={modules}
+            onNext={handleSourcesNext}
             loading={isPending}
           />
         )}
