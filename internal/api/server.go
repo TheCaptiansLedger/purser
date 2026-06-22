@@ -73,28 +73,38 @@ func (s *Server) mount(
 
 		providerImagesH := &providerImagesHandler{svc: metaSvc}
 
+		imgSetH := newEntityImageSetHandler(libSvc, peopleSvc, mediaPath)
+
 		entryH := &libraryEntryHandler{svc: libSvc}
 		r.Route("/library-entries", func(r chi.Router) {
 			entryH.routes(r)
 			r.Get("/{id}/provider-images", providerImagesH.forEntry)
+			r.Post("/{id}/image", imgSetH.setEntryImage)
+			r.Delete("/{id}/image", imgSetH.clearEntryImage)
 		})
 
 		groupH := &groupHandler{svc: libSvc}
 		r.Route("/groups", func(r chi.Router) {
 			groupH.routes(r)
 			r.Get("/{id}/provider-images", providerImagesH.forGroup)
+			r.Post("/{id}/image", imgSetH.setGroupImage)
+			r.Delete("/{id}/image", imgSetH.clearGroupImage)
 		})
 
 		itemH := &itemHandler{svc: libSvc}
 		r.Route("/items", func(r chi.Router) {
 			itemH.routes(r)
 			r.Get("/{id}/provider-images", providerImagesH.forItem)
+			r.Post("/{id}/image", imgSetH.setItemImage)
+			r.Delete("/{id}/image", imgSetH.clearItemImage)
 		})
 
 		peopleH := &peopleHandler{svc: peopleSvc}
 		r.Route("/people", func(r chi.Router) {
 			peopleH.routes(r)
 			r.Get("/{id}/provider-images", providerImagesH.forPerson)
+			r.Post("/{id}/image", imgSetH.setPersonImage)
+			r.Delete("/{id}/image", imgSetH.clearPersonImage)
 		})
 
 		tagH := &tagHandler{repo: tagRepo}
