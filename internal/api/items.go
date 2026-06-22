@@ -43,6 +43,7 @@ type itemResponse struct {
 	ExternalIDs    []externalIDResponse `json:"externalIds"`
 	MediaFile      *mediaFileResponse   `json:"mediaFile,omitempty"`
 	Metadata       map[string]any       `json:"metadata,omitempty"`
+	LockedFields   []string             `json:"lockedFields"`
 	AddedAt        time.Time            `json:"addedAt"`
 	UpdatedAt      time.Time            `json:"updatedAt"`
 }
@@ -61,11 +62,15 @@ func toItemResponse(item *domain.Item) *itemResponse {
 		Status:         string(item.Status),
 		CoverURL:       imageURL("items", item.ID, item.CoverPath),
 		Metadata:       item.Metadata,
+		LockedFields:   item.LockedFields,
 		AddedAt:        item.AddedAt,
 		UpdatedAt:      item.UpdatedAt,
 		People:         []itemPersonResponse{},
 		Tags:           []tagResponse{},
 		ExternalIDs:    []externalIDResponse{},
+	}
+	if r.LockedFields == nil {
+		r.LockedFields = []string{}
 	}
 	if !item.Date.IsZero() {
 		r.Date = item.Date.UTC().Format("2006-01-02")
@@ -217,13 +222,14 @@ func (h *itemHandler) create(w http.ResponseWriter, r *http.Request) {
 }
 
 type patchItemRequest struct {
-	Title          *string `json:"title"`
-	Overview       *string `json:"overview"`
-	Date           *string `json:"date"`
-	Sequence       *string `json:"sequence"`
-	RuntimeSeconds *int    `json:"runtimeSeconds"`
-	Monitored      *bool   `json:"monitored"`
-	Status         *string `json:"status"`
+	Title          *string   `json:"title"`
+	Overview       *string   `json:"overview"`
+	Date           *string   `json:"date"`
+	Sequence       *string   `json:"sequence"`
+	RuntimeSeconds *int      `json:"runtimeSeconds"`
+	Monitored      *bool     `json:"monitored"`
+	Status         *string   `json:"status"`
+	LockedFields   *[]string `json:"lockedFields"`
 }
 
 func (h *itemHandler) update(w http.ResponseWriter, r *http.Request) {
@@ -268,6 +274,9 @@ func (h *itemHandler) update(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		item.Status = newStatus
+	}
+	if req.LockedFields != nil {
+		item.LockedFields = *req.LockedFields
 	}
 
 	if err := h.svc.SaveItem(r.Context(), item); handleErr(w, err) {

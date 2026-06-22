@@ -25,6 +25,7 @@ type Item struct {
 	ExternalIDs    []ExternalID
 	MediaFile      *MediaFile // nil if not on disk
 	Metadata       map[string]any
+	LockedFields   []string
 	AddedAt        time.Time
 	UpdatedAt      time.Time
 }

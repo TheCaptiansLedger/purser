@@ -716,7 +716,7 @@ func (s *Service) fetchArtistHeroImage(ctx context.Context, entry *domain.Librar
 		slog.Warn("refresh artist: aggregate images", "entry_id", entry.ID, "error", err)
 		return
 	}
-	if entry.ImagePath != "" || s.downloader == nil {
+	if entry.ImagePath != "" || s.downloader == nil || slices.Contains(entry.LockedFields, "imageUrl") {
 		return
 	}
 	url := preferredHeroURL(merged.Images)

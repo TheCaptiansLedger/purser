@@ -66,6 +66,23 @@ func unmarshalMeta(s string) map[string]any {
 	return m
 }
 
+func marshalLockedFields(fields []string) string {
+	if len(fields) == 0 {
+		return "[]"
+	}
+	b, _ := json.Marshal(fields)
+	return string(b)
+}
+
+func unmarshalLockedFields(s string) []string {
+	if s == "" || s == "[]" {
+		return nil
+	}
+	var fields []string
+	_ = json.Unmarshal([]byte(s), &fields)
+	return fields
+}
+
 func boolToInt(b bool) int {
 	if b {
 		return 1

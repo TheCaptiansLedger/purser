@@ -22,7 +22,7 @@ const entrySelectCols = `
 	id, content_type, kind, name, sort_name, overview,
 	COALESCE(parent_id, ''), monitored, monitor_mode, status,
 	quality_profile_id, metadata_profile_id, path, image_path, metadata,
-	added_at, updated_at
+	locked_fields, added_at, updated_at
 `
 
 // entrySelectColsAliased is the same as entrySelectCols but with the "le" table alias,
@@ -31,22 +31,23 @@ const entrySelectColsAliased = `
 	le.id, le.content_type, le.kind, le.name, le.sort_name, le.overview,
 	COALESCE(le.parent_id, ''), le.monitored, le.monitor_mode, le.status,
 	le.quality_profile_id, le.metadata_profile_id, le.path, le.image_path, le.metadata,
-	le.added_at, le.updated_at
+	le.locked_fields, le.added_at, le.updated_at
 `
 
 func scanEntry(row interface{ Scan(...any) error }) (*domain.LibraryEntry, error) {
 	var (
-		e                            domain.LibraryEntry
-		contentType, kind            string
-		monitorMode, status          string
-		monitored                    int
-		metadata, addedAt, updatedAt string
+		e                      domain.LibraryEntry
+		contentType, kind      string
+		monitorMode, status    string
+		monitored              int
+		metadata, lockedFields string
+		addedAt, updatedAt     string
 	)
 	if err := row.Scan(
 		&e.ID, &contentType, &kind, &e.Name, &e.SortName, &e.Overview,
 		&e.ParentID, &monitored, &monitorMode, &status,
 		&e.QualityProfileID, &e.MetadataProfileID, &e.Path, &e.ImagePath,
-		&metadata, &addedAt, &updatedAt,
+		&metadata, &lockedFields, &addedAt, &updatedAt,
 	); err != nil {
 		return nil, err
 	}
@@ -56,6 +57,7 @@ func scanEntry(row interface{ Scan(...any) error }) (*domain.LibraryEntry, error
 	e.Status = domain.EntryStatus(status)
 	e.Monitored = intToBool(monitored)
 	e.Metadata = unmarshalMeta(metadata)
+	e.LockedFields = unmarshalLockedFields(lockedFields)
 	e.AddedAt = strToTime(addedAt)
 	e.UpdatedAt = strToTime(updatedAt)
 	return &e, nil
@@ -211,8 +213,8 @@ func (r *libraryEntryRepo) Save(ctx context.Context, e *domain.LibraryEntry) err
 		INSERT INTO library_entries(
 			id, content_type, kind, name, sort_name, overview, parent_id,
 			monitored, monitor_mode, status, quality_profile_id, metadata_profile_id,
-			path, image_path, metadata, added_at, updated_at
-		) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+			path, image_path, metadata, locked_fields, added_at, updated_at
+		) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
 		ON CONFLICT(id) DO UPDATE SET
 			content_type        = excluded.content_type,
 			kind                = excluded.kind,
@@ -228,11 +230,12 @@ func (r *libraryEntryRepo) Save(ctx context.Context, e *domain.LibraryEntry) err
 			path                = excluded.path,
 			image_path          = excluded.image_path,
 			metadata            = excluded.metadata,
+			locked_fields       = excluded.locked_fields,
 			updated_at          = excluded.updated_at`,
 		e.ID, string(e.ContentType), string(e.Kind), e.Name, e.SortName, e.Overview, parentID,
 		boolToInt(e.Monitored), string(e.MonitorMode), string(e.Status),
 		e.QualityProfileID, e.MetadataProfileID, e.Path, e.ImagePath,
-		marshalMeta(e.Metadata), timeToStr(e.AddedAt), now,
+		marshalMeta(e.Metadata), marshalLockedFields(e.LockedFields), timeToStr(e.AddedAt), now,
 	); err != nil {
 		return fmt.Errorf("upsert library entry: %w", err)
 	}

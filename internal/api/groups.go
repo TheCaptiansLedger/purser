@@ -36,6 +36,7 @@ type groupResponse struct {
 	CoverURL       string               `json:"coverUrl,omitempty"`
 	ExternalIDs    []externalIDResponse `json:"externalIds"`
 	Metadata       map[string]any       `json:"metadata,omitempty"`
+	LockedFields   []string             `json:"lockedFields"`
 }
 
 func toGroupResponse(g *domain.Group) *groupResponse {
@@ -52,6 +53,10 @@ func toGroupResponse(g *domain.Group) *groupResponse {
 		CoverURL:       imageURL("groups", g.ID, g.CoverPath),
 		Metadata:       g.Metadata,
 		ExternalIDs:    []externalIDResponse{},
+		LockedFields:   g.LockedFields,
+	}
+	if r.LockedFields == nil {
+		r.LockedFields = []string{}
 	}
 	for _, id := range g.ExternalIDs {
 		r.ExternalIDs = append(r.ExternalIDs, externalIDResponse{
@@ -141,13 +146,14 @@ func (h *groupHandler) create(w http.ResponseWriter, r *http.Request) {
 }
 
 type patchGroupRequest struct {
-	Title       *string `json:"title"`
-	SortName    *string `json:"sortName"`
-	Number      *int    `json:"number"`
-	Year        *int    `json:"year"`
-	Overview    *string `json:"overview"`
-	Monitored   *bool   `json:"monitored"`
-	MonitorMode *string `json:"monitorMode"`
+	Title        *string   `json:"title"`
+	SortName     *string   `json:"sortName"`
+	Number       *int      `json:"number"`
+	Year         *int      `json:"year"`
+	Overview     *string   `json:"overview"`
+	Monitored    *bool     `json:"monitored"`
+	MonitorMode  *string   `json:"monitorMode"`
+	LockedFields *[]string `json:"lockedFields"`
 }
 
 func (h *groupHandler) update(w http.ResponseWriter, r *http.Request) {
@@ -183,6 +189,9 @@ func (h *groupHandler) update(w http.ResponseWriter, r *http.Request) {
 	}
 	if req.MonitorMode != nil {
 		g.MonitorMode = domain.MonitorMode(*req.MonitorMode)
+	}
+	if req.LockedFields != nil {
+		g.LockedFields = *req.LockedFields
 	}
 
 	if err := h.svc.SaveGroup(r.Context(), g); handleErr(w, err) {

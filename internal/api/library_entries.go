@@ -47,6 +47,7 @@ type entryResponse struct {
 	Tags              []tagResponse         `json:"tags"`
 	People            []entryPersonResponse `json:"people"`
 	Metadata          map[string]any        `json:"metadata,omitempty"`
+	LockedFields      []string              `json:"lockedFields"`
 	AddedAt           time.Time             `json:"addedAt"`
 	UpdatedAt         time.Time             `json:"updatedAt"`
 }
@@ -73,6 +74,10 @@ func toEntryResponse(e *domain.LibraryEntry) *entryResponse {
 		ExternalIDs:       []externalIDResponse{},
 		Tags:              []tagResponse{},
 		People:            []entryPersonResponse{},
+		LockedFields:      e.LockedFields,
+	}
+	if r.LockedFields == nil {
+		r.LockedFields = []string{}
 	}
 	for _, id := range e.ExternalIDs {
 		r.ExternalIDs = append(r.ExternalIDs, externalIDResponse{
@@ -212,16 +217,17 @@ func (h *libraryEntryHandler) create(w http.ResponseWriter, r *http.Request) {
 }
 
 type patchEntryRequest struct {
-	Name              *string `json:"name"`
-	SortName          *string `json:"sortName"`
-	Overview          *string `json:"overview"`
-	ParentID          *string `json:"parentId"`
-	Monitored         *bool   `json:"monitored"`
-	MonitorMode       *string `json:"monitorMode"`
-	Status            *string `json:"status"`
-	QualityProfileID  *string `json:"qualityProfileId"`
-	MetadataProfileID *string `json:"metadataProfileId"`
-	Path              *string `json:"path"`
+	Name              *string   `json:"name"`
+	SortName          *string   `json:"sortName"`
+	Overview          *string   `json:"overview"`
+	ParentID          *string   `json:"parentId"`
+	Monitored         *bool     `json:"monitored"`
+	MonitorMode       *string   `json:"monitorMode"`
+	Status            *string   `json:"status"`
+	QualityProfileID  *string   `json:"qualityProfileId"`
+	MetadataProfileID *string   `json:"metadataProfileId"`
+	Path              *string   `json:"path"`
+	LockedFields      *[]string `json:"lockedFields"`
 }
 
 func (h *libraryEntryHandler) update(w http.ResponseWriter, r *http.Request) {
@@ -266,6 +272,9 @@ func (h *libraryEntryHandler) update(w http.ResponseWriter, r *http.Request) {
 	}
 	if req.Path != nil {
 		e.Path = *req.Path
+	}
+	if req.LockedFields != nil {
+		e.LockedFields = *req.LockedFields
 	}
 
 	if err := h.svc.SaveEntry(r.Context(), e); handleErr(w, err) {

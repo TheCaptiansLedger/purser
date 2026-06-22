@@ -19,25 +19,27 @@ func NewGroupRepo(db *sql.DB) ports.GroupRepository {
 
 const groupSelectCols = `
 	id, library_entry_id, title, sort_name, number, year, overview,
-	monitored, monitor_mode, metadata, cover_path
+	monitored, monitor_mode, metadata, locked_fields, cover_path
 `
 
 func scanGroup(row interface{ Scan(...any) error }) (*domain.Group, error) {
 	var (
-		g           domain.Group
-		monitorMode string
-		monitored   int
-		metadata    string
+		g            domain.Group
+		monitorMode  string
+		monitored    int
+		metadata     string
+		lockedFields string
 	)
 	if err := row.Scan(
 		&g.ID, &g.LibraryEntryID, &g.Title, &g.SortName, &g.Number, &g.Year, &g.Overview,
-		&monitored, &monitorMode, &metadata, &g.CoverPath,
+		&monitored, &monitorMode, &metadata, &lockedFields, &g.CoverPath,
 	); err != nil {
 		return nil, err
 	}
 	g.Monitored = intToBool(monitored)
 	g.MonitorMode = domain.MonitorMode(monitorMode)
 	g.Metadata = unmarshalMeta(metadata)
+	g.LockedFields = unmarshalLockedFields(lockedFields)
 	return &g, nil
 }
 
@@ -104,8 +106,8 @@ func (r *groupRepo) Save(ctx context.Context, g *domain.Group) error {
 		ctx, `
 		INSERT INTO groups(
 			id, library_entry_id, title, sort_name, number, year, overview,
-			monitored, monitor_mode, metadata, cover_path
-		) VALUES(?,?,?,?,?,?,?,?,?,?,?)
+			monitored, monitor_mode, metadata, locked_fields, cover_path
+		) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)
 		ON CONFLICT(id) DO UPDATE SET
 			library_entry_id = excluded.library_entry_id,
 			title            = excluded.title,
@@ -116,9 +118,11 @@ func (r *groupRepo) Save(ctx context.Context, g *domain.Group) error {
 			monitored        = excluded.monitored,
 			monitor_mode     = excluded.monitor_mode,
 			metadata         = excluded.metadata,
+			locked_fields    = excluded.locked_fields,
 			cover_path       = excluded.cover_path`,
 		g.ID, g.LibraryEntryID, g.Title, g.SortName, g.Number, g.Year, g.Overview,
-		boolToInt(g.Monitored), string(g.MonitorMode), marshalMeta(g.Metadata), g.CoverPath,
+		boolToInt(g.Monitored), string(g.MonitorMode), marshalMeta(g.Metadata),
+		marshalLockedFields(g.LockedFields), g.CoverPath,
 	); err != nil {
 		return fmt.Errorf("upsert group: %w", err)
 	}

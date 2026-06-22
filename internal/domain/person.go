@@ -20,17 +20,18 @@ const (
 // People are independently monitorable: Person.Monitored=true causes Purser to grab
 // all content featuring that person, regardless of which studio produced it.
 type Person struct {
-	ID          string
-	Name        string
-	SortName    string
-	Overview    string
-	Monitored   bool
-	MonitorMode MonitorMode
-	ImagePath   string
-	Aliases     []string
-	ExternalIDs []ExternalID
-	Metadata    map[string]any
-	AddedAt     time.Time
+	ID           string
+	Name         string
+	SortName     string
+	Overview     string
+	Monitored    bool
+	MonitorMode  MonitorMode
+	ImagePath    string
+	Aliases      []string
+	ExternalIDs  []ExternalID
+	Metadata     map[string]any
+	LockedFields []string
+	AddedAt      time.Time
 }
 
 // ItemPerson links a Person to a specific Item with their credited role.

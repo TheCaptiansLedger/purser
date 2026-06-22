@@ -27,6 +27,7 @@ type LibraryEntry struct {
 	Tags              []Tag
 	People            []EntryPerson
 	Metadata          map[string]any
+	LockedFields      []string
 	AddedAt           time.Time
 	UpdatedAt         time.Time
 }

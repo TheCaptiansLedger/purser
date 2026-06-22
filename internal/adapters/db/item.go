@@ -22,7 +22,7 @@ func NewItemRepo(db *sql.DB) ports.ItemRepository {
 const itemSelectCols = `
 	id, content_type, library_entry_id, COALESCE(group_id, ''),
 	title, overview, COALESCE(date, ''), sequence, runtime_seconds,
-	monitored, status, cover_path, metadata, added_at, updated_at
+	monitored, status, cover_path, metadata, locked_fields, added_at, updated_at
 `
 
 func scanItem(row interface{ Scan(...any) error }) (*domain.Item, error) {
@@ -31,12 +31,13 @@ func scanItem(row interface{ Scan(...any) error }) (*domain.Item, error) {
 		contentType              string
 		monitored                int
 		status, metadata         string
+		lockedFields             string
 		date, addedAt, updatedAt string
 	)
 	if err := row.Scan(
 		&i.ID, &contentType, &i.LibraryEntryID, &i.GroupID,
 		&i.Title, &i.Overview, &date, &i.Sequence, &i.RuntimeSeconds,
-		&monitored, &status, &i.CoverPath, &metadata, &addedAt, &updatedAt,
+		&monitored, &status, &i.CoverPath, &metadata, &lockedFields, &addedAt, &updatedAt,
 	); err != nil {
 		return nil, err
 	}
@@ -44,6 +45,7 @@ func scanItem(row interface{ Scan(...any) error }) (*domain.Item, error) {
 	i.Monitored = intToBool(monitored)
 	i.Status = domain.ItemStatus(status)
 	i.Metadata = unmarshalMeta(metadata)
+	i.LockedFields = unmarshalLockedFields(lockedFields)
 	i.Date = strToDate(date)
 	i.AddedAt = strToTime(addedAt)
 	i.UpdatedAt = strToTime(updatedAt)
@@ -221,8 +223,8 @@ func (r *itemRepo) Save(ctx context.Context, item *domain.Item) error {
 		INSERT INTO items(
 			id, content_type, library_entry_id, group_id,
 			title, overview, date, sequence, runtime_seconds,
-			monitored, status, cover_path, metadata, added_at, updated_at
-		) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+			monitored, status, cover_path, metadata, locked_fields, added_at, updated_at
+		) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
 		ON CONFLICT(id) DO UPDATE SET
 			content_type     = excluded.content_type,
 			library_entry_id = excluded.library_entry_id,
@@ -236,11 +238,12 @@ func (r *itemRepo) Save(ctx context.Context, item *domain.Item) error {
 			status           = excluded.status,
 			cover_path       = excluded.cover_path,
 			metadata         = excluded.metadata,
+			locked_fields    = excluded.locked_fields,
 			updated_at       = excluded.updated_at`,
 		item.ID, string(item.ContentType), item.LibraryEntryID, groupID,
 		item.Title, item.Overview, date, item.Sequence, item.RuntimeSeconds,
 		boolToInt(item.Monitored), string(item.Status), item.CoverPath,
-		marshalMeta(item.Metadata), timeToStr(item.AddedAt), now,
+		marshalMeta(item.Metadata), marshalLockedFields(item.LockedFields), timeToStr(item.AddedAt), now,
 	); err != nil {
 		return fmt.Errorf("upsert item: %w", err)
 	}

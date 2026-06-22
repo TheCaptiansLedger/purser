@@ -18,26 +18,28 @@ func NewPersonRepo(db *sql.DB) ports.PersonRepository {
 }
 
 const personSelectCols = `
-	id, name, sort_name, overview, monitored, monitor_mode, image_path, metadata, added_at
+	id, name, sort_name, overview, monitored, monitor_mode, image_path, metadata, locked_fields, added_at
 `
 
 func scanPerson(row interface{ Scan(...any) error }) (*domain.Person, error) {
 	var (
-		p           domain.Person
-		monitorMode string
-		monitored   int
-		metadata    string
-		addedAt     string
+		p            domain.Person
+		monitorMode  string
+		monitored    int
+		metadata     string
+		lockedFields string
+		addedAt      string
 	)
 	if err := row.Scan(
 		&p.ID, &p.Name, &p.SortName, &p.Overview,
-		&monitored, &monitorMode, &p.ImagePath, &metadata, &addedAt,
+		&monitored, &monitorMode, &p.ImagePath, &metadata, &lockedFields, &addedAt,
 	); err != nil {
 		return nil, err
 	}
 	p.Monitored = intToBool(monitored)
 	p.MonitorMode = domain.MonitorMode(monitorMode)
 	p.Metadata = unmarshalMeta(metadata)
+	p.LockedFields = unmarshalLockedFields(lockedFields)
 	p.AddedAt = strToTime(addedAt)
 	return &p, nil
 }
@@ -148,19 +150,20 @@ func (r *personRepo) Save(ctx context.Context, p *domain.Person) error {
 
 	if _, err := tx.ExecContext(
 		ctx, `
-		INSERT INTO people(id, name, sort_name, overview, monitored, monitor_mode, image_path, metadata, added_at)
-		VALUES(?,?,?,?,?,?,?,?,?)
+		INSERT INTO people(id, name, sort_name, overview, monitored, monitor_mode, image_path, metadata, locked_fields, added_at)
+		VALUES(?,?,?,?,?,?,?,?,?,?)
 		ON CONFLICT(id) DO UPDATE SET
-			name         = excluded.name,
-			sort_name    = excluded.sort_name,
-			overview     = excluded.overview,
-			monitored    = excluded.monitored,
-			monitor_mode = excluded.monitor_mode,
-			image_path   = excluded.image_path,
-			metadata     = excluded.metadata`,
+			name          = excluded.name,
+			sort_name     = excluded.sort_name,
+			overview      = excluded.overview,
+			monitored     = excluded.monitored,
+			monitor_mode  = excluded.monitor_mode,
+			image_path    = excluded.image_path,
+			metadata      = excluded.metadata,
+			locked_fields = excluded.locked_fields`,
 		p.ID, p.Name, p.SortName, p.Overview,
 		boolToInt(p.Monitored), string(p.MonitorMode), p.ImagePath,
-		marshalMeta(p.Metadata), timeToStr(p.AddedAt),
+		marshalMeta(p.Metadata), marshalLockedFields(p.LockedFields), timeToStr(p.AddedAt),
 	); err != nil {
 		return fmt.Errorf("upsert person: %w", err)
 	}

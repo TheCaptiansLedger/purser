@@ -30,8 +30,8 @@ func TestOpen_CreatesSchema(t *testing.T) {
 	if err := database.QueryRow(`SELECT COUNT(*) FROM schema_migrations`).Scan(&count); err != nil {
 		t.Fatalf("schema_migrations missing: %v", err)
 	}
-	if count != 8 {
-		t.Errorf("migration count = %d, want 8", count)
+	if count != 9 {
+		t.Errorf("migration count = %d, want 9", count)
 	}
 
 	tables := []string{
@@ -95,6 +95,47 @@ func TestLibraryEntryRepo_SaveAndGet(t *testing.T) {
 	}
 	if len(got.ExternalIDs) != 1 || got.ExternalIDs[0].Value != "abc-123" {
 		t.Errorf("ExternalIDs = %v, want [{stashdb abc-123}]", got.ExternalIDs)
+	}
+}
+
+func TestLibraryEntryRepo_LockedFields(t *testing.T) {
+	repo := NewLibraryEntryRepo(setupTestDB(t))
+	ctx := context.Background()
+
+	e := &domain.LibraryEntry{
+		ContentType:  domain.ContentTypeAdult,
+		Kind:         domain.KindStudio,
+		Name:         "Locked Studio",
+		MonitorMode:  domain.MonitorAll,
+		Status:       domain.EntryStatusActive,
+		LockedFields: []string{"name", "overview"},
+	}
+	if err := repo.Save(ctx, e); err != nil {
+		t.Fatalf("Save: %v", err)
+	}
+
+	got, err := repo.Get(ctx, e.ID)
+	if err != nil {
+		t.Fatalf("Get: %v", err)
+	}
+	if len(got.LockedFields) != 2 {
+		t.Fatalf("LockedFields len = %d, want 2", len(got.LockedFields))
+	}
+	if got.LockedFields[0] != "name" || got.LockedFields[1] != "overview" {
+		t.Errorf("LockedFields = %v, want [name overview]", got.LockedFields)
+	}
+
+	// Clearing locked fields persists as empty.
+	got.LockedFields = nil
+	if err := repo.Save(ctx, got); err != nil {
+		t.Fatalf("Save cleared: %v", err)
+	}
+	cleared, err := repo.Get(ctx, e.ID)
+	if err != nil {
+		t.Fatalf("Get cleared: %v", err)
+	}
+	if len(cleared.LockedFields) != 0 {
+		t.Errorf("LockedFields after clear = %v, want empty", cleared.LockedFields)
 	}
 }
 
@@ -343,6 +384,28 @@ func TestPersonRepo_SaveGetWithAliases(t *testing.T) {
 	}
 	if len(got.ExternalIDs) != 1 {
 		t.Errorf("ExternalIDs count = %d, want 1", len(got.ExternalIDs))
+	}
+}
+
+func TestPersonRepo_LockedFields(t *testing.T) {
+	repo := NewPersonRepo(setupTestDB(t))
+	ctx := context.Background()
+
+	p := &domain.Person{
+		Name:         "Locked Person",
+		MonitorMode:  domain.MonitorAll,
+		LockedFields: []string{"imageUrl"},
+	}
+	if err := repo.Save(ctx, p); err != nil {
+		t.Fatalf("Save: %v", err)
+	}
+
+	got, err := repo.Get(ctx, p.ID)
+	if err != nil {
+		t.Fatalf("Get: %v", err)
+	}
+	if len(got.LockedFields) != 1 || got.LockedFields[0] != "imageUrl" {
+		t.Errorf("LockedFields = %v, want [imageUrl]", got.LockedFields)
 	}
 }
 

@@ -25,32 +25,37 @@ func (h *peopleHandler) routes(r chi.Router) {
 // ── Response types ────────────────────────────────────────────────────────────
 
 type personResponse struct {
-	ID          string               `json:"id"`
-	Name        string               `json:"name"`
-	SortName    string               `json:"sortName"`
-	Overview    string               `json:"overview"`
-	Monitored   bool                 `json:"monitored"`
-	MonitorMode string               `json:"monitorMode"`
-	ImageURL    string               `json:"imageUrl,omitempty"`
-	Aliases     []string             `json:"aliases"`
-	ExternalIDs []externalIDResponse `json:"externalIds"`
-	Metadata    map[string]any       `json:"metadata,omitempty"`
-	AddedAt     time.Time            `json:"addedAt"`
+	ID           string               `json:"id"`
+	Name         string               `json:"name"`
+	SortName     string               `json:"sortName"`
+	Overview     string               `json:"overview"`
+	Monitored    bool                 `json:"monitored"`
+	MonitorMode  string               `json:"monitorMode"`
+	ImageURL     string               `json:"imageUrl,omitempty"`
+	Aliases      []string             `json:"aliases"`
+	ExternalIDs  []externalIDResponse `json:"externalIds"`
+	Metadata     map[string]any       `json:"metadata,omitempty"`
+	LockedFields []string             `json:"lockedFields"`
+	AddedAt      time.Time            `json:"addedAt"`
 }
 
 func toPersonResponse(p *domain.Person) *personResponse {
 	r := &personResponse{
-		ID:          p.ID,
-		Name:        p.Name,
-		SortName:    p.SortName,
-		Overview:    p.Overview,
-		Monitored:   p.Monitored,
-		MonitorMode: string(p.MonitorMode),
-		ImageURL:    imageURL("people", p.ID, p.ImagePath),
-		Metadata:    p.Metadata,
-		AddedAt:     p.AddedAt,
-		Aliases:     []string{},
-		ExternalIDs: []externalIDResponse{},
+		ID:           p.ID,
+		Name:         p.Name,
+		SortName:     p.SortName,
+		Overview:     p.Overview,
+		Monitored:    p.Monitored,
+		MonitorMode:  string(p.MonitorMode),
+		ImageURL:     imageURL("people", p.ID, p.ImagePath),
+		Metadata:     p.Metadata,
+		LockedFields: p.LockedFields,
+		AddedAt:      p.AddedAt,
+		Aliases:      []string{},
+		ExternalIDs:  []externalIDResponse{},
+	}
+	if r.LockedFields == nil {
+		r.LockedFields = []string{}
 	}
 	if len(p.Aliases) > 0 {
 		r.Aliases = p.Aliases
@@ -142,12 +147,13 @@ func (h *peopleHandler) create(w http.ResponseWriter, r *http.Request) {
 }
 
 type patchPersonRequest struct {
-	Name        *string  `json:"name"`
-	SortName    *string  `json:"sortName"`
-	Overview    *string  `json:"overview"`
-	Monitored   *bool    `json:"monitored"`
-	MonitorMode *string  `json:"monitorMode"`
-	Aliases     []string `json:"aliases"`
+	Name         *string   `json:"name"`
+	SortName     *string   `json:"sortName"`
+	Overview     *string   `json:"overview"`
+	Monitored    *bool     `json:"monitored"`
+	MonitorMode  *string   `json:"monitorMode"`
+	Aliases      []string  `json:"aliases"`
+	LockedFields *[]string `json:"lockedFields"`
 }
 
 func (h *peopleHandler) update(w http.ResponseWriter, r *http.Request) {
@@ -180,6 +186,9 @@ func (h *peopleHandler) update(w http.ResponseWriter, r *http.Request) {
 	}
 	if req.Aliases != nil {
 		p.Aliases = req.Aliases
+	}
+	if req.LockedFields != nil {
+		p.LockedFields = *req.LockedFields
 	}
 
 	if err := h.svc.SavePerson(r.Context(), p); handleErr(w, err) {
