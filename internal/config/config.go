@@ -158,6 +158,18 @@ type LogConfig struct {
 //
 // A missing file is not an error. Pass an empty path to use defaults only.
 func Load(path string) (*Config, error) {
+	cfg, _, _, err := LoadFull(path)
+	return cfg, err
+}
+
+// LoadFull is like Load but also returns the raw Viper instance and the set of
+// operator-locked keys. The Viper instance provides default-value fallback for
+// ConfigService.Get. The locked set identifies keys managed by the operator
+// (set via env var or YAML file) that cannot be overwritten from the UI.
+//
+// Viper 1.21's IsSet returns true for SetDefault keys, so locking is detected
+// explicitly: env vars via os.LookupEnv, file keys via a file-only Viper scan.
+func LoadFull(path string) (*Config, *viper.Viper, map[string]struct{}, error) {
 	v := viper.New()
 
 	v.SetDefault("server.port", 7474)
@@ -217,7 +229,7 @@ func Load(path string) (*Config, error) {
 	if path != "" {
 		v.SetConfigFile(path)
 		if err := v.ReadInConfig(); err != nil && !errors.Is(err, os.ErrNotExist) {
-			return nil, fmt.Errorf("read config: %w", err)
+			return nil, nil, nil, fmt.Errorf("read config: %w", err)
 		}
 	}
 
@@ -227,7 +239,38 @@ func Load(path string) (*Config, error) {
 
 	var cfg Config
 	if err := v.Unmarshal(&cfg); err != nil {
-		return nil, fmt.Errorf("parse config: %w", err)
+		return nil, nil, nil, fmt.Errorf("parse config: %w", err)
 	}
-	return &cfg, nil
+
+	locked := computeLockedKeys(path, v.AllKeys())
+	return &cfg, v, locked, nil
+}
+
+// computeLockedKeys returns the set of keys that are explicitly set by the
+// operator via env vars or YAML file. Keys that only have built-in defaults
+// are not locked and can be overwritten via the UI.
+func computeLockedKeys(path string, allKeys []string) map[string]struct{} {
+	locked := make(map[string]struct{})
+
+	// Keys in the config file — use a file-only Viper so defaults don't bleed in.
+	if path != "" {
+		fileV := viper.New()
+		fileV.SetConfigFile(path)
+		if err := fileV.ReadInConfig(); err == nil {
+			for _, k := range fileV.AllKeys() {
+				locked[strings.ToLower(k)] = struct{}{}
+			}
+		}
+	}
+
+	// Keys set via environment variables.
+	dotToUnderscore := strings.NewReplacer(".", "_")
+	for _, key := range allKeys {
+		envKey := "PURSER_" + strings.ToUpper(dotToUnderscore.Replace(key))
+		if _, exists := os.LookupEnv(envKey); exists {
+			locked[strings.ToLower(key)] = struct{}{}
+		}
+	}
+
+	return locked
 }
