@@ -1,11 +1,13 @@
 import { describe, expect, it } from 'vitest'
 import {
   DEFAULT_MODULES,
+  DEFAULT_ROOTS,
   MODULE_META,
   SOURCE_DEFS,
   MODULE_SOURCES,
   sourcesForModules,
   canProceedFromSources,
+  canProceedFromRoots,
 } from './SetupPage'
 import type { ModuleKey, ModuleState, SourceID } from './SetupPage'
 
@@ -133,6 +135,93 @@ describe('sourcesForModules', () => {
   it('excludes books (no sources defined)', () => {
     const defs = sourcesForModules({ ...NO_MODULES, books: true })
     expect(defs).toHaveLength(0)
+  })
+})
+
+describe('DEFAULT_ROOTS', () => {
+  it('has an entry for every module key', () => {
+    for (const key of MODULE_KEYS) {
+      expect(DEFAULT_ROOTS[key]).toBeDefined()
+    }
+  })
+
+  it('every default entry is a non-empty array', () => {
+    for (const key of MODULE_KEYS) {
+      expect(DEFAULT_ROOTS[key].length).toBeGreaterThan(0)
+    }
+  })
+
+  it('every default path starts with /', () => {
+    for (const key of MODULE_KEYS) {
+      for (const path of DEFAULT_ROOTS[key]) {
+        expect(path.startsWith('/')).toBe(true)
+      }
+    }
+  })
+
+  it('allows canProceedFromRoots to pass with all modules enabled', () => {
+    const allEnabled: ModuleState = {
+      movies: true, tv: true, music: true, afterdark: true, books: true,
+    }
+    expect(canProceedFromRoots(allEnabled, DEFAULT_ROOTS)).toBe(true)
+  })
+})
+
+describe('canProceedFromRoots', () => {
+  const validRoots: Record<ModuleKey, string[]> = {
+    movies: ['/media/movies'], tv: ['/media/tv'], music: ['/media/music'],
+    afterdark: ['/media/afterdark'], books: ['/media/books'],
+  }
+  const emptyRoots: Record<ModuleKey, string[]> = {
+    movies: [''], tv: [''], music: [''], afterdark: [''], books: [''],
+  }
+
+  it('returns false when any enabled module has an empty path', () => {
+    expect(canProceedFromRoots({ ...NO_MODULES, movies: true }, emptyRoots)).toBe(false)
+  })
+
+  it('returns false when a path does not start with /', () => {
+    expect(canProceedFromRoots(
+      { ...NO_MODULES, movies: true },
+      { ...emptyRoots, movies: ['media/movies'] },
+    )).toBe(false)
+  })
+
+  it('returns false when an empty path is mixed in with valid paths', () => {
+    expect(canProceedFromRoots(
+      { ...NO_MODULES, movies: true },
+      { ...validRoots, movies: ['/media/movies', ''] },
+    )).toBe(false)
+  })
+
+  it('returns false when a module has no paths at all', () => {
+    expect(canProceedFromRoots(
+      { ...NO_MODULES, movies: true },
+      { ...validRoots, movies: [] },
+    )).toBe(false)
+  })
+
+  it('returns true when all enabled modules have valid paths', () => {
+    expect(canProceedFromRoots({ ...NO_MODULES, movies: true }, validRoots)).toBe(true)
+  })
+
+  it('returns true when a module has multiple valid paths', () => {
+    expect(canProceedFromRoots(
+      { ...NO_MODULES, movies: true },
+      { ...validRoots, movies: ['/media/movies', '/mnt/nas/movies'] },
+    )).toBe(true)
+  })
+
+  it('returns true when multiple modules all have valid paths', () => {
+    expect(canProceedFromRoots({ ...NO_MODULES, movies: true, tv: true }, validRoots)).toBe(true)
+  })
+
+  it('ignores disabled modules — their paths are irrelevant', () => {
+    expect(canProceedFromRoots({ ...NO_MODULES, movies: true }, { ...emptyRoots, movies: ['/media/movies'] })).toBe(true)
+  })
+
+  it('returns true when no modules are enabled', () => {
+    expect(canProceedFromRoots(NO_MODULES, emptyRoots)).toBe(true)
   })
 })
 

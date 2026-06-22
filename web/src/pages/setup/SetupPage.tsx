@@ -142,6 +142,12 @@ export function canProceedFromSources(
     .every((d) => statuses[d.id] === 'ok' || skipped[d.id])
 }
 
+export function canProceedFromRoots(modules: ModuleState, roots: Record<ModuleKey, string[]>): boolean {
+  return (Object.keys(modules) as ModuleKey[])
+    .filter((k) => modules[k])
+    .every((k) => roots[k].length > 0 && roots[k].every((p) => p.length > 0 && p.startsWith('/')))
+}
+
 // ── Step 1: Welcome ───────────────────────────────────────────────────────────
 
 function WelcomeStep({ onNext }: { onNext: () => void }) {
@@ -471,11 +477,170 @@ function MetadataSourcesStep({ modules, onNext, loading }: MetadataSourcesStepPr
   )
 }
 
+// ── Step 4: Media roots ───────────────────────────────────────────────────────
+
+interface MediaRootsStepProps {
+  modules:      ModuleState
+  roots:        Record<ModuleKey, string[]>
+  onRootChange: (key: ModuleKey, index: number, value: string) => void
+  onRootAdd:    (key: ModuleKey) => void
+  onRootRemove: (key: ModuleKey, index: number) => void
+  onNext:       () => void
+}
+
+function MediaRootsStep({ modules, roots, onRootChange, onRootAdd, onRootRemove, onNext }: MediaRootsStepProps) {
+  const keys = (Object.keys(MODULE_META) as ModuleKey[]).filter((k) => modules[k])
+  const canProceed = canProceedFromRoots(modules, roots)
+
+  return (
+    <div className="flex flex-col gap-6">
+      <div className="flex flex-col gap-1">
+        <h2 className="text-2xl font-bold text-white">Media roots</h2>
+        <p className="text-sm text-gray-400">
+          Set the root directories on disk where each module's content lives.
+        </p>
+      </div>
+
+      <div className="flex flex-col gap-5">
+        {keys.map((key) => {
+          const { label, icon } = MODULE_META[key]
+          const paths = roots[key]
+          return (
+            <div key={key} className="flex flex-col gap-2">
+              <span className="flex items-center gap-2 text-sm font-medium text-gray-300">
+                <span aria-hidden="true">{icon}</span>
+                {label}
+              </span>
+              <div className="flex flex-col gap-1.5">
+                {paths.map((path, i) => {
+                  const invalid = path.length > 0 && !path.startsWith('/')
+                  return (
+                    <div key={i} className="flex flex-col gap-1">
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="text"
+                          placeholder={`/media/${key}`}
+                          value={path}
+                          onChange={(e) => onRootChange(key, i, e.target.value)}
+                          className={[
+                            'flex-1 rounded-lg border bg-gray-800 px-3 py-2 text-sm text-white placeholder-gray-600 focus:outline-none focus:ring-2 focus:ring-indigo-500',
+                            invalid ? 'border-red-500' : 'border-gray-700',
+                          ].join(' ')}
+                        />
+                        {paths.length > 1 && (
+                          <button
+                            onClick={() => onRootRemove(key, i)}
+                            aria-label="Remove directory"
+                            className="shrink-0 w-8 h-8 flex items-center justify-center rounded-lg text-gray-500 hover:text-red-400 hover:bg-gray-800 transition-colors"
+                          >
+                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                          </button>
+                        )}
+                      </div>
+                      {invalid && (
+                        <p className="text-xs text-red-400 pl-0.5">Path must start with /</p>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+              <button
+                onClick={() => onRootAdd(key)}
+                className="self-start flex items-center gap-1.5 text-xs text-indigo-400 hover:text-indigo-300 transition-colors"
+              >
+                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+                </svg>
+                Add directory
+              </button>
+            </div>
+          )
+        })}
+      </div>
+
+      <button
+        onClick={onNext}
+        disabled={!canProceed}
+        className="w-full py-3 px-6 rounded-xl bg-indigo-600 hover:bg-indigo-500 disabled:bg-gray-800 disabled:text-gray-600 disabled:cursor-not-allowed text-white font-semibold text-base transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 focus:ring-offset-gray-950"
+      >
+        Next
+      </button>
+    </div>
+  )
+}
+
+// ── Step 5: Done ──────────────────────────────────────────────────────────────
+
+interface DoneStepProps {
+  modules:    ModuleState
+  roots:      Record<ModuleKey, string[]>
+  onComplete: () => void
+  loading:    boolean
+}
+
+function DoneStep({ modules, roots, onComplete, loading }: DoneStepProps) {
+  const keys = (Object.keys(MODULE_META) as ModuleKey[]).filter((k) => modules[k])
+
+  return (
+    <div className="flex flex-col gap-8">
+      <div className="flex flex-col items-center gap-4 text-center">
+        <div className="w-16 h-16 rounded-2xl bg-green-600/20 border border-green-500/30 flex items-center justify-center">
+          <svg className="w-8 h-8 text-green-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+        </div>
+        <div className="flex flex-col gap-1">
+          <h2 className="text-2xl font-bold text-white">You're all set</h2>
+          <p className="text-sm text-gray-400">Here's a summary of your configuration.</p>
+        </div>
+      </div>
+
+      <div className="rounded-xl border border-gray-800 bg-gray-900/50 divide-y divide-gray-800">
+        {keys.map((key) => {
+          const { label, icon } = MODULE_META[key]
+          return (
+            <div key={key} className="flex items-start justify-between gap-4 px-4 py-3">
+              <div className="flex items-center gap-2 shrink-0">
+                <span aria-hidden="true">{icon}</span>
+                <span className="text-sm font-medium text-white">{label}</span>
+              </div>
+              <div className="flex flex-col items-end gap-0.5">
+                {roots[key].map((path, i) => (
+                  <span key={i} className="text-sm text-gray-400 font-mono text-right break-all">{path}</span>
+                ))}
+              </div>
+            </div>
+          )
+        })}
+      </div>
+
+      <button
+        onClick={onComplete}
+        disabled={loading}
+        className="w-full py-3 px-6 rounded-xl bg-indigo-600 hover:bg-indigo-500 disabled:bg-gray-700 disabled:text-gray-500 disabled:cursor-not-allowed text-white font-semibold text-base transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 focus:ring-offset-gray-950"
+      >
+        {loading ? 'Setting up…' : 'Go to library'}
+      </button>
+    </div>
+  )
+}
+
 // ── Wizard shell ──────────────────────────────────────────────────────────────
+
+export const DEFAULT_ROOTS: Record<ModuleKey, string[]> = {
+  movies:    ['/media/movies'],
+  tv:        ['/media/tv'],
+  music:     ['/media/music'],
+  afterdark: ['/media/afterdark'],
+  books:     ['/media/books'],
+}
 
 export function SetupPage() {
   const [step, setStep]       = useState(1)
   const [modules, setModules] = useState<ModuleState>(DEFAULT_MODULES)
+  const [roots, setRoots]     = useState<Record<ModuleKey, string[]>>(DEFAULT_ROOTS)
   const navigate              = useNavigate()
   const { mutate, isPending } = useCompleteSetup()
 
@@ -483,7 +648,23 @@ export function SetupPage() {
     setModules((prev) => ({ ...prev, [key]: !prev[key] }))
   }
 
-  function handleSourcesNext() {
+  function updateRoot(key: ModuleKey, index: number, value: string) {
+    setRoots((prev) => {
+      const updated = [...prev[key]]
+      updated[index] = value
+      return { ...prev, [key]: updated }
+    })
+  }
+
+  function addRoot(key: ModuleKey) {
+    setRoots((prev) => ({ ...prev, [key]: [...prev[key], ''] }))
+  }
+
+  function removeRoot(key: ModuleKey, index: number) {
+    setRoots((prev) => ({ ...prev, [key]: prev[key].filter((_, i) => i !== index) }))
+  }
+
+  function handleComplete() {
     mutate(undefined, {
       onSuccess: () => navigate('/', { replace: true }),
     })
@@ -505,7 +686,25 @@ export function SetupPage() {
         {step === 3 && (
           <MetadataSourcesStep
             modules={modules}
-            onNext={handleSourcesNext}
+            onNext={() => setStep(4)}
+            loading={false}
+          />
+        )}
+        {step === 4 && (
+          <MediaRootsStep
+            modules={modules}
+            roots={roots}
+            onRootChange={updateRoot}
+            onRootAdd={addRoot}
+            onRootRemove={removeRoot}
+            onNext={() => setStep(5)}
+          />
+        )}
+        {step === 5 && (
+          <DoneStep
+            modules={modules}
+            roots={roots}
+            onComplete={handleComplete}
             loading={isPending}
           />
         )}
