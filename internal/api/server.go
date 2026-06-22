@@ -34,13 +34,14 @@ func New(
 	tagRepo ports.TagRepository,
 	jobQueue ports.JobQueue,
 	settingsRepo ports.SettingsRepository,
+	sources []ports.MetadataSource,
 	uiFS fs.FS,
 ) *Server {
 	s := &Server{
 		router: chi.NewRouter(),
 		port:   port,
 	}
-	s.mount(mediaPath, cfg, db, libSvc, peopleSvc, metaSvc, tagRepo, jobQueue, settingsRepo, uiFS)
+	s.mount(mediaPath, cfg, db, libSvc, peopleSvc, metaSvc, tagRepo, jobQueue, settingsRepo, sources, uiFS)
 	return s
 }
 
@@ -54,6 +55,7 @@ func (s *Server) mount(
 	tagRepo ports.TagRepository,
 	jobQueue ports.JobQueue,
 	settingsRepo ports.SettingsRepository,
+	sources []ports.MetadataSource,
 	uiFS fs.FS,
 ) {
 	r := s.router
@@ -108,6 +110,11 @@ func (s *Server) mount(
 		r.Route("/setup", func(r chi.Router) {
 			r.Get("/status", setupH.status)
 			r.Post("/complete", setupH.complete)
+		})
+
+		verifyH := &verifyHandler{sources: sources}
+		r.Route("/verify", func(r chi.Router) {
+			r.Post("/source", verifyH.source)
 		})
 	})
 

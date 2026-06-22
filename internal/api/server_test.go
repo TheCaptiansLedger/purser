@@ -5,6 +5,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"io/fs"
 	"net/http"
 	"net/http/httptest"
@@ -15,6 +16,7 @@ import (
 	"purser/internal/app/metadata"
 	"purser/internal/app/people"
 	"purser/internal/config"
+	"purser/internal/domain"
 	"purser/internal/ports"
 	"purser/web"
 	"testing"
@@ -67,7 +69,7 @@ func newHandlerWithDB(t *testing.T) (http.Handler, *sql.DB) {
 		Log: config.LogConfig{Level: "info", Format: "text"},
 	}
 	settingsRepo := dbadapter.NewSettingsRepo(database)
-	return api.New(0, "", cfg, database, libSvc, peopleSvc, metaSvc, tagRepo, jobQueue, settingsRepo, uiFS).Handler(), database
+	return api.New(0, "", cfg, database, libSvc, peopleSvc, metaSvc, tagRepo, jobQueue, settingsRepo, nil, uiFS).Handler(), database
 }
 
 // newHandler builds a full server backed by a temp-file SQLite database.
@@ -124,7 +126,7 @@ func newHandlerWithMedia(t *testing.T, mediaPath string) http.Handler {
 		Log: config.LogConfig{Level: "info", Format: "text"},
 	}
 	settingsRepo := dbadapter.NewSettingsRepo(database)
-	return api.New(0, mediaPath, cfg, database, libSvc, peopleSvc, metaSvc, tagRepo, jobQueue, settingsRepo, uiFS).Handler()
+	return api.New(0, mediaPath, cfg, database, libSvc, peopleSvc, metaSvc, tagRepo, jobQueue, settingsRepo, nil, uiFS).Handler()
 }
 
 func do(t *testing.T, h http.Handler, method, path string, body any) *httptest.ResponseRecorder {
@@ -272,7 +274,7 @@ func TestConfig_Get_Sources_KeysMasked(t *testing.T) {
 		},
 		Log: config.LogConfig{Level: "info", Format: "text"},
 	}
-	h := api.New(0, "", cfg, database, libSvc, peopleSvc, metaSvc, tagRepo, jobQueue, dbadapter.NewSettingsRepo(database), uiFS).Handler()
+	h := api.New(0, "", cfg, database, libSvc, peopleSvc, metaSvc, tagRepo, jobQueue, dbadapter.NewSettingsRepo(database), nil, uiFS).Handler()
 
 	w := do(t, h, http.MethodGet, "/api/v1/config", nil)
 	if w.Code != http.StatusOK {
@@ -1720,7 +1722,7 @@ func TestJobs_Cancel_SetsStatus(t *testing.T) {
 		Database: config.DatabaseConfig{Driver: "sqlite", DSN: dbPath},
 		Log:      config.LogConfig{Level: "info", Format: "text"},
 	}
-	h := api.New(0, "", cfg, database, libSvc, peopleSvc, metaSvc, tagRepo, jobQueue, dbadapter.NewSettingsRepo(database), uiFS).Handler()
+	h := api.New(0, "", cfg, database, libSvc, peopleSvc, metaSvc, tagRepo, jobQueue, dbadapter.NewSettingsRepo(database), nil, uiFS).Handler()
 
 	// DELETE /api/v1/jobs/:id should cancel it.
 	w := do(t, h, http.MethodDelete, "/api/v1/jobs/"+submitted.ID, nil)
@@ -2285,5 +2287,139 @@ func TestSetup_StatusAfterComplete(t *testing.T) {
 	decodeJSON(t, w, &resp)
 	if !resp.Complete {
 		t.Error("complete should be true after POST /setup/complete")
+	}
+}
+
+// ── Verify ────────────────────────────────────────────────────────────────────
+
+// stubSource implements ports.MetadataSource and ports.Verifiable for tests.
+type stubSource struct {
+	name      string
+	verifyErr error
+}
+
+func (s *stubSource) Name() string                       { return s.name }
+func (s *stubSource) ContentTypes() []domain.ContentType { return nil }
+func (s *stubSource) Verify(_ context.Context) error     { return s.verifyErr }
+
+func (s *stubSource) SearchStudios(_ context.Context, _ string, _ int) ([]*domain.ExternalStudio, error) {
+	return nil, ports.ErrNotSupported
+}
+
+func (s *stubSource) SearchPeople(_ context.Context, _ string, _ int) ([]*domain.ExternalPerson, error) {
+	return nil, ports.ErrNotSupported
+}
+
+func (s *stubSource) SearchItems(_ context.Context, _ domain.ContentType, _ string, _ int) ([]*domain.ExternalItem, error) {
+	return nil, ports.ErrNotSupported
+}
+
+func (s *stubSource) FindByHash(_ context.Context, _ string) (*domain.ExternalItem, error) {
+	return nil, ports.ErrNotSupported
+}
+
+func (s *stubSource) FindByExternalID(_ context.Context, _ domain.ContentType, _ string) (*domain.ExternalItem, error) {
+	return nil, ports.ErrNotSupported
+}
+
+func (s *stubSource) FetchEntryContent(_ context.Context, _ domain.ContentType, _ string, _, _ int) ([]*domain.ExternalGroup, []*domain.ExternalItem, int, error) {
+	return nil, nil, 0, ports.ErrNotSupported
+}
+
+func (s *stubSource) FetchGroupContent(_ context.Context, _ domain.ContentType, _ string, _, _ int) ([]*domain.ExternalItem, int, error) {
+	return nil, 0, ports.ErrNotSupported
+}
+
+func (s *stubSource) FetchEntryPeople(_ context.Context, _ string) ([]*domain.ExternalPerson, error) {
+	return nil, ports.ErrNotSupported
+}
+
+func newHandlerWithSources(t *testing.T, sources []ports.MetadataSource) http.Handler {
+	t.Helper()
+	dbPath := t.TempDir() + "/test.db"
+	database, err := dbadapter.Open(dbPath)
+	if err != nil {
+		t.Fatalf("open test db: %v", err)
+	}
+	t.Cleanup(func() { database.Close() })
+	personRepo := dbadapter.NewPersonRepo(database)
+	libSvc := library.New(dbadapter.NewLibraryEntryRepo(database), dbadapter.NewGroupRepo(database), dbadapter.NewItemRepo(database), personRepo)
+	peopleSvc := people.New(personRepo)
+	tagRepo := dbadapter.NewTagRepo(database)
+	jobQueue := jobsadapter.New(1)
+	t.Cleanup(jobQueue.Close)
+	metaSvc := metadata.New(nil, jobQueue, dbadapter.NewLibraryEntryRepo(database), dbadapter.NewGroupRepo(database), dbadapter.NewItemRepo(database), dbadapter.NewPersonRepo(database), dbadapter.NewTagRepo(database), dbadapter.NewExternalIDRepo(database), nil)
+	uiFS, _ := fs.Sub(web.Dist, "dist")
+	cfg := &config.Config{
+		Server:   config.ServerConfig{Port: 0, Workers: 1},
+		Database: config.DatabaseConfig{Driver: "sqlite", DSN: dbPath},
+		Log:      config.LogConfig{Level: "info", Format: "text"},
+	}
+	return api.New(0, "", cfg, database, libSvc, peopleSvc, metaSvc, tagRepo, jobQueue, dbadapter.NewSettingsRepo(database), sources, uiFS).Handler()
+}
+
+func TestVerify_BadJSON(t *testing.T) {
+	h := newHandler(t)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/verify/source", bytes.NewBufferString("{bad"))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, req)
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want 400", w.Code)
+	}
+}
+
+func TestVerify_UnknownSource(t *testing.T) {
+	h := newHandler(t)
+	w := do(t, h, http.MethodPost, "/api/v1/verify/source", map[string]any{"source": "bogus"})
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want 400", w.Code)
+	}
+	var resp struct {
+		Code string `json:"code"`
+	}
+	decodeJSON(t, w, &resp)
+	if resp.Code != "UNKNOWN_SOURCE" {
+		t.Errorf("code = %q, want UNKNOWN_SOURCE", resp.Code)
+	}
+}
+
+func TestVerify_Source_OK(t *testing.T) {
+	stub := &stubSource{name: "teststub", verifyErr: nil}
+	h := newHandlerWithSources(t, []ports.MetadataSource{stub})
+	w := do(t, h, http.MethodPost, "/api/v1/verify/source", map[string]any{"source": "teststub"})
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", w.Code)
+	}
+	var resp struct {
+		OK    bool   `json:"ok"`
+		Error string `json:"error"`
+	}
+	decodeJSON(t, w, &resp)
+	if !resp.OK {
+		t.Errorf("ok = false, want true")
+	}
+	if resp.Error != "" {
+		t.Errorf("error = %q, want empty", resp.Error)
+	}
+}
+
+func TestVerify_Source_Fail(t *testing.T) {
+	stub := &stubSource{name: "teststub", verifyErr: errors.New("invalid API key")}
+	h := newHandlerWithSources(t, []ports.MetadataSource{stub})
+	w := do(t, h, http.MethodPost, "/api/v1/verify/source", map[string]any{"source": "teststub"})
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", w.Code)
+	}
+	var resp struct {
+		OK    bool   `json:"ok"`
+		Error string `json:"error"`
+	}
+	decodeJSON(t, w, &resp)
+	if resp.OK {
+		t.Error("ok = true, want false")
+	}
+	if resp.Error != "invalid API key" {
+		t.Errorf("error = %q, want \"invalid API key\"", resp.Error)
 	}
 }
