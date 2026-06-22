@@ -49,14 +49,18 @@ import { SettingsLayout } from './pages/settings/SettingsLayout'
 import { SettingsPage } from './pages/settings/SettingsPage'
 import { DatabasePage } from './pages/settings/DatabasePage'
 import { JobsPanel } from './pages/settings/JobsPanel'
+import { SetupPage } from './pages/setup/SetupPage'
+import { SetupGuard } from './pages/setup/SetupGuard'
 
 function AppRoutes() {
   const modules = useModules()
 
   return (
-    <Routes>
-      <Route element={<Layout />}>
-        <Route index element={<Dashboard />} />
+    <SetupGuard>
+      <Routes>
+        <Route path="setup" element={<SetupPage />} />
+        <Route element={<Layout />}>
+          <Route index element={<Dashboard />} />
 
         {modules.movies && (
           <Route path="movies" element={<MoviesLayout />}>
@@ -128,6 +132,7 @@ function AppRoutes() {
         <Route path="*" element={<Navigate to="/" replace />} />
       </Route>
     </Routes>
+    </SetupGuard>
   )
 }
 
