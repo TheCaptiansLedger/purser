@@ -1,10 +1,12 @@
 import { useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
-import { ArrowLeft, ImageIcon, ChevronLeft, ChevronRight, Disc3, Users, ArrowUpNarrowWide, ArrowDownNarrowWide } from 'lucide-react'
+import { ArrowLeft, ImageIcon, ChevronLeft, ChevronRight, Disc3, Users, ArrowUpNarrowWide, ArrowDownNarrowWide, RefreshCw } from 'lucide-react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useLibraryEntry } from '../../api/library'
 import { useGroups, patchGroup, sortGroupsByYear } from '../../api/groups'
 import type { YearSortDir } from '../../api/groups'
+import { useActiveJobForEntry } from '../../api/jobs'
+import { refreshArtist } from '../../api/commands'
 import { Hero } from '../../components/layout/Hero'
 import { PersonCard } from '../../components/media/PersonCard'
 import { Badge } from '../../components/ui/Badge'
@@ -160,10 +162,24 @@ export function ArtistDetail() {
   const { id } = useParams<{ id: string }>()
   const [tab, setTab] = useState<ArtistTab>('discography')
   const [sortDir, setSortDir] = useState<YearSortDir>('desc')
+  const [submitting, setSubmitting] = useState(false)
+
+  const activeJob   = useActiveJobForEntry(id!, 'RefreshArtist')
+  const isImporting = activeJob !== null
 
   const { data: entry, isLoading } = useLibraryEntry(id!)
-  const { data: albumsPage } = useGroups(id!)
+  const { data: albumsPage } = useGroups(id!, isImporting ? 2000 : undefined)
   const albums = albumsPage?.data ?? []
+
+  const handleRefresh = async () => {
+    if (submitting || isImporting) return
+    setSubmitting(true)
+    try {
+      await refreshArtist(id!)
+    } finally {
+      setSubmitting(false)
+    }
+  }
 
   if (isLoading) return <div className="px-8 py-10"><Skeleton className="h-64 w-full" /></div>
   if (!entry) return null
@@ -177,12 +193,25 @@ export function ArtistDetail() {
     { id: 'members',     label: 'Members',     icon: Users  },
   ]
 
+  const refreshLabel = isImporting
+    ? activeJob.message ?? `${activeJob.current}/${activeJob.total} albums`
+    : 'Refresh'
+
   return (
     <div>
-      <div className="px-8 pt-6">
+      <div className="px-8 pt-6 flex items-center justify-between">
         <Link to="/music" className="inline-flex items-center gap-1.5 text-sm text-white/40 hover:text-white/70 transition-colors">
           <ArrowLeft size={14} /> Music
         </Link>
+
+        <button
+          onClick={handleRefresh}
+          disabled={submitting || isImporting}
+          className="inline-flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg border border-white/10 text-white/50 hover:text-white/80 hover:border-white/20 transition-colors disabled:opacity-50 disabled:cursor-default"
+        >
+          <RefreshCw size={12} className={isImporting || submitting ? 'animate-spin' : ''} />
+          {submitting ? 'Starting…' : refreshLabel}
+        </button>
       </div>
 
       <Hero backdropUrl={entry.imageUrl} accent={ACCENT}>
@@ -202,6 +231,7 @@ export function ArtistDetail() {
             <div className="flex items-center gap-3 text-sm text-white/35">
               {albums.length > 0 && <span>{albums.length} release{albums.length !== 1 ? 's' : ''}</span>}
               {entry.people.length > 0 && <span>{entry.people.length} member{entry.people.length !== 1 ? 's' : ''}</span>}
+              {isImporting && <span className="italic">importing…</span>}
             </div>
           </div>
         </div>

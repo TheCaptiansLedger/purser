@@ -1,6 +1,9 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import { StepIndicator } from '../../components/ui/StepIndicator'
+import { useAppConfig, usePatchConfig } from '../../api/config'
+import type { PatchConfigRequest } from '../../api/config'
 import { useCompleteSetup, useVerifySource } from '../../api/setup'
 
 const TOTAL_STEPS = 5
@@ -109,6 +112,32 @@ export const SOURCE_DEFS: Record<SourceID, SourceDef> = {
   },
 }
 
+// Maps wizard source IDs to their Go config key prefix.
+export const SOURCE_CONFIG_PREFIX: Record<SourceID, string> = {
+  tmdb:    'sources.tmdb',
+  tvdb:    'sources.tvdb',
+  mbz:     'sources.musicbrainz',
+  audiodb: 'sources.theaudiodb',
+  fanart:  'sources.fanart',
+  stashdb: 'sources.stashdb',
+}
+
+// Maps wizard source IDs to the Go PATCH request key for the sources object.
+const SOURCE_PATCH_KEY: Record<SourceID, keyof NonNullable<PatchConfigRequest['sources']>> = {
+  tmdb:    'tmdb',
+  tvdb:    'tvdb',
+  mbz:     'musicbrainz',
+  audiodb: 'theaudiodb',
+  fanart:  'fanart',
+  stashdb: 'stashdb',
+}
+
+// Converts a dotted config key to the corresponding PURSER_ env var name.
+// e.g. "sources.tmdb.api_key" → "PURSER_SOURCES_TMDB_API_KEY"
+export function configKeyToEnvVar(key: string): string {
+  return 'PURSER_' + key.toUpperCase().replace(/\./g, '_')
+}
+
 export const MODULE_SOURCES: Record<ModuleKey, SourceID[]> = {
   movies:    ['tmdb'],
   tv:        ['tvdb', 'tmdb'],
@@ -136,10 +165,11 @@ export function canProceedFromSources(
   defs: SourceDef[],
   statuses: Record<string, 'idle' | 'loading' | 'ok' | 'error'>,
   skipped: Record<string, boolean>,
+  lockedSources: Record<string, boolean> = {},
 ): boolean {
   return defs
     .filter((d) => d.requiresApiKey)
-    .every((d) => statuses[d.id] === 'ok' || skipped[d.id])
+    .every((d) => statuses[d.id] === 'ok' || skipped[d.id] || lockedSources[d.id])
 }
 
 export function canProceedFromRoots(modules: ModuleState, roots: Record<ModuleKey, string[]>): boolean {
@@ -200,11 +230,12 @@ function WelcomeStep({ onNext }: { onNext: () => void }) {
 
 interface ModulesStepProps {
   modules:  ModuleState
+  locked:   Record<string, boolean>
   onToggle: (key: ModuleKey) => void
   onNext:   () => void
 }
 
-function ModulesStep({ modules, onToggle, onNext }: ModulesStepProps) {
+function ModulesStep({ modules, locked, onToggle, onNext }: ModulesStepProps) {
   const keys = Object.keys(MODULE_META) as ModuleKey[]
   const anyEnabled = keys.some((k) => modules[k])
 
@@ -221,15 +252,20 @@ function ModulesStep({ modules, onToggle, onNext }: ModulesStepProps) {
         {keys.map((key) => {
           const { label, description, icon } = MODULE_META[key]
           const enabled = modules[key]
+          const isLocked = locked[`modules.${key}.enabled`] ?? false
           return (
             <li key={key}>
               <button
-                onClick={() => onToggle(key)}
+                onClick={() => { if (!isLocked) onToggle(key) }}
+                disabled={isLocked}
+                aria-disabled={isLocked}
                 className={[
                   'w-full text-left rounded-xl border p-4 transition-all duration-150 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 focus:ring-offset-gray-950',
-                  enabled
-                    ? 'border-indigo-500/50 bg-indigo-950/40 hover:bg-indigo-950/60'
-                    : 'border-gray-800 bg-gray-900/40 hover:border-gray-700 hover:bg-gray-900/60',
+                  isLocked
+                    ? 'border-gray-700 bg-gray-900/40 opacity-60 cursor-not-allowed'
+                    : enabled
+                      ? 'border-indigo-500/50 bg-indigo-950/40 hover:bg-indigo-950/60'
+                      : 'border-gray-800 bg-gray-900/40 hover:border-gray-700 hover:bg-gray-900/60',
                 ].join(' ')}
               >
                 <div className="flex items-start justify-between gap-4">
@@ -240,6 +276,11 @@ function ModulesStep({ modules, onToggle, onNext }: ModulesStepProps) {
                         {label}
                       </span>
                       <span className="text-xs text-gray-500 leading-relaxed">{description}</span>
+                      {isLocked && (
+                        <span className="text-xs text-gray-600 mt-0.5">
+                          Provided by <span className="font-mono">{configKeyToEnvVar(`modules.${key}.enabled`)}</span> or your config file — cannot be changed here
+                        </span>
+                      )}
                     </div>
                   </div>
                   <div
@@ -279,60 +320,100 @@ function ModulesStep({ modules, onToggle, onNext }: ModulesStepProps) {
 
 type SourceStatus = 'idle' | 'loading' | 'ok' | 'error'
 
-interface SourceRowState {
-  apiKey: string
-  endpointUrl: string
-  status: SourceStatus
+export interface SourceRowState {
+  apiKey:       string
+  endpointUrl:  string
+  status:       SourceStatus
   errorMessage: string
-  skipped: boolean
+  skipped:      boolean
+  locked:       boolean
 }
 
-function makeInitialSourceState(defs: SourceDef[]): Record<string, SourceRowState> {
+export function makeInitialSourceState(
+  defs: SourceDef[],
+  configLocked: Record<string, boolean> = {},
+): Record<string, SourceRowState> {
   return Object.fromEntries(
-    defs.map((d) => [
-      d.id,
-      {
-        apiKey: '',
-        endpointUrl: d.defaultEndpointUrl ?? '',
-        status: 'idle' as SourceStatus,
-        errorMessage: '',
-        skipped: false,
-      },
-    ]),
+    defs.map((d) => {
+      const prefix = SOURCE_CONFIG_PREFIX[d.id]
+      const apiKeyLocked = d.requiresApiKey && (configLocked[`${prefix}.api_key`] ?? false)
+      return [
+        d.id,
+        {
+          apiKey:       apiKeyLocked ? '***' : '',
+          endpointUrl:  d.defaultEndpointUrl ?? '',
+          status:       'idle' as SourceStatus,
+          errorMessage: '',
+          skipped:      false,
+          locked:       apiKeyLocked,
+        },
+      ]
+    }),
   )
 }
 
 interface SourceRowProps {
-  def: SourceDef
-  state: SourceRowState
-  onApiKeyChange: (value: string) => void
-  onEndpointUrlChange: (value: string) => void
-  onTest: () => void
-  onSkip: () => void
+  def:                SourceDef
+  state:              SourceRowState
+  onApiKeyChange:     (value: string) => void
+  onEndpointUrlChange:(value: string) => void
+  onTest:             () => void
+  onSkip:             () => void
 }
 
 function SourceRow({ def, state, onApiKeyChange, onEndpointUrlChange, onTest, onSkip }: SourceRowProps) {
-  const { status, skipped, errorMessage } = state
+  const { status, skipped, errorMessage, locked } = state
 
   return (
     <div className="rounded-xl border border-gray-800 bg-gray-900/40 p-4 flex flex-col gap-3">
       <div className="flex items-center justify-between">
         <span className="font-semibold text-sm text-white">{def.label}</span>
-        {status === 'ok' && (
+        {status === 'ok' ? (
           <span className="flex items-center gap-1.5 text-xs text-green-400 font-medium">
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
             </svg>
             Connected
           </span>
-        )}
-        {skipped && status !== 'ok' && (
+        ) : locked ? (
+          <span className="text-xs text-gray-500 font-medium">Pre-configured</span>
+        ) : skipped ? (
           <span className="text-xs text-gray-500 font-medium">Skipped</span>
-        )}
+        ) : null}
       </div>
 
       {!def.requiresApiKey ? (
         <p className="text-xs text-gray-500">Pre-configured — no API key required.</p>
+      ) : locked ? (
+        <div className="flex flex-col gap-1.5">
+          <input
+            type="text"
+            value="***"
+            disabled
+            className="w-full rounded-lg border border-gray-700 bg-gray-800 px-3 py-2 text-sm text-gray-500 opacity-50 cursor-not-allowed"
+          />
+          <p className="text-xs text-gray-600">
+            Provided by{' '}
+            <span className="font-mono">{configKeyToEnvVar(`${SOURCE_CONFIG_PREFIX[def.id]}.api_key`)}</span>
+            {' '}or your config file — cannot be changed here
+          </p>
+          {errorMessage && (
+            <p className="text-xs text-red-400">{errorMessage}</p>
+          )}
+          <button
+            onClick={onTest}
+            disabled={status === 'loading' || status === 'ok'}
+            className="self-start flex items-center gap-2 px-3 py-1.5 rounded-lg bg-gray-700 hover:bg-gray-600 disabled:bg-gray-700 disabled:text-gray-500 disabled:cursor-not-allowed text-white text-xs font-semibold transition-colors"
+          >
+            {status === 'loading' && (
+              <svg className="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+              </svg>
+            )}
+            Test connection
+          </button>
+        </div>
       ) : skipped ? (
         <button
           onClick={onSkip}
@@ -393,15 +474,16 @@ function SourceRow({ def, state, onApiKeyChange, onEndpointUrlChange, onTest, on
 }
 
 interface MetadataSourcesStepProps {
-  modules:  ModuleState
-  onNext:   () => void
-  loading:  boolean
+  modules:      ModuleState
+  configLocked: Record<string, boolean>
+  onNext:       (states: Record<string, SourceRowState>) => void
+  loading:      boolean
 }
 
-function MetadataSourcesStep({ modules, onNext, loading }: MetadataSourcesStepProps) {
+function MetadataSourcesStep({ modules, configLocked, onNext, loading }: MetadataSourcesStepProps) {
   const defs = sourcesForModules(modules)
   const [sourceStates, setSourceStates] = useState<Record<string, SourceRowState>>(
-    () => makeInitialSourceState(defs),
+    () => makeInitialSourceState(defs, configLocked),
   )
   const { mutate: verifySource } = useVerifySource()
 
@@ -441,7 +523,10 @@ function MetadataSourcesStep({ modules, onNext, loading }: MetadataSourcesStepPr
   const skipped = Object.fromEntries(
     Object.entries(sourceStates).map(([id, s]) => [id, s.skipped]),
   )
-  const canProceed = canProceedFromSources(defs, statuses, skipped)
+  const lockedSources = Object.fromEntries(
+    Object.entries(sourceStates).map(([id, s]) => [id, s.locked]),
+  )
+  const canProceed = canProceedFromSources(defs, statuses, skipped, lockedSources)
 
   return (
     <div className="flex flex-col gap-6">
@@ -467,7 +552,7 @@ function MetadataSourcesStep({ modules, onNext, loading }: MetadataSourcesStepPr
       </div>
 
       <button
-        onClick={onNext}
+        onClick={() => onNext(sourceStates)}
         disabled={!canProceed || loading}
         className="w-full py-3 px-6 rounded-xl bg-indigo-600 hover:bg-indigo-500 disabled:bg-gray-800 disabled:text-gray-600 disabled:cursor-not-allowed text-white font-semibold text-base transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 focus:ring-offset-gray-950"
       >
@@ -482,13 +567,14 @@ function MetadataSourcesStep({ modules, onNext, loading }: MetadataSourcesStepPr
 interface MediaRootsStepProps {
   modules:      ModuleState
   roots:        Record<ModuleKey, string[]>
+  locked:       Record<string, boolean>
   onRootChange: (key: ModuleKey, index: number, value: string) => void
   onRootAdd:    (key: ModuleKey) => void
   onRootRemove: (key: ModuleKey, index: number) => void
   onNext:       () => void
 }
 
-function MediaRootsStep({ modules, roots, onRootChange, onRootAdd, onRootRemove, onNext }: MediaRootsStepProps) {
+function MediaRootsStep({ modules, roots, locked, onRootChange, onRootAdd, onRootRemove, onNext }: MediaRootsStepProps) {
   const keys = (Object.keys(MODULE_META) as ModuleKey[]).filter((k) => modules[k])
   const canProceed = canProceedFromRoots(modules, roots)
 
@@ -505,15 +591,21 @@ function MediaRootsStep({ modules, roots, onRootChange, onRootAdd, onRootRemove,
         {keys.map((key) => {
           const { label, icon } = MODULE_META[key]
           const paths = roots[key]
+          const isLocked = locked[`modules.${key}.roots`] ?? false
           return (
             <div key={key} className="flex flex-col gap-2">
-              <span className="flex items-center gap-2 text-sm font-medium text-gray-300">
-                <span aria-hidden="true">{icon}</span>
-                {label}
-              </span>
+              <div className="flex items-center gap-2">
+                <span className="flex items-center gap-2 text-sm font-medium text-gray-300">
+                  <span aria-hidden="true">{icon}</span>
+                  {label}
+                </span>
+                {isLocked && (
+                  <span className="text-xs text-gray-500 font-medium">operator-managed</span>
+                )}
+              </div>
               <div className="flex flex-col gap-1.5">
                 {paths.map((path, i) => {
-                  const invalid = path.length > 0 && !path.startsWith('/')
+                  const invalid = !isLocked && path.length > 0 && !path.startsWith('/')
                   return (
                     <div key={i} className="flex flex-col gap-1">
                       <div className="flex items-center gap-2">
@@ -522,12 +614,17 @@ function MediaRootsStep({ modules, roots, onRootChange, onRootAdd, onRootRemove,
                           placeholder={`/media/${key}`}
                           value={path}
                           onChange={(e) => onRootChange(key, i, e.target.value)}
+                          disabled={isLocked}
                           className={[
-                            'flex-1 rounded-lg border bg-gray-800 px-3 py-2 text-sm text-white placeholder-gray-600 focus:outline-none focus:ring-2 focus:ring-indigo-500',
-                            invalid ? 'border-red-500' : 'border-gray-700',
+                            'flex-1 rounded-lg border bg-gray-800 px-3 py-2 text-sm placeholder-gray-600 focus:outline-none focus:ring-2 focus:ring-indigo-500',
+                            isLocked
+                              ? 'border-gray-700 text-gray-500 opacity-50 cursor-not-allowed'
+                              : invalid
+                                ? 'border-red-500 text-white'
+                                : 'border-gray-700 text-white',
                           ].join(' ')}
                         />
-                        {paths.length > 1 && (
+                        {!isLocked && paths.length > 1 && (
                           <button
                             onClick={() => onRootRemove(key, i)}
                             aria-label="Remove directory"
@@ -546,15 +643,23 @@ function MediaRootsStep({ modules, roots, onRootChange, onRootAdd, onRootRemove,
                   )
                 })}
               </div>
-              <button
-                onClick={() => onRootAdd(key)}
-                className="self-start flex items-center gap-1.5 text-xs text-indigo-400 hover:text-indigo-300 transition-colors"
-              >
-                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
-                </svg>
-                Add directory
-              </button>
+              {isLocked ? (
+                <p className="text-xs text-gray-600">
+                  Provided by{' '}
+                  <span className="font-mono">{configKeyToEnvVar(`modules.${key}.roots`)}</span>
+                  {' '}or your config file — cannot be changed here
+                </p>
+              ) : (
+                <button
+                  onClick={() => onRootAdd(key)}
+                  className="self-start flex items-center gap-1.5 text-xs text-indigo-400 hover:text-indigo-300 transition-colors"
+                >
+                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+                  </svg>
+                  Add directory
+                </button>
+              )}
             </div>
           )
         })}
@@ -576,11 +681,12 @@ function MediaRootsStep({ modules, roots, onRootChange, onRootAdd, onRootRemove,
 interface DoneStepProps {
   modules:    ModuleState
   roots:      Record<ModuleKey, string[]>
+  locked:     Record<string, boolean>
   onComplete: () => void
   loading:    boolean
 }
 
-function DoneStep({ modules, roots, onComplete, loading }: DoneStepProps) {
+function DoneStep({ modules, roots, locked, onComplete, loading }: DoneStepProps) {
   const keys = (Object.keys(MODULE_META) as ModuleKey[]).filter((k) => modules[k])
 
   return (
@@ -600,6 +706,7 @@ function DoneStep({ modules, roots, onComplete, loading }: DoneStepProps) {
       <div className="rounded-xl border border-gray-800 bg-gray-900/50 divide-y divide-gray-800">
         {keys.map((key) => {
           const { label, icon } = MODULE_META[key]
+          const rootsLocked = locked[`modules.${key}.roots`] ?? false
           return (
             <div key={key} className="flex items-start justify-between gap-4 px-4 py-3">
               <div className="flex items-center gap-2 shrink-0">
@@ -607,9 +714,13 @@ function DoneStep({ modules, roots, onComplete, loading }: DoneStepProps) {
                 <span className="text-sm font-medium text-white">{label}</span>
               </div>
               <div className="flex flex-col items-end gap-0.5">
-                {roots[key].map((path, i) => (
-                  <span key={i} className="text-sm text-gray-400 font-mono text-right break-all">{path}</span>
-                ))}
+                {rootsLocked ? (
+                  <span className="text-xs text-gray-500 font-medium">operator-managed</span>
+                ) : (
+                  roots[key].map((path, i) => (
+                    <span key={i} className="text-sm text-gray-400 font-mono text-right break-all">{path}</span>
+                  ))
+                )}
               </div>
             </div>
           )
@@ -627,6 +738,48 @@ function DoneStep({ modules, roots, onComplete, loading }: DoneStepProps) {
   )
 }
 
+// ── Config patch builder ──────────────────────────────────────────────────────
+
+function buildConfigPatch(
+  modules: ModuleState,
+  roots: Record<ModuleKey, string[]>,
+  sourceStates: Record<string, SourceRowState>,
+  locked: Record<string, boolean>,
+): PatchConfigRequest {
+  const modulePatch: NonNullable<PatchConfigRequest['modules']> = {}
+  for (const key of Object.keys(modules) as ModuleKey[]) {
+    const entry: { enabled?: boolean; roots?: string[] } = {}
+    if (!locked[`modules.${key}.enabled`]) entry.enabled = modules[key]
+    if (!locked[`modules.${key}.roots`]) {
+      const validRoots = roots[key].filter((p) => p.length > 0 && p.startsWith('/'))
+      if (validRoots.length > 0) entry.roots = validRoots
+    }
+    if (Object.keys(entry).length > 0) modulePatch[key] = entry
+  }
+
+  const sourcesPatch: NonNullable<PatchConfigRequest['sources']> = {}
+  for (const [id, state] of Object.entries(sourceStates)) {
+    const srcId = id as SourceID
+    const prefix = SOURCE_CONFIG_PREFIX[srcId]
+    const patchKey = SOURCE_PATCH_KEY[srcId]
+    const entry: { api_key?: string; url?: string } = {}
+    if (!locked[`${prefix}.api_key`] && state.apiKey && state.apiKey !== '***') {
+      entry.api_key = state.apiKey
+    }
+    if (srcId === 'stashdb' && !locked[`${prefix}.url`] && state.endpointUrl) {
+      entry.url = state.endpointUrl
+    }
+    if (Object.keys(entry).length > 0) {
+      ;(sourcesPatch as Record<string, typeof entry>)[patchKey] = entry
+    }
+  }
+
+  const body: PatchConfigRequest = {}
+  if (Object.keys(modulePatch).length > 0) body.modules = modulePatch
+  if (Object.keys(sourcesPatch).length > 0) body.sources = sourcesPatch
+  return body
+}
+
 // ── Wizard shell ──────────────────────────────────────────────────────────────
 
 export const DEFAULT_ROOTS: Record<ModuleKey, string[]> = {
@@ -641,8 +794,36 @@ export function SetupPage() {
   const [step, setStep]       = useState(1)
   const [modules, setModules] = useState<ModuleState>(DEFAULT_MODULES)
   const [roots, setRoots]     = useState<Record<ModuleKey, string[]>>(DEFAULT_ROOTS)
-  const navigate              = useNavigate()
-  const { mutate, isPending } = useCompleteSetup()
+  const [savedSourceStates, setSavedSourceStates] = useState<Record<string, SourceRowState>>({})
+  const [configInitDone, setConfigInitDone] = useState(false)
+
+  const navigate      = useNavigate()
+  const queryClient   = useQueryClient()
+  const { data: config }                      = useAppConfig()
+  const { mutate: patchConfig, isPending: isPatchPending } = usePatchConfig()
+  const { mutate: completeSetup, isPending: isCompletePending } = useCompleteSetup()
+  const isPending = isPatchPending || isCompletePending
+
+  const locked = config?.locked ?? {}
+
+  useEffect(() => {
+    if (!config || configInitDone) return
+    setConfigInitDone(true)
+    setModules({
+      movies:    config.modules.movies.enabled,
+      tv:        config.modules.tv.enabled,
+      music:     config.modules.music.enabled,
+      afterdark: config.modules.afterdark.enabled,
+      books:     config.modules.books.enabled,
+    })
+    setRoots({
+      movies:    config.modules.movies.roots.length > 0 ? config.modules.movies.roots : DEFAULT_ROOTS.movies,
+      tv:        config.modules.tv.roots.length > 0 ? config.modules.tv.roots : DEFAULT_ROOTS.tv,
+      music:     config.modules.music.roots.length > 0 ? config.modules.music.roots : DEFAULT_ROOTS.music,
+      afterdark: config.modules.afterdark.roots.length > 0 ? config.modules.afterdark.roots : DEFAULT_ROOTS.afterdark,
+      books:     config.modules.books.roots.length > 0 ? config.modules.books.roots : DEFAULT_ROOTS.books,
+    })
+  }, [config, configInitDone])
 
   function toggleModule(key: ModuleKey) {
     setModules((prev) => ({ ...prev, [key]: !prev[key] }))
@@ -665,9 +846,19 @@ export function SetupPage() {
   }
 
   function handleComplete() {
-    mutate(undefined, {
-      onSuccess: () => navigate('/', { replace: true }),
+    const body = buildConfigPatch(modules, roots, savedSourceStates, locked)
+    const finish = () => completeSetup(undefined, {
+      onSuccess: () => {
+        queryClient.setQueryData(['setup', 'status'], { complete: true })
+        navigate('/', { replace: true })
+      },
     })
+
+    if (Object.keys(body).length > 0) {
+      patchConfig(body, { onSuccess: finish })
+    } else {
+      finish()
+    }
   }
 
   return (
@@ -679,6 +870,7 @@ export function SetupPage() {
         {step === 2 && (
           <ModulesStep
             modules={modules}
+            locked={locked}
             onToggle={toggleModule}
             onNext={() => setStep(3)}
           />
@@ -686,7 +878,8 @@ export function SetupPage() {
         {step === 3 && (
           <MetadataSourcesStep
             modules={modules}
-            onNext={() => setStep(4)}
+            configLocked={locked}
+            onNext={(states) => { setSavedSourceStates(states); setStep(4) }}
             loading={false}
           />
         )}
@@ -694,6 +887,7 @@ export function SetupPage() {
           <MediaRootsStep
             modules={modules}
             roots={roots}
+            locked={locked}
             onRootChange={updateRoot}
             onRootAdd={addRoot}
             onRootRemove={removeRoot}
@@ -704,6 +898,7 @@ export function SetupPage() {
           <DoneStep
             modules={modules}
             roots={roots}
+            locked={locked}
             onComplete={handleComplete}
             loading={isPending}
           />

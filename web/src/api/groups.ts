@@ -13,11 +13,12 @@ export function sortGroupsByYear(groups: Group[], dir: YearSortDir): Group[] {
   })
 }
 
-export function useGroups(libraryEntryId: string) {
+export function useGroups(libraryEntryId: string, refetchInterval?: number | false) {
   return useQuery({
     queryKey: ['groups', { libraryEntryId }],
     queryFn: () => getPage<Group>('/groups', { libraryEntryId, limit: 200 }),
     enabled: !!libraryEntryId,
+    refetchInterval,
   })
 }
 
