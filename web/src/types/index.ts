@@ -117,6 +117,7 @@ export interface Person {
   aliases: string[]
   externalIds: ExternalID[]
   metadata?: Record<string, unknown>
+  lockedFields?: string[]
   addedAt: string
 }
 
@@ -139,6 +140,7 @@ export interface LibraryEntry {
   tags: Tag[]
   people: EntryPerson[]
   metadata?: Record<string, unknown>
+  lockedFields?: string[]
   addedAt: string
   updatedAt: string
 }
@@ -155,6 +157,7 @@ export interface Group {
   monitorMode: MonitorMode
   coverUrl?: string
   metadata?: Record<string, unknown>
+  lockedFields?: string[]
 }
 
 export interface Item {
@@ -175,6 +178,7 @@ export interface Item {
   externalIds: ExternalID[]
   mediaFile?: MediaFile
   metadata?: Record<string, unknown>
+  lockedFields?: string[]
   addedAt: string
   updatedAt: string
 }

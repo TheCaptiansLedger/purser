@@ -1,22 +1,68 @@
 import { useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
-import { ArrowLeft, Film, Users, ImageIcon, RefreshCw } from 'lucide-react'
-import { useLibraryEntry } from '../../api/library'
+import { ArrowLeft, Edit2, Film, Users, ImageIcon, RefreshCw } from 'lucide-react'
+import { useQueryClient } from '@tanstack/react-query'
+import { useLibraryEntry, updateLibraryEntry } from '../../api/library'
 import { useItems } from '../../api/items'
 import type { SortField, SortDir } from '../../api/items'
 import { useActiveJobForEntry } from '../../api/jobs'
 import { refreshStudio } from '../../api/commands'
 import { useStatusOverlay } from '../../hooks/useStatusOverlay'
+import { useEditForm } from '../../hooks/useEditForm'
+import { EditDrawer } from '../../components/edit/EditDrawer'
+import { FormField } from '../../components/edit/FormField'
+import { TextInput } from '../../components/edit/fields/TextInput'
+import { Textarea } from '../../components/edit/fields/Textarea'
 import { Hero } from '../../components/layout/Hero'
 import { ItemCard } from '../../components/media/ItemCard'
 import { PersonCard } from '../../components/media/PersonCard'
 import { Badge } from '../../components/ui/Badge'
 import { Pagination } from '../../components/ui/Pagination'
 import { Skeleton } from '../../components/ui/Skeleton'
-import type { Person } from '../../types'
+import type { LibraryEntry, Person } from '../../types'
 
 const ACCENT = '#f43f5e'
 const LIMIT = 48
+
+type StudioFormValues = { name: string; overview: string }
+
+function StudioEditDrawer({ entry, onClose }: { entry: LibraryEntry; onClose: () => void }) {
+  const queryClient = useQueryClient()
+  const form = useEditForm<StudioFormValues>({
+    initial: { name: entry.name, overview: entry.overview ?? '' },
+    lockedFields: entry.lockedFields,
+    onSubmit: async (values, lockedFields) => {
+      const updated = await updateLibraryEntry(entry.id, { ...values, lockedFields })
+      queryClient.setQueryData(['library-entries', entry.id], updated)
+    },
+    onSuccess: onClose,
+  })
+
+  return (
+    <EditDrawer title={entry.name} onClose={onClose} onSave={form.submit} saving={form.submitting}>
+      <div className="grid grid-cols-2 gap-6">
+        <FormField
+          label="Name"
+          fieldKey="name"
+          locked={form.lockedFields.has('name')}
+          onToggleLock={form.toggleLock}
+          fullWidth
+        >
+          <TextInput value={form.values.name} onChange={v => form.setField('name', v)} />
+        </FormField>
+        <FormField
+          label="Overview"
+          fieldKey="overview"
+          locked={form.lockedFields.has('overview')}
+          onToggleLock={form.toggleLock}
+          fullWidth
+        >
+          <Textarea value={form.values.overview} onChange={v => form.setField('overview', v)} rows={6} />
+        </FormField>
+      </div>
+    </EditDrawer>
+  )
+}
 
 export function StudioDetail() {
   const { id } = useParams<{ id: string }>()
@@ -46,6 +92,7 @@ export function StudioDetail() {
   )
   const scenes = scenesPage?.data ?? []
 
+  const [editOpen, setEditOpen] = useState(false)
   const [submitting, setSubmitting] = useState(false)
 
   const handleRefresh = async () => {
@@ -101,17 +148,26 @@ export function StudioDetail() {
           <ArrowLeft size={14} /> Studios
         </Link>
 
-        <button
-          onClick={handleRefresh}
-          disabled={submitting || isRefreshing}
-          className="inline-flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg border border-white/10 text-white/50 hover:text-white/80 hover:border-white/20 transition-colors disabled:opacity-50 disabled:cursor-default"
-        >
-          <RefreshCw
-            size={12}
-            className={isRefreshing || submitting ? 'animate-spin' : ''}
-          />
-          {submitting ? 'Starting…' : refreshLabel}
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setEditOpen(true)}
+            className="inline-flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg border border-white/10 text-white/50 hover:text-white/80 hover:border-white/20 transition-colors"
+          >
+            <Edit2 size={12} />
+            Edit
+          </button>
+          <button
+            onClick={handleRefresh}
+            disabled={submitting || isRefreshing}
+            className="inline-flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg border border-white/10 text-white/50 hover:text-white/80 hover:border-white/20 transition-colors disabled:opacity-50 disabled:cursor-default"
+          >
+            <RefreshCw
+              size={12}
+              className={isRefreshing || submitting ? 'animate-spin' : ''}
+            />
+            {submitting ? 'Starting…' : refreshLabel}
+          </button>
+        </div>
       </div>
 
       <Hero backdropUrl={entry.imageUrl} accent={ACCENT}>
@@ -221,6 +277,10 @@ export function StudioDetail() {
           </section>
         )}
       </div>
+
+      {editOpen && (
+        <StudioEditDrawer entry={entry} onClose={() => setEditOpen(false)} />
+      )}
     </div>
   )
 }

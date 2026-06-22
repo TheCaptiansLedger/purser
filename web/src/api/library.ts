@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
-import { get, getPage } from './client'
+import { get, getPage, patch } from './client'
 import type { LibraryEntry, ContentType, Kind } from '../types'
 
 interface LibraryFilter {
@@ -35,4 +35,8 @@ export function useChildren(id: string) {
     queryFn: () => getPage<LibraryEntry>(`/library-entries/${id}/children`),
     enabled: !!id,
   })
+}
+
+export function updateLibraryEntry(id: string, body: Record<string, unknown>) {
+  return patch<LibraryEntry>(`/library-entries/${id}`, body)
 }
