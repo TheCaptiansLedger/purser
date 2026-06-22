@@ -1,10 +1,14 @@
 package api
 
 import (
+	"encoding/json"
+	"errors"
 	"net/http"
 	"net/url"
+	"purser/internal/app/errs"
 	"purser/internal/config"
 	"purser/internal/ports"
+	"strconv"
 )
 
 type configHandler struct {
@@ -77,6 +81,53 @@ type logCfgResponse struct {
 	Format string `json:"format"`
 }
 
+type patchConfigRequest struct {
+	// Bootstrap-only — presence returns 422.
+	Server   json.RawMessage `json:"server"`
+	Database json.RawMessage `json:"database"`
+	Media    json.RawMessage `json:"media"`
+	Log      json.RawMessage `json:"log"`
+	// Runtime-configurable.
+	Modules *modulesPatchRequest `json:"modules"`
+	Sources *sourcesPatchRequest `json:"sources"`
+}
+
+type modulesPatchRequest struct {
+	Movies    *modulePatchRequest `json:"movies"`
+	TV        *modulePatchRequest `json:"tv"`
+	Music     *modulePatchRequest `json:"music"`
+	Books     *modulePatchRequest `json:"books"`
+	AfterDark *modulePatchRequest `json:"afterdark"`
+	JAV       *modulePatchRequest `json:"jav"`
+}
+
+type modulePatchRequest struct {
+	Enabled *bool    `json:"enabled"`
+	Roots   []string `json:"roots"`
+}
+
+type sourcesPatchRequest struct {
+	StashDB     *sourcePatchRequest `json:"stashdb"`
+	TPDB        *sourcePatchRequest `json:"tpdb"`
+	Stash       *sourcePatchRequest `json:"stash"`
+	TMDB        *sourcePatchRequest `json:"tmdb"`
+	TVDB        *sourcePatchRequest `json:"tvdb"`
+	MusicBrainz *sourcePatchRequest `json:"musicbrainz"`
+	Fanart      *sourcePatchRequest `json:"fanart"`
+	LastFM      *sourcePatchRequest `json:"lastfm"`
+	TheAudioDB  *sourcePatchRequest `json:"theaudiodb"`
+	OpenLibrary *sourcePatchRequest `json:"openlibrary"`
+}
+
+type sourcePatchRequest struct {
+	Enabled   *bool   `json:"enabled"`
+	URL       *string `json:"url"`
+	APIKey    *string `json:"api_key"`
+	UserAgent *string `json:"user_agent"`
+}
+
+type configKV struct{ key, value string }
+
 func (h *configHandler) get(w http.ResponseWriter, _ *http.Request) {
 	c := h.cfg
 	locked := h.cfgSvc.LockedKeys()
@@ -134,6 +185,103 @@ func maskSecret(v string) string {
 		return ""
 	}
 	return "***"
+}
+
+func (h *configHandler) patch(w http.ResponseWriter, r *http.Request) {
+	var req patchConfigRequest
+	if err := decode(r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, "BAD_REQUEST", "invalid JSON")
+		return
+	}
+
+	if req.Server != nil || req.Database != nil || req.Log != nil || req.Media != nil {
+		writeError(w, http.StatusUnprocessableEntity, "BOOTSTRAP_KEY", "key cannot be updated via the API")
+		return
+	}
+
+	kvs := configPatchKVs(req)
+
+	for _, kv := range kvs {
+		if h.cfgSvc.IsLocked(kv.key) {
+			writeError(w, http.StatusConflict, "LOCKED", "key is operator-managed")
+			return
+		}
+	}
+
+	for _, kv := range kvs {
+		if err := h.cfgSvc.Set(r.Context(), kv.key, kv.value); err != nil {
+			if errors.Is(err, errs.ErrLocked) {
+				writeError(w, http.StatusConflict, "LOCKED", "key is operator-managed")
+				return
+			}
+			writeError(w, http.StatusInternalServerError, "INTERNAL_ERROR", "failed to save config")
+			return
+		}
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func configPatchKVs(req patchConfigRequest) []configKV {
+	var out []configKV
+	if m := req.Modules; m != nil {
+		out = append(out, modulePatchKVs("movies", m.Movies)...)
+		out = append(out, modulePatchKVs("tv", m.TV)...)
+		out = append(out, modulePatchKVs("music", m.Music)...)
+		out = append(out, modulePatchKVs("books", m.Books)...)
+		out = append(out, modulePatchKVs("afterdark", m.AfterDark)...)
+		out = append(out, modulePatchKVs("jav", m.JAV)...)
+	}
+	if s := req.Sources; s != nil {
+		out = append(out, sourcePatchKVs("stashdb", s.StashDB)...)
+		out = append(out, sourcePatchKVs("tpdb", s.TPDB)...)
+		out = append(out, sourcePatchKVs("stash", s.Stash)...)
+		out = append(out, sourcePatchKVs("tmdb", s.TMDB)...)
+		out = append(out, sourcePatchKVs("tvdb", s.TVDB)...)
+		out = append(out, sourcePatchKVs("musicbrainz", s.MusicBrainz)...)
+		out = append(out, sourcePatchKVs("fanart", s.Fanart)...)
+		out = append(out, sourcePatchKVs("lastfm", s.LastFM)...)
+		out = append(out, sourcePatchKVs("theaudiodb", s.TheAudioDB)...)
+		out = append(out, sourcePatchKVs("openlibrary", s.OpenLibrary)...)
+	}
+	return out
+}
+
+func modulePatchKVs(name string, m *modulePatchRequest) []configKV {
+	if m == nil {
+		return nil
+	}
+	prefix := "modules." + name
+	var out []configKV
+	if m.Enabled != nil {
+		out = append(out, configKV{prefix + ".enabled", strconv.FormatBool(*m.Enabled)})
+	}
+	if m.Roots != nil {
+		raw, _ := json.Marshal(m.Roots)
+		out = append(out, configKV{prefix + ".roots", string(raw)})
+	}
+	return out
+}
+
+func sourcePatchKVs(name string, s *sourcePatchRequest) []configKV {
+	if s == nil {
+		return nil
+	}
+	prefix := "sources." + name
+	var out []configKV
+	if s.Enabled != nil {
+		out = append(out, configKV{prefix + ".enabled", strconv.FormatBool(*s.Enabled)})
+	}
+	if s.URL != nil {
+		out = append(out, configKV{prefix + ".url", *s.URL})
+	}
+	if s.APIKey != nil {
+		out = append(out, configKV{prefix + ".api_key", *s.APIKey})
+	}
+	if s.UserAgent != nil {
+		out = append(out, configKV{prefix + ".user_agent", *s.UserAgent})
+	}
+	return out
 }
 
 // maskDSN replaces the password in a URL-format DSN with ***.

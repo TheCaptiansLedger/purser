@@ -4,10 +4,13 @@ import {
   DEFAULT_ROOTS,
   MODULE_META,
   SOURCE_DEFS,
+  SOURCE_CONFIG_PREFIX,
   MODULE_SOURCES,
   sourcesForModules,
   canProceedFromSources,
   canProceedFromRoots,
+  makeInitialSourceState,
+  configKeyToEnvVar,
 } from './SetupPage'
 import type { ModuleKey, ModuleState, SourceID } from './SetupPage'
 
@@ -67,6 +70,51 @@ describe('SOURCE_DEFS', () => {
     for (const id of ALL_SOURCE_IDS.filter((id) => id !== 'stashdb')) {
       expect(SOURCE_DEFS[id].hasEndpointUrl).toBe(false)
     }
+  })
+})
+
+describe('configKeyToEnvVar', () => {
+  it('converts a dotted key to PURSER_ env var format', () => {
+    expect(configKeyToEnvVar('sources.tmdb.api_key')).toBe('PURSER_SOURCES_TMDB_API_KEY')
+  })
+
+  it('handles module enabled keys', () => {
+    expect(configKeyToEnvVar('modules.movies.enabled')).toBe('PURSER_MODULES_MOVIES_ENABLED')
+  })
+
+  it('handles module roots keys', () => {
+    expect(configKeyToEnvVar('modules.afterdark.roots')).toBe('PURSER_MODULES_AFTERDARK_ROOTS')
+  })
+
+  it('maps every source API key to the correct env var', () => {
+    expect(configKeyToEnvVar(`${SOURCE_CONFIG_PREFIX.tmdb}.api_key`)).toBe('PURSER_SOURCES_TMDB_API_KEY')
+    expect(configKeyToEnvVar(`${SOURCE_CONFIG_PREFIX.tvdb}.api_key`)).toBe('PURSER_SOURCES_TVDB_API_KEY')
+    expect(configKeyToEnvVar(`${SOURCE_CONFIG_PREFIX.mbz}.api_key`)).toBe('PURSER_SOURCES_MUSICBRAINZ_API_KEY')
+    expect(configKeyToEnvVar(`${SOURCE_CONFIG_PREFIX.audiodb}.api_key`)).toBe('PURSER_SOURCES_THEAUDIODB_API_KEY')
+    expect(configKeyToEnvVar(`${SOURCE_CONFIG_PREFIX.fanart}.api_key`)).toBe('PURSER_SOURCES_FANART_API_KEY')
+    expect(configKeyToEnvVar(`${SOURCE_CONFIG_PREFIX.stashdb}.api_key`)).toBe('PURSER_SOURCES_STASHDB_API_KEY')
+  })
+})
+
+describe('SOURCE_CONFIG_PREFIX', () => {
+  it('has an entry for every source ID', () => {
+    for (const id of ALL_SOURCE_IDS) {
+      expect(SOURCE_CONFIG_PREFIX[id]).toBeDefined()
+    }
+  })
+
+  it('all prefixes start with sources.', () => {
+    for (const id of ALL_SOURCE_IDS) {
+      expect(SOURCE_CONFIG_PREFIX[id].startsWith('sources.')).toBe(true)
+    }
+  })
+
+  it('maps mbz to sources.musicbrainz', () => {
+    expect(SOURCE_CONFIG_PREFIX.mbz).toBe('sources.musicbrainz')
+  })
+
+  it('maps audiodb to sources.theaudiodb', () => {
+    expect(SOURCE_CONFIG_PREFIX.audiodb).toBe('sources.theaudiodb')
   })
 })
 
@@ -135,6 +183,30 @@ describe('sourcesForModules', () => {
   it('excludes books (no sources defined)', () => {
     const defs = sourcesForModules({ ...NO_MODULES, books: true })
     expect(defs).toHaveLength(0)
+  })
+})
+
+describe('makeInitialSourceState', () => {
+  it('initializes unlocked sources as idle with empty apiKey', () => {
+    const defs = sourcesForModules({ ...NO_MODULES, movies: true })
+    const states = makeInitialSourceState(defs)
+    expect(states.tmdb.apiKey).toBe('')
+    expect(states.tmdb.status).toBe('idle')
+    expect(states.tmdb.locked).toBe(false)
+  })
+
+  it('initializes locked sources with masked apiKey and idle status', () => {
+    const defs = sourcesForModules({ ...NO_MODULES, movies: true })
+    const states = makeInitialSourceState(defs, { 'sources.tmdb.api_key': true })
+    expect(states.tmdb.apiKey).toBe('***')
+    expect(states.tmdb.status).toBe('idle')
+    expect(states.tmdb.locked).toBe(true)
+  })
+
+  it('does not lock mbz even if its config key is present — mbz has no api key', () => {
+    const defs = sourcesForModules({ ...NO_MODULES, music: true })
+    const states = makeInitialSourceState(defs, { 'sources.musicbrainz.api_key': true })
+    expect(states.mbz.locked).toBe(false)
   })
 })
 
@@ -257,5 +329,21 @@ describe('canProceedFromSources', () => {
   it('returns false when one of several sources is neither ok nor skipped', () => {
     const defs = sourcesForModules({ ...NO_MODULES, tv: true })
     expect(canProceedFromSources(defs, { tvdb: ok, tmdb: idle }, {})).toBe(false)
+  })
+
+  it('returns true for a locked source even when status is idle and not skipped', () => {
+    const defs = sourcesForModules({ ...NO_MODULES, movies: true })
+    expect(canProceedFromSources(defs, { tmdb: idle }, {}, { tmdb: true })).toBe(true)
+  })
+
+  it('returns true when one source is locked and another is verified ok', () => {
+    const defs = sourcesForModules({ ...NO_MODULES, tv: true })
+    expect(canProceedFromSources(defs, { tvdb: idle, tmdb: ok }, {}, { tvdb: true })).toBe(true)
+  })
+
+  it('backward compatible — no locked arg behaves as before', () => {
+    const defs = sourcesForModules({ ...NO_MODULES, movies: true })
+    expect(canProceedFromSources(defs, { tmdb: idle }, {})).toBe(false)
+    expect(canProceedFromSources(defs, { tmdb: ok }, {})).toBe(true)
   })
 })
