@@ -14,6 +14,7 @@ import { ImageSelector } from '../../components/edit/ImageSelector'
 import { FormField } from '../../components/edit/FormField'
 import { TextInput } from '../../components/edit/fields/TextInput'
 import { Textarea } from '../../components/edit/fields/Textarea'
+import { RelationshipPanel } from '../../components/edit/RelationshipPanel'
 import { Hero } from '../../components/layout/Hero'
 import { ItemCard } from '../../components/media/ItemCard'
 import { PersonCard } from '../../components/media/PersonCard'
@@ -41,35 +42,44 @@ function StudioEditDrawer({ entry, onClose, onImageSet }: { entry: LibraryEntry;
 
   return (
     <EditDrawer title={entry.name} onClose={onClose} onSave={form.submit} saving={form.submitting}>
-      <div className="grid grid-cols-2 gap-6">
-        <FormField
-          label="Name"
-          fieldKey="name"
-          locked={form.lockedFields.has('name')}
-          onToggleLock={form.toggleLock}
-          fullWidth
-        >
-          <TextInput value={form.values.name} onChange={v => form.setField('name', v)} />
-        </FormField>
-        <FormField
-          label="Overview"
-          fieldKey="overview"
-          locked={form.lockedFields.has('overview')}
-          onToggleLock={form.toggleLock}
-          fullWidth
-        >
-          <Textarea value={form.values.overview} onChange={v => form.setField('overview', v)} rows={6} />
-        </FormField>
+      <div className="space-y-8">
+        <div className="grid grid-cols-2 gap-6">
+          <FormField
+            label="Name"
+            fieldKey="name"
+            locked={form.lockedFields.has('name')}
+            onToggleLock={form.toggleLock}
+            fullWidth
+          >
+            <TextInput value={form.values.name} onChange={v => form.setField('name', v)} />
+          </FormField>
+          <FormField
+            label="Overview"
+            fieldKey="overview"
+            locked={form.lockedFields.has('overview')}
+            onToggleLock={form.toggleLock}
+            fullWidth
+          >
+            <Textarea value={form.values.overview} onChange={v => form.setField('overview', v)} rows={6} />
+          </FormField>
+        </div>
+        <ImageSelector
+          entityType="library-entries"
+          entityId={entry.id}
+          currentImageUrl={entry.imageUrl}
+          onImageSet={() => {
+            queryClient.invalidateQueries({ queryKey: ['library-entries', entry.id] })
+            onImageSet()
+          }}
+        />
+        <RelationshipPanel
+          entityType="entry"
+          entityId={entry.id}
+          contentType={entry.contentType}
+          kind={entry.kind}
+          people={entry.people}
+        />
       </div>
-      <ImageSelector
-        entityType="library-entries"
-        entityId={entry.id}
-        currentImageUrl={entry.imageUrl}
-        onImageSet={() => {
-          queryClient.invalidateQueries({ queryKey: ['library-entries', entry.id] })
-          onImageSet()
-        }}
-      />
     </EditDrawer>
   )
 }

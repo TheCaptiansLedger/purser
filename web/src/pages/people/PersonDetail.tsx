@@ -7,19 +7,74 @@ import { Badge } from '../../components/ui/Badge'
 import { EntryCard } from '../../components/media/EntryCard'
 import { ItemCard } from '../../components/media/ItemCard'
 import { Skeleton } from '../../components/ui/Skeleton'
+import type { LibraryEntry, Item, ContentType } from '../../types'
 
 const ACCENT = '#6366f1'
+
+function entryHref(entry: LibraryEntry): string {
+  switch (entry.contentType) {
+    case 'music':  return `/music/${entry.id}`
+    case 'adult':  return entry.kind === 'network' ? `/afterdark/networks/${entry.id}` : `/afterdark/studios/${entry.id}`
+    case 'tv':     return `/tv/${entry.id}`
+    case 'movie':  return `/movies/${entry.id}`
+    case 'book':  return `/books/${entry.id}`
+    default:       return `/people`
+  }
+}
+
+function itemHref(item: Item): string {
+  switch (item.contentType) {
+    case 'adult':
+    case 'jav':   return `/afterdark/scenes/${item.id}`
+    case 'movie': return `/movies/${item.libraryEntryId}`
+    case 'tv':    return `/tv/${item.libraryEntryId}`
+    case 'music': return `/music/${item.libraryEntryId}`
+    case 'book': return `/books/${item.libraryEntryId}`
+    default:      return `/people`
+  }
+}
+
+const CONTENT_TYPE_LABEL: Record<ContentType, string> = {
+  adult:  'Scenes',
+  jav:    'JAV Titles',
+  movie:  'Movies',
+  tv:     'Episodes',
+  music:  'Tracks',
+  book:   'Books',
+}
+
+const ENTRY_TYPE_LABEL: Record<ContentType, string> = {
+  music:  'Bands & Artists',
+  adult:  'Studios & Networks',
+  jav:    'Studios',
+  tv:     'TV Shows',
+  movie:  'Movies',
+  book:   'Publishers & Books',
+}
+
+function groupBy<T>(items: T[], key: (item: T) => string): Record<string, T[]> {
+  return items.reduce<Record<string, T[]>>((acc, item) => {
+    const k = key(item)
+    if (!acc[k]) acc[k] = []
+    acc[k].push(item)
+    return acc
+  }, {})
+}
 
 export function PersonDetail() {
   const { id } = useParams<{ id: string }>()
   const { data: person, isLoading } = usePerson(id!)
-  const { data: itemsPage } = useItems({ personId: id!, limit: 48 })
-  const items = itemsPage?.data ?? []
-  const { data: bandsPage } = useLibraryEntries({ personId: id! })
-  const bands = bandsPage?.data ?? []
+  const { data: itemsPage }   = useItems({ personId: id!, limit: 48 })
+  const { data: entriesPage } = useLibraryEntries({ personId: id! })
+
+  const items         = itemsPage?.data   ?? []
+  const linkedEntries = entriesPage?.data ?? []
 
   if (isLoading) return <div className="px-8 py-10"><Skeleton className="h-64 w-full" /></div>
   if (!person) return null
+
+  const itemsByType   = groupBy(items, i => i.contentType)
+  const entriesByType = groupBy(linkedEntries, e => e.contentType)
 
   return (
     <div className="flex min-h-screen">
@@ -76,8 +131,8 @@ export function PersonDetail() {
             <h1 className="text-3xl font-bold text-white mb-1">{person.name}</h1>
             <div className="flex flex-wrap items-center gap-2 mt-2">
               {person.monitored && <Badge color={ACCENT}>Monitored</Badge>}
-              {itemsPage?.total !== undefined && (
-                <span className="text-sm text-white/35">{itemsPage.total} items</span>
+              {itemsPage?.total !== undefined && itemsPage.total > 0 && (
+                <span className="text-sm text-white/35">{itemsPage.total} appearance{itemsPage.total !== 1 ? 's' : ''}</span>
               )}
             </div>
           </div>
@@ -89,40 +144,44 @@ export function PersonDetail() {
             </section>
           )}
 
-          {bands.length > 0 && (
-            <section>
-              <h2 className="text-xs font-semibold text-white/35 uppercase tracking-widest mb-4">Member of</h2>
+          {/* Linked library entries — grouped by content type */}
+          {Object.entries(entriesByType).map(([ct, entries]) => (
+            <section key={ct}>
+              <h2 className="text-xs font-semibold text-white/35 uppercase tracking-widest mb-4">
+                {ENTRY_TYPE_LABEL[ct as ContentType] ?? ct}
+              </h2>
               <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
-                {bands.map(band => (
+                {entries.map(entry => (
                   <EntryCard
-                    key={band.id}
-                    entry={band}
-                    href={`/music/${band.id}`}
+                    key={entry.id}
+                    entry={entry}
+                    href={entryHref(entry)}
                     accent={ACCENT}
                   />
                 ))}
               </div>
             </section>
-          )}
+          ))}
 
-          {items.length > 0 && (
-            <section>
-              <h2 className="text-xs font-semibold text-white/35 uppercase tracking-widest mb-4">Filmography</h2>
+          {/* Item appearances — grouped by content type */}
+          {Object.entries(itemsByType).map(([ct, ctItems]) => (
+            <section key={ct}>
+              <h2 className="text-xs font-semibold text-white/35 uppercase tracking-widest mb-4">
+                {CONTENT_TYPE_LABEL[ct as ContentType] ?? ct}
+              </h2>
               <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
-                {items.map(item => (
+                {ctItems.map(item => (
                   <ItemCard
                     key={item.id}
                     item={item}
-                    href={item.contentType === 'adult' || item.contentType === 'jav'
-                      ? `/afterdark/scenes/${item.id}`
-                      : `/items/${item.id}`}
+                    href={itemHref(item)}
                     aspect="16/9"
                     accent={ACCENT}
                   />
                 ))}
               </div>
             </section>
-          )}
+          ))}
         </div>
       </div>
     </div>

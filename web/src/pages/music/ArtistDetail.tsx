@@ -1,17 +1,24 @@
 import { useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
-import { ArrowLeft, ImageIcon, ChevronLeft, ChevronRight, Disc3, Users, ArrowUpNarrowWide, ArrowDownNarrowWide, RefreshCw } from 'lucide-react'
+import { ArrowLeft, ImageIcon, ChevronLeft, ChevronRight, Disc3, Users, ArrowUpNarrowWide, ArrowDownNarrowWide, RefreshCw, Edit2 } from 'lucide-react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { useLibraryEntry } from '../../api/library'
+import { useLibraryEntry, updateLibraryEntry } from '../../api/library'
 import { useGroups, patchGroup, sortGroupsByYear } from '../../api/groups'
 import type { YearSortDir } from '../../api/groups'
 import { useActiveJobForEntry } from '../../api/jobs'
 import { refreshArtist } from '../../api/commands'
+import { useEditForm } from '../../hooks/useEditForm'
+import { EditDrawer } from '../../components/edit/EditDrawer'
+import { ImageSelector } from '../../components/edit/ImageSelector'
+import { FormField } from '../../components/edit/FormField'
+import { TextInput } from '../../components/edit/fields/TextInput'
+import { Textarea } from '../../components/edit/fields/Textarea'
+import { RelationshipPanel } from '../../components/edit/RelationshipPanel'
 import { Hero } from '../../components/layout/Hero'
 import { PersonCard } from '../../components/media/PersonCard'
 import { Badge } from '../../components/ui/Badge'
 import { Skeleton } from '../../components/ui/Skeleton'
-import type { Group } from '../../types'
+import type { Group, LibraryEntry } from '../../types'
 
 const ACCENT = '#10b981'
 const PAGE_SIZE = 6
@@ -156,6 +163,54 @@ function DiscographySection({
   )
 }
 
+// ── Edit drawer ───────────────────────────────────────────────────────────────
+
+type ArtistFormValues = { name: string; overview: string }
+
+function ArtistEditDrawer({ entry, onClose, onImageSet }: { entry: LibraryEntry; onClose: () => void; onImageSet: () => void }) {
+  const queryClient = useQueryClient()
+  const form = useEditForm<ArtistFormValues>({
+    initial: { name: entry.name, overview: entry.overview ?? '' },
+    lockedFields: entry.lockedFields,
+    onSubmit: async (values, lockedFields) => {
+      const updated = await updateLibraryEntry(entry.id, { ...values, lockedFields })
+      queryClient.setQueryData(['library-entries', entry.id], updated)
+    },
+    onSuccess: onClose,
+  })
+
+  return (
+    <EditDrawer title={entry.name} onClose={onClose} onSave={form.submit} saving={form.submitting}>
+      <div className="space-y-8">
+        <div className="grid grid-cols-2 gap-6">
+          <FormField label="Name" fieldKey="name" locked={form.lockedFields.has('name')} onToggleLock={form.toggleLock} fullWidth>
+            <TextInput value={form.values.name} onChange={v => form.setField('name', v)} />
+          </FormField>
+          <FormField label="Overview" fieldKey="overview" locked={form.lockedFields.has('overview')} onToggleLock={form.toggleLock} fullWidth>
+            <Textarea value={form.values.overview} onChange={v => form.setField('overview', v)} rows={6} />
+          </FormField>
+        </div>
+        <ImageSelector
+          entityType="library-entries"
+          entityId={entry.id}
+          currentImageUrl={entry.imageUrl}
+          onImageSet={() => {
+            queryClient.invalidateQueries({ queryKey: ['library-entries', entry.id] })
+            onImageSet()
+          }}
+        />
+        <RelationshipPanel
+          entityType="entry"
+          entityId={entry.id}
+          contentType={entry.contentType}
+          kind={entry.kind}
+          people={entry.people}
+        />
+      </div>
+    </EditDrawer>
+  )
+}
+
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export function ArtistDetail() {
@@ -163,6 +218,8 @@ export function ArtistDetail() {
   const [tab, setTab] = useState<ArtistTab>('discography')
   const [sortDir, setSortDir] = useState<YearSortDir>('desc')
   const [submitting, setSubmitting] = useState(false)
+  const [editOpen, setEditOpen] = useState(false)
+  const [imgVersion, setImgVersion] = useState(0)
 
   const activeJob   = useActiveJobForEntry(id!, 'RefreshArtist')
   const isImporting = activeJob !== null
@@ -204,21 +261,29 @@ export function ArtistDetail() {
           <ArrowLeft size={14} /> Music
         </Link>
 
-        <button
-          onClick={handleRefresh}
-          disabled={submitting || isImporting}
-          className="inline-flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg border border-white/10 text-white/50 hover:text-white/80 hover:border-white/20 transition-colors disabled:opacity-50 disabled:cursor-default"
-        >
-          <RefreshCw size={12} className={isImporting || submitting ? 'animate-spin' : ''} />
-          {submitting ? 'Starting…' : refreshLabel}
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setEditOpen(true)}
+            className="inline-flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg border border-white/10 text-white/50 hover:text-white/80 hover:border-white/20 transition-colors"
+          >
+            <Edit2 size={12} /> Edit
+          </button>
+          <button
+            onClick={handleRefresh}
+            disabled={submitting || isImporting}
+            className="inline-flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg border border-white/10 text-white/50 hover:text-white/80 hover:border-white/20 transition-colors disabled:opacity-50 disabled:cursor-default"
+          >
+            <RefreshCw size={12} className={isImporting || submitting ? 'animate-spin' : ''} />
+            {submitting ? 'Starting…' : refreshLabel}
+          </button>
+        </div>
       </div>
 
       <Hero backdropUrl={entry.imageUrl} accent={ACCENT}>
         <div className="flex gap-6 items-end">
           <div className="shrink-0 w-36 h-36 rounded-full overflow-hidden border-2 shadow-2xl" style={{ borderColor: ACCENT + '44' }}>
             {entry.imageUrl ? (
-              <img src={entry.imageUrl} alt={entry.name} className="w-full h-full object-cover" />
+              <img src={`${entry.imageUrl}?v=${imgVersion}`} alt={entry.name} className="w-full h-full object-cover" />
             ) : (
               <div className="w-full h-full bg-white/5 flex items-center justify-center">
                 <ImageIcon size={32} className="text-white/15" strokeWidth={1} />
@@ -313,6 +378,14 @@ export function ArtistDetail() {
           )
         )}
       </div>
+
+      {editOpen && (
+        <ArtistEditDrawer
+          entry={entry}
+          onClose={() => setEditOpen(false)}
+          onImageSet={() => setImgVersion(v => v + 1)}
+        />
+      )}
     </div>
   )
 }

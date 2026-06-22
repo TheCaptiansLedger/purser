@@ -1,17 +1,77 @@
+import { useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
-import { ArrowLeft, Calendar, Clock, ImageIcon } from 'lucide-react'
-import { useLibraryEntry } from '../../api/library'
+import { ArrowLeft, Calendar, Clock, ImageIcon, Edit2 } from 'lucide-react'
+import { useQueryClient } from '@tanstack/react-query'
+import { useLibraryEntry, updateLibraryEntry } from '../../api/library'
 import { useItems } from '../../api/items'
+import { useEditForm } from '../../hooks/useEditForm'
+import { EditDrawer } from '../../components/edit/EditDrawer'
+import { ImageSelector } from '../../components/edit/ImageSelector'
+import { FormField } from '../../components/edit/FormField'
+import { TextInput } from '../../components/edit/fields/TextInput'
+import { Textarea } from '../../components/edit/fields/Textarea'
+import { RelationshipPanel } from '../../components/edit/RelationshipPanel'
 import { Hero } from '../../components/layout/Hero'
 import { Badge } from '../../components/ui/Badge'
 import { PersonCard } from '../../components/media/PersonCard'
 import { fmtRuntime, fmtBytes } from '../../components/ui/Runtime'
 import { Skeleton } from '../../components/ui/Skeleton'
+import type { Item, LibraryEntry } from '../../types'
 
 const ACCENT = '#3b82f6'
 
+type MovieEntryFormValues = { name: string; overview: string }
+
+function MovieEditDrawer({ entry, item, onClose, onImageSet }: { entry: LibraryEntry; item?: Item; onClose: () => void; onImageSet: () => void }) {
+  const queryClient = useQueryClient()
+  const form = useEditForm<MovieEntryFormValues>({
+    initial: { name: entry.name, overview: entry.overview ?? '' },
+    lockedFields: entry.lockedFields,
+    onSubmit: async (values, lockedFields) => {
+      const updated = await updateLibraryEntry(entry.id, { ...values, lockedFields })
+      queryClient.setQueryData(['library-entries', entry.id], updated)
+    },
+    onSuccess: onClose,
+  })
+
+  return (
+    <EditDrawer title={entry.name} onClose={onClose} onSave={form.submit} saving={form.submitting}>
+      <div className="space-y-8">
+        <div className="grid grid-cols-2 gap-6">
+          <FormField label="Name" fieldKey="name" locked={form.lockedFields.has('name')} onToggleLock={form.toggleLock} fullWidth>
+            <TextInput value={form.values.name} onChange={v => form.setField('name', v)} />
+          </FormField>
+          <FormField label="Overview" fieldKey="overview" locked={form.lockedFields.has('overview')} onToggleLock={form.toggleLock} fullWidth>
+            <Textarea value={form.values.overview} onChange={v => form.setField('overview', v)} rows={6} />
+          </FormField>
+        </div>
+        <ImageSelector
+          entityType="library-entries"
+          entityId={entry.id}
+          currentImageUrl={entry.imageUrl}
+          onImageSet={() => {
+            queryClient.invalidateQueries({ queryKey: ['library-entries', entry.id] })
+            onImageSet()
+          }}
+        />
+        {item && (
+          <RelationshipPanel
+            entityType="item"
+            entityId={item.id}
+            contentType={item.contentType}
+            people={item.people}
+          />
+        )}
+      </div>
+    </EditDrawer>
+  )
+}
+
 export function MovieDetail() {
   const { id } = useParams<{ id: string }>()
+  const [editOpen, setEditOpen] = useState(false)
+  const [imgVersion, setImgVersion] = useState(0)
+
   const { data: entry, isLoading } = useLibraryEntry(id!)
   const { data: itemsPage } = useItems({ libraryEntryId: id!, limit: 1 })
   const item = itemsPage?.data[0]
@@ -38,12 +98,18 @@ export function MovieDetail() {
 
   return (
     <div>
-      {/* Back */}
-      <div className="px-8 pt-6">
+      {/* Back + Edit */}
+      <div className="px-8 pt-6 flex items-center justify-between">
         <Link to="/movies" className="inline-flex items-center gap-1.5 text-sm text-white/40 hover:text-white/70 transition-colors">
           <ArrowLeft size={14} />
           Movies
         </Link>
+        <button
+          onClick={() => setEditOpen(true)}
+          className="inline-flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg border border-white/10 text-white/50 hover:text-white/80 hover:border-white/20 transition-colors"
+        >
+          <Edit2 size={12} /> Edit
+        </button>
       </div>
 
       {/* Hero */}
@@ -52,7 +118,7 @@ export function MovieDetail() {
           {/* Poster */}
           <div className="shrink-0 w-44 rounded-xl overflow-hidden border border-white/10 shadow-2xl" style={{ aspectRatio: '2/3' }}>
             {entry.imageUrl ? (
-              <img src={entry.imageUrl} alt={entry.name} className="w-full h-full object-cover" />
+              <img src={`${entry.imageUrl}?v=${imgVersion}`} alt={entry.name} className="w-full h-full object-cover" />
             ) : (
               <div className="w-full h-full bg-white/5 flex items-center justify-center">
                 <ImageIcon size={40} className="text-white/15" strokeWidth={1} />
@@ -143,6 +209,15 @@ export function MovieDetail() {
           </section>
         )}
       </div>
+
+      {editOpen && (
+        <MovieEditDrawer
+          entry={entry}
+          item={item}
+          onClose={() => setEditOpen(false)}
+          onImageSet={() => setImgVersion(v => v + 1)}
+        />
+      )}
     </div>
   )
 }

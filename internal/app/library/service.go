@@ -219,6 +219,40 @@ func (s *Service) ImportArtistMembers(ctx context.Context, entryID string, membe
 	return nil
 }
 
+// ── Item people (cast) ────────────────────────────────────────────────────────
+
+// SaveItemPerson upserts a single cast link for the given item.
+func (s *Service) SaveItemPerson(ctx context.Context, itemID string, ip domain.ItemPerson) error {
+	item, err := s.GetItem(ctx, itemID)
+	if err != nil {
+		return err
+	}
+	filtered := make([]domain.ItemPerson, 0, len(item.People))
+	for _, p := range item.People {
+		if p.PersonID != ip.PersonID || p.Role != ip.Role {
+			filtered = append(filtered, p)
+		}
+	}
+	item.People = append(filtered, ip)
+	return s.SaveItem(ctx, item)
+}
+
+// RemoveItemPerson removes a single cast link for the given item.
+func (s *Service) RemoveItemPerson(ctx context.Context, itemID, personID, role string) error {
+	item, err := s.GetItem(ctx, itemID)
+	if err != nil {
+		return err
+	}
+	filtered := make([]domain.ItemPerson, 0, len(item.People))
+	for _, p := range item.People {
+		if p.PersonID != personID || string(p.Role) != role {
+			filtered = append(filtered, p)
+		}
+	}
+	item.People = filtered
+	return s.SaveItem(ctx, item)
+}
+
 // ── Internal helpers ──────────────────────────────────────────────────────────
 
 func validateEntry(e *domain.LibraryEntry) error {

@@ -1,17 +1,64 @@
+import { useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
-import { Calendar, Clock, User, ImageIcon } from 'lucide-react'
-import { useItem } from '../../api/items'
+import { Calendar, Clock, User, ImageIcon, Edit2 } from 'lucide-react'
+import { useQueryClient } from '@tanstack/react-query'
+import { useItem, updateItem } from '../../api/items'
 import { useLibraryEntry } from '../../api/library'
+import { useEditForm } from '../../hooks/useEditForm'
+import { EditDrawer } from '../../components/edit/EditDrawer'
+import { FormField } from '../../components/edit/FormField'
+import { TextInput } from '../../components/edit/fields/TextInput'
+import { Textarea } from '../../components/edit/fields/Textarea'
+import { RelationshipPanel } from '../../components/edit/RelationshipPanel'
 import { Hero } from '../../components/layout/Hero'
 import { Badge } from '../../components/ui/Badge'
 import { PersonCard } from '../../components/media/PersonCard'
 import { fmtRuntime, fmtDate, fmtBytes } from '../../components/ui/Runtime'
 import { Skeleton } from '../../components/ui/Skeleton'
+import type { Item } from '../../types'
 
 const ACCENT = '#f43f5e'
 
+type SceneFormValues = { title: string; overview: string }
+
+function SceneEditDrawer({ item, onClose }: { item: Item; onClose: () => void }) {
+  const queryClient = useQueryClient()
+  const form = useEditForm<SceneFormValues>({
+    initial: { title: item.title, overview: item.overview ?? '' },
+    lockedFields: item.lockedFields,
+    onSubmit: async (values, lockedFields) => {
+      const updated = await updateItem(item.id, { ...values, lockedFields })
+      queryClient.setQueryData(['items', item.id], updated)
+    },
+    onSuccess: onClose,
+  })
+
+  return (
+    <EditDrawer title={item.title} onClose={onClose} onSave={form.submit} saving={form.submitting}>
+      <div className="space-y-8">
+        <div className="grid grid-cols-2 gap-6">
+          <FormField label="Title" fieldKey="title" locked={form.lockedFields.has('title')} onToggleLock={form.toggleLock} fullWidth>
+            <TextInput value={form.values.title} onChange={v => form.setField('title', v)} />
+          </FormField>
+          <FormField label="Overview" fieldKey="overview" locked={form.lockedFields.has('overview')} onToggleLock={form.toggleLock} fullWidth>
+            <Textarea value={form.values.overview} onChange={v => form.setField('overview', v)} rows={6} />
+          </FormField>
+        </div>
+        <RelationshipPanel
+          entityType="item"
+          entityId={item.id}
+          contentType={item.contentType}
+          people={item.people}
+        />
+      </div>
+    </EditDrawer>
+  )
+}
+
 export function SceneDetail() {
   const { id } = useParams<{ id: string }>()
+  const [editOpen, setEditOpen] = useState(false)
+
   const { data: item, isLoading } = useItem(id!)
   const { data: entry } = useLibraryEntry(item?.libraryEntryId ?? '')
 
@@ -23,7 +70,7 @@ export function SceneDetail() {
 
   return (
     <div>
-      <div className="px-8 pt-6">
+      <div className="px-8 pt-6 flex items-center justify-between">
         <nav className="flex items-center gap-1.5 text-sm text-white/40">
           <Link to="/afterdark/studios" className="hover:text-white/70 transition-colors">Studios</Link>
           {entry && (
@@ -35,6 +82,12 @@ export function SceneDetail() {
           <span className="text-white/20">›</span>
           <span className="text-white/60 truncate max-w-xs">{item.title}</span>
         </nav>
+        <button
+          onClick={() => setEditOpen(true)}
+          className="inline-flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg border border-white/10 text-white/50 hover:text-white/80 hover:border-white/20 transition-colors shrink-0"
+        >
+          <Edit2 size={12} /> Edit
+        </button>
       </div>
 
       {/* Hero — 16:9 cover */}
@@ -170,6 +223,8 @@ export function SceneDetail() {
           </section>
         )}
       </div>
+
+      {editOpen && <SceneEditDrawer item={item} onClose={() => setEditOpen(false)} />}
     </div>
   )
 }

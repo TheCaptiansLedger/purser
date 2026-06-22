@@ -65,6 +65,27 @@ export async function patch<T>(path: string, body: unknown): Promise<T> {
   return res.json() as Promise<T>
 }
 
+export async function put<T>(path: string, body: unknown): Promise<T> {
+  const res = await fetch(BASE + path, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: res.statusText }))
+    throw new Error(err.error ?? res.statusText)
+  }
+  return res.json() as Promise<T>
+}
+
+export async function del(path: string): Promise<void> {
+  const res = await fetch(BASE + path, { method: 'DELETE' })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: res.statusText }))
+    throw new Error(err.error ?? res.statusText)
+  }
+}
+
 export async function patchEmpty(path: string, body: unknown): Promise<void> {
   const res = await fetch(BASE + path, {
     method: 'PATCH',

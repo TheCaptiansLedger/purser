@@ -24,6 +24,8 @@ func (h *libraryEntryHandler) routes(r chi.Router) {
 	r.Get("/{id}/children", h.children)
 	r.Patch("/{id}", h.update)
 	r.Delete("/{id}", h.delete)
+	r.Put("/{id}/people", h.addPerson)
+	r.Delete("/{id}/people/{personId}", h.removePerson)
 }
 
 // ── Response types ────────────────────────────────────────────────────────────
@@ -286,6 +288,47 @@ func (h *libraryEntryHandler) update(w http.ResponseWriter, r *http.Request) {
 func (h *libraryEntryHandler) delete(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 	if err := h.svc.DeleteEntry(r.Context(), id); handleErr(w, err) {
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+type addEntryPersonRequest struct {
+	PersonID  string `json:"personId"`
+	Role      string `json:"role"`
+	StartDate string `json:"startDate"`
+	EndDate   string `json:"endDate"`
+}
+
+func (h *libraryEntryHandler) addPerson(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	var req addEntryPersonRequest
+	if err := decode(r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, "INVALID_REQUEST", "invalid JSON body")
+		return
+	}
+	ep := domain.EntryPerson{PersonID: req.PersonID, Role: req.Role}
+	if req.StartDate != "" {
+		ep.StartDate, _ = time.Parse("2006-01-02", req.StartDate)
+	}
+	if req.EndDate != "" {
+		ep.EndDate, _ = time.Parse("2006-01-02", req.EndDate)
+	}
+	if err := h.svc.SaveEntryPerson(r.Context(), id, ep); handleErr(w, err) {
+		return
+	}
+	e, err := h.svc.GetEntry(r.Context(), id)
+	if handleErr(w, err) {
+		return
+	}
+	writeJSON(w, http.StatusOK, toEntryResponse(e))
+}
+
+func (h *libraryEntryHandler) removePerson(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	personID := chi.URLParam(r, "personId")
+	role := r.URL.Query().Get("role")
+	if err := h.svc.RemoveEntryPerson(r.Context(), id, personID, role); handleErr(w, err) {
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)

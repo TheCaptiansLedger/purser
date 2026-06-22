@@ -1,6 +1,10 @@
 import { useQuery } from '@tanstack/react-query'
-import { get, getPage } from './client'
+import { get, getPage, patch } from './client'
 import type { Item, ContentType, ItemStatus } from '../types'
+
+export function updateItem(id: string, body: Record<string, unknown>) {
+  return patch<Item>(`/items/${id}`, body)
+}
 
 export async function patchItem(id: string, patch: { monitored?: boolean; status?: ItemStatus }): Promise<Item> {
   const res = await fetch(`/api/v1/items/${id}`, {

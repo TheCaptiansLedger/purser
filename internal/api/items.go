@@ -21,6 +21,8 @@ func (h *itemHandler) routes(r chi.Router) {
 	r.Get("/{id}", h.get)
 	r.Patch("/{id}", h.update)
 	r.Delete("/{id}", h.delete)
+	r.Put("/{id}/people", h.addPerson)
+	r.Delete("/{id}/people/{personId}", h.removePerson)
 }
 
 // ── Response types ────────────────────────────────────────────────────────────
@@ -288,6 +290,39 @@ func (h *itemHandler) update(w http.ResponseWriter, r *http.Request) {
 func (h *itemHandler) delete(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 	if err := h.svc.DeleteItem(r.Context(), id); handleErr(w, err) {
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+type addItemPersonRequest struct {
+	PersonID string `json:"personId"`
+	Role     string `json:"role"`
+}
+
+func (h *itemHandler) addPerson(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	var req addItemPersonRequest
+	if err := decode(r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, "INVALID_REQUEST", "invalid JSON body")
+		return
+	}
+	ip := domain.ItemPerson{PersonID: req.PersonID, Role: domain.PersonRole(req.Role)}
+	if err := h.svc.SaveItemPerson(r.Context(), id, ip); handleErr(w, err) {
+		return
+	}
+	item, err := h.svc.GetItem(r.Context(), id)
+	if handleErr(w, err) {
+		return
+	}
+	writeJSON(w, http.StatusOK, toItemResponse(item))
+}
+
+func (h *itemHandler) removePerson(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	personID := chi.URLParam(r, "personId")
+	role := r.URL.Query().Get("role")
+	if err := h.svc.RemoveItemPerson(r.Context(), id, personID, role); handleErr(w, err) {
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
