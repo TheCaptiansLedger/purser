@@ -88,7 +88,18 @@ func (r *groupRepo) List(ctx context.Context, f ports.GroupFilter) ([]*domain.Gr
 		}
 		groups = append(groups, g)
 	}
-	return groups, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	if err := attachExternalIDsBatch(ctx, r.db, "group", groups,
+		func(g *domain.Group) string { return g.ID },
+		func(g *domain.Group, ids []domain.ExternalID) { g.ExternalIDs = ids },
+	); err != nil {
+		return nil, fmt.Errorf("load external ids for groups: %w", err)
+	}
+
+	return groups, nil
 }
 
 func (r *groupRepo) Save(ctx context.Context, g *domain.Group) error {

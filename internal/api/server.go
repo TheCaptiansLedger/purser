@@ -71,24 +71,30 @@ func (s *Server) mount(
 		r.Get("/config", cfgH.get)
 		r.Patch("/config", cfgH.patch)
 
+		providerImagesH := &providerImagesHandler{svc: metaSvc}
+
 		entryH := &libraryEntryHandler{svc: libSvc}
 		r.Route("/library-entries", func(r chi.Router) {
 			entryH.routes(r)
+			r.Get("/{id}/provider-images", providerImagesH.forEntry)
 		})
 
 		groupH := &groupHandler{svc: libSvc}
 		r.Route("/groups", func(r chi.Router) {
 			groupH.routes(r)
+			r.Get("/{id}/provider-images", providerImagesH.forGroup)
 		})
 
 		itemH := &itemHandler{svc: libSvc}
 		r.Route("/items", func(r chi.Router) {
 			itemH.routes(r)
+			r.Get("/{id}/provider-images", providerImagesH.forItem)
 		})
 
 		peopleH := &peopleHandler{svc: peopleSvc}
 		r.Route("/people", func(r chi.Router) {
 			peopleH.routes(r)
+			r.Get("/{id}/provider-images", providerImagesH.forPerson)
 		})
 
 		tagH := &tagHandler{repo: tagRepo}

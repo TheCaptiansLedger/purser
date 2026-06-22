@@ -154,6 +154,13 @@ func (r *libraryEntryRepo) List(ctx context.Context, f ports.LibraryFilter) ([]*
 		return nil, 0, err
 	}
 
+	if err := attachExternalIDsBatch(ctx, r.db, "library_entry", entries,
+		func(e *domain.LibraryEntry) string { return e.ID },
+		func(e *domain.LibraryEntry, ids []domain.ExternalID) { e.ExternalIDs = ids },
+	); err != nil {
+		return nil, 0, fmt.Errorf("load external ids for entries: %w", err)
+	}
+
 	return entries, total, nil
 }
 

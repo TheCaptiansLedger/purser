@@ -188,6 +188,13 @@ func (r *itemRepo) List(ctx context.Context, f ports.ItemFilter) ([]*domain.Item
 		return nil, 0, err
 	}
 
+	if err := attachExternalIDsBatch(ctx, r.db, "item", items,
+		func(item *domain.Item) string { return item.ID },
+		func(item *domain.Item, ids []domain.ExternalID) { item.ExternalIDs = ids },
+	); err != nil {
+		return nil, 0, fmt.Errorf("load external ids for items: %w", err)
+	}
+
 	return items, total, nil
 }
 

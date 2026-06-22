@@ -131,6 +131,13 @@ func (r *personRepo) List(ctx context.Context, f ports.PersonFilter) ([]*domain.
 		return nil, 0, err
 	}
 
+	if err := attachExternalIDsBatch(ctx, r.db, "person", people,
+		func(p *domain.Person) string { return p.ID },
+		func(p *domain.Person, ids []domain.ExternalID) { p.ExternalIDs = ids },
+	); err != nil {
+		return nil, 0, fmt.Errorf("load external ids for people: %w", err)
+	}
+
 	return people, total, nil
 }
 

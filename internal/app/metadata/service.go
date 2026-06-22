@@ -2,6 +2,7 @@ package metadata
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -1146,6 +1147,105 @@ func monitoredForMode(mode domain.MonitorMode, entryAddedAt, itemDate time.Time)
 	default: // MonitorNone, MonitorLatest — caller sets the latest item for latest mode
 		return false
 	}
+}
+
+// ── Provider images ───────────────────────────────────────────────────────────
+
+// FetchImagesForEntry fans out to all enabled sources using the entry's stored
+// external IDs and returns all images, deduped by URL.
+func (s *Service) FetchImagesForEntry(ctx context.Context, entryID string) ([]domain.ExternalImage, error) {
+	entry, err := s.entries.Get(ctx, entryID)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, errs.ErrNotFound
+		}
+		return nil, fmt.Errorf("fetch images for entry: %w", err)
+	}
+	return s.collectImages(ctx, entry.ContentType, entry.ExternalIDs), nil
+}
+
+// FetchImagesForGroup fans out to all enabled sources using the group's stored
+// external IDs and returns all images, deduped by URL.
+func (s *Service) FetchImagesForGroup(ctx context.Context, groupID string) ([]domain.ExternalImage, error) {
+	group, err := s.groups.Get(ctx, groupID)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, errs.ErrNotFound
+		}
+		return nil, fmt.Errorf("fetch images for group: %w", err)
+	}
+	entry, err := s.entries.Get(ctx, group.LibraryEntryID)
+	if err != nil {
+		return nil, fmt.Errorf("fetch images for group: load entry: %w", err)
+	}
+	return s.collectImages(ctx, entry.ContentType, group.ExternalIDs), nil
+}
+
+// FetchImagesForItem fans out to all enabled sources using the item's stored
+// external IDs and returns all images, deduped by URL.
+func (s *Service) FetchImagesForItem(ctx context.Context, itemID string) ([]domain.ExternalImage, error) {
+	item, err := s.items.Get(ctx, itemID)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, errs.ErrNotFound
+		}
+		return nil, fmt.Errorf("fetch images for item: %w", err)
+	}
+	return s.collectImages(ctx, item.ContentType, item.ExternalIDs), nil
+}
+
+// FetchImagesForPerson fans out to all enabled sources using the person's stored
+// external IDs and returns all images, deduped by URL.
+func (s *Service) FetchImagesForPerson(ctx context.Context, personID string) ([]domain.ExternalImage, error) {
+	person, err := s.people.Get(ctx, personID)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, errs.ErrNotFound
+		}
+		return nil, fmt.Errorf("fetch images for person: %w", err)
+	}
+	// Person has no content type; each external ID's source is used to infer it.
+	return s.collectImages(ctx, "", person.ExternalIDs), nil
+}
+
+// collectImages fans out each external ID through the aggregator (which calls all
+// enabled sources for the relevant content type) and returns the combined image
+// set, deduped by URL. When contentType is empty, it is inferred from the
+// source's own ContentTypes list (used for person lookups).
+func (s *Service) collectImages(ctx context.Context, contentType domain.ContentType, extIDs []domain.ExternalID) []domain.ExternalImage {
+	seen := map[string]bool{}
+	var all []domain.ExternalImage
+
+	for _, extID := range extIDs {
+		ct := contentType
+		if ct == "" {
+			src := s.sourceByName(string(extID.Source))
+			if src == nil {
+				continue
+			}
+			types := src.ContentTypes()
+			if len(types) == 0 {
+				continue
+			}
+			ct = types[0]
+		}
+
+		merged, err := s.agg.FindByExternalID(ctx, ct, extID.Value, "")
+		if err != nil {
+			slog.Warn("fetch images: aggregator error", "source", extID.Source, "external_id", extID.Value, "error", err)
+			continue
+		}
+
+		for _, img := range merged.Images {
+			if seen[img.URL] {
+				continue
+			}
+			seen[img.URL] = true
+			all = append(all, img)
+		}
+	}
+
+	return all
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────

@@ -322,16 +322,20 @@ func (d *stubImageDownloader) Download(_ context.Context, url, _, _ string) stri
 
 // ── Image-only source stub ────────────────────────────────────────────────────
 
-// stubImageSource is a music metadata source that returns a configurable item
-// from FindByExternalID. It has no albums, so it acts as an image-only supplement.
+// stubImageSource is a configurable metadata source that returns a fixed item
+// from FindByExternalID. contentTypes defaults to [music] when empty.
 type stubImageSource struct {
-	sourceName string
-	findItem   *domain.ExternalItem
-	findErr    error
+	sourceName   string
+	contentTypes []domain.ContentType
+	findItem     *domain.ExternalItem
+	findErr      error
 }
 
 func (s *stubImageSource) Name() string { return s.sourceName }
 func (s *stubImageSource) ContentTypes() []domain.ContentType {
+	if len(s.contentTypes) > 0 {
+		return s.contentTypes
+	}
 	return []domain.ContentType{domain.ContentTypeMusic}
 }
 

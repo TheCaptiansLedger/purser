@@ -136,6 +136,59 @@ func loadExternalIDs(ctx context.Context, db *sql.DB, entityType, entityID strin
 	return ids, rows.Err()
 }
 
+// loadExternalIDsBatch fetches external IDs for a set of entity IDs in a
+// single query and returns a map of entityID → []ExternalID. Entities with
+// no external IDs are absent from the map (not present with a nil/empty slice).
+func loadExternalIDsBatch(ctx context.Context, db *sql.DB, entityType string, entityIDs []string) (map[string][]domain.ExternalID, error) {
+	if len(entityIDs) == 0 {
+		return map[string][]domain.ExternalID{}, nil
+	}
+	placeholders := strings.Repeat("?,", len(entityIDs))
+	placeholders = placeholders[:len(placeholders)-1]
+	args := make([]any, 0, 1+len(entityIDs))
+	args = append(args, entityType)
+	for _, id := range entityIDs {
+		args = append(args, id)
+	}
+	q := `SELECT entity_id, source, value FROM external_ids WHERE entity_type = ? AND entity_id IN (` + placeholders + `) ORDER BY entity_id, source` //nolint:gosec // placeholders are "?" parameter markers built from len(entityIDs), not user input
+	rows, err := db.QueryContext(ctx, q, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+
+	out := make(map[string][]domain.ExternalID)
+	for rows.Next() {
+		var entityID, src, val string
+		if err := rows.Scan(&entityID, &src, &val); err != nil {
+			return nil, err
+		}
+		out[entityID] = append(out[entityID], domain.ExternalID{Source: domain.ExternalIDSource(src), Value: val})
+	}
+	return out, rows.Err()
+}
+
+// attachExternalIDsBatch loads external IDs for a batch of entities in one
+// query and assigns them in place. getID extracts each entity's ID; setIDs
+// stores the loaded slice back onto the entity.
+func attachExternalIDsBatch[T any](
+	ctx context.Context, db *sql.DB, entityType string, items []*T,
+	getID func(*T) string, setIDs func(*T, []domain.ExternalID),
+) error {
+	ids := make([]string, len(items))
+	for i, item := range items {
+		ids[i] = getID(item)
+	}
+	extIDs, err := loadExternalIDsBatch(ctx, db, entityType, ids)
+	if err != nil {
+		return err
+	}
+	for _, item := range items {
+		setIDs(item, extIDs[getID(item)])
+	}
+	return nil
+}
+
 func saveExternalIDs(ctx context.Context, tx *sql.Tx, entityType, entityID string, ids []domain.ExternalID) error {
 	if _, err := tx.ExecContext(ctx,
 		`DELETE FROM external_ids WHERE entity_type = ? AND entity_id = ?`,
