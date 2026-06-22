@@ -69,6 +69,7 @@ func (s *Server) mount(
 	r.Route("/api/v1", func(r chi.Router) {
 		cfgH := &configHandler{cfg: cfg, cfgSvc: cfgSvc}
 		r.Get("/config", cfgH.get)
+		r.Patch("/config", cfgH.patch)
 
 		entryH := &libraryEntryHandler{svc: libSvc}
 		r.Route("/library-entries", func(r chi.Router) {

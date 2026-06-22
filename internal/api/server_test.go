@@ -12,6 +12,7 @@ import (
 	"os"
 	"path/filepath"
 	"purser/internal/api"
+	"purser/internal/app/errs"
 	"purser/internal/app/library"
 	"purser/internal/app/metadata"
 	"purser/internal/app/people"
@@ -35,6 +36,65 @@ func (noopConfigSvc) Get(_ context.Context, _ string) (string, error) { return "
 func (noopConfigSvc) Set(_ context.Context, _, _ string) error        { return nil }
 func (noopConfigSvc) IsLocked(_ string) bool                          { return false }
 func (noopConfigSvc) LockedKeys() map[string]bool                     { return map[string]bool{} }
+
+// stubConfigSvc is a ConfigService stub with configurable locked keys and
+// a written-values map for asserting what PATCH /api/v1/config stored.
+type stubConfigSvc struct {
+	locked  map[string]bool
+	written map[string]string
+}
+
+func newStubConfigSvc(lockedKeys ...string) *stubConfigSvc {
+	locked := make(map[string]bool, len(lockedKeys))
+	for _, k := range lockedKeys {
+		locked[k] = true
+	}
+	return &stubConfigSvc{locked: locked, written: make(map[string]string)}
+}
+
+func (s *stubConfigSvc) Get(_ context.Context, _ string) (string, error) { return "", nil }
+func (s *stubConfigSvc) Set(_ context.Context, key, value string) error {
+	if s.locked[key] {
+		return errs.ErrLocked
+	}
+	s.written[key] = value
+	return nil
+}
+func (s *stubConfigSvc) IsLocked(key string) bool    { return s.locked[key] }
+func (s *stubConfigSvc) LockedKeys() map[string]bool { return s.locked }
+
+func newHandlerWithConfigSvc(t *testing.T, cfgSvc ports.ConfigService) http.Handler {
+	t.Helper()
+	dbPath := t.TempDir() + "/test.db"
+	database, err := dbadapter.Open(dbPath)
+	if err != nil {
+		t.Fatalf("open test db: %v", err)
+	}
+	t.Cleanup(func() { database.Close() })
+	personRepo := dbadapter.NewPersonRepo(database)
+	libSvc := library.New(
+		dbadapter.NewLibraryEntryRepo(database),
+		dbadapter.NewGroupRepo(database),
+		dbadapter.NewItemRepo(database),
+		personRepo,
+	)
+	peopleSvc := people.New(personRepo)
+	tagRepo := dbadapter.NewTagRepo(database)
+	jobQueue := jobsadapter.New(1)
+	t.Cleanup(jobQueue.Close)
+	metaSvc := metadata.New(nil, jobQueue,
+		dbadapter.NewLibraryEntryRepo(database), dbadapter.NewGroupRepo(database),
+		dbadapter.NewItemRepo(database), dbadapter.NewPersonRepo(database),
+		dbadapter.NewTagRepo(database), dbadapter.NewExternalIDRepo(database), nil)
+	uiFS, _ := fs.Sub(web.Dist, "dist")
+	cfg := &config.Config{
+		Server:   config.ServerConfig{Port: 0, Workers: 1},
+		Database: config.DatabaseConfig{Driver: "sqlite", DSN: dbPath},
+		Log:      config.LogConfig{Level: "info", Format: "text"},
+	}
+	return api.New(0, "", cfg, database, libSvc, peopleSvc, metaSvc, tagRepo, jobQueue,
+		dbadapter.NewSettingsRepo(database), cfgSvc, nil, uiFS).Handler()
+}
 
 // newHandlerWithDB builds a full server backed by a temp-file SQLite database
 // and returns both the HTTP handler and the underlying database for test setup.
@@ -370,6 +430,136 @@ func TestConfig_Get_LockedEmpty(t *testing.T) {
 	}
 	if len(resp.Locked) != 0 {
 		t.Errorf("locked has %d keys, want 0 (noopConfigSvc returns none)", len(resp.Locked))
+	}
+}
+
+// ── Config PATCH ──────────────────────────────────────────────────────────────
+
+func TestConfig_Patch_Modules_204(t *testing.T) {
+	stub := newStubConfigSvc()
+	h := newHandlerWithConfigSvc(t, stub)
+	w := do(t, h, http.MethodPatch, "/api/v1/config", map[string]any{
+		"modules": map[string]any{
+			"movies": map[string]any{"enabled": true, "roots": []string{"/mnt/movies"}},
+		},
+	})
+	if w.Code != http.StatusNoContent {
+		t.Fatalf("status = %d, want 204 — body: %s", w.Code, w.Body.String())
+	}
+	if stub.written["modules.movies.enabled"] != "true" {
+		t.Errorf("modules.movies.enabled = %q, want true", stub.written["modules.movies.enabled"])
+	}
+	if stub.written["modules.movies.roots"] != `["/mnt/movies"]` {
+		t.Errorf("modules.movies.roots = %q, want [\"/mnt/movies\"]", stub.written["modules.movies.roots"])
+	}
+}
+
+func TestConfig_Patch_Sources_204(t *testing.T) {
+	stub := newStubConfigSvc()
+	h := newHandlerWithConfigSvc(t, stub)
+	w := do(t, h, http.MethodPatch, "/api/v1/config", map[string]any{
+		"sources": map[string]any{
+			"tmdb": map[string]any{"enabled": true, "api_key": "abc"},
+		},
+	})
+	if w.Code != http.StatusNoContent {
+		t.Fatalf("status = %d, want 204 — body: %s", w.Code, w.Body.String())
+	}
+	if stub.written["sources.tmdb.enabled"] != "true" {
+		t.Errorf("sources.tmdb.enabled = %q, want true", stub.written["sources.tmdb.enabled"])
+	}
+	if stub.written["sources.tmdb.api_key"] != "abc" {
+		t.Errorf("sources.tmdb.api_key = %q, want abc", stub.written["sources.tmdb.api_key"])
+	}
+}
+
+func TestConfig_Patch_Locked_409(t *testing.T) {
+	stub := newStubConfigSvc("sources.tmdb.api_key")
+	h := newHandlerWithConfigSvc(t, stub)
+	w := do(t, h, http.MethodPatch, "/api/v1/config", map[string]any{
+		"sources": map[string]any{
+			"tmdb": map[string]any{"enabled": true, "api_key": "new"},
+		},
+	})
+	if w.Code != http.StatusConflict {
+		t.Fatalf("status = %d, want 409", w.Code)
+	}
+	var resp struct {
+		Code string `json:"code"`
+	}
+	decodeJSON(t, w, &resp)
+	if resp.Code != "LOCKED" {
+		t.Errorf("code = %q, want LOCKED", resp.Code)
+	}
+}
+
+func TestConfig_Patch_BootstrapServer_422(t *testing.T) {
+	h := newHandler(t)
+	w := do(t, h, http.MethodPatch, "/api/v1/config", map[string]any{
+		"server": map[string]any{"port": 8080},
+	})
+	if w.Code != http.StatusUnprocessableEntity {
+		t.Fatalf("status = %d, want 422", w.Code)
+	}
+	var resp struct {
+		Code string `json:"code"`
+	}
+	decodeJSON(t, w, &resp)
+	if resp.Code != "BOOTSTRAP_KEY" {
+		t.Errorf("code = %q, want BOOTSTRAP_KEY", resp.Code)
+	}
+}
+
+func TestConfig_Patch_BootstrapDatabase_422(t *testing.T) {
+	h := newHandler(t)
+	w := do(t, h, http.MethodPatch, "/api/v1/config", map[string]any{
+		"database": map[string]any{"dsn": "/tmp/other.db"},
+	})
+	if w.Code != http.StatusUnprocessableEntity {
+		t.Fatalf("status = %d, want 422", w.Code)
+	}
+}
+
+func TestConfig_Patch_BootstrapLog_422(t *testing.T) {
+	h := newHandler(t)
+	w := do(t, h, http.MethodPatch, "/api/v1/config", map[string]any{
+		"log": map[string]any{"level": "debug"},
+	})
+	if w.Code != http.StatusUnprocessableEntity {
+		t.Fatalf("status = %d, want 422", w.Code)
+	}
+}
+
+func TestConfig_Patch_BootstrapMedia_422(t *testing.T) {
+	h := newHandler(t)
+	w := do(t, h, http.MethodPatch, "/api/v1/config", map[string]any{
+		"media": map[string]any{"path": "/new/path"},
+	})
+	if w.Code != http.StatusUnprocessableEntity {
+		t.Fatalf("status = %d, want 422", w.Code)
+	}
+}
+
+func TestConfig_Patch_BadJSON_400(t *testing.T) {
+	h := newHandler(t)
+	req := httptest.NewRequest(http.MethodPatch, "/api/v1/config", bytes.NewBufferString("{bad"))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, req)
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want 400", w.Code)
+	}
+}
+
+func TestConfig_Patch_Empty_NoOp(t *testing.T) {
+	stub := newStubConfigSvc()
+	h := newHandlerWithConfigSvc(t, stub)
+	w := do(t, h, http.MethodPatch, "/api/v1/config", map[string]any{})
+	if w.Code != http.StatusNoContent {
+		t.Fatalf("status = %d, want 204", w.Code)
+	}
+	if len(stub.written) != 0 {
+		t.Errorf("written %d keys, want 0", len(stub.written))
 	}
 }
 
