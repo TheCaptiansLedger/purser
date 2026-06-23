@@ -86,7 +86,14 @@ item_people (item_id, person_id, role)
   role: performer|actress|director|actor|artist|producer
 ```
 
-## `entry_people` — band/artist member relationships (music only)
+## `entry_people` — person associations that belong to the entry at rest
+
+Use `entry_people` when the association belongs to the title regardless of which
+specific file or release is on disk: band members (artist), contracted performers
+(studio/network), regular cast (series), cast and crew (movie), authors (book).
+
+Use `item_people` when the association belongs to a specific instance: a scene's
+performers, an episode's guest stars, a track's featured artists.
 
 ```sql
 library_entry_id  TEXT NOT NULL REFERENCES library_entries(id) ON DELETE CASCADE

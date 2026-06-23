@@ -18,13 +18,13 @@ import { PersonCard } from '../../components/media/PersonCard'
 import { fmtRuntime, fmtBytes } from '../../components/ui/Runtime'
 import { Skeleton } from '../../components/ui/Skeleton'
 import { filterTagsForModule } from '../../utils/filterTagsForModule'
-import type { Item, LibraryEntry } from '../../types'
+import type { LibraryEntry } from '../../types'
 
 const ACCENT = '#3b82f6'
 
 type MovieEntryFormValues = { name: string; overview: string }
 
-function MovieEditDrawer({ entry, item, onClose, onImageSet }: { entry: LibraryEntry; item?: Item; onClose: () => void; onImageSet: () => void }) {
+function MovieEditDrawer({ entry, onClose, onImageSet }: { entry: LibraryEntry; onClose: () => void; onImageSet: () => void }) {
   const queryClient = useQueryClient()
   const addTag = useAddEntryTag(entry.id)
   const removeTag = useRemoveEntryTag(entry.id)
@@ -68,14 +68,13 @@ function MovieEditDrawer({ entry, item, onClose, onImageSet }: { entry: LibraryE
             onRemove={tagId => removeTag.mutate(tagId)}
           />
         </FormField>
-        {item && (
-          <RelationshipPanel
-            entityType="item"
-            entityId={item.id}
-            contentType={item.contentType}
-            people={item.people}
-          />
-        )}
+        <RelationshipPanel
+          entityType="entry"
+          entityId={entry.id}
+          contentType={entry.contentType}
+          kind={entry.kind}
+          people={currentEntry.people}
+        />
       </div>
     </EditDrawer>
   )
@@ -108,7 +107,7 @@ export function MovieDetail() {
 
   if (!entry) return null
 
-  const performers = item?.people.filter(p => p.role === 'actor' || p.role === 'actress') ?? []
+  const performers = entry.people.filter(p => p.role === 'actor' || p.role === 'actress')
   const visibleTags = filterTagsForModule(entry.tags, 'movies')
   const genreTags = visibleTags.filter(t => t.key === 'genre')
   const productionTags = visibleTags.filter(t => t.key === 'production_company')
@@ -264,7 +263,6 @@ export function MovieDetail() {
       {editOpen && (
         <MovieEditDrawer
           entry={entry}
-          item={item}
           onClose={() => setEditOpen(false)}
           onImageSet={() => setImgVersion(v => v + 1)}
         />

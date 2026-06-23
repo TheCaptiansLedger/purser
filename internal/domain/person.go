@@ -41,8 +41,10 @@ type ItemPerson struct {
 	Role     PersonRole
 }
 
-// EntryPerson links a Person to a library entry (artist/band) with their role and tenure dates.
-// Used exclusively for kind=artist entries (music content type).
+// EntryPerson links a Person to a library entry with their role and optional tenure dates.
+// Used for associations that belong to the entity at rest regardless of specific items:
+// band members (artist), contracted performers (studio/network), regular cast (series),
+// cast and crew (movie), and authors (book).
 type EntryPerson struct {
 	PersonID  string
 	Person    *Person // nil unless explicitly loaded

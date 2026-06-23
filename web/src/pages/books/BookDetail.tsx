@@ -14,13 +14,13 @@ import { RelationshipPanel } from '../../components/edit/RelationshipPanel'
 import { Hero } from '../../components/layout/Hero'
 import { Badge } from '../../components/ui/Badge'
 import { Skeleton } from '../../components/ui/Skeleton'
-import type { Item, LibraryEntry } from '../../types'
+import type { LibraryEntry } from '../../types'
 
 const ACCENT = '#f59e0b'
 
 type BookFormValues = { name: string; overview: string }
 
-function BookEditDrawer({ entry, item, onClose, onImageSet }: { entry: LibraryEntry; item?: Item; onClose: () => void; onImageSet: () => void }) {
+function BookEditDrawer({ entry, onClose, onImageSet }: { entry: LibraryEntry; onClose: () => void; onImageSet: () => void }) {
   const queryClient = useQueryClient()
   const form = useEditForm<BookFormValues>({
     initial: { name: entry.name, overview: entry.overview ?? '' },
@@ -31,6 +31,8 @@ function BookEditDrawer({ entry, item, onClose, onImageSet }: { entry: LibraryEn
     },
     onSuccess: onClose,
   })
+
+  const currentEntry = queryClient.getQueryData<LibraryEntry>(['library-entries', entry.id]) ?? entry
 
   return (
     <EditDrawer title={entry.name} onClose={onClose} onSave={form.submit} saving={form.submitting}>
@@ -52,14 +54,13 @@ function BookEditDrawer({ entry, item, onClose, onImageSet }: { entry: LibraryEn
             onImageSet()
           }}
         />
-        {item && (
-          <RelationshipPanel
-            entityType="item"
-            entityId={item.id}
-            contentType={item.contentType}
-            people={item.people}
-          />
-        )}
+        <RelationshipPanel
+          entityType="entry"
+          entityId={entry.id}
+          contentType={entry.contentType}
+          kind={entry.kind}
+          people={currentEntry.people}
+        />
       </div>
     </EditDrawer>
   )
@@ -73,7 +74,7 @@ export function BookDetail() {
   const { data: entry, isLoading } = useLibraryEntry(id!)
   const { data: itemsPage } = useItems({ libraryEntryId: id!, limit: 1 })
   const item = itemsPage?.data[0]
-  const authors = item?.people.filter(p => p.role === 'author') ?? []
+  const authors = entry?.people.filter(p => p.role === 'author') ?? []
 
   if (isLoading) return <div className="px-8 py-10"><Skeleton className="h-64 w-full" /></div>
   if (!entry) return null
@@ -190,7 +191,6 @@ export function BookDetail() {
       {editOpen && (
         <BookEditDrawer
           entry={entry}
-          item={item}
           onClose={() => setEditOpen(false)}
           onImageSet={() => setImgVersion(v => v + 1)}
         />

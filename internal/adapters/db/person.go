@@ -74,14 +74,22 @@ func (r *personRepo) List(ctx context.Context, f ports.PersonFilter) ([]*domain.
 		w.add("monitored = ?", boolToInt(*f.Monitored))
 	}
 	if f.Role != "" {
-		w.add("id IN (SELECT person_id FROM item_people WHERE role = ?)", string(f.Role))
+		w.add(`id IN (
+			SELECT person_id FROM item_people WHERE role = ?
+			UNION
+			SELECT person_id FROM entry_people WHERE role = ?
+		)`, string(f.Role), string(f.Role))
 	}
 	if f.ContentType != "" {
 		w.add(`id IN (
 			SELECT ip.person_id FROM item_people ip
 			JOIN items i ON i.id = ip.item_id
 			WHERE i.content_type = ?
-		)`, string(f.ContentType))
+			UNION
+			SELECT ep.person_id FROM entry_people ep
+			JOIN library_entries le ON le.id = ep.library_entry_id
+			WHERE le.content_type = ?
+		)`, string(f.ContentType), string(f.ContentType))
 	}
 	if f.Search != "" {
 		w.add(`(name LIKE ? OR id IN (

@@ -20,6 +20,8 @@ export function rolesFor(
       case 'studio':    return ['performer', 'director', 'contracted_performer']
       case 'network':   return ['affiliated_performer', 'director', 'producer']
       case 'series':    return ['regular_cast', 'recurring_cast', 'director', 'producer', 'writer']
+      case 'movie':     return ['actor', 'actress', 'director', 'producer', 'writer']
+      case 'book':      return ['author', 'editor', 'narrator', 'illustrator']
       case 'publisher': return ['author', 'editor']
       default:          return ['member']
     }
