@@ -12,7 +12,7 @@ export function TagsPage() {
   const tags = useTags({ scope: 'metadata', contentType: 'adult,jav' })
 
   const filtered = tags.data?.data.filter(t =>
-    !search || t.name.toLowerCase().includes(search.toLowerCase())
+    !search || t.value.toLowerCase().includes(search.toLowerCase())
   ) ?? []
 
   return (
@@ -42,7 +42,7 @@ export function TagsPage() {
                 style={{ '--hover-color': ACCENT } as React.CSSProperties}
               >
                 <TagIcon size={12} className="text-white/40" />
-                {tag.name}
+                {tag.value}
               </span>
             ))}
           </div>

@@ -1055,7 +1055,7 @@ func TestTags_CreateAndList(t *testing.T) {
 			scope = "user"
 		}
 		w := do(t, h, http.MethodPost, "/api/v1/tags", map[string]any{
-			"name": name, "scope": scope,
+			"value": name, "scope": scope,
 		})
 		if w.Code != http.StatusCreated {
 			t.Fatalf("create tag %q status = %d", name, w.Code)
@@ -1080,7 +1080,7 @@ func TestTags_CreateAndList(t *testing.T) {
 
 func TestTags_EmptyName_Rejected(t *testing.T) {
 	h := newHandler(t)
-	w := do(t, h, http.MethodPost, "/api/v1/tags", map[string]any{"name": ""})
+	w := do(t, h, http.MethodPost, "/api/v1/tags", map[string]any{"value": ""})
 	if w.Code != http.StatusUnprocessableEntity {
 		t.Fatalf("status = %d, want 422", w.Code)
 	}
@@ -1283,7 +1283,7 @@ func TestPeople_GetAndDelete(t *testing.T) {
 func TestTags_Delete(t *testing.T) {
 	h := newHandler(t)
 
-	w := do(t, h, http.MethodPost, "/api/v1/tags", map[string]any{"name": "blonde", "scope": "metadata"})
+	w := do(t, h, http.MethodPost, "/api/v1/tags", map[string]any{"value": "blonde", "scope": "metadata"})
 	var tag struct {
 		ID string `json:"id"`
 	}

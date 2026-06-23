@@ -11,7 +11,7 @@ export function MusicTagsPage() {
   const tags = useTags({ scope: 'metadata', contentType: 'music' })
 
   const filtered = (tags.data?.data ?? []).filter(t =>
-    !search || t.name.toLowerCase().includes(search.toLowerCase())
+    !search || t.value.toLowerCase().includes(search.toLowerCase())
   )
 
   return (
@@ -40,7 +40,7 @@ export function MusicTagsPage() {
                 className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium border border-white/10 bg-white/5 text-white/70 hover:text-white hover:border-white/20 transition-all duration-150 cursor-default select-none"
               >
                 <TagIcon size={12} className="text-white/40" />
-                {tag.name}
+                {tag.value}
               </span>
             ))}
           </div>

@@ -93,7 +93,7 @@ func toItemResponse(item *domain.Item) *itemResponse {
 		r.People = append(r.People, ipr)
 	}
 	for _, t := range item.Tags {
-		r.Tags = append(r.Tags, tagResponse{ID: t.ID, Name: t.Name, Scope: string(t.Scope)})
+		r.Tags = append(r.Tags, tagResponse{ID: t.ID, Key: t.Key, Value: t.Value, Scope: string(t.Scope)})
 	}
 	for _, id := range item.ExternalIDs {
 		r.ExternalIDs = append(r.ExternalIDs, externalIDResponse{

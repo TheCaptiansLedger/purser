@@ -72,13 +72,11 @@ export interface ExternalPerson {
   metadata?: Record<string, unknown>
 }
 
-export type TagCategory = '' | 'genre' | 'content_warning'
-
 export interface Tag {
   id: string
-  name: string
+  key: string
+  value: string
   scope: 'user' | 'metadata'
-  category: TagCategory
 }
 
 export interface PersonRef {

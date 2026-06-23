@@ -13,7 +13,7 @@ export function TVTagsPage() {
   const tags = useTags({ scope: 'metadata', contentType: 'tv' })
 
   const filtered = (tags.data?.data ?? []).filter(t =>
-    !search || t.name.toLowerCase().includes(search.toLowerCase())
+    !search || t.value.toLowerCase().includes(search.toLowerCase())
   )
 
   return (
@@ -39,11 +39,11 @@ export function TVTagsPage() {
             {filtered.map(tag => (
               <button
                 key={tag.id}
-                onClick={() => navigate(`/tv/genre/${encodeURIComponent(tag.name.toLowerCase().replace(/\s+/g, '-'))}`)}
+                onClick={() => navigate(`/tv/genre/${encodeURIComponent(tag.value.toLowerCase().replace(/\s+/g, '-'))}`)}
                 className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium border border-white/10 bg-white/5 text-white/70 hover:text-white hover:border-white/20 transition-all duration-150"
               >
                 <TagIcon size={12} className="text-white/40" />
-                {tag.name}
+                {tag.value}
               </button>
             ))}
           </div>

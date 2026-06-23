@@ -13,7 +13,7 @@ export function MovieTagsPage() {
   const tags = useTags({ scope: 'metadata', contentType: 'movie' })
 
   const filtered = (tags.data?.data ?? []).filter(t =>
-    !search || t.name.toLowerCase().includes(search.toLowerCase())
+    !search || t.value.toLowerCase().includes(search.toLowerCase())
   )
 
   return (
@@ -39,12 +39,12 @@ export function MovieTagsPage() {
             {filtered.map(tag => (
               <button
                 key={tag.id}
-                onClick={() => navigate(`/movies/genre/${encodeURIComponent(tag.name.toLowerCase().replace(/\s+/g, '-'))}`)}
+                onClick={() => navigate(`/movies/genre/${encodeURIComponent(tag.value.toLowerCase().replace(/\s+/g, '-'))}`)}
                 className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium border border-white/10 bg-white/5 text-white/70 hover:text-white hover:border-white/20 transition-all duration-150"
                 style={{ ['--accent' as string]: ACCENT }}
               >
                 <TagIcon size={12} className="text-white/40" />
-                {tag.name}
+                {tag.value}
               </button>
             ))}
           </div>

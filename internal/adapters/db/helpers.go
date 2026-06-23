@@ -209,10 +209,10 @@ func saveExternalIDs(ctx context.Context, tx *sql.Tx, entityType, entityID strin
 
 func loadItemTags(ctx context.Context, db *sql.DB, itemID string) ([]domain.Tag, error) {
 	rows, err := db.QueryContext(ctx,
-		`SELECT t.id, t.name, t.scope FROM tags t
+		`SELECT t.id, t.key, t.value, t.scope FROM tags t
 		 JOIN item_tags it ON it.tag_id = t.id
 		 WHERE it.item_id = ?
-		 ORDER BY t.name`,
+		 ORDER BY t.value`,
 		itemID)
 	if err != nil {
 		return nil, err
@@ -223,10 +223,10 @@ func loadItemTags(ctx context.Context, db *sql.DB, itemID string) ([]domain.Tag,
 
 func loadEntryTags(ctx context.Context, db *sql.DB, entryID string) ([]domain.Tag, error) {
 	rows, err := db.QueryContext(ctx,
-		`SELECT t.id, t.name, t.scope FROM tags t
+		`SELECT t.id, t.key, t.value, t.scope FROM tags t
 		 JOIN entry_tags et ON et.tag_id = t.id
 		 WHERE et.library_entry_id = ?
-		 ORDER BY t.name`,
+		 ORDER BY t.value`,
 		entryID)
 	if err != nil {
 		return nil, err
@@ -239,10 +239,11 @@ func scanTags(rows *sql.Rows) ([]domain.Tag, error) {
 	var tags []domain.Tag
 	for rows.Next() {
 		var t domain.Tag
-		var scope string
-		if err := rows.Scan(&t.ID, &t.Name, &scope); err != nil {
+		var key, scope string
+		if err := rows.Scan(&t.ID, &key, &t.Value, &scope); err != nil {
 			return nil, err
 		}
+		t.Key = key
 		t.Scope = domain.TagScope(scope)
 		tags = append(tags, t)
 	}

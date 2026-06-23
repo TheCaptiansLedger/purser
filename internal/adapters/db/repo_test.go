@@ -30,8 +30,8 @@ func TestOpen_CreatesSchema(t *testing.T) {
 	if err := database.QueryRow(`SELECT COUNT(*) FROM schema_migrations`).Scan(&count); err != nil {
 		t.Fatalf("schema_migrations missing: %v", err)
 	}
-	if count != 9 {
-		t.Errorf("migration count = %d, want 9", count)
+	if count != 10 {
+		t.Errorf("migration count = %d, want 10", count)
 	}
 
 	tables := []string{
@@ -39,7 +39,7 @@ func TestOpen_CreatesSchema(t *testing.T) {
 		"people", "people_aliases", "item_people",
 		"external_ids", "tags", "item_tags", "entry_tags",
 		"media_files", "releases", "downloads",
-		"entry_people", "settings",
+		"entry_people", "settings", "group_tags",
 	}
 	for _, table := range tables {
 		var n int
@@ -542,8 +542,8 @@ func TestTagRepo_SaveListDelete(t *testing.T) {
 	repo := NewTagRepo(setupTestDB(t))
 	ctx := context.Background()
 
-	t1 := &domain.Tag{Name: "blonde", Scope: domain.TagScopeMetadata}
-	t2 := &domain.Tag{Name: "favourite", Scope: domain.TagScopeUser}
+	t1 := &domain.Tag{Key: domain.TagKeyDefault, Value: "blonde", Scope: domain.TagScopeMetadata}
+	t2 := &domain.Tag{Key: domain.TagKeyDefault, Value: "favourite", Scope: domain.TagScopeUser}
 	for _, tag := range []*domain.Tag{t1, t2} {
 		if err := repo.Save(ctx, tag); err != nil {
 			t.Fatalf("Save tag: %v", err)
@@ -562,7 +562,7 @@ func TestTagRepo_SaveListDelete(t *testing.T) {
 	if err != nil {
 		t.Fatalf("List user tags: %v", err)
 	}
-	if len(user) != 1 || user[0].Name != "favourite" {
+	if len(user) != 1 || user[0].Value != "favourite" {
 		t.Errorf("user tags = %v, want [favourite]", user)
 	}
 
@@ -790,7 +790,7 @@ func TestTagRepo_Get(t *testing.T) {
 	repo := NewTagRepo(setupTestDB(t))
 	ctx := context.Background()
 
-	tag := &domain.Tag{Name: "brunette", Scope: domain.TagScopeMetadata}
+	tag := &domain.Tag{Key: domain.TagKeyDefault, Value: "brunette", Scope: domain.TagScopeMetadata}
 	if err := repo.Save(ctx, tag); err != nil {
 		t.Fatalf("Save: %v", err)
 	}
@@ -799,8 +799,8 @@ func TestTagRepo_Get(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Get: %v", err)
 	}
-	if got.Name != "brunette" {
-		t.Errorf("Name = %q, want brunette", got.Name)
+	if got.Value != "brunette" {
+		t.Errorf("Value = %q, want brunette", got.Value)
 	}
 	if got.Scope != domain.TagScopeMetadata {
 		t.Errorf("Scope = %q, want metadata", got.Scope)
@@ -811,13 +811,13 @@ func TestTagRepo_Get(t *testing.T) {
 	}
 }
 
-func TestTagRepo_Category(t *testing.T) {
+func TestTagRepo_Key(t *testing.T) {
 	repo := NewTagRepo(setupTestDB(t))
 	ctx := context.Background()
 
-	genre := &domain.Tag{Name: "Romance", Scope: domain.TagScopeMetadata, Category: domain.TagCategoryGenre}
-	warn := &domain.Tag{Name: "Explicit", Scope: domain.TagScopeMetadata, Category: domain.TagCategoryContentWarning}
-	general := &domain.Tag{Name: "featured", Scope: domain.TagScopeUser}
+	genre := &domain.Tag{Key: domain.TagKeyGenre, Value: "Romance", Scope: domain.TagScopeMetadata}
+	warn := &domain.Tag{Key: domain.TagKeyContentWarning, Value: "Explicit", Scope: domain.TagScopeMetadata}
+	general := &domain.Tag{Key: domain.TagKeyDefault, Value: "featured", Scope: domain.TagScopeUser}
 
 	for _, tag := range []*domain.Tag{genre, warn, general} {
 		if err := repo.Save(ctx, tag); err != nil {
@@ -825,25 +825,25 @@ func TestTagRepo_Category(t *testing.T) {
 		}
 	}
 
-	// Get round-trips category correctly.
+	// Get round-trips key correctly.
 	got, err := repo.Get(ctx, genre.ID)
 	if err != nil {
 		t.Fatalf("Get: %v", err)
 	}
-	if got.Category != domain.TagCategoryGenre {
-		t.Errorf("Category = %q, want genre", got.Category)
+	if got.Key != domain.TagKeyGenre {
+		t.Errorf("Key = %q, want genre", got.Key)
 	}
 
-	// List filtered by category returns only matching tags.
-	genres, err := repo.List(ctx, ports.TagFilter{Category: domain.TagCategoryGenre})
+	// List filtered by key returns only matching tags.
+	genres, err := repo.List(ctx, ports.TagFilter{Key: domain.TagKeyGenre})
 	if err != nil {
 		t.Fatalf("List genres: %v", err)
 	}
-	if len(genres) != 1 || genres[0].Name != "Romance" {
+	if len(genres) != 1 || genres[0].Value != "Romance" {
 		t.Errorf("genre tags = %v, want [Romance]", genres)
 	}
 
-	// List with no category filter returns all tags.
+	// List with no key filter returns all tags.
 	all, err := repo.List(ctx, ports.TagFilter{})
 	if err != nil {
 		t.Fatalf("List all: %v", err)
@@ -852,13 +852,13 @@ func TestTagRepo_Category(t *testing.T) {
 		t.Errorf("all tags = %d, want 3", len(all))
 	}
 
-	// Zero-value category is preserved (not defaulted to something else).
+	// Key is preserved correctly for each tag.
 	got2, err := repo.Get(ctx, general.ID)
 	if err != nil {
 		t.Fatalf("Get general: %v", err)
 	}
-	if got2.Category != "" {
-		t.Errorf("Category = %q, want empty", got2.Category)
+	if got2.Key != domain.TagKeyDefault {
+		t.Errorf("Key = %q, want %q", got2.Key, domain.TagKeyDefault)
 	}
 }
 
@@ -909,7 +909,7 @@ func TestLibraryEntryRepo_Save_WithTagsAndMetadata(t *testing.T) {
 	tagRepo := NewTagRepo(database)
 	ctx := context.Background()
 
-	tag := &domain.Tag{Name: "featured", Scope: domain.TagScopeUser}
+	tag := &domain.Tag{Key: domain.TagKeyDefault, Value: "featured", Scope: domain.TagScopeUser}
 	if err := tagRepo.Save(ctx, tag); err != nil {
 		t.Fatalf("Save tag: %v", err)
 	}
@@ -929,7 +929,7 @@ func TestLibraryEntryRepo_Save_WithTagsAndMetadata(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Get: %v", err)
 	}
-	if len(got.Tags) != 1 || got.Tags[0].Name != "featured" {
+	if len(got.Tags) != 1 || got.Tags[0].Value != "featured" {
 		t.Errorf("Tags = %v, want [featured]", got.Tags)
 	}
 	if got.Metadata == nil || got.Metadata["rating"] != "4K" {
@@ -950,7 +950,7 @@ func TestItemRepo_Save_WithTagsAndExternalIDsAndDate(t *testing.T) {
 	}
 	entryRepo.Save(ctx, entry) //nolint:errcheck
 
-	tag := &domain.Tag{Name: "4k", Scope: domain.TagScopeMetadata}
+	tag := &domain.Tag{Key: domain.TagKeyDefault, Value: "4k", Scope: domain.TagScopeMetadata}
 	tagRepo.Save(ctx, tag) //nolint:errcheck
 
 	item := &domain.Item{
@@ -977,7 +977,7 @@ func TestItemRepo_Save_WithTagsAndExternalIDsAndDate(t *testing.T) {
 	if got.Date.Format("2006-01-02") != "2024-06-01" {
 		t.Errorf("Date = %q, want 2024-06-01", got.Date.Format("2006-01-02"))
 	}
-	if len(got.Tags) != 1 || got.Tags[0].Name != "4k" {
+	if len(got.Tags) != 1 || got.Tags[0].Value != "4k" {
 		t.Errorf("Tags = %v, want [4k]", got.Tags)
 	}
 	if len(got.ExternalIDs) != 1 || got.ExternalIDs[0].Value != "scene-uuid" {
@@ -1007,7 +1007,7 @@ func TestItemRepo_List_Filters(t *testing.T) {
 	}
 	groupRepo.Save(ctx, group) //nolint:errcheck
 
-	tag := &domain.Tag{Name: "drama", Scope: domain.TagScopeMetadata}
+	tag := &domain.Tag{Key: domain.TagKeyDefault, Value: "drama", Scope: domain.TagScopeMetadata}
 	tagRepo.Save(ctx, tag) //nolint:errcheck
 
 	items := []*domain.Item{

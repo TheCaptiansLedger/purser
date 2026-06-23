@@ -10,20 +10,17 @@ const (
 	TagScopeMetadata TagScope = "metadata"
 )
 
-// TagCategory classifies what kind of metadata a tag represents.
-// The empty string means general / uncategorized.
-type TagCategory string
-
-// Tag category constants for classifying what kind of metadata a tag represents.
+// Common tag key constants for well-known namespaces.
 const (
-	TagCategoryGenre          TagCategory = "genre"
-	TagCategoryContentWarning TagCategory = "content_warning"
+	TagKeyDefault        = "tag"
+	TagKeyGenre          = "genre"
+	TagKeyContentWarning = "content_warning"
 )
 
 // Tag is a label attached to items or library entries for filtering and organization.
 type Tag struct {
-	ID       string
-	Name     string
-	Scope    TagScope
-	Category TagCategory
+	ID    string
+	Key   string
+	Value string
+	Scope TagScope
 }

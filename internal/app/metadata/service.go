@@ -1027,7 +1027,7 @@ func (s *Service) loadTagCache(ctx context.Context) map[string]*domain.Tag {
 		return cache
 	}
 	for _, t := range existing {
-		cache[strings.ToLower(t.Name)] = t
+		cache[strings.ToLower(t.Value)] = t
 	}
 	return cache
 }
@@ -1048,7 +1048,7 @@ func (s *Service) resolveItemTags(ctx context.Context, names []string, tagCache 
 		seen[key] = true
 		t, ok := tagCache[key]
 		if !ok {
-			t = &domain.Tag{Name: name, Scope: domain.TagScopeMetadata}
+			t = &domain.Tag{Key: domain.TagKeyDefault, Value: name, Scope: domain.TagScopeMetadata}
 			if err := s.tags.Save(ctx, t); err != nil {
 				slog.Warn("refresh studio: save tag failed", "name", name, "error", err)
 				continue

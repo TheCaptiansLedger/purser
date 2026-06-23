@@ -22,6 +22,7 @@ func (h *tagHandler) routes(r chi.Router) {
 func (h *tagHandler) list(w http.ResponseWriter, r *http.Request) {
 	f := ports.TagFilter{
 		Scope: domain.TagScope(r.URL.Query().Get("scope")),
+		Key:   r.URL.Query().Get("key"),
 	}
 	if ct := r.URL.Query().Get("contentType"); ct != "" {
 		for _, s := range strings.Split(ct, ",") {
@@ -37,13 +38,14 @@ func (h *tagHandler) list(w http.ResponseWriter, r *http.Request) {
 
 	resp := make([]tagResponse, len(tags))
 	for i, t := range tags {
-		resp[i] = tagResponse{ID: t.ID, Name: t.Name, Scope: string(t.Scope)}
+		resp[i] = tagResponse{ID: t.ID, Key: t.Key, Value: t.Value, Scope: string(t.Scope)}
 	}
 	writeJSON(w, http.StatusOK, page[tagResponse]{Data: resp, Total: len(resp), Limit: len(resp)})
 }
 
 type createTagRequest struct {
-	Name  string `json:"name"`
+	Key   string `json:"key"`
+	Value string `json:"value"`
 	Scope string `json:"scope"`
 }
 
@@ -53,19 +55,20 @@ func (h *tagHandler) create(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "INVALID_REQUEST", "invalid JSON body")
 		return
 	}
-	if req.Name == "" {
-		writeError(w, http.StatusUnprocessableEntity, "VALIDATION_ERROR", "name is required")
+	if req.Value == "" {
+		writeError(w, http.StatusUnprocessableEntity, "VALIDATION_ERROR", "value is required")
 		return
 	}
 
 	t := &domain.Tag{
-		Name:  req.Name,
+		Key:   req.Key,
+		Value: req.Value,
 		Scope: domain.TagScope(req.Scope),
 	}
 	if err := h.repo.Save(r.Context(), t); handleErr(w, err) {
 		return
 	}
-	writeJSON(w, http.StatusCreated, tagResponse{ID: t.ID, Name: t.Name, Scope: string(t.Scope)})
+	writeJSON(w, http.StatusCreated, tagResponse{ID: t.ID, Key: t.Key, Value: t.Value, Scope: string(t.Scope)})
 }
 
 func (h *tagHandler) delete(w http.ResponseWriter, r *http.Request) {

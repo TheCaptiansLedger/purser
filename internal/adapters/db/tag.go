@@ -20,20 +20,20 @@ func NewTagRepo(db *sql.DB) ports.TagRepository {
 
 func (r *tagRepo) Get(ctx context.Context, id string) (*domain.Tag, error) {
 	var t domain.Tag
-	var scope, category string
+	var key, scope string
 	if err := r.db.QueryRowContext(
 		ctx,
-		`SELECT id, name, scope, category FROM tags WHERE id = ?`, id,
-	).Scan(&t.ID, &t.Name, &scope, &category); err != nil {
+		`SELECT id, key, value, scope FROM tags WHERE id = ?`, id,
+	).Scan(&t.ID, &key, &t.Value, &scope); err != nil {
 		return nil, fmt.Errorf("get tag %s: %w", id, err)
 	}
+	t.Key = key
 	t.Scope = domain.TagScope(scope)
-	t.Category = domain.TagCategory(category)
 	return &t, nil
 }
 
 func (r *tagRepo) List(ctx context.Context, f ports.TagFilter) ([]*domain.Tag, error) {
-	q := `SELECT DISTINCT t.id, t.name, t.scope, t.category FROM tags t`
+	q := `SELECT DISTINCT t.id, t.key, t.value, t.scope FROM tags t`
 	var args []any
 	var conditions []string
 
@@ -59,15 +59,15 @@ func (r *tagRepo) List(ctx context.Context, f ports.TagFilter) ([]*domain.Tag, e
 		args = append(args, string(f.Scope))
 	}
 
-	if f.Category != "" {
-		conditions = append(conditions, `t.category = ?`)
-		args = append(args, string(f.Category))
+	if f.Key != "" {
+		conditions = append(conditions, `t.key = ?`)
+		args = append(args, f.Key)
 	}
 
 	if len(conditions) > 0 {
 		q += ` WHERE ` + strings.Join(conditions, ` AND `) //nolint:gosec // conditions contain only parameterized placeholders, no user input
 	}
-	q += ` ORDER BY t.name`
+	q += ` ORDER BY t.value`
 
 	rows, err := r.db.QueryContext(ctx, q, args...)
 	if err != nil {
@@ -78,12 +78,12 @@ func (r *tagRepo) List(ctx context.Context, f ports.TagFilter) ([]*domain.Tag, e
 	var tags []*domain.Tag
 	for rows.Next() {
 		var t domain.Tag
-		var sc, cat string
-		if err := rows.Scan(&t.ID, &t.Name, &sc, &cat); err != nil {
+		var key, sc string
+		if err := rows.Scan(&t.ID, &key, &t.Value, &sc); err != nil {
 			return nil, err
 		}
+		t.Key = key
 		t.Scope = domain.TagScope(sc)
-		t.Category = domain.TagCategory(cat)
 		tags = append(tags, &t)
 	}
 	return tags, rows.Err()
@@ -96,10 +96,13 @@ func (r *tagRepo) Save(ctx context.Context, t *domain.Tag) error {
 	if t.Scope == "" {
 		t.Scope = domain.TagScopeUser
 	}
+	if t.Key == "" {
+		t.Key = domain.TagKeyDefault
+	}
 	_, err := r.db.ExecContext(ctx, `
-		INSERT INTO tags(id, name, scope, category) VALUES(?, ?, ?, ?)
-		ON CONFLICT(id) DO UPDATE SET name = excluded.name, scope = excluded.scope, category = excluded.category`,
-		t.ID, t.Name, string(t.Scope), string(t.Category))
+		INSERT INTO tags(id, key, value, scope) VALUES(?, ?, ?, ?)
+		ON CONFLICT(id) DO UPDATE SET key = excluded.key, value = excluded.value, scope = excluded.scope`,
+		t.ID, t.Key, t.Value, string(t.Scope))
 	if err != nil {
 		return fmt.Errorf("save tag: %w", err)
 	}

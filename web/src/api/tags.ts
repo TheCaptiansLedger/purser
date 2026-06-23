@@ -1,10 +1,10 @@
 import { useQuery } from '@tanstack/react-query'
 import { getPage } from './client'
-import type { Tag, TagCategory } from '../types'
+import type { Tag } from '../types'
 
 interface TagsFilter {
   scope?: 'user' | 'metadata'
-  category?: TagCategory
+  key?: string
   contentType?: string  // single or comma-separated: 'adult,jav'
 }
 

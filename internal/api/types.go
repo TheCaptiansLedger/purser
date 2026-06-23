@@ -11,7 +11,8 @@ type externalIDResponse struct {
 
 type tagResponse struct {
 	ID    string `json:"id"`
-	Name  string `json:"name"`
+	Key   string `json:"key"`
+	Value string `json:"value"`
 	Scope string `json:"scope"`
 }
 

@@ -162,7 +162,7 @@ export function BookDetail() {
           <section>
             <h2 className="text-sm font-semibold text-white/40 uppercase tracking-widest mb-3">Tags</h2>
             <div className="flex flex-wrap gap-2">
-              {entry.tags.map(t => <Badge key={t.id} color={ACCENT}>{t.name}</Badge>)}
+              {entry.tags.map(t => <Badge key={t.id} color={ACCENT}>{t.value}</Badge>)}
             </div>
           </section>
         )}

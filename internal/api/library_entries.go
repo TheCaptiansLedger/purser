@@ -88,7 +88,7 @@ func toEntryResponse(e *domain.LibraryEntry) *entryResponse {
 		})
 	}
 	for _, t := range e.Tags {
-		r.Tags = append(r.Tags, tagResponse{ID: t.ID, Name: t.Name, Scope: string(t.Scope)})
+		r.Tags = append(r.Tags, tagResponse{ID: t.ID, Key: t.Key, Value: t.Value, Scope: string(t.Scope)})
 	}
 	for _, ep := range e.People {
 		epr := entryPersonResponse{

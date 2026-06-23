@@ -110,12 +110,13 @@ PRIMARY KEY (entity_type, entity_id, source)
 ## `tags`
 
 Two scopes: `user` (organizational labels) and `metadata` (genres, content tags from sources).
+Key-value pairs with a unique constraint on `(key, value)`. Well-known keys: `tag` (default), `genre`, `content_warning`.
 
 ```sql
-tags (id, name, scope, category)
-  category: ""(default) | "genre" | "content_warning"
+tags (id, key TEXT NOT NULL, value TEXT NOT NULL, scope, UNIQUE(key, value))
 item_tags (item_id, tag_id)
 entry_tags (library_entry_id, tag_id)
+group_tags (group_id, tag_id)  -- albums, seasons
 ```
 
 ## `media_files` — files on disk
