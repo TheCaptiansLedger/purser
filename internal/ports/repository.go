@@ -87,7 +87,7 @@ type PersonRepository interface {
 // TagFilter specifies criteria for listing tags.
 type TagFilter struct {
 	Scope        domain.TagScope
-	Key          string
+	Key          domain.TagKey
 	ContentTypes []domain.ContentType // when set, only tags used by one of these content types are returned
 }
 

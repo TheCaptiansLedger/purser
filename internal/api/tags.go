@@ -22,7 +22,7 @@ func (h *tagHandler) routes(r chi.Router) {
 func (h *tagHandler) list(w http.ResponseWriter, r *http.Request) {
 	f := ports.TagFilter{
 		Scope: domain.TagScope(r.URL.Query().Get("scope")),
-		Key:   r.URL.Query().Get("key"),
+		Key:   domain.TagKey(r.URL.Query().Get("key")),
 	}
 	if ct := r.URL.Query().Get("contentType"); ct != "" {
 		for _, s := range strings.Split(ct, ",") {
@@ -38,7 +38,7 @@ func (h *tagHandler) list(w http.ResponseWriter, r *http.Request) {
 
 	resp := make([]tagResponse, len(tags))
 	for i, t := range tags {
-		resp[i] = tagResponse{ID: t.ID, Key: t.Key, Value: t.Value, Scope: string(t.Scope)}
+		resp[i] = tagResponse{ID: t.ID, Key: string(t.Key), Value: t.Value, Scope: string(t.Scope)}
 	}
 	writeJSON(w, http.StatusOK, page[tagResponse]{Data: resp, Total: len(resp), Limit: len(resp)})
 }
@@ -61,14 +61,14 @@ func (h *tagHandler) create(w http.ResponseWriter, r *http.Request) {
 	}
 
 	t := &domain.Tag{
-		Key:   req.Key,
+		Key:   domain.TagKey(req.Key),
 		Value: req.Value,
 		Scope: domain.TagScope(req.Scope),
 	}
 	if err := h.repo.Save(r.Context(), t); handleErr(w, err) {
 		return
 	}
-	writeJSON(w, http.StatusCreated, tagResponse{ID: t.ID, Key: t.Key, Value: t.Value, Scope: string(t.Scope)})
+	writeJSON(w, http.StatusCreated, tagResponse{ID: t.ID, Key: string(t.Key), Value: t.Value, Scope: string(t.Scope)})
 }
 
 func (h *tagHandler) delete(w http.ResponseWriter, r *http.Request) {

@@ -1048,7 +1048,7 @@ func (s *Service) resolveItemTags(ctx context.Context, names []string, tagCache 
 		seen[key] = true
 		t, ok := tagCache[key]
 		if !ok {
-			t = &domain.Tag{Key: domain.TagKeyDefault, Value: name, Scope: domain.TagScopeMetadata}
+			t = &domain.Tag{Key: domain.TagKeyGeneral, Value: name, Scope: domain.TagScopeMetadata}
 			if err := s.tags.Save(ctx, t); err != nil {
 				slog.Warn("refresh studio: save tag failed", "name", name, "error", err)
 				continue

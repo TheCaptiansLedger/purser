@@ -542,8 +542,8 @@ func TestTagRepo_SaveListDelete(t *testing.T) {
 	repo := NewTagRepo(setupTestDB(t))
 	ctx := context.Background()
 
-	t1 := &domain.Tag{Key: domain.TagKeyDefault, Value: "blonde", Scope: domain.TagScopeMetadata}
-	t2 := &domain.Tag{Key: domain.TagKeyDefault, Value: "favourite", Scope: domain.TagScopeUser}
+	t1 := &domain.Tag{Key: domain.TagKeyGeneral, Value: "blonde", Scope: domain.TagScopeMetadata}
+	t2 := &domain.Tag{Key: domain.TagKeyGeneral, Value: "favourite", Scope: domain.TagScopeUser}
 	for _, tag := range []*domain.Tag{t1, t2} {
 		if err := repo.Save(ctx, tag); err != nil {
 			t.Fatalf("Save tag: %v", err)
@@ -790,7 +790,7 @@ func TestTagRepo_Get(t *testing.T) {
 	repo := NewTagRepo(setupTestDB(t))
 	ctx := context.Background()
 
-	tag := &domain.Tag{Key: domain.TagKeyDefault, Value: "brunette", Scope: domain.TagScopeMetadata}
+	tag := &domain.Tag{Key: domain.TagKeyGeneral, Value: "brunette", Scope: domain.TagScopeMetadata}
 	if err := repo.Save(ctx, tag); err != nil {
 		t.Fatalf("Save: %v", err)
 	}
@@ -817,7 +817,7 @@ func TestTagRepo_Key(t *testing.T) {
 
 	genre := &domain.Tag{Key: domain.TagKeyGenre, Value: "Romance", Scope: domain.TagScopeMetadata}
 	warn := &domain.Tag{Key: domain.TagKeyContentWarning, Value: "Explicit", Scope: domain.TagScopeMetadata}
-	general := &domain.Tag{Key: domain.TagKeyDefault, Value: "featured", Scope: domain.TagScopeUser}
+	general := &domain.Tag{Key: domain.TagKeyGeneral, Value: "featured", Scope: domain.TagScopeUser}
 
 	for _, tag := range []*domain.Tag{genre, warn, general} {
 		if err := repo.Save(ctx, tag); err != nil {
@@ -857,8 +857,8 @@ func TestTagRepo_Key(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Get general: %v", err)
 	}
-	if got2.Key != domain.TagKeyDefault {
-		t.Errorf("Key = %q, want %q", got2.Key, domain.TagKeyDefault)
+	if got2.Key != domain.TagKeyGeneral {
+		t.Errorf("Key = %q, want %q", got2.Key, domain.TagKeyGeneral)
 	}
 }
 
@@ -909,7 +909,7 @@ func TestLibraryEntryRepo_Save_WithTagsAndMetadata(t *testing.T) {
 	tagRepo := NewTagRepo(database)
 	ctx := context.Background()
 
-	tag := &domain.Tag{Key: domain.TagKeyDefault, Value: "featured", Scope: domain.TagScopeUser}
+	tag := &domain.Tag{Key: domain.TagKeyGeneral, Value: "featured", Scope: domain.TagScopeUser}
 	if err := tagRepo.Save(ctx, tag); err != nil {
 		t.Fatalf("Save tag: %v", err)
 	}
@@ -950,7 +950,7 @@ func TestItemRepo_Save_WithTagsAndExternalIDsAndDate(t *testing.T) {
 	}
 	entryRepo.Save(ctx, entry) //nolint:errcheck
 
-	tag := &domain.Tag{Key: domain.TagKeyDefault, Value: "4k", Scope: domain.TagScopeMetadata}
+	tag := &domain.Tag{Key: domain.TagKeyGeneral, Value: "4k", Scope: domain.TagScopeMetadata}
 	tagRepo.Save(ctx, tag) //nolint:errcheck
 
 	item := &domain.Item{
@@ -1007,7 +1007,7 @@ func TestItemRepo_List_Filters(t *testing.T) {
 	}
 	groupRepo.Save(ctx, group) //nolint:errcheck
 
-	tag := &domain.Tag{Key: domain.TagKeyDefault, Value: "drama", Scope: domain.TagScopeMetadata}
+	tag := &domain.Tag{Key: domain.TagKeyGeneral, Value: "drama", Scope: domain.TagScopeMetadata}
 	tagRepo.Save(ctx, tag) //nolint:errcheck
 
 	items := []*domain.Item{

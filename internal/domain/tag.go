@@ -10,17 +10,25 @@ const (
 	TagScopeMetadata TagScope = "metadata"
 )
 
-// Common tag key constants for well-known namespaces.
+// TagKey identifies the semantic namespace of a tag.
+type TagKey string
+
+// Tag key constants for well-known namespaces.
 const (
-	TagKeyDefault        = "tag"
-	TagKeyGenre          = "genre"
-	TagKeyContentWarning = "content_warning"
+	TagKeyGenre             TagKey = "genre"
+	TagKeyLabel             TagKey = "label"
+	TagKeyNetwork           TagKey = "network"
+	TagKeyProductionCompany TagKey = "production_company"
+	TagKeyPublisher         TagKey = "publisher"
+	TagKeyAdult             TagKey = "adult"
+	TagKeyContentWarning    TagKey = "content_warning"
+	TagKeyGeneral           TagKey = "tag"
 )
 
 // Tag is a label attached to items or library entries for filtering and organization.
 type Tag struct {
 	ID    string
-	Key   string
+	Key   TagKey
 	Value string
 	Scope TagScope
 }

@@ -243,7 +243,7 @@ func scanTags(rows *sql.Rows) ([]domain.Tag, error) {
 		if err := rows.Scan(&t.ID, &key, &t.Value, &scope); err != nil {
 			return nil, err
 		}
-		t.Key = key
+		t.Key = domain.TagKey(key)
 		t.Scope = domain.TagScope(scope)
 		tags = append(tags, t)
 	}

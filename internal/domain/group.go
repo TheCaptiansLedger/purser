@@ -16,4 +16,5 @@ type Group struct {
 	Metadata       map[string]any
 	LockedFields   []string
 	CoverPath      string
+	Tags           []Tag
 }

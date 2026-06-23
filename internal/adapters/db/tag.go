@@ -27,7 +27,7 @@ func (r *tagRepo) Get(ctx context.Context, id string) (*domain.Tag, error) {
 	).Scan(&t.ID, &key, &t.Value, &scope); err != nil {
 		return nil, fmt.Errorf("get tag %s: %w", id, err)
 	}
-	t.Key = key
+	t.Key = domain.TagKey(key)
 	t.Scope = domain.TagScope(scope)
 	return &t, nil
 }
@@ -61,7 +61,7 @@ func (r *tagRepo) List(ctx context.Context, f ports.TagFilter) ([]*domain.Tag, e
 
 	if f.Key != "" {
 		conditions = append(conditions, `t.key = ?`)
-		args = append(args, f.Key)
+		args = append(args, string(f.Key))
 	}
 
 	if len(conditions) > 0 {
@@ -82,7 +82,7 @@ func (r *tagRepo) List(ctx context.Context, f ports.TagFilter) ([]*domain.Tag, e
 		if err := rows.Scan(&t.ID, &key, &t.Value, &sc); err != nil {
 			return nil, err
 		}
-		t.Key = key
+		t.Key = domain.TagKey(key)
 		t.Scope = domain.TagScope(sc)
 		tags = append(tags, &t)
 	}
@@ -97,12 +97,12 @@ func (r *tagRepo) Save(ctx context.Context, t *domain.Tag) error {
 		t.Scope = domain.TagScopeUser
 	}
 	if t.Key == "" {
-		t.Key = domain.TagKeyDefault
+		t.Key = domain.TagKeyGeneral
 	}
 	_, err := r.db.ExecContext(ctx, `
 		INSERT INTO tags(id, key, value, scope) VALUES(?, ?, ?, ?)
 		ON CONFLICT(id) DO UPDATE SET key = excluded.key, value = excluded.value, scope = excluded.scope`,
-		t.ID, t.Key, t.Value, string(t.Scope))
+		t.ID, string(t.Key), t.Value, string(t.Scope))
 	if err != nil {
 		return fmt.Errorf("save tag: %w", err)
 	}
