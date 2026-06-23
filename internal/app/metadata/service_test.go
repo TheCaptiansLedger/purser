@@ -1030,6 +1030,72 @@ func TestRefreshArtist_PersonImagePrefersAudioDB(t *testing.T) {
 	}
 }
 
+// ── Movie studio hierarchy ────────────────────────────────────────────────────
+
+func TestImportStudio_MovieStudio(t *testing.T) {
+	res, err := newService().ImportStudio(context.Background(), &metadata.ImportStudioRequest{
+		Source:      "tmdb",
+		ExternalID:  "tmdb-studio-420",
+		Name:        "Universal Pictures",
+		ContentType: domain.ContentTypeMovie,
+		Kind:        domain.KindStudio,
+		Monitored:   false,
+	})
+	if err != nil {
+		t.Fatalf("ImportStudio: %v", err)
+	}
+	if res.Studio.Kind != domain.KindStudio {
+		t.Errorf("Kind = %q, want %q", res.Studio.Kind, domain.KindStudio)
+	}
+	if res.Studio.ContentType != domain.ContentTypeMovie {
+		t.Errorf("ContentType = %q, want %q", res.Studio.ContentType, domain.ContentTypeMovie)
+	}
+	if res.Studio.ParentID != "" {
+		t.Errorf("ParentID = %q, want empty (root entry)", res.Studio.ParentID)
+	}
+}
+
+func TestImportStudio_MovieStudio_SetsMovieParent(t *testing.T) {
+	entryRepo := newStubEntryRepo()
+	svc := metadata.New(nil, nil, entryRepo, nil, &stubItemRepo{}, &stubPersonRepo{}, &stubTagRepo{}, &stubExternalIDRepo{}, nil)
+
+	studioRes, err := svc.ImportStudio(context.Background(), &metadata.ImportStudioRequest{
+		Source:      "tmdb",
+		ExternalID:  "tmdb-studio-420",
+		Name:        "Universal Pictures",
+		ContentType: domain.ContentTypeMovie,
+		Kind:        domain.KindStudio,
+	})
+	if err != nil {
+		t.Fatalf("ImportStudio (studio): %v", err)
+	}
+
+	// Seed only the studio's external ID so the movie import finds the studio
+	// as parent without treating the movie as already-imported.
+	extIDs := &mapExternalIDRepo{entries: map[string]string{
+		"library_entry:tmdb:tmdb-studio-420": studioRes.Studio.ID,
+	}}
+	svc2 := metadata.New(nil, nil, entryRepo, nil, &stubItemRepo{}, &stubPersonRepo{}, &stubTagRepo{}, extIDs, nil)
+
+	movieRes, err := svc2.ImportStudio(context.Background(), &metadata.ImportStudioRequest{
+		Source:           "tmdb",
+		ExternalID:       "tmdb-movie-12345",
+		Name:             "Hidden Figures",
+		ContentType:      domain.ContentTypeMovie,
+		Kind:             domain.KindMovie,
+		ParentExternalID: "tmdb-studio-420",
+	})
+	if err != nil {
+		t.Fatalf("ImportStudio (movie): %v", err)
+	}
+	if movieRes.Studio.Kind != domain.KindMovie {
+		t.Errorf("Kind = %q, want %q", movieRes.Studio.Kind, domain.KindMovie)
+	}
+	if movieRes.Studio.ParentID != studioRes.Studio.ID {
+		t.Errorf("ParentID = %q, want %q", movieRes.Studio.ParentID, studioRes.Studio.ID)
+	}
+}
+
 func TestRefreshArtist_GroupLinkedToItem(t *testing.T) {
 	entryRepo := newStubEntryRepo()
 	groupRepo := &stubGroupRepo{}

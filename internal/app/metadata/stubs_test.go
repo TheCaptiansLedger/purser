@@ -152,6 +152,19 @@ func (r *stubTagRepo) RemoveGroupTag(_ context.Context, _, _ string) error { ret
 // database where no external IDs have been imported yet.
 type stubExternalIDRepo struct{}
 
+// mapExternalIDRepo returns a seeded ID for specific "entityType:source:extID"
+// keys and ErrNotFound for everything else.
+type mapExternalIDRepo struct {
+	entries map[string]string
+}
+
+func (r *mapExternalIDRepo) FindEntity(_ context.Context, entityType, source, value string) (string, error) {
+	if id, ok := r.entries[entityType+":"+source+":"+value]; ok {
+		return id, nil
+	}
+	return "", fmt.Errorf("not found: %w", errs.ErrNotFound)
+}
+
 func (r *stubExternalIDRepo) FindEntity(_ context.Context, _, _, _ string) (string, error) {
 	return "", fmt.Errorf("not found: %w", errs.ErrNotFound)
 }

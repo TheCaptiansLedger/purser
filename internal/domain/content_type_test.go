@@ -3,7 +3,7 @@ package domain
 import "testing"
 
 func TestContentType_Valid(t *testing.T) {
-	valid := []ContentType{ContentTypeMovie, ContentTypeTV, ContentTypeMusic, ContentTypeAdult, ContentTypeJAV}
+	valid := []ContentType{ContentTypeMovie, ContentTypeTV, ContentTypeMusic, ContentTypeAdult, ContentTypeJAV, ContentTypeBook}
 	for _, ct := range valid {
 		if !ct.Valid() {
 			t.Errorf("ContentType(%q).Valid() = false, want true", ct)
@@ -18,7 +18,7 @@ func TestContentType_Valid(t *testing.T) {
 }
 
 func TestKind_Valid(t *testing.T) {
-	valid := []Kind{KindNetwork, KindStudio, KindSeries, KindArtist, KindMovie}
+	valid := []Kind{KindNetwork, KindStudio, KindSeries, KindArtist, KindAuthor, KindMovie, KindPublisher, KindBook}
 	for _, k := range valid {
 		if !k.Valid() {
 			t.Errorf("Kind(%q).Valid() = false, want true", k)

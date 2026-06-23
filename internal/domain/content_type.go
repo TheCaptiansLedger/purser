@@ -27,19 +27,20 @@ type Kind string
 
 // Kind constants for all roles a LibraryEntry can play in the hierarchy.
 const (
-	KindNetwork   Kind = "network"   // HBO, Naughty America parent brand, Columbia Records
-	KindStudio    Kind = "studio"    // production company, adult site, JAV studio
+	KindNetwork   Kind = "network"   // AfterDark parent brand (network→studio); tag value for TV series (key=network); not a tree parent for TV
+	KindStudio    Kind = "studio"    // production company, adult site, JAV studio; tree parent for KindMovie when a studio is known
 	KindSeries    Kind = "series"    // TV show, adult site named series
 	KindArtist    Kind = "artist"    // music recording artist or band
-	KindMovie     Kind = "movie"     // collapsed: entry IS the leaf
-	KindPublisher Kind = "publisher" // book publisher (Penguin, Tor, etc.)
+	KindAuthor    Kind = "author"    // book author; root of book hierarchy
+	KindMovie     Kind = "movie"     // collapsed: entry IS the leaf; tree parent is KindStudio when a studio is known
+	KindPublisher Kind = "publisher" // tag-only (key=publisher); not a tree node
 	KindBook      Kind = "book"      // collapsed: entry IS the leaf book
 )
 
 // Valid reports whether k is a known kind.
 func (k Kind) Valid() bool {
 	switch k {
-	case KindNetwork, KindStudio, KindSeries, KindArtist, KindMovie, KindPublisher, KindBook:
+	case KindNetwork, KindStudio, KindSeries, KindArtist, KindAuthor, KindMovie, KindPublisher, KindBook:
 		return true
 	}
 	return false
