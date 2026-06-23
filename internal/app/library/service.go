@@ -17,6 +17,7 @@ type Service struct {
 	groups  ports.GroupRepository
 	items   ports.ItemRepository
 	persons ports.PersonRepository
+	tags    ports.TagRepository
 }
 
 // New constructs a library Service wired to the given repositories.
@@ -25,8 +26,9 @@ func New(
 	groups ports.GroupRepository,
 	items ports.ItemRepository,
 	persons ports.PersonRepository,
+	tags ports.TagRepository,
 ) *Service {
-	return &Service{entries: entries, groups: groups, items: items, persons: persons}
+	return &Service{entries: entries, groups: groups, items: items, persons: persons, tags: tags}
 }
 
 // ── Library entries ───────────────────────────────────────────────────────────

@@ -209,11 +209,11 @@ func (m *mockItemRepo) Delete(_ context.Context, id string) error {
 }
 
 func newSvc(entries *mockEntryRepo, groups *mockGroupRepo, items *mockItemRepo) *library.Service {
-	return library.New(entries, groups, items, newMockPersonRepo())
+	return library.New(entries, groups, items, newMockPersonRepo(), nil)
 }
 
 func newSvcWithPersons(entries *mockEntryRepo, groups *mockGroupRepo, items *mockItemRepo, persons *mockPersonRepo) *library.Service {
-	return library.New(entries, groups, items, persons)
+	return library.New(entries, groups, items, persons, nil)
 }
 
 // ── Entry tests ───────────────────────────────────────────────────────────────

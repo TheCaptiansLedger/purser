@@ -72,14 +72,15 @@ func newHandlerWithConfigSvc(t *testing.T, cfgSvc ports.ConfigService) http.Hand
 	}
 	t.Cleanup(func() { database.Close() })
 	personRepo := dbadapter.NewPersonRepo(database)
+	tagRepo := dbadapter.NewTagRepo(database)
 	libSvc := library.New(
 		dbadapter.NewLibraryEntryRepo(database),
 		dbadapter.NewGroupRepo(database),
 		dbadapter.NewItemRepo(database),
 		personRepo,
+		tagRepo,
 	)
 	peopleSvc := people.New(personRepo)
-	tagRepo := dbadapter.NewTagRepo(database)
 	jobQueue := jobsadapter.New(1)
 	t.Cleanup(jobQueue.Close)
 	metaSvc := metadata.New(nil, jobQueue,
@@ -108,14 +109,15 @@ func newHandlerWithDB(t *testing.T) (http.Handler, *sql.DB) {
 	t.Cleanup(func() { database.Close() })
 
 	personRepo := dbadapter.NewPersonRepo(database)
+	tagRepo := dbadapter.NewTagRepo(database)
 	libSvc := library.New(
 		dbadapter.NewLibraryEntryRepo(database),
 		dbadapter.NewGroupRepo(database),
 		dbadapter.NewItemRepo(database),
 		personRepo,
+		tagRepo,
 	)
 	peopleSvc := people.New(personRepo)
-	tagRepo := dbadapter.NewTagRepo(database)
 
 	jobQueue := jobsadapter.New(1)
 	t.Cleanup(jobQueue.Close)
@@ -162,14 +164,15 @@ func newHandlerWithMedia(t *testing.T, mediaPath string) http.Handler {
 	t.Cleanup(func() { database.Close() })
 
 	personRepo := dbadapter.NewPersonRepo(database)
+	tagRepo := dbadapter.NewTagRepo(database)
 	libSvc := library.New(
 		dbadapter.NewLibraryEntryRepo(database),
 		dbadapter.NewGroupRepo(database),
 		dbadapter.NewItemRepo(database),
 		personRepo,
+		tagRepo,
 	)
 	peopleSvc := people.New(personRepo)
-	tagRepo := dbadapter.NewTagRepo(database)
 
 	jobQueue := jobsadapter.New(1)
 	t.Cleanup(jobQueue.Close)
@@ -316,14 +319,15 @@ func TestConfig_Get_Sources_KeysMasked(t *testing.T) {
 	t.Cleanup(func() { database.Close() })
 
 	personRepo := dbadapter.NewPersonRepo(database)
+	tagRepo := dbadapter.NewTagRepo(database)
 	libSvc := library.New(
 		dbadapter.NewLibraryEntryRepo(database),
 		dbadapter.NewGroupRepo(database),
 		dbadapter.NewItemRepo(database),
 		personRepo,
+		tagRepo,
 	)
 	peopleSvc := people.New(personRepo)
-	tagRepo := dbadapter.NewTagRepo(database)
 	jobQueue := jobsadapter.New(1)
 	t.Cleanup(jobQueue.Close)
 	metaSvc := metadata.New(nil, jobQueue, dbadapter.NewLibraryEntryRepo(database), dbadapter.NewGroupRepo(database), dbadapter.NewItemRepo(database), dbadapter.NewPersonRepo(database), dbadapter.NewTagRepo(database), dbadapter.NewExternalIDRepo(database), nil)
@@ -1931,6 +1935,7 @@ func TestJobs_Cancel_SetsStatus(t *testing.T) {
 		dbadapter.NewGroupRepo(database),
 		dbadapter.NewItemRepo(database),
 		dbadapter.NewPersonRepo(database),
+		dbadapter.NewTagRepo(database),
 	)
 	peopleSvc := people.New(dbadapter.NewPersonRepo(database))
 	tagRepo := dbadapter.NewTagRepo(database)
@@ -2562,7 +2567,7 @@ func newHandlerWithSources(t *testing.T, sources []ports.MetadataSource) http.Ha
 	}
 	t.Cleanup(func() { database.Close() })
 	personRepo := dbadapter.NewPersonRepo(database)
-	libSvc := library.New(dbadapter.NewLibraryEntryRepo(database), dbadapter.NewGroupRepo(database), dbadapter.NewItemRepo(database), personRepo)
+	libSvc := library.New(dbadapter.NewLibraryEntryRepo(database), dbadapter.NewGroupRepo(database), dbadapter.NewItemRepo(database), personRepo, dbadapter.NewTagRepo(database))
 	peopleSvc := people.New(personRepo)
 	tagRepo := dbadapter.NewTagRepo(database)
 	jobQueue := jobsadapter.New(1)

@@ -799,6 +799,114 @@ func TestImportAlbum_Idempotent(t *testing.T) {
 	}
 }
 
+func TestImportAlbum_AttachesLabelTag(t *testing.T) {
+	entryRepo := newStubEntryRepo()
+	groupRepo := &stubGroupRepo{}
+	itemRepo := &stubItemRepo{}
+	tagRepo := &stubTagRepo{}
+	entry := artistEntry(domain.MonitorAll, time.Date(2020, 1, 1, 0, 0, 0, 0, time.UTC))
+	entryRepo.data[entry.ID] = entry
+
+	src, albums, _ := twoAlbumsWithTracks()
+	svc := metadata.New([]ports.MetadataSource{src}, nil, entryRepo, groupRepo, itemRepo, &stubPersonRepo{}, tagRepo, &stubExternalIDRepo{}, nil)
+
+	g, err := svc.ImportAlbum(context.Background(), &metadata.ImportAlbumRequest{
+		Source:         domain.SourceMusicBrainz,
+		ExternalID:     albums[0].ExternalID,
+		LibraryEntryID: entry.ID,
+		Title:          albums[0].Title,
+		Year:           albums[0].Year,
+		Monitored:      true,
+		MonitorMode:    domain.MonitorAll,
+		LabelName:      "Columbia Records",
+	})
+	if err != nil {
+		t.Fatalf("ImportAlbum: %v", err)
+	}
+	if len(g.Tags) != 1 {
+		t.Fatalf("group Tags count = %d, want 1", len(g.Tags))
+	}
+	if g.Tags[0].Key != domain.TagKeyLabel {
+		t.Errorf("tag Key = %q, want %q", g.Tags[0].Key, domain.TagKeyLabel)
+	}
+	if g.Tags[0].Value != "Columbia Records" {
+		t.Errorf("tag Value = %q, want %q", g.Tags[0].Value, "Columbia Records")
+	}
+	if len(tagRepo.groupTagCalls) != 1 {
+		t.Errorf("AddGroupTag calls = %d, want 1", len(tagRepo.groupTagCalls))
+	}
+}
+
+func TestSaveItems_AttachesGenreTags(t *testing.T) {
+	entryRepo := newStubEntryRepo()
+	groupRepo := &stubGroupRepo{}
+	itemRepo := &stubItemRepo{}
+	tagRepo := &stubTagRepo{}
+	entry := artistEntry(domain.MonitorAll, time.Date(2020, 1, 1, 0, 0, 0, 0, time.UTC))
+	entryRepo.data[entry.ID] = entry
+
+	albums := []*domain.ExternalGroup{
+		{Source: domain.SourceMusicBrainz, ExternalID: "album-g1", Title: "Genre Album", Year: 2021, PrimaryType: "Album"},
+	}
+	tracks := map[string][]*domain.ExternalItem{
+		"album-g1": {
+			{
+				Source: domain.SourceMusicBrainz, ExternalID: "track-g1", Title: "Track 1",
+				Date:   time.Date(2021, 1, 1, 0, 0, 0, 0, time.UTC),
+				Genres: []string{"Rock", "Jazz"},
+			},
+			{
+				Source: domain.SourceMusicBrainz, ExternalID: "track-g2", Title: "Track 2",
+				Date:   time.Date(2021, 2, 1, 0, 0, 0, 0, time.UTC),
+				Genres: []string{"Rock"}, // Rock already in cache — should reuse
+			},
+		},
+	}
+	src := &stubMusicSource{albums: albums, tracks: tracks}
+	svc := metadata.New([]ports.MetadataSource{src}, nil, entryRepo, groupRepo, itemRepo, &stubPersonRepo{}, tagRepo, &stubExternalIDRepo{}, nil)
+
+	_, err := svc.ImportAlbum(context.Background(), &metadata.ImportAlbumRequest{
+		Source:         domain.SourceMusicBrainz,
+		ExternalID:     "album-g1",
+		LibraryEntryID: entry.ID,
+		Title:          "Genre Album",
+		Year:           2021,
+		Monitored:      true,
+		MonitorMode:    domain.MonitorAll,
+	})
+	if err != nil {
+		t.Fatalf("ImportAlbum: %v", err)
+	}
+
+	if len(itemRepo.items) != 2 {
+		t.Fatalf("item count = %d, want 2", len(itemRepo.items))
+	}
+	// Track 1 has Rock + Jazz; Track 2 has Rock (reused from cache).
+	if len(itemRepo.items[0].Tags) != 2 {
+		t.Errorf("track 1 genre tags = %d, want 2", len(itemRepo.items[0].Tags))
+	}
+	if len(itemRepo.items[1].Tags) != 1 {
+		t.Errorf("track 2 genre tags = %d, want 1", len(itemRepo.items[1].Tags))
+	}
+	for _, it := range itemRepo.items {
+		for _, tag := range it.Tags {
+			if tag.Key != domain.TagKeyGenre {
+				t.Errorf("item %q: tag key = %q, want %q", it.Title, tag.Key, domain.TagKeyGenre)
+			}
+		}
+	}
+	// 2 unique genre tag records created ("Rock" + "Jazz"); "Rock" reused on track 2.
+	genreTagCount := 0
+	for _, tag := range tagRepo.saved {
+		if tag.Key == domain.TagKeyGenre {
+			genreTagCount++
+		}
+	}
+	if genreTagCount != 2 {
+		t.Errorf("genre tags created = %d, want 2 (Rock + Jazz, no duplicate Rock)", genreTagCount)
+	}
+}
+
 func TestImportAlbum_UnknownSource(t *testing.T) {
 	entryRepo := newStubEntryRepo()
 	groupRepo := &stubGroupRepo{}

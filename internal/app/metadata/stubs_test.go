@@ -126,24 +126,41 @@ func (r *stubPersonRepo) Delete(_ context.Context, _ string) error { return nil 
 // ── Tag repo stub ─────────────────────────────────────────────────────────────
 
 type stubTagRepo struct {
-	saved []*domain.Tag
+	saved         []*domain.Tag
+	groupTagCalls []string // "groupID:tagID" pairs recorded by AddGroupTag
 }
 
 func (r *stubTagRepo) Get(_ context.Context, _ string) (*domain.Tag, error) {
 	return nil, ports.ErrNotFound
 }
 
-func (r *stubTagRepo) List(_ context.Context, _ ports.TagFilter) ([]*domain.Tag, error) {
-	return r.saved, nil
+func (r *stubTagRepo) List(_ context.Context, f ports.TagFilter) ([]*domain.Tag, error) {
+	var out []*domain.Tag
+	for _, t := range r.saved {
+		if f.Key != "" && t.Key != f.Key {
+			continue
+		}
+		if f.Scope != "" && t.Scope != f.Scope {
+			continue
+		}
+		out = append(out, t)
+	}
+	return out, nil
 }
 
 func (r *stubTagRepo) Save(_ context.Context, t *domain.Tag) error {
+	if t.ID == "" {
+		t.ID = fmt.Sprintf("tag-%d", len(r.saved)+1)
+	}
 	r.saved = append(r.saved, t)
 	return nil
 }
 
-func (r *stubTagRepo) Delete(_ context.Context, _ string) error            { return nil }
-func (r *stubTagRepo) AddGroupTag(_ context.Context, _, _ string) error    { return nil }
+func (r *stubTagRepo) Delete(_ context.Context, _ string) error { return nil }
+func (r *stubTagRepo) AddGroupTag(_ context.Context, groupID, tagID string) error {
+	r.groupTagCalls = append(r.groupTagCalls, groupID+":"+tagID)
+	return nil
+}
 func (r *stubTagRepo) RemoveGroupTag(_ context.Context, _, _ string) error { return nil }
 
 // ── External ID repo stubs ────────────────────────────────────────────────────

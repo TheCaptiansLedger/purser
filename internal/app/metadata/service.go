@@ -106,6 +106,7 @@ type ImportAlbumRequest struct {
 	Year           int
 	Monitored      bool
 	MonitorMode    domain.MonitorMode
+	LabelName      string // if non-empty, attached as a label tag on the created group
 }
 
 // ImportAlbum adds a single album (and its tracks) to an existing artist entry.
@@ -150,6 +151,17 @@ func (s *Service) ImportAlbum(ctx context.Context, req *ImportAlbumRequest) (*do
 		return nil, fmt.Errorf("import album: %w", err)
 	}
 
+	if req.LabelName != "" {
+		tag, tagErr := s.findOrCreateTagByKey(ctx, domain.TagKeyLabel, req.LabelName, domain.TagScopeMetadata)
+		if tagErr != nil {
+			return nil, fmt.Errorf("import album: attach label tag: %w", tagErr)
+		}
+		if tagErr := s.tags.AddGroupTag(ctx, g.ID, tag.ID); tagErr != nil {
+			return nil, fmt.Errorf("import album: link label tag: %w", tagErr)
+		}
+		g.Tags = append(g.Tags, *tag)
+	}
+
 	if len(pending) == 0 {
 		return g, nil
 	}
@@ -186,7 +198,8 @@ func (s *Service) collectNewGroupTracks(ctx context.Context, src ports.MetadataS
 }
 
 // saveGroupTracks creates Item records for each track, applying monitor-mode
-// logic consistent with RefreshArtist.
+// logic consistent with RefreshArtist. Genre tags from ExternalItem.Genres are
+// attached to each item.
 func (s *Service) saveGroupTracks(ctx context.Context, contentType domain.ContentType, libraryEntryID, groupID string, monitorMode domain.MonitorMode, tracks []*domain.ExternalItem) error {
 	latestIdx := 0
 	for i, ei := range tracks {
@@ -195,6 +208,7 @@ func (s *Service) saveGroupTracks(ctx context.Context, contentType domain.Conten
 		}
 	}
 
+	tagCache := s.loadTagCache(ctx)
 	now := time.Now().UTC()
 	for i, ei := range tracks {
 		monitored := monitoredForMode(monitorMode, now, ei.Date)
@@ -216,6 +230,7 @@ func (s *Service) saveGroupTracks(ctx context.Context, contentType domain.Conten
 			RuntimeSeconds: ei.RuntimeSecs,
 			Monitored:      monitored,
 			Status:         itemStatus,
+			Tags:           s.resolveItemGenreTags(ctx, ei.Genres, tagCache),
 			ExternalIDs:    []domain.ExternalID{{Source: ei.Source, Value: ei.ExternalID}},
 			AddedAt:        now,
 		}
@@ -561,7 +576,7 @@ func (s *Service) RefreshStudio(ctx context.Context, entryID string, p ports.Pro
 			Status:         itemStatus,
 			CoverPath:      coverPath,
 			People:         s.resolveItemPeople(ctx, ei.People, personCache),
-			Tags:           s.resolveItemTags(ctx, ei.Tags, tagCache),
+			Tags:           append(s.resolveItemTags(ctx, ei.Tags, tagCache), s.resolveItemGenreTags(ctx, ei.Genres, tagCache)...),
 			ExternalIDs:    []domain.ExternalID{{Source: ei.Source, Value: ei.ExternalID}},
 			AddedAt:        now,
 		}
@@ -1030,6 +1045,55 @@ func (s *Service) loadTagCache(ctx context.Context) map[string]*domain.Tag {
 		cache[strings.ToLower(t.Value)] = t
 	}
 	return cache
+}
+
+// findOrCreateTagByKey looks up an existing tag by key+value (case-insensitive)+scope,
+// or creates one. Used by ImportAlbum for label tags.
+func (s *Service) findOrCreateTagByKey(ctx context.Context, key domain.TagKey, value string, scope domain.TagScope) (*domain.Tag, error) {
+	existing, err := s.tags.List(ctx, ports.TagFilter{Key: key, Scope: scope})
+	if err != nil {
+		return nil, fmt.Errorf("find or create tag: %w", err)
+	}
+	lower := strings.ToLower(value)
+	for _, t := range existing {
+		if strings.ToLower(t.Value) == lower {
+			return t, nil
+		}
+	}
+	t := &domain.Tag{Key: key, Value: value, Scope: scope}
+	if err := s.tags.Save(ctx, t); err != nil {
+		return nil, fmt.Errorf("find or create tag: save: %w", err)
+	}
+	return t, nil
+}
+
+// resolveItemGenreTags looks up or creates a Tag record with key=genre for each
+// genre name and returns a deduplicated slice. The cache key is prefixed with
+// "genre:" to avoid collisions with general tags in the shared tagCache.
+func (s *Service) resolveItemGenreTags(ctx context.Context, genres []string, tagCache map[string]*domain.Tag) []domain.Tag {
+	if s.tags == nil || len(genres) == 0 {
+		return nil
+	}
+	seen := map[string]bool{}
+	var out []domain.Tag
+	for _, name := range genres {
+		cacheKey := "genre:" + strings.ToLower(name)
+		if seen[cacheKey] {
+			continue
+		}
+		seen[cacheKey] = true
+		t, ok := tagCache[cacheKey]
+		if !ok {
+			t = &domain.Tag{Key: domain.TagKeyGenre, Value: name, Scope: domain.TagScopeMetadata}
+			if err := s.tags.Save(ctx, t); err != nil {
+				slog.Warn("resolve genre tag: save failed", "name", name, "error", err)
+				continue
+			}
+			tagCache[cacheKey] = t
+		}
+		out = append(out, *t)
+	}
+	return out
 }
 
 // resolveItemTags looks up or creates a Tag record for each name and returns
