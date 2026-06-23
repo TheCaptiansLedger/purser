@@ -147,10 +147,9 @@ func TestFetchImagesForGroup_NotFound(t *testing.T) {
 }
 
 func TestFetchImagesForGroup_ReturnsImages(t *testing.T) {
-	// stubMusicSource handles FetchGroupContent (returns empty tracks) and
-	// FindByExternalID (returns the configured item with images).
+	// stubMusicSource handles FindGroupImages (returns the configured item with images).
 	src := &stubMusicSource{
-		findItem: &domain.ExternalItem{
+		groupItem: &domain.ExternalItem{
 			Images: []domain.ExternalImage{
 				{Type: domain.ImageTypePoster, URL: "https://example.com/album.jpg"},
 			},

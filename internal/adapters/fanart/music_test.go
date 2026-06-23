@@ -5,6 +5,8 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"purser/internal/adapters/fanart"
+	"purser/internal/config"
 	"purser/internal/domain"
 	"purser/internal/ports"
 	"strings"
@@ -218,6 +220,107 @@ func TestFetchEntryContent_Music_NotFound(t *testing.T) {
 	_, _, _, err := a.FetchEntryContent(context.Background(), domain.ContentTypeMusic, "no-such-mbid", 1, 10)
 	if !errors.Is(err, ports.ErrNotFound) {
 		t.Errorf("expected ErrNotFound, got: %v", err)
+	}
+}
+
+// ── FindGroupImages ───────────────────────────────────────────────────────────
+
+const groupImagesFixture = `{
+	"name": "Test Artist",
+	"mbid_id": "artist-mbid-123",
+	"albums": {
+		"rg-with-cover": {
+			"albumcover": [
+				{"id":"20","url":"https://assets.fanart.tv/cover-a.jpg","likes":"5"},
+				{"id":"21","url":"https://assets.fanart.tv/cover-b.jpg","likes":"2"}
+			]
+		},
+		"rg-no-cover": {
+			"cdart": [{"id":"22","url":"https://assets.fanart.tv/cdart.jpg","likes":"0"}]
+		}
+	}
+}`
+
+func TestFindGroupImages_Music_HappyPath(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(groupImagesFixture)) //nolint:errcheck
+	}))
+	defer srv.Close()
+
+	a := newTestAdapter(srv)
+	item, err := a.FindGroupImages(context.Background(), domain.ContentTypeMusic, "artist-mbid-123", "rg-with-cover")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if item.ExternalID != "rg-with-cover" {
+		t.Errorf("ExternalID = %q, want rg-with-cover", item.ExternalID)
+	}
+	if len(item.Images) != 2 {
+		t.Fatalf("images count = %d, want 2", len(item.Images))
+	}
+	for _, img := range item.Images {
+		if img.Type != domain.ImageTypePoster {
+			t.Errorf("image type = %q, want poster", img.Type)
+		}
+		if img.URL == "" {
+			t.Error("image URL is empty")
+		}
+	}
+}
+
+func TestFindGroupImages_Music_AlbumNoCover(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(groupImagesFixture)) //nolint:errcheck
+	}))
+	defer srv.Close()
+
+	a := newTestAdapter(srv)
+	item, err := a.FindGroupImages(context.Background(), domain.ContentTypeMusic, "artist-mbid-123", "rg-no-cover")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(item.Images) != 0 {
+		t.Errorf("images count = %d, want 0 (cdart-only album has no cover)", len(item.Images))
+	}
+}
+
+func TestFindGroupImages_Music_AlbumNotInResponse(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(groupImagesFixture)) //nolint:errcheck
+	}))
+	defer srv.Close()
+
+	a := newTestAdapter(srv)
+	item, err := a.FindGroupImages(context.Background(), domain.ContentTypeMusic, "artist-mbid-123", "rg-does-not-exist")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(item.Images) != 0 {
+		t.Errorf("images count = %d, want 0 (release group not in fanart response)", len(item.Images))
+	}
+}
+
+func TestFindGroupImages_Music_NotFound(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusNotFound)
+	}))
+	defer srv.Close()
+
+	a := newTestAdapter(srv)
+	_, err := a.FindGroupImages(context.Background(), domain.ContentTypeMusic, "no-such-artist", "rg-any")
+	if !errors.Is(err, ports.ErrNotFound) {
+		t.Errorf("expected ErrNotFound, got: %v", err)
+	}
+}
+
+func TestFindGroupImages_UnsupportedContentType(t *testing.T) {
+	a := fanart.New(config.MetadataSourceConfig{})
+	_, err := a.FindGroupImages(context.Background(), domain.ContentTypeAdult, "parent-id", "group-id")
+	if !errors.Is(err, ports.ErrNotSupported) {
+		t.Errorf("expected ErrNotSupported, got: %v", err)
 	}
 }
 

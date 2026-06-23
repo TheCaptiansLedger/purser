@@ -24,6 +24,8 @@ type aggStubSource struct {
 	searchStudiosErr error
 	searchPeople     []*domain.ExternalPerson
 	searchPeopleErr  error
+	groupItem        *domain.ExternalItem
+	groupErr         error
 }
 
 func (s *aggStubSource) Name() string {
@@ -63,6 +65,16 @@ func (s *aggStubSource) FetchGroupContent(_ context.Context, _ domain.ContentTyp
 }
 
 func (s *aggStubSource) FetchEntryPeople(_ context.Context, _ string) ([]*domain.ExternalPerson, error) {
+	return nil, ports.ErrNotSupported
+}
+
+func (s *aggStubSource) FindGroupImages(_ context.Context, _ domain.ContentType, _, _ string) (*domain.ExternalItem, error) {
+	if s.groupErr != nil {
+		return nil, s.groupErr
+	}
+	if s.groupItem != nil {
+		return s.groupItem, nil
+	}
 	return nil, ports.ErrNotSupported
 }
 
@@ -452,4 +464,182 @@ func TestAggregator_FetchEntryContent_CombinesAcrossSources(t *testing.T) {
 	if len(items) != 3 {
 		t.Errorf("item count = %d, want 3 (1 from mbz + 2 from fanart)", len(items))
 	}
+}
+
+// ── FetchGroupImages ──────────────────────────────────────────────────────────
+
+func TestAggregator_FetchGroupImages_ReturnsImagesFromSupportingSource(t *testing.T) {
+	src := &aggStubSource{
+		name:         "mbz",
+		contentTypes: []domain.ContentType{domain.ContentTypeMusic},
+		groupItem: &domain.ExternalItem{
+			Images: []domain.ExternalImage{
+				{Type: domain.ImageTypePoster, URL: "https://example.com/cover.jpg"},
+			},
+		},
+	}
+	agg := metadata.NewAggregator([]ports.MetadataSource{src})
+
+	entryExtIDs := []domain.ExternalID{{Source: "mbz", Value: "artist-mbid"}}
+	groupExtIDs := []domain.ExternalID{{Source: "mbz", Value: "rg-mbid"}}
+	images := agg.FetchGroupImages(context.Background(), domain.ContentTypeMusic, entryExtIDs, groupExtIDs)
+
+	if len(images) != 1 {
+		t.Fatalf("image count = %d, want 1", len(images))
+	}
+	if images[0].URL != "https://example.com/cover.jpg" {
+		t.Errorf("URL = %q, want cover.jpg", images[0].URL)
+	}
+}
+
+func TestAggregator_FetchGroupImages_SkipsErrNotSupported(t *testing.T) {
+	src := &aggStubSource{
+		name:         "mbz",
+		contentTypes: []domain.ContentType{domain.ContentTypeMusic},
+		groupErr:     ports.ErrNotSupported,
+	}
+	agg := metadata.NewAggregator([]ports.MetadataSource{src})
+
+	entryExtIDs := []domain.ExternalID{{Source: "mbz", Value: "artist-mbid"}}
+	groupExtIDs := []domain.ExternalID{{Source: "mbz", Value: "rg-mbid"}}
+	images := agg.FetchGroupImages(context.Background(), domain.ContentTypeMusic, entryExtIDs, groupExtIDs)
+
+	if len(images) != 0 {
+		t.Errorf("image count = %d, want 0 (ErrNotSupported should be silently skipped)", len(images))
+	}
+}
+
+func TestAggregator_FetchGroupImages_SkipsErrNotFound(t *testing.T) {
+	src := &aggStubSource{
+		name:         "mbz",
+		contentTypes: []domain.ContentType{domain.ContentTypeMusic},
+		groupErr:     ports.ErrNotFound,
+	}
+	agg := metadata.NewAggregator([]ports.MetadataSource{src})
+
+	entryExtIDs := []domain.ExternalID{{Source: "mbz", Value: "artist-mbid"}}
+	groupExtIDs := []domain.ExternalID{{Source: "mbz", Value: "rg-mbid"}}
+	images := agg.FetchGroupImages(context.Background(), domain.ContentTypeMusic, entryExtIDs, groupExtIDs)
+
+	if len(images) != 0 {
+		t.Errorf("image count = %d, want 0 (ErrNotFound should be silently skipped)", len(images))
+	}
+}
+
+func TestAggregator_FetchGroupImages_DeduplicatesByURL(t *testing.T) {
+	sharedURL := "https://example.com/shared.jpg"
+	src1 := &aggStubSource{
+		name:         "mbz",
+		contentTypes: []domain.ContentType{domain.ContentTypeMusic},
+		groupItem: &domain.ExternalItem{
+			Images: []domain.ExternalImage{
+				{Type: domain.ImageTypePoster, URL: sharedURL},
+				{Type: domain.ImageTypePoster, URL: "https://example.com/unique.jpg"},
+			},
+		},
+	}
+	src2 := &aggStubSource{
+		name:         "fanart",
+		contentTypes: []domain.ContentType{domain.ContentTypeMusic},
+		groupItem: &domain.ExternalItem{
+			Images: []domain.ExternalImage{
+				{Type: domain.ImageTypePoster, URL: sharedURL}, // duplicate
+			},
+		},
+	}
+	agg := metadata.NewAggregator([]ports.MetadataSource{src1, src2})
+
+	entryExtIDs := []domain.ExternalID{{Source: "mbz", Value: "artist-mbid"}}
+	groupExtIDs := []domain.ExternalID{{Source: "mbz", Value: "rg-mbid"}}
+	images := agg.FetchGroupImages(context.Background(), domain.ContentTypeMusic, entryExtIDs, groupExtIDs)
+
+	if len(images) != 2 {
+		t.Errorf("image count = %d, want 2 (shared URL deduplicated)", len(images))
+	}
+}
+
+func TestAggregator_FetchGroupImages_PrefersSourceNativeID(t *testing.T) {
+	// When the entry has both a source-native ID and another source's ID,
+	// the aggregator should use the source-native one.
+	var receivedParent string
+	src := &aggStubSource{
+		name:         "fanart",
+		contentTypes: []domain.ContentType{domain.ContentTypeMusic},
+	}
+	// Wrap FindGroupImages to capture which parentExtID was passed.
+	capturingSrc := &capturingGroupImageSource{
+		aggStubSource: src,
+		onCall: func(parent, _ string) {
+			receivedParent = parent
+		},
+		item: &domain.ExternalItem{Images: nil},
+	}
+	agg := metadata.NewAggregator([]ports.MetadataSource{capturingSrc})
+
+	entryExtIDs := []domain.ExternalID{
+		{Source: "mbz", Value: "mbz-artist-id"},
+		{Source: "fanart", Value: "fanart-native-id"},
+	}
+	groupExtIDs := []domain.ExternalID{{Source: "fanart", Value: "fanart-rg-id"}}
+	agg.FetchGroupImages(context.Background(), domain.ContentTypeMusic, entryExtIDs, groupExtIDs)
+
+	if receivedParent != "fanart-native-id" {
+		t.Errorf("parentExtID = %q, want fanart-native-id (source-native preferred over fallback)", receivedParent)
+	}
+}
+
+func TestAggregator_FetchGroupImages_FallsBackToFirstAvailableID(t *testing.T) {
+	// When no source-native ID exists, the aggregator falls back to the first
+	// available ExternalID so that sources sharing an ID namespace (e.g. fanart
+	// using MBZ MBIDs) are still called.
+	var receivedParent string
+	src := &aggStubSource{
+		name:         "fanart",
+		contentTypes: []domain.ContentType{domain.ContentTypeMusic},
+	}
+	capturingSrc := &capturingGroupImageSource{
+		aggStubSource: src,
+		onCall: func(parent, _ string) {
+			receivedParent = parent
+		},
+		item: &domain.ExternalItem{Images: nil},
+	}
+	agg := metadata.NewAggregator([]ports.MetadataSource{capturingSrc})
+
+	// Entry has only an MBZ ExternalID — no fanart-native one.
+	entryExtIDs := []domain.ExternalID{{Source: "mbz", Value: "mbz-artist-id"}}
+	groupExtIDs := []domain.ExternalID{{Source: "mbz", Value: "mbz-rg-id"}}
+	agg.FetchGroupImages(context.Background(), domain.ContentTypeMusic, entryExtIDs, groupExtIDs)
+
+	if receivedParent != "mbz-artist-id" {
+		t.Errorf("parentExtID = %q, want mbz-artist-id (first-available fallback)", receivedParent)
+	}
+}
+
+func TestAggregator_FetchGroupImages_EmptyExtIDs_ReturnsNoImages(t *testing.T) {
+	src := &aggStubSource{
+		name:         "mbz",
+		contentTypes: []domain.ContentType{domain.ContentTypeMusic},
+		groupItem:    &domain.ExternalItem{Images: []domain.ExternalImage{{URL: "https://example.com/cover.jpg"}}},
+	}
+	agg := metadata.NewAggregator([]ports.MetadataSource{src})
+
+	images := agg.FetchGroupImages(context.Background(), domain.ContentTypeMusic, nil, nil)
+	if len(images) != 0 {
+		t.Errorf("image count = %d, want 0 when no external IDs provided", len(images))
+	}
+}
+
+// capturingGroupImageSource wraps aggStubSource and records the IDs passed to FindGroupImages.
+type capturingGroupImageSource struct {
+	*aggStubSource
+	onCall func(parentExtID, groupExtID string)
+	item   *domain.ExternalItem
+}
+
+func (s *capturingGroupImageSource) FindGroupImages(_ context.Context, _ domain.ContentType, parentExtID, groupExtID string) (*domain.ExternalItem, error) {
+	if s.onCall != nil {
+		s.onCall(parentExtID, groupExtID)
+	}
+	return s.item, nil
 }

@@ -280,13 +280,18 @@ func (s *stubSource) FetchEntryPeople(_ context.Context, _ string) ([]*domain.Ex
 	return nil, ports.ErrNotSupported
 }
 
+func (s *stubSource) FindGroupImages(_ context.Context, _ domain.ContentType, _, _ string) (*domain.ExternalItem, error) {
+	return nil, ports.ErrNotSupported
+}
+
 // stubMusicSource returns albums via FetchEntryContent and per-album tracks via
 // FetchGroupContent. Name() returns "mbz" to match artist entry external IDs.
 type stubMusicSource struct {
-	albums   []*domain.ExternalGroup
-	tracks   map[string][]*domain.ExternalItem // groupExternalID → tracks
-	findItem *domain.ExternalItem              // if non-nil, returned by FindByExternalID
-	people   []*domain.ExternalPerson          // if non-nil, returned by FetchEntryPeople
+	albums    []*domain.ExternalGroup
+	tracks    map[string][]*domain.ExternalItem // groupExternalID → tracks
+	findItem  *domain.ExternalItem              // if non-nil, returned by FindByExternalID
+	groupItem *domain.ExternalItem              // if non-nil, returned by FindGroupImages
+	people    []*domain.ExternalPerson          // if non-nil, returned by FetchEntryPeople
 }
 
 func (s *stubMusicSource) Name() string { return "mbz" }
@@ -336,6 +341,13 @@ func (s *stubMusicSource) FetchGroupContent(_ context.Context, _ domain.ContentT
 func (s *stubMusicSource) FetchEntryPeople(_ context.Context, _ string) ([]*domain.ExternalPerson, error) {
 	if s.people != nil {
 		return s.people, nil
+	}
+	return nil, ports.ErrNotSupported
+}
+
+func (s *stubMusicSource) FindGroupImages(_ context.Context, _ domain.ContentType, _, _ string) (*domain.ExternalItem, error) {
+	if s.groupItem != nil {
+		return s.groupItem, nil
 	}
 	return nil, ports.ErrNotSupported
 }
@@ -400,5 +412,9 @@ func (s *stubImageSource) FetchGroupContent(_ context.Context, _ domain.ContentT
 }
 
 func (s *stubImageSource) FetchEntryPeople(_ context.Context, _ string) ([]*domain.ExternalPerson, error) {
+	return nil, ports.ErrNotSupported
+}
+
+func (s *stubImageSource) FindGroupImages(_ context.Context, _ domain.ContentType, _, _ string) (*domain.ExternalItem, error) {
 	return nil, ports.ErrNotSupported
 }

@@ -44,5 +44,9 @@ func (s *stubMetadataSource) FetchEntryPeople(_ context.Context, _ string) ([]*d
 	return nil, ports.ErrNotSupported
 }
 
+func (s *stubMetadataSource) FindGroupImages(_ context.Context, _ domain.ContentType, _, _ string) (*domain.ExternalItem, error) {
+	return nil, ports.ErrNotSupported
+}
+
 // Compile-time interface satisfaction check.
 var _ ports.MetadataSource = (*stubMetadataSource)(nil)

@@ -2,6 +2,7 @@ package metadata
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"purser/internal/domain"
@@ -247,6 +248,54 @@ func (a *Aggregator) SearchPeople(ctx context.Context, query string, contentType
 		all = append(all, r.people...)
 	}
 	return all, nil
+}
+
+// FetchGroupImages fans out FindGroupImages to all sources supporting contentType,
+// pairing IDs by source name (with first-available fallback for sources that share
+// an ID namespace with another source, e.g. fanart using MBZ MBIDs). Results are
+// deduplicated by URL. ErrNotSupported and ErrNotFound are silently skipped.
+func (a *Aggregator) FetchGroupImages(ctx context.Context, contentType domain.ContentType, entryExtIDs, groupExtIDs []domain.ExternalID) []domain.ExternalImage {
+	seen := make(map[string]bool)
+	var all []domain.ExternalImage
+
+	for _, src := range a.sourcesFor(contentType) {
+		parentExtID := pickExtID(src.Name(), entryExtIDs)
+		groupExtID := pickExtID(src.Name(), groupExtIDs)
+		if parentExtID == "" || groupExtID == "" {
+			continue
+		}
+
+		item, err := src.FindGroupImages(ctx, contentType, parentExtID, groupExtID)
+		if err != nil {
+			if !errors.Is(err, ports.ErrNotSupported) && !errors.Is(err, ports.ErrNotFound) {
+				slog.Warn("metadata aggregator: FindGroupImages failed", "source", src.Name(), "error", err)
+			}
+			continue
+		}
+		for _, img := range item.Images {
+			if !seen[img.URL] {
+				seen[img.URL] = true
+				all = append(all, img)
+			}
+		}
+	}
+	return all
+}
+
+// pickExtID returns the external ID value for the given source name.
+// Prefers an exact source name match; falls back to the first available value
+// so that adapters sharing an ID namespace with another source (e.g. fanart
+// using MBZ MBIDs) can be called even when no source-native ExternalID is stored.
+func pickExtID(sourceName string, extIDs []domain.ExternalID) string {
+	for _, extID := range extIDs {
+		if string(extID.Source) == sourceName {
+			return extID.Value
+		}
+	}
+	if len(extIDs) > 0 {
+		return extIDs[0].Value
+	}
+	return ""
 }
 
 func (a *Aggregator) sourcesFor(contentType domain.ContentType) []ports.MetadataSource {

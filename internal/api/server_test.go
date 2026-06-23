@@ -2671,6 +2671,10 @@ func (s *stubSource) FetchEntryPeople(_ context.Context, _ string) ([]*domain.Ex
 	return nil, ports.ErrNotSupported
 }
 
+func (s *stubSource) FindGroupImages(_ context.Context, _ domain.ContentType, _, _ string) (*domain.ExternalItem, error) {
+	return nil, ports.ErrNotSupported
+}
+
 func newHandlerWithSources(t *testing.T, sources []ports.MetadataSource) http.Handler {
 	t.Helper()
 	dbPath := t.TempDir() + "/test.db"

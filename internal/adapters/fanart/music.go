@@ -46,6 +46,17 @@ func (a *Adapter) FindByExternalID(ctx context.Context, ct domain.ContentType, i
 	}
 }
 
+// FindGroupImages fetches album cover images for a music release group.
+// Only music is implemented; other types return ErrNotSupported.
+func (a *Adapter) FindGroupImages(ctx context.Context, ct domain.ContentType, parentExtID, groupExtID string) (*domain.ExternalItem, error) {
+	switch ct {
+	case domain.ContentTypeMusic:
+		return a.findMusicGroupImages(ctx, parentExtID, groupExtID)
+	default:
+		return nil, ports.ErrNotSupported
+	}
+}
+
 // FetchEntryContent fetches sub-entity images (albums for music) for the given
 // content type. Only music is implemented; other types return ErrNotSupported.
 func (a *Adapter) FetchEntryContent(ctx context.Context, ct domain.ContentType, externalID string, page, perPage int) ([]*domain.ExternalGroup, []*domain.ExternalItem, int, error) {
@@ -122,6 +133,25 @@ func (a *Adapter) fetchMusicAlbums(ctx context.Context, artistMBID string, page,
 		end = total
 	}
 	return allItems[start:end], total, nil
+}
+
+// findMusicGroupImages calls /music/{artistMBID} and returns the albumcover
+// images for the release group identified by rgMBID. Returns an item with an
+// empty Images slice when fanart has no cover for that release group.
+func (a *Adapter) findMusicGroupImages(ctx context.Context, artistMBID, rgMBID string) (*domain.ExternalItem, error) {
+	var resp fanartArtistResponse
+	if err := a.get(ctx, fmt.Sprintf("music/%s", artistMBID), &resp); err != nil {
+		return nil, err
+	}
+	var images []domain.ExternalImage
+	if album, ok := resp.Albums[rgMBID]; ok {
+		for _, img := range album.AlbumCover {
+			if img.URL != "" {
+				images = append(images, domain.ExternalImage{Type: domain.ImageTypePoster, URL: img.URL})
+			}
+		}
+	}
+	return &domain.ExternalItem{Source: domain.SourceFanart, ExternalID: rgMBID, Images: images}, nil
 }
 
 // ── Image helpers ─────────────────────────────────────────────────────────────

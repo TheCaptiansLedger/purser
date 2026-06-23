@@ -1230,8 +1230,8 @@ func (s *Service) FetchImagesForEntry(ctx context.Context, entryID string) ([]do
 	return s.collectImages(ctx, entry.ContentType, entry.ExternalIDs), nil
 }
 
-// FetchImagesForGroup fans out to all enabled sources using the group's stored
-// external IDs and returns all images, deduped by URL.
+// FetchImagesForGroup fans out to all enabled sources using both the entry's and
+// group's stored external IDs and returns all images, deduped by URL.
 func (s *Service) FetchImagesForGroup(ctx context.Context, groupID string) ([]domain.ExternalImage, error) {
 	group, err := s.groups.Get(ctx, groupID)
 	if err != nil {
@@ -1244,7 +1244,7 @@ func (s *Service) FetchImagesForGroup(ctx context.Context, groupID string) ([]do
 	if err != nil {
 		return nil, fmt.Errorf("fetch images for group: load entry: %w", err)
 	}
-	return s.collectImages(ctx, entry.ContentType, group.ExternalIDs), nil
+	return s.agg.FetchGroupImages(ctx, entry.ContentType, entry.ExternalIDs, group.ExternalIDs), nil
 }
 
 // FetchImagesForItem fans out to all enabled sources using the item's stored

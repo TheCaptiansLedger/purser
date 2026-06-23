@@ -10,3 +10,8 @@ import (
 func (a *Adapter) FindByHash(_ context.Context, _ string) (*domain.ExternalItem, error) {
 	return nil, ports.ErrNotSupported
 }
+
+// FindGroupImages returns ErrNotSupported — MusicBrainz has no group-level image concept.
+func (a *Adapter) FindGroupImages(_ context.Context, _ domain.ContentType, _, _ string) (*domain.ExternalItem, error) {
+	return nil, ports.ErrNotSupported
+}

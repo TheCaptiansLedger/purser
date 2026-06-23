@@ -32,3 +32,8 @@ func (a *Adapter) FetchEntryContent(_ context.Context, _ domain.ContentType, _ s
 func (a *Adapter) FetchEntryPeople(_ context.Context, _ string) ([]*domain.ExternalPerson, error) {
 	return nil, ports.ErrNotSupported
 }
+
+// FindGroupImages returns ErrNotSupported — TheAudioDB album covers are fetched per-album via FetchGroupContent.
+func (a *Adapter) FindGroupImages(_ context.Context, _ domain.ContentType, _, _ string) (*domain.ExternalItem, error) {
+	return nil, ports.ErrNotSupported
+}

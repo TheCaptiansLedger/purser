@@ -227,6 +227,11 @@ func (a *Adapter) FetchEntryPeople(_ context.Context, _ string) ([]*domain.Exter
 	return nil, ports.ErrNotSupported
 }
 
+// FindGroupImages returns ErrNotSupported — StashDB scenes are flat; there is no group-level image concept.
+func (a *Adapter) FindGroupImages(_ context.Context, _ domain.ContentType, _, _ string) (*domain.ExternalItem, error) {
+	return nil, ports.ErrNotSupported
+}
+
 // ── Mapping ───────────────────────────────────────────────────────────────────
 
 func toExternalItem(s *gqlScene, contentType domain.ContentType) *domain.ExternalItem {

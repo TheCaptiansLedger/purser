@@ -68,4 +68,11 @@ type MetadataSource interface {
 	// (e.g., band members for a music artist). Returns ErrNotSupported for sources
 	// that do not model entry-level people.
 	FetchEntryPeople(ctx context.Context, externalID string) ([]*domain.ExternalPerson, error)
+
+	// FindGroupImages fetches images for a group within a parent entity, for sources
+	// that require both the parent entity ID and the group ID to fetch group-level
+	// images (e.g. fanart.tv album covers require the artist MBID and the
+	// release-group MBID). Returns ErrNotSupported for sources without a
+	// group-level image concept.
+	FindGroupImages(ctx context.Context, contentType domain.ContentType, parentExtID, groupExtID string) (*domain.ExternalItem, error)
 }
