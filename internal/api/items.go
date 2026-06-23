@@ -23,6 +23,8 @@ func (h *itemHandler) routes(r chi.Router) {
 	r.Delete("/{id}", h.delete)
 	r.Put("/{id}/people", h.addPerson)
 	r.Delete("/{id}/people/{personId}", h.removePerson)
+	r.Post("/{id}/tags", h.addTag)
+	r.Delete("/{id}/tags/{tagId}", h.removeTag)
 }
 
 // ── Response types ────────────────────────────────────────────────────────────
@@ -325,6 +327,40 @@ func (h *itemHandler) removePerson(w http.ResponseWriter, r *http.Request) {
 	personID := chi.URLParam(r, "personId")
 	role := r.URL.Query().Get("role")
 	if err := h.svc.RemoveItemPerson(r.Context(), id, personID, role); handleErr(w, err) {
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+type addItemTagRequest struct {
+	TagID string `json:"tagId"`
+}
+
+func (h *itemHandler) addTag(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	var req addItemTagRequest
+	if err := decode(r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, "INVALID_REQUEST", "invalid JSON body")
+		return
+	}
+	if req.TagID == "" {
+		writeError(w, http.StatusUnprocessableEntity, "VALIDATION_ERROR", "tagId is required")
+		return
+	}
+	if err := h.svc.TagItem(r.Context(), id, req.TagID); handleErr(w, err) {
+		return
+	}
+	item, err := h.svc.GetItem(r.Context(), id)
+	if handleErr(w, err) {
+		return
+	}
+	writeJSON(w, http.StatusOK, toItemResponse(item))
+}
+
+func (h *itemHandler) removeTag(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	tagID := chi.URLParam(r, "tagId")
+	if err := h.svc.UntagItem(r.Context(), id, tagID); handleErr(w, err) {
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)

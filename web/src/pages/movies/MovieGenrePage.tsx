@@ -21,7 +21,8 @@ export function MovieGenrePage() {
   const { data, isLoading } = useLibraryEntries({
     contentType: 'movie',
     kind: 'movie',
-    tag: label,
+    tag_key: 'genre',
+    tag_value: label,
     search: search || undefined,
     limit: LIMIT,
     offset,

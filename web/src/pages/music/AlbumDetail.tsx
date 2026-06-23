@@ -1,13 +1,20 @@
 import { useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
-import { ArrowLeft, Music2, Eye, EyeOff, SkipForward, BookmarkCheck } from 'lucide-react'
+import { ArrowLeft, Music2, Eye, EyeOff, SkipForward, BookmarkCheck, Edit2 } from 'lucide-react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useLibraryEntry } from '../../api/library'
-import { useGroup, patchGroup } from '../../api/groups'
+import { useGroup, patchGroup, useAddGroupTag, useRemoveGroupTag } from '../../api/groups'
 import { useItems, patchItem } from '../../api/items'
+import { useEditForm } from '../../hooks/useEditForm'
+import { EditDrawer } from '../../components/edit/EditDrawer'
+import { FormField } from '../../components/edit/FormField'
+import { TextInput } from '../../components/edit/fields/TextInput'
+import { Textarea } from '../../components/edit/fields/Textarea'
+import { TagPicker } from '../../components/edit/fields/TagPicker'
 import { fmtRuntime } from '../../components/ui/Runtime'
 import { Skeleton } from '../../components/ui/Skeleton'
-import type { Item, ItemStatus } from '../../types'
+import { filterTagsForModule } from '../../utils/filterTagsForModule'
+import type { Group, Item, ItemStatus } from '../../types'
 
 const ACCENT = '#10b981'
 
@@ -18,6 +25,56 @@ const STATUS_DOT: Record<ItemStatus, string> = {
   imported:    '#10b981',
   missing:     '#6b7280',
   skipped:     '#374151',
+}
+
+type AlbumFormValues = { title: string; year: string; overview: string }
+
+function AlbumEditDrawer({ album, onClose }: { album: Group; onClose: () => void }) {
+  const queryClient = useQueryClient()
+  const addTag = useAddGroupTag(album.id)
+  const removeTag = useRemoveGroupTag(album.id)
+
+  const form = useEditForm<AlbumFormValues>({
+    initial: { title: album.title, year: album.year ? String(album.year) : '', overview: album.overview ?? '' },
+    lockedFields: album.lockedFields,
+    onSubmit: async (values, lockedFields) => {
+      const updated = await patchGroup(album.id, {
+        title: values.title,
+        year: values.year ? parseInt(values.year, 10) : undefined,
+        overview: values.overview,
+        lockedFields,
+      })
+      queryClient.setQueryData(['groups', album.id], updated)
+    },
+    onSuccess: onClose,
+  })
+
+  const currentTags = (queryClient.getQueryData<Group>(['groups', album.id]) ?? album).tags ?? []
+
+  return (
+    <EditDrawer title={album.title} onClose={onClose} onSave={form.submit} saving={form.submitting}>
+      <div className="space-y-8">
+        <div className="grid grid-cols-2 gap-6">
+          <FormField label="Title" fieldKey="title" locked={form.lockedFields.has('title')} onToggleLock={form.toggleLock} fullWidth>
+            <TextInput value={form.values.title} onChange={v => form.setField('title', v)} />
+          </FormField>
+          <FormField label="Year" fieldKey="year" locked={form.lockedFields.has('year')} onToggleLock={form.toggleLock}>
+            <TextInput value={form.values.year} onChange={v => form.setField('year', v)} />
+          </FormField>
+          <FormField label="Overview" fieldKey="overview" locked={form.lockedFields.has('overview')} onToggleLock={form.toggleLock} fullWidth>
+            <Textarea value={form.values.overview} onChange={v => form.setField('overview', v)} rows={6} />
+          </FormField>
+        </div>
+        <FormField label="Tags" fieldKey="tags" locked={false} onToggleLock={() => {}} fullWidth>
+          <TagPicker
+            value={filterTagsForModule(currentTags, 'music')}
+            onAdd={tag => addTag.mutate(tag.id)}
+            onRemove={tagId => removeTag.mutate(tagId)}
+          />
+        </FormField>
+      </div>
+    </EditDrawer>
+  )
 }
 
 function TrackRow({ track }: { track: Item }) {
@@ -91,6 +148,7 @@ function TrackRow({ track }: { track: Item }) {
 export function AlbumDetail() {
   const { id, albumId } = useParams<{ id: string; albumId: string }>()
   const queryClient = useQueryClient()
+  const [editOpen, setEditOpen] = useState(false)
   const { data: artist } = useLibraryEntry(id!)
   const { data: album, isLoading } = useGroup(albumId!)
   const { data: tracksPage } = useItems({ groupId: albumId!, limit: 500 })
@@ -111,12 +169,22 @@ export function AlbumDetail() {
   const wantedCount  = tracks.filter(t => t.status === 'wanted').length
   const importedCount = tracks.filter(t => t.status === 'imported').length
 
+  const visibleTags = filterTagsForModule(album.tags ?? [], 'music')
+  const labelTags = visibleTags.filter(t => t.key === 'label')
+  const otherTags = visibleTags.filter(t => t.key !== 'label')
+
   return (
     <div className="px-8 py-6">
-      <div className="mb-6">
+      <div className="mb-6 flex items-center justify-between">
         <Link to={`/music/${id}`} className="inline-flex items-center gap-1.5 text-sm text-white/40 hover:text-white/70 transition-colors">
           <ArrowLeft size={14} /> {artist?.name ?? 'Artist'}
         </Link>
+        <button
+          onClick={() => setEditOpen(true)}
+          className="inline-flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg border border-white/10 text-white/50 hover:text-white/80 hover:border-white/20 transition-colors"
+        >
+          <Edit2 size={12} /> Edit
+        </button>
       </div>
 
       <div className="flex gap-6 items-start mb-8">
@@ -158,11 +226,47 @@ export function AlbumDetail() {
         </div>
       </div>
 
+      {(labelTags.length > 0 || otherTags.length > 0) && (
+        <div className="mb-6 space-y-3">
+          {labelTags.length > 0 && (
+            <div>
+              <p className="text-xs font-semibold text-white/40 uppercase tracking-widest mb-2">Music Label</p>
+              <div className="flex flex-wrap gap-1.5">
+                {labelTags.map(t => (
+                  <span key={t.id} className="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium border" style={{ borderColor: ACCENT + '44', color: ACCENT }}>
+                    {t.value}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+          {otherTags.length > 0 && (
+            <div>
+              <p className="text-xs font-semibold text-white/40 uppercase tracking-widest mb-2">Tags</p>
+              <div className="flex flex-wrap gap-1.5">
+                {otherTags.map(t => (
+                  <span key={t.id} className="inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium border border-white/10 text-white/50">
+                    <span className="text-white/30 font-mono mr-1">{t.key}:</span>{t.value}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
       <div className="space-y-0.5">
         {tracks.map(track => (
           <TrackRow key={track.id} track={track} />
         ))}
       </div>
+
+      {editOpen && (
+        <AlbumEditDrawer
+          album={album}
+          onClose={() => setEditOpen(false)}
+        />
+      )}
     </div>
   )
 }

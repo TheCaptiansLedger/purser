@@ -30,8 +30,8 @@ func TestOpen_CreatesSchema(t *testing.T) {
 	if err := database.QueryRow(`SELECT COUNT(*) FROM schema_migrations`).Scan(&count); err != nil {
 		t.Fatalf("schema_migrations missing: %v", err)
 	}
-	if count != 10 {
-		t.Errorf("migration count = %d, want 10", count)
+	if count != 11 {
+		t.Errorf("migration count = %d, want 11", count)
 	}
 
 	tables := []string{
@@ -748,6 +748,51 @@ func TestTagRepo_List_FilterByGroupID(t *testing.T) {
 	}
 	if len(g2Tags) != 1 || g2Tags[0].Value != "Atlantic Records" {
 		t.Errorf("g2 tags = %v, want [Atlantic Records]", g2Tags)
+	}
+}
+
+func TestTagRepo_List_FilterByContentType_IncludesGroupTags(t *testing.T) {
+	database := setupTestDB(t)
+	entryRepo := NewLibraryEntryRepo(database)
+	groupRepo := NewGroupRepo(database)
+	tagRepo := NewTagRepo(database)
+	ctx := context.Background()
+
+	musicEntry := &domain.LibraryEntry{
+		ContentType: domain.ContentTypeMusic, Kind: domain.KindArtist,
+		Name: "Artist", MonitorMode: domain.MonitorAll, Status: domain.EntryStatusActive,
+	}
+	tvEntry := &domain.LibraryEntry{
+		ContentType: domain.ContentTypeTV, Kind: domain.KindSeries,
+		Name: "Series", MonitorMode: domain.MonitorAll, Status: domain.EntryStatusActive,
+	}
+	entryRepo.Save(ctx, musicEntry) //nolint:errcheck
+	entryRepo.Save(ctx, tvEntry)    //nolint:errcheck
+
+	album := &domain.Group{LibraryEntryID: musicEntry.ID, Title: "Abbey Road", Number: 1, MonitorMode: domain.MonitorAll}
+	groupRepo.Save(ctx, album) //nolint:errcheck
+
+	musicLabelTag := &domain.Tag{Key: domain.TagKeyLabel, Value: "Apple Records", Scope: domain.TagScopeMetadata}
+	tvGenreTag := &domain.Tag{Key: domain.TagKeyGenre, Value: "Drama", Scope: domain.TagScopeMetadata}
+	tagRepo.Save(ctx, musicLabelTag) //nolint:errcheck
+	tagRepo.Save(ctx, tvGenreTag)    //nolint:errcheck
+
+	tagRepo.AddGroupTag(ctx, album.ID, musicLabelTag.ID) //nolint:errcheck
+
+	musicTags, err := tagRepo.List(ctx, ports.TagFilter{ContentTypes: []domain.ContentType{domain.ContentTypeMusic}})
+	if err != nil {
+		t.Fatalf("List music tags: %v", err)
+	}
+	if len(musicTags) != 1 || musicTags[0].Value != "Apple Records" {
+		t.Errorf("music content-type filter = %v, want [Apple Records]", musicTags)
+	}
+
+	tvTags, err := tagRepo.List(ctx, ports.TagFilter{ContentTypes: []domain.ContentType{domain.ContentTypeTV}})
+	if err != nil {
+		t.Fatalf("List tv tags: %v", err)
+	}
+	if len(tvTags) != 0 {
+		t.Errorf("tv content-type filter = %v, want []", tvTags)
 	}
 }
 

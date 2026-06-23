@@ -13,6 +13,7 @@ function makeGroup(id: string, year: number): Group {
     overview: '',
     monitored: false,
     monitorMode: 'all',
+    tags: [],
   }
 }
 

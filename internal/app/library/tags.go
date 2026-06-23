@@ -75,3 +75,41 @@ func (s *Service) TagEntry(ctx context.Context, entryID, tagID string) error {
 	entry.Tags = append(entry.Tags, *tag)
 	return s.entries.Save(ctx, entry)
 }
+
+// UntagItem removes a tag from an item. No-op if not attached.
+func (s *Service) UntagItem(ctx context.Context, itemID, tagID string) error {
+	item, err := s.GetItem(ctx, itemID)
+	if err != nil {
+		return err
+	}
+	filtered := make([]domain.Tag, 0, len(item.Tags))
+	for _, t := range item.Tags {
+		if t.ID != tagID {
+			filtered = append(filtered, t)
+		}
+	}
+	if len(filtered) == len(item.Tags) {
+		return nil
+	}
+	item.Tags = filtered
+	return s.items.Save(ctx, item)
+}
+
+// UntagEntry removes a tag from a library entry. No-op if not attached.
+func (s *Service) UntagEntry(ctx context.Context, entryID, tagID string) error {
+	entry, err := s.GetEntry(ctx, entryID)
+	if err != nil {
+		return err
+	}
+	filtered := make([]domain.Tag, 0, len(entry.Tags))
+	for _, t := range entry.Tags {
+		if t.ID != tagID {
+			filtered = append(filtered, t)
+		}
+	}
+	if len(filtered) == len(entry.Tags) {
+		return nil
+	}
+	entry.Tags = filtered
+	return s.entries.Save(ctx, entry)
+}

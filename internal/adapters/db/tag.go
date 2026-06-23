@@ -54,7 +54,9 @@ func (r *tagRepo) List(ctx context.Context, f ports.TagFilter) ([]*domain.Tag, e
 		conditions = append(conditions, fmt.Sprintf(`(
 			EXISTS (SELECT 1 FROM item_tags it JOIN items i ON i.id = it.item_id WHERE it.tag_id = t.id AND i.content_type IN (%s))
 			OR EXISTS (SELECT 1 FROM entry_tags et JOIN library_entries le ON le.id = et.library_entry_id WHERE et.tag_id = t.id AND le.content_type IN (%s))
-		)`, in, in))
+			OR EXISTS (SELECT 1 FROM group_tags gct JOIN groups g ON g.id = gct.group_id JOIN library_entries le ON le.id = g.library_entry_id WHERE gct.tag_id = t.id AND le.content_type IN (%s))
+		)`, in, in, in))
+		args = append(args, ctArgs...)
 		args = append(args, ctArgs...)
 		args = append(args, ctArgs...)
 	}

@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { ArrowLeft, Calendar, Clock, ImageIcon, Edit2 } from 'lucide-react'
 import { useQueryClient } from '@tanstack/react-query'
-import { useLibraryEntry, updateLibraryEntry } from '../../api/library'
+import { useLibraryEntry, updateLibraryEntry, useAddEntryTag, useRemoveEntryTag } from '../../api/library'
 import { useItems } from '../../api/items'
 import { useEditForm } from '../../hooks/useEditForm'
 import { EditDrawer } from '../../components/edit/EditDrawer'
@@ -10,12 +10,14 @@ import { ImageSelector } from '../../components/edit/ImageSelector'
 import { FormField } from '../../components/edit/FormField'
 import { TextInput } from '../../components/edit/fields/TextInput'
 import { Textarea } from '../../components/edit/fields/Textarea'
+import { TagPicker } from '../../components/edit/fields/TagPicker'
 import { RelationshipPanel } from '../../components/edit/RelationshipPanel'
 import { Hero } from '../../components/layout/Hero'
 import { Badge } from '../../components/ui/Badge'
 import { PersonCard } from '../../components/media/PersonCard'
 import { fmtRuntime, fmtBytes } from '../../components/ui/Runtime'
 import { Skeleton } from '../../components/ui/Skeleton'
+import { filterTagsForModule } from '../../utils/filterTagsForModule'
 import type { Item, LibraryEntry } from '../../types'
 
 const ACCENT = '#3b82f6'
@@ -24,6 +26,9 @@ type MovieEntryFormValues = { name: string; overview: string }
 
 function MovieEditDrawer({ entry, item, onClose, onImageSet }: { entry: LibraryEntry; item?: Item; onClose: () => void; onImageSet: () => void }) {
   const queryClient = useQueryClient()
+  const addTag = useAddEntryTag(entry.id)
+  const removeTag = useRemoveEntryTag(entry.id)
+
   const form = useEditForm<MovieEntryFormValues>({
     initial: { name: entry.name, overview: entry.overview ?? '' },
     lockedFields: entry.lockedFields,
@@ -33,6 +38,8 @@ function MovieEditDrawer({ entry, item, onClose, onImageSet }: { entry: LibraryE
     },
     onSuccess: onClose,
   })
+
+  const currentEntry = queryClient.getQueryData<LibraryEntry>(['library-entries', entry.id]) ?? entry
 
   return (
     <EditDrawer title={entry.name} onClose={onClose} onSave={form.submit} saving={form.submitting}>
@@ -54,6 +61,13 @@ function MovieEditDrawer({ entry, item, onClose, onImageSet }: { entry: LibraryE
             onImageSet()
           }}
         />
+        <FormField label="Tags" fieldKey="tags" locked={false} onToggleLock={() => {}} fullWidth>
+          <TagPicker
+            value={filterTagsForModule(currentEntry.tags, 'movies')}
+            onAdd={tag => addTag.mutate(tag.id)}
+            onRemove={tagId => removeTag.mutate(tagId)}
+          />
+        </FormField>
         {item && (
           <RelationshipPanel
             entityType="item"
@@ -95,6 +109,10 @@ export function MovieDetail() {
   if (!entry) return null
 
   const performers = item?.people.filter(p => p.role === 'actor' || p.role === 'actress') ?? []
+  const visibleTags = filterTagsForModule(entry.tags, 'movies')
+  const genreTags = visibleTags.filter(t => t.key === 'genre')
+  const productionTags = visibleTags.filter(t => t.key === 'production_company')
+  const otherTags = visibleTags.filter(t => t.key !== 'genre' && t.key !== 'production_company')
 
   return (
     <div>
@@ -163,12 +181,37 @@ export function MovieDetail() {
           </section>
         )}
 
-        {/* Tags */}
-        {entry.tags.length > 0 && (
+        {/* Genre chips */}
+        {genreTags.length > 0 && (
+          <section>
+            <h2 className="text-sm font-semibold text-white/40 uppercase tracking-widest mb-3">Genre</h2>
+            <div className="flex flex-wrap gap-2">
+              {genreTags.map(t => <Badge key={t.id} color={ACCENT}>{t.value}</Badge>)}
+            </div>
+          </section>
+        )}
+
+        {/* Production companies */}
+        {productionTags.length > 0 && (
+          <section>
+            <h2 className="text-sm font-semibold text-white/40 uppercase tracking-widest mb-3">Production</h2>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              {productionTags.map(t => (
+                <div key={t.id} className="bg-white/3 rounded-lg p-3">
+                  <p className="text-xs text-white/35 mb-0.5">Production Company</p>
+                  <p className="text-sm text-white/80 truncate">{t.value}</p>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
+
+        {/* Other tags */}
+        {otherTags.length > 0 && (
           <section>
             <h2 className="text-sm font-semibold text-white/40 uppercase tracking-widest mb-3">Tags</h2>
             <div className="flex flex-wrap gap-2">
-              {entry.tags.map(t => <Badge key={t.id}>{t.value}</Badge>)}
+              {otherTags.map(t => <Badge key={t.id}>{t.value}</Badge>)}
             </div>
           </section>
         )}

@@ -576,7 +576,7 @@ func (s *Service) RefreshStudio(ctx context.Context, entryID string, p ports.Pro
 			Status:         itemStatus,
 			CoverPath:      coverPath,
 			People:         s.resolveItemPeople(ctx, ei.People, personCache),
-			Tags:           append(s.resolveItemTags(ctx, ei.Tags, tagCache), s.resolveItemGenreTags(ctx, ei.Genres, tagCache)...),
+			Tags:           append(s.resolveItemTags(ctx, domain.TagKeyAdult, ei.Tags, tagCache), s.resolveItemGenreTags(ctx, ei.Genres, tagCache)...),
 			ExternalIDs:    []domain.ExternalID{{Source: ei.Source, Value: ei.ExternalID}},
 			AddedAt:        now,
 		}
@@ -1098,26 +1098,28 @@ func (s *Service) resolveItemGenreTags(ctx context.Context, genres []string, tag
 
 // resolveItemTags looks up or creates a Tag record for each name and returns
 // a deduplicated slice. tagCache is updated in-place for reuse across scenes.
-func (s *Service) resolveItemTags(ctx context.Context, names []string, tagCache map[string]*domain.Tag) []domain.Tag {
+// Cached tags with a different key are replaced so that re-imports correct
+// previously misfiled tags (e.g. key='tag' → key='adult' after migration 011).
+func (s *Service) resolveItemTags(ctx context.Context, tagKey domain.TagKey, names []string, tagCache map[string]*domain.Tag) []domain.Tag {
 	if s.tags == nil || len(names) == 0 {
 		return nil
 	}
 	seen := map[string]bool{}
 	var out []domain.Tag
 	for _, name := range names {
-		key := strings.ToLower(name)
-		if seen[key] {
+		cacheKey := strings.ToLower(name)
+		if seen[cacheKey] {
 			continue
 		}
-		seen[key] = true
-		t, ok := tagCache[key]
-		if !ok {
-			t = &domain.Tag{Key: domain.TagKeyGeneral, Value: name, Scope: domain.TagScopeMetadata}
+		seen[cacheKey] = true
+		t, ok := tagCache[cacheKey]
+		if !ok || t.Key != tagKey {
+			t = &domain.Tag{Key: tagKey, Value: name, Scope: domain.TagScopeMetadata}
 			if err := s.tags.Save(ctx, t); err != nil {
 				slog.Warn("refresh studio: save tag failed", "name", name, "error", err)
 				continue
 			}
-			tagCache[key] = t
+			tagCache[cacheKey] = t
 		}
 		out = append(out, *t)
 	}

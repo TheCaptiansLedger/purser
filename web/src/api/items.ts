@@ -1,5 +1,5 @@
-import { useQuery } from '@tanstack/react-query'
-import { get, getPage, patch } from './client'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { del, get, getPage, patch, post } from './client'
 import type { Item, ContentType, ItemStatus } from '../types'
 
 export function updateItem(id: string, body: Record<string, unknown>) {
@@ -51,5 +51,25 @@ export function useItem(id: string) {
     queryKey: ['items', id],
     queryFn: () => get<Item>(`/items/${id}`),
     enabled: !!id,
+  })
+}
+
+export function useAddItemTag(itemId: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (tagId: string) => post<Item>(`/items/${itemId}/tags`, { tagId }),
+    onSuccess: (updated) => {
+      qc.setQueryData(['items', itemId], updated)
+    },
+  })
+}
+
+export function useRemoveItemTag(itemId: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (tagId: string) => del(`/items/${itemId}/tags/${tagId}`),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['items', itemId] })
+    },
   })
 }

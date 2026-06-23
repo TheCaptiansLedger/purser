@@ -1,6 +1,6 @@
 import { useState } from 'react'
-import { useParams } from 'react-router-dom'
-import { Tv2 } from 'lucide-react'
+import { useParams, Link } from 'react-router-dom'
+import { ArrowLeft, Tv2 } from 'lucide-react'
 import { useLibraryEntries } from '../../api/library'
 import { PageHeader } from '../../components/layout/PageHeader'
 import { EntryCard } from '../../components/media/EntryCard'
@@ -11,18 +11,18 @@ import { EmptyState } from '../../components/ui/EmptyState'
 const ACCENT = '#8b5cf6'
 const LIMIT = 48
 
-export function TVGenrePage() {
-  const { genre = '' } = useParams<{ genre: string }>()
+export function TVNetworkSeriesPage() {
+  const { network = '' } = useParams<{ network: string }>()
   const [search, setSearch] = useState('')
   const [offset, setOffset] = useState(0)
 
-  const label = genre.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
+  const decoded = decodeURIComponent(network)
 
   const { data, isLoading } = useLibraryEntries({
     contentType: 'tv',
     kind: 'series',
-    tag_key: 'genre',
-    tag_value: label,
+    tag_key: 'network',
+    tag_value: decoded,
     search: search || undefined,
     limit: LIMIT,
     offset,
@@ -30,8 +30,13 @@ export function TVGenrePage() {
 
   return (
     <div>
+      <div className="px-8 pt-6 mb-2">
+        <Link to="/tv/networks" className="inline-flex items-center gap-1.5 text-sm text-white/40 hover:text-white/70 transition-colors">
+          <ArrowLeft size={14} /> Networks
+        </Link>
+      </div>
       <PageHeader
-        title={label}
+        title={decoded}
         accent={ACCENT}
         search={search}
         onSearch={v => { setSearch(v); setOffset(0) }}
@@ -41,7 +46,7 @@ export function TVGenrePage() {
         {isLoading ? (
           <SkeletonGrid count={24} aspect="2/3" />
         ) : !data?.data.length ? (
-          <EmptyState icon={Tv2} title={`No ${label} shows`} accent={ACCENT} />
+          <EmptyState icon={Tv2} title={`No shows on ${decoded}`} accent={ACCENT} />
         ) : (
           <>
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">

@@ -162,6 +162,7 @@ export interface Group {
   monitored: boolean
   monitorMode: MonitorMode
   coverUrl?: string
+  tags: Tag[]
   metadata?: Record<string, unknown>
   lockedFields?: string[]
 }

@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { ArrowLeft, ImageIcon, ChevronRight, Edit2 } from 'lucide-react'
 import { useQueryClient } from '@tanstack/react-query'
-import { useLibraryEntry, updateLibraryEntry } from '../../api/library'
+import { useLibraryEntry, updateLibraryEntry, useAddEntryTag, useRemoveEntryTag } from '../../api/library'
 import { useGroups } from '../../api/groups'
 import { useEditForm } from '../../hooks/useEditForm'
 import { EditDrawer } from '../../components/edit/EditDrawer'
@@ -10,10 +10,12 @@ import { ImageSelector } from '../../components/edit/ImageSelector'
 import { FormField } from '../../components/edit/FormField'
 import { TextInput } from '../../components/edit/fields/TextInput'
 import { Textarea } from '../../components/edit/fields/Textarea'
+import { TagPicker } from '../../components/edit/fields/TagPicker'
 import { RelationshipPanel } from '../../components/edit/RelationshipPanel'
 import { Hero } from '../../components/layout/Hero'
 import { Badge } from '../../components/ui/Badge'
 import { Skeleton } from '../../components/ui/Skeleton'
+import { filterTagsForModule } from '../../utils/filterTagsForModule'
 import type { LibraryEntry } from '../../types'
 
 const ACCENT = '#8b5cf6'
@@ -22,6 +24,9 @@ type SeriesFormValues = { name: string; overview: string }
 
 function SeriesEditDrawer({ entry, onClose, onImageSet }: { entry: LibraryEntry; onClose: () => void; onImageSet: () => void }) {
   const queryClient = useQueryClient()
+  const addTag = useAddEntryTag(entry.id)
+  const removeTag = useRemoveEntryTag(entry.id)
+
   const form = useEditForm<SeriesFormValues>({
     initial: { name: entry.name, overview: entry.overview ?? '' },
     lockedFields: entry.lockedFields,
@@ -31,6 +36,8 @@ function SeriesEditDrawer({ entry, onClose, onImageSet }: { entry: LibraryEntry;
     },
     onSuccess: onClose,
   })
+
+  const currentEntry = queryClient.getQueryData<LibraryEntry>(['library-entries', entry.id]) ?? entry
 
   return (
     <EditDrawer title={entry.name} onClose={onClose} onSave={form.submit} saving={form.submitting}>
@@ -52,6 +59,13 @@ function SeriesEditDrawer({ entry, onClose, onImageSet }: { entry: LibraryEntry;
             onImageSet()
           }}
         />
+        <FormField label="Tags" fieldKey="tags" locked={false} onToggleLock={() => {}} fullWidth>
+          <TagPicker
+            value={filterTagsForModule(currentEntry.tags, 'tv')}
+            onAdd={tag => addTag.mutate(tag.id)}
+            onRemove={tagId => removeTag.mutate(tagId)}
+          />
+        </FormField>
         <RelationshipPanel
           entityType="entry"
           entityId={entry.id}
@@ -76,6 +90,9 @@ export function SeriesDetail() {
   if (!entry) return null
 
   const seasons = groupsPage?.data ?? []
+  const visibleTags = filterTagsForModule(entry.tags, 'tv')
+  const networkTags = visibleTags.filter(t => t.key === 'network')
+  const otherTags = visibleTags.filter(t => t.key !== 'network')
 
   return (
     <div>
@@ -117,7 +134,37 @@ export function SeriesDetail() {
         </div>
       </Hero>
 
-      <div className="px-8 py-8">
+      <div className="px-8 py-8 space-y-8">
+        {(networkTags.length > 0 || otherTags.length > 0) && (
+          <div className="space-y-4">
+            {networkTags.length > 0 && (
+              <div>
+                <h2 className="text-sm font-semibold text-white/40 uppercase tracking-widest mb-3">Network</h2>
+                <div className="flex flex-wrap gap-1.5">
+                  {networkTags.map(t => (
+                    <span key={t.id} className="inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium border text-white/70" style={{ borderColor: ACCENT + '44', color: ACCENT }}>
+                      {t.value}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+            {otherTags.length > 0 && (
+              <div>
+                <h2 className="text-sm font-semibold text-white/40 uppercase tracking-widest mb-3">Tags</h2>
+                <div className="flex flex-wrap gap-1.5">
+                  {otherTags.map(t => (
+                    <span key={t.id} className="inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium border border-white/10 text-white/50">
+                      {t.value}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        <div>
         <h2 className="text-sm font-semibold text-white/40 uppercase tracking-widest mb-4">Seasons</h2>
         {seasons.length === 0 ? (
           <p className="text-white/30 text-sm">No seasons added yet.</p>
@@ -146,6 +193,7 @@ export function SeriesDetail() {
             ))}
           </div>
         )}
+        </div>
       </div>
 
       {editOpen && (

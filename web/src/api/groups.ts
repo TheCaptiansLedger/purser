@@ -1,5 +1,5 @@
-import { useQuery } from '@tanstack/react-query'
-import { get, getPage, patch } from './client'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { del, get, getPage, patch, post } from './client'
 import type { Group, ContentType } from '../types'
 
 export type YearSortDir = 'asc' | 'desc'
@@ -25,6 +25,8 @@ export function useGroups(libraryEntryId: string, refetchInterval?: number | fal
 interface GroupsFilter {
   contentType?: ContentType
   search?: string
+  tag_key?: string
+  tag_value?: string
   limit?: number
   offset?: number
 }
@@ -44,6 +46,33 @@ export function useGroup(id: string) {
   })
 }
 
-export function patchGroup(id: string, body: { monitored?: boolean; monitorMode?: string }): Promise<Group> {
+export function patchGroup(id: string, body: {
+  title?: string
+  year?: number
+  overview?: string
+  monitored?: boolean
+  monitorMode?: string
+  lockedFields?: string[]
+}): Promise<Group> {
   return patch<Group>(`/groups/${id}`, body)
+}
+
+export function useAddGroupTag(groupId: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (tagId: string) => post<Group>(`/groups/${groupId}/tags`, { tagId }),
+    onSuccess: (updated) => {
+      qc.setQueryData(['groups', groupId], updated)
+    },
+  })
+}
+
+export function useRemoveGroupTag(groupId: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (tagId: string) => del(`/groups/${groupId}/tags/${tagId}`),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['groups', groupId] })
+    },
+  })
 }

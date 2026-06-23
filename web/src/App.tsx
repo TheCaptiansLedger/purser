@@ -5,14 +5,17 @@ import { ModulesProvider, useModules } from './context/ModulesContext'
 
 import { MoviesLayout } from './pages/movies/MoviesLayout'
 import { MoviesPage } from './pages/movies/MoviesPage'
+import { GenresPage } from './pages/movies/GenresPage'
 import { MovieGenrePage } from './pages/movies/MovieGenrePage'
 import { MovieTagsPage } from './pages/movies/MovieTagsPage'
 import { MovieDetail } from './pages/movies/MovieDetail'
 
 import { TVLayout } from './pages/tv/TVLayout'
 import { TVPage } from './pages/tv/TVPage'
+import { TVGenresPage } from './pages/tv/TVGenresPage'
 import { TVGenrePage } from './pages/tv/TVGenrePage'
 import { TVNetworksPage } from './pages/tv/TVNetworksPage'
+import { TVNetworkSeriesPage } from './pages/tv/TVNetworkSeriesPage'
 import { TVTagsPage } from './pages/tv/TVTagsPage'
 import { SeriesDetail } from './pages/tv/SeriesDetail'
 import { SeasonDetail } from './pages/tv/SeasonDetail'
@@ -20,6 +23,8 @@ import { SeasonDetail } from './pages/tv/SeasonDetail'
 import { MusicLayout } from './pages/music/MusicLayout'
 import { MusicPage } from './pages/music/MusicPage'
 import { AlbumsPage } from './pages/music/AlbumsPage'
+import { LabelsPage } from './pages/music/LabelsPage'
+import { LabelAlbumsPage } from './pages/music/LabelAlbumsPage'
 import { MusicTagsPage } from './pages/music/MusicTagsPage'
 import { ArtistDetail } from './pages/music/ArtistDetail'
 import { AlbumDetail } from './pages/music/AlbumDetail'
@@ -65,6 +70,7 @@ function AppRoutes() {
         {modules.movies && (
           <Route path="movies" element={<MoviesLayout />}>
             <Route index element={<MoviesPage />} />
+            <Route path="genres" element={<GenresPage />} />
             <Route path="genre/:genre" element={<MovieGenrePage />} />
             <Route path="tags" element={<MovieTagsPage />} />
             <Route path=":id" element={<MovieDetail />} />
@@ -74,8 +80,10 @@ function AppRoutes() {
         {modules.tv && (
           <Route path="tv" element={<TVLayout />}>
             <Route index element={<TVPage />} />
+            <Route path="genres" element={<TVGenresPage />} />
             <Route path="genre/:genre" element={<TVGenrePage />} />
             <Route path="networks" element={<TVNetworksPage />} />
+            <Route path="networks/:network" element={<TVNetworkSeriesPage />} />
             <Route path="tags" element={<TVTagsPage />} />
             <Route path=":id" element={<SeriesDetail />} />
             <Route path=":id/seasons/:num" element={<SeasonDetail />} />
@@ -86,6 +94,8 @@ function AppRoutes() {
           <Route path="music" element={<MusicLayout />}>
             <Route index element={<MusicPage />} />
             <Route path="albums" element={<AlbumsPage />} />
+            <Route path="labels" element={<LabelsPage />} />
+            <Route path="labels/:label" element={<LabelAlbumsPage />} />
             <Route path="tags" element={<MusicTagsPage />} />
             <Route path=":id" element={<ArtistDetail />} />
             <Route path=":id/albums/:albumId" element={<AlbumDetail />} />
