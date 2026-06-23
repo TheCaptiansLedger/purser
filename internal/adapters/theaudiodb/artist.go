@@ -82,6 +82,21 @@ func (a *Adapter) findArtistByMBID(ctx context.Context, mbid string) (*domain.Ex
 	}, nil
 }
 
+// FetchPersonImage returns the hero image for the artist identified by MBID.
+func (a *Adapter) FetchPersonImage(ctx context.Context, extID string) (*domain.ExternalImage, error) {
+	item, err := a.findArtistByMBID(ctx, extID)
+	if err != nil {
+		return nil, err
+	}
+	for _, img := range item.Images {
+		if img.Type == domain.ImageTypeHero {
+			img.Source = string(domain.SourceTheAudioDB)
+			return &img, nil
+		}
+	}
+	return nil, ports.ErrNotFound
+}
+
 func collectArtistImages(r artistRecord) []domain.ExternalImage {
 	var images []domain.ExternalImage
 	if r.StrArtistThumb != "" {

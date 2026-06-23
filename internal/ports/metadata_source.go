@@ -75,4 +75,9 @@ type MetadataSource interface {
 	// release-group MBID). Returns ErrNotSupported for sources without a
 	// group-level image concept.
 	FindGroupImages(ctx context.Context, contentType domain.ContentType, parentExtID, groupExtID string) (*domain.ExternalItem, error)
+
+	// FetchPersonImage returns the best available hero image for the person
+	// identified by extID in this source's namespace. Returns ErrNotSupported
+	// for sources that do not model person-level images.
+	FetchPersonImage(ctx context.Context, extID string) (*domain.ExternalImage, error)
 }

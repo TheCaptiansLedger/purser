@@ -232,6 +232,11 @@ func (a *Adapter) FindGroupImages(_ context.Context, _ domain.ContentType, _, _ 
 	return nil, ports.ErrNotSupported
 }
 
+// FetchPersonImage returns ErrNotSupported — StashDB does not model person-level images.
+func (a *Adapter) FetchPersonImage(_ context.Context, _ string) (*domain.ExternalImage, error) {
+	return nil, ports.ErrNotSupported
+}
+
 // ── Mapping ───────────────────────────────────────────────────────────────────
 
 func toExternalItem(s *gqlScene, contentType domain.ContentType) *domain.ExternalItem {

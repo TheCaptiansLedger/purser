@@ -284,6 +284,10 @@ func (s *stubSource) FindGroupImages(_ context.Context, _ domain.ContentType, _,
 	return nil, ports.ErrNotSupported
 }
 
+func (s *stubSource) FetchPersonImage(_ context.Context, _ string) (*domain.ExternalImage, error) {
+	return nil, ports.ErrNotSupported
+}
+
 // stubMusicSource returns albums via FetchEntryContent and per-album tracks via
 // FetchGroupContent. Name() returns "mbz" to match artist entry external IDs.
 type stubMusicSource struct {
@@ -352,6 +356,10 @@ func (s *stubMusicSource) FindGroupImages(_ context.Context, _ domain.ContentTyp
 	return nil, ports.ErrNotSupported
 }
 
+func (s *stubMusicSource) FetchPersonImage(_ context.Context, _ string) (*domain.ExternalImage, error) {
+	return nil, ports.ErrNotSupported
+}
+
 // ── Image downloader stub ─────────────────────────────────────────────────────
 
 type stubImageDownloader struct {
@@ -417,4 +425,16 @@ func (s *stubImageSource) FetchEntryPeople(_ context.Context, _ string) ([]*doma
 
 func (s *stubImageSource) FindGroupImages(_ context.Context, _ domain.ContentType, _, _ string) (*domain.ExternalItem, error) {
 	return nil, ports.ErrNotSupported
+}
+
+func (s *stubImageSource) FetchPersonImage(_ context.Context, _ string) (*domain.ExternalImage, error) {
+	if s.findItem != nil {
+		for _, img := range s.findItem.Images {
+			if img.Type == domain.ImageTypeHero {
+				img.Source = s.sourceName
+				return &img, nil
+			}
+		}
+	}
+	return nil, ports.ErrNotFound
 }

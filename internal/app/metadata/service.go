@@ -704,7 +704,7 @@ func (s *Service) importArtistPeople(ctx context.Context, src ports.MetadataSour
 		if personID == "" {
 			continue
 		}
-		if ep.Source == domain.SourceMusicBrainz && ep.ExternalID != "" {
+		if ep.ExternalID != "" {
 			s.fetchPersonHeroImage(ctx, personID, ep.ExternalID)
 		}
 		if saveErr := s.entries.SavePerson(ctx, entryID, domain.EntryPerson{
@@ -849,10 +849,10 @@ func (s *Service) collectAudioDBCovers(ctx context.Context, contentType domain.C
 }
 
 // fetchPersonHeroImage downloads the best available hero image for a person
-// using their MusicBrainz artist MBID. Image source priority mirrors
-// fetchArtistHeroImage: TheAudioDB → Fanart → any. It is a no-op when the
-// person already has an image or no downloader is configured.
-func (s *Service) fetchPersonHeroImage(ctx context.Context, personID, mbid string) {
+// by fanning out FetchPersonImage to all registered sources. Image source
+// priority mirrors fetchArtistHeroImage: TheAudioDB → Fanart → any. It is a
+// no-op when the person already has an image or no downloader is configured.
+func (s *Service) fetchPersonHeroImage(ctx context.Context, personID, extID string) {
 	if s.downloader == nil {
 		return
 	}
@@ -860,11 +860,15 @@ func (s *Service) fetchPersonHeroImage(ctx context.Context, personID, mbid strin
 	if err != nil || person.ImagePath != "" {
 		return
 	}
-	merged, err := s.agg.FindByExternalID(ctx, domain.ContentTypeMusic, mbid, personID)
-	if err != nil {
-		return
+	var images []domain.ExternalImage
+	for _, src := range s.sources {
+		img, imgErr := src.FetchPersonImage(ctx, extID)
+		if imgErr != nil || img == nil {
+			continue
+		}
+		images = append(images, *img)
 	}
-	url := preferredHeroURL(merged.Images)
+	url := preferredHeroURL(images)
 	if url == "" {
 		return
 	}

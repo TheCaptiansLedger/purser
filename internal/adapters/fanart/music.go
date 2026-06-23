@@ -74,6 +74,21 @@ func (a *Adapter) FetchGroupContent(_ context.Context, _ domain.ContentType, _ s
 	return nil, 0, ports.ErrNotSupported
 }
 
+// FetchPersonImage returns the hero image for the artist identified by MBID.
+func (a *Adapter) FetchPersonImage(ctx context.Context, extID string) (*domain.ExternalImage, error) {
+	item, err := a.findMusicByID(ctx, extID)
+	if err != nil {
+		return nil, err
+	}
+	for _, img := range item.Images {
+		if img.Type == domain.ImageTypeHero {
+			img.Source = string(domain.SourceFanart)
+			return &img, nil
+		}
+	}
+	return nil, ports.ErrNotFound
+}
+
 // ── Music ─────────────────────────────────────────────────────────────────────
 
 func (a *Adapter) findMusicByID(ctx context.Context, mbid string) (*domain.ExternalItem, error) {

@@ -78,6 +78,10 @@ func (s *aggStubSource) FindGroupImages(_ context.Context, _ domain.ContentType,
 	return nil, ports.ErrNotSupported
 }
 
+func (s *aggStubSource) FetchPersonImage(_ context.Context, _ string) (*domain.ExternalImage, error) {
+	return nil, ports.ErrNotSupported
+}
+
 // ── FindByExternalID ──────────────────────────────────────────────────────────
 
 func TestAggregator_FindByExternalID_MergesInPriorityOrder(t *testing.T) {
