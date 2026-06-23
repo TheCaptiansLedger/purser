@@ -5,9 +5,10 @@
 Day-to-day work targets `develop`. Releases happen when `develop` is merged into `main`.
 
 ```
-feature/* ──┐
-fix/*    ───┼──► develop ──► main (release)
-chore/*  ──┘
+feature/*   ──┐
+fix/*       ──┤
+refactor/*  ──┼──► develop ──► main (release)
+chore/*     ──┘
 ```
 
 - `develop` is the default branch — all feature/fix/chore PRs target it
@@ -19,6 +20,7 @@ chore/*  ──┘
 ```
 feature/<number>-short-description    # new features tied to an issue
 fix/<number>-short-description        # bug fixes tied to an issue
+refactor/<number>-short-description   # refactors tied to an issue
 chore/short-description               # maintenance, deps, config (no issue required)
 ```
 
