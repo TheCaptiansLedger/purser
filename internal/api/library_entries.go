@@ -222,33 +222,27 @@ func (h *libraryEntryHandler) create(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusCreated, toEntryResponse(e))
 }
 
-type patchEntryRequest struct {
-	Name              *string   `json:"name"`
-	SortName          *string   `json:"sortName"`
-	Overview          *string   `json:"overview"`
-	ParentID          *string   `json:"parentId"`
-	Monitored         *bool     `json:"monitored"`
-	MonitorMode       *string   `json:"monitorMode"`
-	Status            *string   `json:"status"`
-	QualityProfileID  *string   `json:"qualityProfileId"`
-	MetadataProfileID *string   `json:"metadataProfileId"`
-	Path              *string   `json:"path"`
-	LockedFields      *[]string `json:"lockedFields"`
+type externalIDPatchItem struct {
+	Source string `json:"source"`
+	Value  string `json:"value"`
 }
 
-func (h *libraryEntryHandler) update(w http.ResponseWriter, r *http.Request) {
-	id := chi.URLParam(r, "id")
-	e, err := h.svc.GetEntry(r.Context(), id)
-	if handleErr(w, err) {
-		return
-	}
+type patchEntryRequest struct {
+	Name              *string                `json:"name"`
+	SortName          *string                `json:"sortName"`
+	Overview          *string                `json:"overview"`
+	ParentID          *string                `json:"parentId"`
+	Monitored         *bool                  `json:"monitored"`
+	MonitorMode       *string                `json:"monitorMode"`
+	Status            *string                `json:"status"`
+	QualityProfileID  *string                `json:"qualityProfileId"`
+	MetadataProfileID *string                `json:"metadataProfileId"`
+	Path              *string                `json:"path"`
+	LockedFields      *[]string              `json:"lockedFields"`
+	ExternalIDs       *[]externalIDPatchItem `json:"externalIds"`
+}
 
-	var req patchEntryRequest
-	if err := decode(r, &req); err != nil {
-		writeError(w, http.StatusBadRequest, "INVALID_REQUEST", "invalid JSON body")
-		return
-	}
-
+func applyEntryPatch(e *domain.LibraryEntry, req *patchEntryRequest) {
 	if req.Name != nil {
 		e.Name = *req.Name
 	}
@@ -282,6 +276,31 @@ func (h *libraryEntryHandler) update(w http.ResponseWriter, r *http.Request) {
 	if req.LockedFields != nil {
 		e.LockedFields = *req.LockedFields
 	}
+	if req.ExternalIDs != nil {
+		e.ExternalIDs = nil
+		for _, id := range *req.ExternalIDs {
+			e.ExternalIDs = append(e.ExternalIDs, domain.ExternalID{
+				Source: domain.ExternalIDSource(id.Source),
+				Value:  id.Value,
+			})
+		}
+	}
+}
+
+func (h *libraryEntryHandler) update(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	e, err := h.svc.GetEntry(r.Context(), id)
+	if handleErr(w, err) {
+		return
+	}
+
+	var req patchEntryRequest
+	if err := decode(r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, "INVALID_REQUEST", "invalid JSON body")
+		return
+	}
+
+	applyEntryPatch(e, &req)
 
 	if err := h.svc.SaveEntry(r.Context(), e); handleErr(w, err) {
 		return

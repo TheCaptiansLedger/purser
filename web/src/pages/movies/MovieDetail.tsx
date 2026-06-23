@@ -1,84 +1,17 @@
 import { useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
-import { ArrowLeft, Calendar, Clock, ImageIcon, Edit2 } from 'lucide-react'
-import { useQueryClient } from '@tanstack/react-query'
-import { useLibraryEntry, updateLibraryEntry, useAddEntryTag, useRemoveEntryTag } from '../../api/library'
+import { ArrowLeft, Calendar, Clock, ImageIcon } from 'lucide-react'
+import { useLibraryEntry } from '../../api/library'
 import { useItems } from '../../api/items'
-import { useEditForm } from '../../hooks/useEditForm'
-import { EditDrawer } from '../../components/edit/EditDrawer'
-import { ImageSelector } from '../../components/edit/ImageSelector'
-import { FormField } from '../../components/edit/FormField'
-import { TextInput } from '../../components/edit/fields/TextInput'
-import { Textarea } from '../../components/edit/fields/Textarea'
-import { TagPicker } from '../../components/edit/fields/TagPicker'
-import { RelationshipPanel } from '../../components/edit/RelationshipPanel'
+import { LibraryEntryEditor } from '../../components/edit/editors/LibraryEntryEditor'
 import { Hero } from '../../components/layout/Hero'
 import { Badge } from '../../components/ui/Badge'
 import { PersonCard } from '../../components/media/PersonCard'
 import { fmtRuntime, fmtBytes } from '../../components/ui/Runtime'
 import { Skeleton } from '../../components/ui/Skeleton'
 import { filterTagsForModule } from '../../utils/filterTagsForModule'
-import type { LibraryEntry } from '../../types'
 
 const ACCENT = '#3b82f6'
-
-type MovieEntryFormValues = { name: string; overview: string }
-
-function MovieEditDrawer({ entry, onClose, onImageSet }: { entry: LibraryEntry; onClose: () => void; onImageSet: () => void }) {
-  const queryClient = useQueryClient()
-  const addTag = useAddEntryTag(entry.id)
-  const removeTag = useRemoveEntryTag(entry.id)
-
-  const form = useEditForm<MovieEntryFormValues>({
-    initial: { name: entry.name, overview: entry.overview ?? '' },
-    lockedFields: entry.lockedFields,
-    onSubmit: async (values, lockedFields) => {
-      const updated = await updateLibraryEntry(entry.id, { ...values, lockedFields })
-      queryClient.setQueryData(['library-entries', entry.id], updated)
-    },
-    onSuccess: onClose,
-  })
-
-  const currentEntry = queryClient.getQueryData<LibraryEntry>(['library-entries', entry.id]) ?? entry
-
-  return (
-    <EditDrawer title={entry.name} onClose={onClose} onSave={form.submit} saving={form.submitting}>
-      <div className="space-y-8">
-        <div className="grid grid-cols-2 gap-6">
-          <FormField label="Name" fieldKey="name" locked={form.lockedFields.has('name')} onToggleLock={form.toggleLock} fullWidth>
-            <TextInput value={form.values.name} onChange={v => form.setField('name', v)} />
-          </FormField>
-          <FormField label="Overview" fieldKey="overview" locked={form.lockedFields.has('overview')} onToggleLock={form.toggleLock} fullWidth>
-            <Textarea value={form.values.overview} onChange={v => form.setField('overview', v)} rows={6} />
-          </FormField>
-        </div>
-        <ImageSelector
-          entityType="library-entries"
-          entityId={entry.id}
-          currentImageUrl={entry.imageUrl}
-          onImageSet={() => {
-            queryClient.invalidateQueries({ queryKey: ['library-entries', entry.id] })
-            onImageSet()
-          }}
-        />
-        <FormField label="Tags" fieldKey="tags" locked={false} onToggleLock={() => {}} fullWidth>
-          <TagPicker
-            value={filterTagsForModule(currentEntry.tags, 'movies')}
-            onAdd={tag => addTag.mutate(tag.id)}
-            onRemove={tagId => removeTag.mutate(tagId)}
-          />
-        </FormField>
-        <RelationshipPanel
-          entityType="entry"
-          entityId={entry.id}
-          contentType={entry.contentType}
-          kind={entry.kind}
-          people={currentEntry.people}
-        />
-      </div>
-    </EditDrawer>
-  )
-}
 
 export function MovieDetail() {
   const { id } = useParams<{ id: string }>()
@@ -115,7 +48,6 @@ export function MovieDetail() {
 
   return (
     <div>
-      {/* Back + Edit */}
       <div className="px-8 pt-6 flex items-center justify-between">
         <Link to="/movies" className="inline-flex items-center gap-1.5 text-sm text-white/40 hover:text-white/70 transition-colors">
           <ArrowLeft size={14} />
@@ -125,14 +57,12 @@ export function MovieDetail() {
           onClick={() => setEditOpen(true)}
           className="inline-flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg border border-white/10 text-white/50 hover:text-white/80 hover:border-white/20 transition-colors"
         >
-          <Edit2 size={12} /> Edit
+          Edit
         </button>
       </div>
 
-      {/* Hero */}
       <Hero backdropUrl={entry.imageUrl ?? item?.coverUrl} accent={ACCENT}>
         <div className="flex gap-6 items-end">
-          {/* Poster */}
           <div className="shrink-0 w-44 rounded-xl overflow-hidden border border-white/10 shadow-2xl" style={{ aspectRatio: '2/3' }}>
             {entry.imageUrl ? (
               <img src={`${entry.imageUrl}?v=${imgVersion}`} alt={entry.name} className="w-full h-full object-cover" />
@@ -143,7 +73,6 @@ export function MovieDetail() {
             )}
           </div>
 
-          {/* Metadata */}
           <div className="flex-1 min-w-0">
             <h1 className="text-3xl font-bold text-white mb-2 leading-tight">{entry.name}</h1>
             <div className="flex flex-wrap items-center gap-2 mb-3">
@@ -168,7 +97,6 @@ export function MovieDetail() {
       </Hero>
 
       <div className="px-8 py-8 space-y-10">
-        {/* Cast */}
         {performers.length > 0 && (
           <section>
             <h2 className="text-sm font-semibold text-white/40 uppercase tracking-widest mb-4">Cast</h2>
@@ -180,7 +108,6 @@ export function MovieDetail() {
           </section>
         )}
 
-        {/* Genre chips */}
         {genreTags.length > 0 && (
           <section>
             <h2 className="text-sm font-semibold text-white/40 uppercase tracking-widest mb-3">Genre</h2>
@@ -194,7 +121,6 @@ export function MovieDetail() {
           </section>
         )}
 
-        {/* Production companies */}
         {productionTags.length > 0 && (
           <section>
             <h2 className="text-sm font-semibold text-white/40 uppercase tracking-widest mb-3">Production</h2>
@@ -209,7 +135,6 @@ export function MovieDetail() {
           </section>
         )}
 
-        {/* Other tags */}
         {otherTags.length > 0 && (
           <section>
             <h2 className="text-sm font-semibold text-white/40 uppercase tracking-widest mb-3">Tags</h2>
@@ -223,7 +148,6 @@ export function MovieDetail() {
           </section>
         )}
 
-        {/* File info */}
         {item?.mediaFile && (
           <section>
             <h2 className="text-sm font-semibold text-white/40 uppercase tracking-widest mb-3">File</h2>
@@ -245,7 +169,6 @@ export function MovieDetail() {
           </section>
         )}
 
-        {/* External IDs */}
         {entry.externalIds.length > 0 && (
           <section>
             <h2 className="text-sm font-semibold text-white/40 uppercase tracking-widest mb-3">External IDs</h2>
@@ -261,7 +184,7 @@ export function MovieDetail() {
       </div>
 
       {editOpen && (
-        <MovieEditDrawer
+        <LibraryEntryEditor
           entry={entry}
           onClose={() => setEditOpen(false)}
           onImageSet={() => setImgVersion(v => v + 1)}

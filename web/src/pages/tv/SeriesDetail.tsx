@@ -1,82 +1,15 @@
 import { useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
-import { ArrowLeft, ImageIcon, ChevronRight, Edit2 } from 'lucide-react'
-import { useQueryClient } from '@tanstack/react-query'
-import { useLibraryEntry, updateLibraryEntry, useAddEntryTag, useRemoveEntryTag } from '../../api/library'
+import { ArrowLeft, ImageIcon, ChevronRight } from 'lucide-react'
+import { useLibraryEntry } from '../../api/library'
 import { useGroups } from '../../api/groups'
-import { useEditForm } from '../../hooks/useEditForm'
-import { EditDrawer } from '../../components/edit/EditDrawer'
-import { ImageSelector } from '../../components/edit/ImageSelector'
-import { FormField } from '../../components/edit/FormField'
-import { TextInput } from '../../components/edit/fields/TextInput'
-import { Textarea } from '../../components/edit/fields/Textarea'
-import { TagPicker } from '../../components/edit/fields/TagPicker'
-import { RelationshipPanel } from '../../components/edit/RelationshipPanel'
+import { LibraryEntryEditor } from '../../components/edit/editors/LibraryEntryEditor'
 import { Hero } from '../../components/layout/Hero'
 import { Badge } from '../../components/ui/Badge'
 import { Skeleton } from '../../components/ui/Skeleton'
 import { filterTagsForModule } from '../../utils/filterTagsForModule'
-import type { LibraryEntry } from '../../types'
 
 const ACCENT = '#8b5cf6'
-
-type SeriesFormValues = { name: string; overview: string }
-
-function SeriesEditDrawer({ entry, onClose, onImageSet }: { entry: LibraryEntry; onClose: () => void; onImageSet: () => void }) {
-  const queryClient = useQueryClient()
-  const addTag = useAddEntryTag(entry.id)
-  const removeTag = useRemoveEntryTag(entry.id)
-
-  const form = useEditForm<SeriesFormValues>({
-    initial: { name: entry.name, overview: entry.overview ?? '' },
-    lockedFields: entry.lockedFields,
-    onSubmit: async (values, lockedFields) => {
-      const updated = await updateLibraryEntry(entry.id, { ...values, lockedFields })
-      queryClient.setQueryData(['library-entries', entry.id], updated)
-    },
-    onSuccess: onClose,
-  })
-
-  const currentEntry = queryClient.getQueryData<LibraryEntry>(['library-entries', entry.id]) ?? entry
-
-  return (
-    <EditDrawer title={entry.name} onClose={onClose} onSave={form.submit} saving={form.submitting}>
-      <div className="space-y-8">
-        <div className="grid grid-cols-2 gap-6">
-          <FormField label="Name" fieldKey="name" locked={form.lockedFields.has('name')} onToggleLock={form.toggleLock} fullWidth>
-            <TextInput value={form.values.name} onChange={v => form.setField('name', v)} />
-          </FormField>
-          <FormField label="Overview" fieldKey="overview" locked={form.lockedFields.has('overview')} onToggleLock={form.toggleLock} fullWidth>
-            <Textarea value={form.values.overview} onChange={v => form.setField('overview', v)} rows={6} />
-          </FormField>
-        </div>
-        <ImageSelector
-          entityType="library-entries"
-          entityId={entry.id}
-          currentImageUrl={entry.imageUrl}
-          onImageSet={() => {
-            queryClient.invalidateQueries({ queryKey: ['library-entries', entry.id] })
-            onImageSet()
-          }}
-        />
-        <FormField label="Tags" fieldKey="tags" locked={false} onToggleLock={() => {}} fullWidth>
-          <TagPicker
-            value={filterTagsForModule(currentEntry.tags, 'tv')}
-            onAdd={tag => addTag.mutate(tag.id)}
-            onRemove={tagId => removeTag.mutate(tagId)}
-          />
-        </FormField>
-        <RelationshipPanel
-          entityType="entry"
-          entityId={entry.id}
-          contentType={entry.contentType}
-          kind={entry.kind}
-          people={entry.people}
-        />
-      </div>
-    </EditDrawer>
-  )
-}
 
 export function SeriesDetail() {
   const { id } = useParams<{ id: string }>()
@@ -104,7 +37,7 @@ export function SeriesDetail() {
           onClick={() => setEditOpen(true)}
           className="inline-flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg border border-white/10 text-white/50 hover:text-white/80 hover:border-white/20 transition-colors"
         >
-          <Edit2 size={12} /> Edit
+          Edit
         </button>
       </div>
 
@@ -165,39 +98,39 @@ export function SeriesDetail() {
         )}
 
         <div>
-        <h2 className="text-sm font-semibold text-white/40 uppercase tracking-widest mb-4">Seasons</h2>
-        {seasons.length === 0 ? (
-          <p className="text-white/30 text-sm">No seasons added yet.</p>
-        ) : (
-          <div className="space-y-2">
-            {seasons.map(season => (
-              <Link
-                key={season.id}
-                to={`/tv/${id}/seasons/${season.number}`}
-                className="flex items-center gap-4 p-4 rounded-xl bg-white/3 border border-white/5 hover:bg-white/6 hover:border-white/12 transition-all duration-150 group"
-              >
-                <div
-                  className="w-10 h-10 rounded-lg flex items-center justify-center shrink-0 font-semibold text-sm"
-                  style={{ background: ACCENT + '22', color: ACCENT }}
+          <h2 className="text-sm font-semibold text-white/40 uppercase tracking-widest mb-4">Seasons</h2>
+          {seasons.length === 0 ? (
+            <p className="text-white/30 text-sm">No seasons added yet.</p>
+          ) : (
+            <div className="space-y-2">
+              {seasons.map(season => (
+                <Link
+                  key={season.id}
+                  to={`/tv/${id}/seasons/${season.number}`}
+                  className="flex items-center gap-4 p-4 rounded-xl bg-white/3 border border-white/5 hover:bg-white/6 hover:border-white/12 transition-all duration-150 group"
                 >
-                  {season.number}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-white/80 group-hover:text-white transition-colors">
-                    {season.title || `Season ${season.number}`}
-                  </p>
-                  {season.year > 0 && <p className="text-xs text-white/35">{season.year}</p>}
-                </div>
-                <ChevronRight size={16} className="text-white/20 group-hover:text-white/50 transition-colors shrink-0" />
-              </Link>
-            ))}
-          </div>
-        )}
+                  <div
+                    className="w-10 h-10 rounded-lg flex items-center justify-center shrink-0 font-semibold text-sm"
+                    style={{ background: ACCENT + '22', color: ACCENT }}
+                  >
+                    {season.number}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-white/80 group-hover:text-white transition-colors">
+                      {season.title || `Season ${season.number}`}
+                    </p>
+                    {season.year > 0 && <p className="text-xs text-white/35">{season.year}</p>}
+                  </div>
+                  <ChevronRight size={16} className="text-white/20 group-hover:text-white/50 transition-colors shrink-0" />
+                </Link>
+              ))}
+            </div>
+          )}
         </div>
       </div>
 
       {editOpen && (
-        <SeriesEditDrawer
+        <LibraryEntryEditor
           entry={entry}
           onClose={() => setEditOpen(false)}
           onImageSet={() => setImgVersion(v => v + 1)}

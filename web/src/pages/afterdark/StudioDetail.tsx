@@ -1,88 +1,23 @@
 import { useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
-import { ArrowLeft, Edit2, Film, Users, ImageIcon, RefreshCw } from 'lucide-react'
-import { useQueryClient } from '@tanstack/react-query'
-import { useLibraryEntry, updateLibraryEntry } from '../../api/library'
+import { ArrowLeft, Film, Users, ImageIcon, RefreshCw } from 'lucide-react'
+import { useLibraryEntry } from '../../api/library'
 import { useItems } from '../../api/items'
 import type { SortField, SortDir } from '../../api/items'
 import { useActiveJobForEntry } from '../../api/jobs'
 import { refreshStudio } from '../../api/commands'
 import { useStatusOverlay } from '../../hooks/useStatusOverlay'
-import { useEditForm } from '../../hooks/useEditForm'
-import { EditDrawer } from '../../components/edit/EditDrawer'
-import { ImageSelector } from '../../components/edit/ImageSelector'
-import { FormField } from '../../components/edit/FormField'
-import { TextInput } from '../../components/edit/fields/TextInput'
-import { Textarea } from '../../components/edit/fields/Textarea'
-import { RelationshipPanel } from '../../components/edit/RelationshipPanel'
+import { LibraryEntryEditor } from '../../components/edit/editors/LibraryEntryEditor'
 import { Hero } from '../../components/layout/Hero'
 import { ItemCard } from '../../components/media/ItemCard'
 import { PersonCard } from '../../components/media/PersonCard'
 import { Badge } from '../../components/ui/Badge'
 import { Pagination } from '../../components/ui/Pagination'
 import { Skeleton } from '../../components/ui/Skeleton'
-import type { LibraryEntry, Person } from '../../types'
+import type { Person } from '../../types'
 
 const ACCENT = '#f43f5e'
 const LIMIT = 48
-
-type StudioFormValues = { name: string; overview: string }
-
-function StudioEditDrawer({ entry, onClose, onImageSet }: { entry: LibraryEntry; onClose: () => void; onImageSet: () => void }) {
-  const queryClient = useQueryClient()
-  const form = useEditForm<StudioFormValues>({
-    initial: { name: entry.name, overview: entry.overview ?? '' },
-    lockedFields: entry.lockedFields,
-    onSubmit: async (values, lockedFields) => {
-      const updated = await updateLibraryEntry(entry.id, { ...values, lockedFields })
-      queryClient.setQueryData(['library-entries', entry.id], updated)
-    },
-    onSuccess: onClose,
-  })
-
-  return (
-    <EditDrawer title={entry.name} onClose={onClose} onSave={form.submit} saving={form.submitting}>
-      <div className="space-y-8">
-        <div className="grid grid-cols-2 gap-6">
-          <FormField
-            label="Name"
-            fieldKey="name"
-            locked={form.lockedFields.has('name')}
-            onToggleLock={form.toggleLock}
-            fullWidth
-          >
-            <TextInput value={form.values.name} onChange={v => form.setField('name', v)} />
-          </FormField>
-          <FormField
-            label="Overview"
-            fieldKey="overview"
-            locked={form.lockedFields.has('overview')}
-            onToggleLock={form.toggleLock}
-            fullWidth
-          >
-            <Textarea value={form.values.overview} onChange={v => form.setField('overview', v)} rows={6} />
-          </FormField>
-        </div>
-        <ImageSelector
-          entityType="library-entries"
-          entityId={entry.id}
-          currentImageUrl={entry.imageUrl}
-          onImageSet={() => {
-            queryClient.invalidateQueries({ queryKey: ['library-entries', entry.id] })
-            onImageSet()
-          }}
-        />
-        <RelationshipPanel
-          entityType="entry"
-          entityId={entry.id}
-          contentType={entry.contentType}
-          kind={entry.kind}
-          people={entry.people}
-        />
-      </div>
-    </EditDrawer>
-  )
-}
 
 export function StudioDetail() {
   const { id } = useParams<{ id: string }>()
@@ -126,7 +61,6 @@ export function StudioDetail() {
     }
   }
 
-  // Derive unique performers from scenes
   const performerMap = new Map<string, Person>()
   for (const scene of scenes) {
     for (const ip of scene.people) {
@@ -178,7 +112,6 @@ export function StudioDetail() {
             onClick={() => setEditOpen(true)}
             className="inline-flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg border border-white/10 text-white/50 hover:text-white/80 hover:border-white/20 transition-colors"
           >
-            <Edit2 size={12} />
             Edit
           </button>
           <button
@@ -197,7 +130,6 @@ export function StudioDetail() {
 
       <Hero backdropUrl={effectiveImageUrl} accent={ACCENT}>
         <div className="flex gap-6 items-end">
-          {/* Logo / thumbnail */}
           <div className="shrink-0 w-40 rounded-xl overflow-hidden border border-white/10 shadow-2xl" style={{ aspectRatio: '16/9' }}>
             {effectiveImageUrl ? (
               <img src={effectiveImageUrl} alt={entry.name} className="w-full h-full object-contain p-2" />
@@ -232,7 +164,6 @@ export function StudioDetail() {
       </Hero>
 
       <div className="px-8 py-8 space-y-12">
-        {/* Overview */}
         {entry.overview && (
           <section>
             <h2 className="text-xs font-semibold text-white/35 uppercase tracking-widest mb-3">About</h2>
@@ -240,7 +171,6 @@ export function StudioDetail() {
           </section>
         )}
 
-        {/* Scenes */}
         {(scenes.length > 0 || sceneOffset > 0) && (
           <section>
             <div className="flex items-center justify-between mb-4">
@@ -287,7 +217,6 @@ export function StudioDetail() {
           </section>
         )}
 
-        {/* Performers */}
         {performers.length > 0 && (
           <section>
             <h2 className="text-xs font-semibold text-white/35 uppercase tracking-widest mb-4 flex items-center gap-2">
@@ -304,7 +233,11 @@ export function StudioDetail() {
       </div>
 
       {editOpen && (
-        <StudioEditDrawer entry={entry} onClose={() => setEditOpen(false)} onImageSet={() => setImgVersion(v => v + 1)} />
+        <LibraryEntryEditor
+          entry={entry}
+          onClose={() => setEditOpen(false)}
+          onImageSet={() => setImgVersion(v => v + 1)}
+        />
       )}
     </div>
   )

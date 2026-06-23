@@ -1,24 +1,18 @@
 import { useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
-import { ArrowLeft, ImageIcon, ChevronLeft, ChevronRight, Disc3, Users, ArrowUpNarrowWide, ArrowDownNarrowWide, RefreshCw, Edit2 } from 'lucide-react'
+import { ArrowLeft, ImageIcon, ChevronLeft, ChevronRight, Disc3, Users, ArrowUpNarrowWide, ArrowDownNarrowWide, RefreshCw } from 'lucide-react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { useLibraryEntry, updateLibraryEntry } from '../../api/library'
+import { useLibraryEntry } from '../../api/library'
 import { useGroups, patchGroup, sortGroupsByYear } from '../../api/groups'
 import type { YearSortDir } from '../../api/groups'
 import { useActiveJobForEntry } from '../../api/jobs'
 import { refreshArtist } from '../../api/commands'
-import { useEditForm } from '../../hooks/useEditForm'
-import { EditDrawer } from '../../components/edit/EditDrawer'
-import { ImageSelector } from '../../components/edit/ImageSelector'
-import { FormField } from '../../components/edit/FormField'
-import { TextInput } from '../../components/edit/fields/TextInput'
-import { Textarea } from '../../components/edit/fields/Textarea'
-import { RelationshipPanel } from '../../components/edit/RelationshipPanel'
+import { LibraryEntryEditor } from '../../components/edit/editors/LibraryEntryEditor'
 import { Hero } from '../../components/layout/Hero'
 import { PersonCard } from '../../components/media/PersonCard'
 import { Badge } from '../../components/ui/Badge'
 import { Skeleton } from '../../components/ui/Skeleton'
-import type { Group, LibraryEntry } from '../../types'
+import type { Group } from '../../types'
 
 const ACCENT = '#10b981'
 const PAGE_SIZE = 6
@@ -74,15 +68,12 @@ function AlbumCard({ album, artistId }: { album: Group; artistId: string }) {
           )}
         </Link>
 
-        {/* Hover ring */}
         <div
           className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none rounded-xl"
           style={{ boxShadow: `inset 0 0 0 1.5px ${ACCENT}55` }}
         />
-        {/* Bottom gradient */}
         <div className="absolute bottom-0 inset-x-0 h-16 bg-gradient-to-t from-black/70 to-transparent pointer-events-none" />
 
-        {/* Monitored chip — always shown */}
         <button
           onClick={() => toggleMonitor.mutate()}
           className="absolute bottom-2 left-2 pointer-events-auto"
@@ -163,54 +154,6 @@ function DiscographySection({
   )
 }
 
-// ── Edit drawer ───────────────────────────────────────────────────────────────
-
-type ArtistFormValues = { name: string; overview: string }
-
-function ArtistEditDrawer({ entry, onClose, onImageSet }: { entry: LibraryEntry; onClose: () => void; onImageSet: () => void }) {
-  const queryClient = useQueryClient()
-  const form = useEditForm<ArtistFormValues>({
-    initial: { name: entry.name, overview: entry.overview ?? '' },
-    lockedFields: entry.lockedFields,
-    onSubmit: async (values, lockedFields) => {
-      const updated = await updateLibraryEntry(entry.id, { ...values, lockedFields })
-      queryClient.setQueryData(['library-entries', entry.id], updated)
-    },
-    onSuccess: onClose,
-  })
-
-  return (
-    <EditDrawer title={entry.name} onClose={onClose} onSave={form.submit} saving={form.submitting}>
-      <div className="space-y-8">
-        <div className="grid grid-cols-2 gap-6">
-          <FormField label="Name" fieldKey="name" locked={form.lockedFields.has('name')} onToggleLock={form.toggleLock} fullWidth>
-            <TextInput value={form.values.name} onChange={v => form.setField('name', v)} />
-          </FormField>
-          <FormField label="Overview" fieldKey="overview" locked={form.lockedFields.has('overview')} onToggleLock={form.toggleLock} fullWidth>
-            <Textarea value={form.values.overview} onChange={v => form.setField('overview', v)} rows={6} />
-          </FormField>
-        </div>
-        <ImageSelector
-          entityType="library-entries"
-          entityId={entry.id}
-          currentImageUrl={entry.imageUrl}
-          onImageSet={() => {
-            queryClient.invalidateQueries({ queryKey: ['library-entries', entry.id] })
-            onImageSet()
-          }}
-        />
-        <RelationshipPanel
-          entityType="entry"
-          entityId={entry.id}
-          contentType={entry.contentType}
-          kind={entry.kind}
-          people={entry.people}
-        />
-      </div>
-    </EditDrawer>
-  )
-}
-
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export function ArtistDetail() {
@@ -266,7 +209,7 @@ export function ArtistDetail() {
             onClick={() => setEditOpen(true)}
             className="inline-flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg border border-white/10 text-white/50 hover:text-white/80 hover:border-white/20 transition-colors"
           >
-            <Edit2 size={12} /> Edit
+            Edit
           </button>
           <button
             onClick={handleRefresh}
@@ -307,7 +250,6 @@ export function ArtistDetail() {
           <p className="text-sm text-white/60 leading-relaxed max-w-3xl mb-6">{entry.overview}</p>
         )}
 
-        {/* Inline tab strip */}
         <div className="flex items-center justify-between mb-8">
           <div className="flex gap-1">
             {TABS.map(({ id: tid, label, icon: Icon }) => (
@@ -341,7 +283,6 @@ export function ArtistDetail() {
           )}
         </div>
 
-        {/* Discography tab */}
         {tab === 'discography' && (
           albums.length === 0 ? (
             <p className="text-white/30 text-sm">No albums added yet.</p>
@@ -360,7 +301,6 @@ export function ArtistDetail() {
           )
         )}
 
-        {/* Members tab */}
         {tab === 'members' && (
           entry.people.length === 0 ? (
             <p className="text-white/30 text-sm">No members listed.</p>
@@ -380,7 +320,7 @@ export function ArtistDetail() {
       </div>
 
       {editOpen && (
-        <ArtistEditDrawer
+        <LibraryEntryEditor
           entry={entry}
           onClose={() => setEditOpen(false)}
           onImageSet={() => setImgVersion(v => v + 1)}

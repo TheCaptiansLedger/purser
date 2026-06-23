@@ -1,70 +1,14 @@
 import { useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
-import { ArrowLeft, ImageIcon, User, Edit2 } from 'lucide-react'
-import { useQueryClient } from '@tanstack/react-query'
-import { useLibraryEntry, updateLibraryEntry } from '../../api/library'
+import { ArrowLeft, ImageIcon, User } from 'lucide-react'
+import { useLibraryEntry } from '../../api/library'
 import { useItems } from '../../api/items'
-import { useEditForm } from '../../hooks/useEditForm'
-import { EditDrawer } from '../../components/edit/EditDrawer'
-import { ImageSelector } from '../../components/edit/ImageSelector'
-import { FormField } from '../../components/edit/FormField'
-import { TextInput } from '../../components/edit/fields/TextInput'
-import { Textarea } from '../../components/edit/fields/Textarea'
-import { RelationshipPanel } from '../../components/edit/RelationshipPanel'
+import { LibraryEntryEditor } from '../../components/edit/editors/LibraryEntryEditor'
 import { Hero } from '../../components/layout/Hero'
 import { Badge } from '../../components/ui/Badge'
 import { Skeleton } from '../../components/ui/Skeleton'
-import type { LibraryEntry } from '../../types'
 
 const ACCENT = '#f59e0b'
-
-type BookFormValues = { name: string; overview: string }
-
-function BookEditDrawer({ entry, onClose, onImageSet }: { entry: LibraryEntry; onClose: () => void; onImageSet: () => void }) {
-  const queryClient = useQueryClient()
-  const form = useEditForm<BookFormValues>({
-    initial: { name: entry.name, overview: entry.overview ?? '' },
-    lockedFields: entry.lockedFields,
-    onSubmit: async (values, lockedFields) => {
-      const updated = await updateLibraryEntry(entry.id, { ...values, lockedFields })
-      queryClient.setQueryData(['library-entries', entry.id], updated)
-    },
-    onSuccess: onClose,
-  })
-
-  const currentEntry = queryClient.getQueryData<LibraryEntry>(['library-entries', entry.id]) ?? entry
-
-  return (
-    <EditDrawer title={entry.name} onClose={onClose} onSave={form.submit} saving={form.submitting}>
-      <div className="space-y-8">
-        <div className="grid grid-cols-2 gap-6">
-          <FormField label="Name" fieldKey="name" locked={form.lockedFields.has('name')} onToggleLock={form.toggleLock} fullWidth>
-            <TextInput value={form.values.name} onChange={v => form.setField('name', v)} />
-          </FormField>
-          <FormField label="Overview" fieldKey="overview" locked={form.lockedFields.has('overview')} onToggleLock={form.toggleLock} fullWidth>
-            <Textarea value={form.values.overview} onChange={v => form.setField('overview', v)} rows={6} />
-          </FormField>
-        </div>
-        <ImageSelector
-          entityType="library-entries"
-          entityId={entry.id}
-          currentImageUrl={entry.imageUrl}
-          onImageSet={() => {
-            queryClient.invalidateQueries({ queryKey: ['library-entries', entry.id] })
-            onImageSet()
-          }}
-        />
-        <RelationshipPanel
-          entityType="entry"
-          entityId={entry.id}
-          contentType={entry.contentType}
-          kind={entry.kind}
-          people={currentEntry.people}
-        />
-      </div>
-    </EditDrawer>
-  )
-}
 
 export function BookDetail() {
   const { id } = useParams<{ id: string }>()
@@ -89,13 +33,12 @@ export function BookDetail() {
           onClick={() => setEditOpen(true)}
           className="inline-flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg border border-white/10 text-white/50 hover:text-white/80 hover:border-white/20 transition-colors"
         >
-          <Edit2 size={12} /> Edit
+          Edit
         </button>
       </div>
 
       <Hero backdropUrl={entry.imageUrl} accent={ACCENT}>
         <div className="flex gap-6 items-end">
-          {/* Cover */}
           <div className="shrink-0 w-36 rounded-xl overflow-hidden border border-white/10 shadow-2xl" style={{ aspectRatio: '2/3' }}>
             {entry.imageUrl ? (
               <img src={`${entry.imageUrl}?v=${imgVersion}`} alt={entry.name} className="w-full h-full object-cover" />
@@ -135,7 +78,6 @@ export function BookDetail() {
           </section>
         )}
 
-        {/* Authors */}
         {authors.length > 0 && (
           <section>
             <h2 className="text-sm font-semibold text-white/40 uppercase tracking-widest mb-3">Authors</h2>
@@ -158,7 +100,6 @@ export function BookDetail() {
           </section>
         )}
 
-        {/* Tags */}
         {entry.tags.length > 0 && (
           <section>
             <h2 className="text-sm font-semibold text-white/40 uppercase tracking-widest mb-3">Tags</h2>
@@ -172,7 +113,6 @@ export function BookDetail() {
           </section>
         )}
 
-        {/* Metadata */}
         {entry.metadata && Object.keys(entry.metadata).length > 0 && (
           <section>
             <h2 className="text-sm font-semibold text-white/40 uppercase tracking-widest mb-3">Details</h2>
@@ -189,7 +129,7 @@ export function BookDetail() {
       </div>
 
       {editOpen && (
-        <BookEditDrawer
+        <LibraryEntryEditor
           entry={entry}
           onClose={() => setEditOpen(false)}
           onImageSet={() => setImgVersion(v => v + 1)}
