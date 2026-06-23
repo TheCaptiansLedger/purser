@@ -3,18 +3,13 @@ import { useParams, Link } from 'react-router-dom'
 import { ArrowLeft, Music2, Eye, EyeOff, SkipForward, BookmarkCheck, Edit2 } from 'lucide-react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useLibraryEntry } from '../../api/library'
-import { useGroup, patchGroup, useAddGroupTag, useRemoveGroupTag } from '../../api/groups'
+import { useGroup, patchGroup } from '../../api/groups'
 import { useItems, patchItem } from '../../api/items'
-import { useEditForm } from '../../hooks/useEditForm'
-import { EditDrawer } from '../../components/edit/EditDrawer'
-import { FormField } from '../../components/edit/FormField'
-import { TextInput } from '../../components/edit/fields/TextInput'
-import { Textarea } from '../../components/edit/fields/Textarea'
-import { TagPicker } from '../../components/edit/fields/TagPicker'
+import { GroupEditor } from '../../components/edit/editors/GroupEditor'
 import { fmtRuntime } from '../../components/ui/Runtime'
 import { Skeleton } from '../../components/ui/Skeleton'
 import { filterTagsForModule } from '../../utils/filterTagsForModule'
-import type { Group, Item, ItemStatus } from '../../types'
+import type { Item, ItemStatus } from '../../types'
 
 const ACCENT = '#10b981'
 
@@ -25,56 +20,6 @@ const STATUS_DOT: Record<ItemStatus, string> = {
   imported:    '#10b981',
   missing:     '#6b7280',
   skipped:     '#374151',
-}
-
-type AlbumFormValues = { title: string; year: string; overview: string }
-
-function AlbumEditDrawer({ album, onClose }: { album: Group; onClose: () => void }) {
-  const queryClient = useQueryClient()
-  const addTag = useAddGroupTag(album.id)
-  const removeTag = useRemoveGroupTag(album.id)
-
-  const form = useEditForm<AlbumFormValues>({
-    initial: { title: album.title, year: album.year ? String(album.year) : '', overview: album.overview ?? '' },
-    lockedFields: album.lockedFields,
-    onSubmit: async (values, lockedFields) => {
-      const updated = await patchGroup(album.id, {
-        title: values.title,
-        year: values.year ? parseInt(values.year, 10) : undefined,
-        overview: values.overview,
-        lockedFields,
-      })
-      queryClient.setQueryData(['groups', album.id], updated)
-    },
-    onSuccess: onClose,
-  })
-
-  const currentTags = (queryClient.getQueryData<Group>(['groups', album.id]) ?? album).tags ?? []
-
-  return (
-    <EditDrawer title={album.title} onClose={onClose} onSave={form.submit} saving={form.submitting}>
-      <div className="space-y-8">
-        <div className="grid grid-cols-2 gap-6">
-          <FormField label="Title" fieldKey="title" locked={form.lockedFields.has('title')} onToggleLock={form.toggleLock} fullWidth>
-            <TextInput value={form.values.title} onChange={v => form.setField('title', v)} />
-          </FormField>
-          <FormField label="Year" fieldKey="year" locked={form.lockedFields.has('year')} onToggleLock={form.toggleLock}>
-            <TextInput value={form.values.year} onChange={v => form.setField('year', v)} />
-          </FormField>
-          <FormField label="Overview" fieldKey="overview" locked={form.lockedFields.has('overview')} onToggleLock={form.toggleLock} fullWidth>
-            <Textarea value={form.values.overview} onChange={v => form.setField('overview', v)} rows={6} />
-          </FormField>
-        </div>
-        <FormField label="Tags" fieldKey="tags" locked={false} onToggleLock={() => {}} fullWidth>
-          <TagPicker
-            value={filterTagsForModule(currentTags, 'music')}
-            onAdd={tag => addTag.mutate(tag.id)}
-            onRemove={tagId => removeTag.mutate(tagId)}
-          />
-        </FormField>
-      </div>
-    </EditDrawer>
-  )
 }
 
 function TrackRow({ track }: { track: Item }) {
@@ -262,8 +207,8 @@ export function AlbumDetail() {
       </div>
 
       {editOpen && (
-        <AlbumEditDrawer
-          album={album}
+        <GroupEditor
+          group={album}
           onClose={() => setEditOpen(false)}
         />
       )}
