@@ -46,6 +46,20 @@ func (k Kind) Valid() bool {
 	return false
 }
 
+// RefreshJobName returns the background job name used to refresh entries of this kind.
+func (k Kind) RefreshJobName() string {
+	if k == KindArtist {
+		return "RefreshArtist"
+	}
+	return "RefreshStudio"
+}
+
+// SupportsAlbumFilter reports whether entries of this kind honour the album_filter
+// metadata key, which restricts which release types are imported during refresh.
+func (k Kind) SupportsAlbumFilter() bool {
+	return k == KindArtist
+}
+
 // MonitorMode controls how newly discovered children of an entry are handled.
 type MonitorMode string
 

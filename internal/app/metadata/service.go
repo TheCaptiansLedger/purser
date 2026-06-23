@@ -400,20 +400,13 @@ func (s *Service) ImportStudio(ctx context.Context, req *ImportStudioRequest) (*
 
 	if req.AutoImport && s.jobs != nil {
 		entryID := studio.ID
-		if kind == domain.KindArtist {
-			if _, err := s.jobs.Submit(ctx, "RefreshArtist", map[string]any{"entry_id": entryID},
-				func(ctx context.Context, p ports.ProgressReporter) error {
-					return s.RefreshArtist(ctx, entryID, p)
-				}); err != nil {
-				slog.Warn("auto-import: failed to enqueue RefreshArtist", "entry_id", entryID, "error", err)
-			}
-		} else {
-			if _, err := s.jobs.Submit(ctx, "RefreshStudio", map[string]any{"entry_id": entryID},
-				func(ctx context.Context, p ports.ProgressReporter) error {
-					return s.RefreshStudio(ctx, entryID, p)
-				}); err != nil {
-				slog.Warn("auto-import: failed to enqueue RefreshStudio", "entry_id", entryID, "error", err)
-			}
+		jobName := kind.RefreshJobName()
+		jobFn := map[string]ports.JobFunc{
+			"RefreshArtist": func(ctx context.Context, p ports.ProgressReporter) error { return s.RefreshArtist(ctx, entryID, p) },
+			"RefreshStudio": func(ctx context.Context, p ports.ProgressReporter) error { return s.RefreshStudio(ctx, entryID, p) },
+		}[jobName]
+		if _, err := s.jobs.Submit(ctx, jobName, map[string]any{"entry_id": entryID}, jobFn); err != nil {
+			slog.Warn("auto-import: failed to enqueue "+jobName, "entry_id", entryID, "error", err)
 		}
 	}
 
@@ -985,7 +978,7 @@ func buildEntryMeta(req *ImportStudioRequest, kind domain.Kind) map[string]any {
 	if req.WebsiteURL != "" {
 		meta["website_url"] = req.WebsiteURL
 	}
-	if kind == domain.KindArtist && len(req.AlbumFilter) > 0 {
+	if kind.SupportsAlbumFilter() && len(req.AlbumFilter) > 0 {
 		meta["album_filter"] = req.AlbumFilter
 	}
 	return meta
