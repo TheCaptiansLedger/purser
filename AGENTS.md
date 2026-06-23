@@ -1,3 +1,10 @@
+# !! HARD BAN !!
+
+NEVER run `git commit`, `git push`, or `gh pr create`. Not ever. Not for any reason.
+The user runs git themselves. Claude produces the commit message as text and stops.
+
+---
+
 # Purser — Agent Index
 
 Do not read all project documentation. Determine what the task touches, then load only the required files listed below.

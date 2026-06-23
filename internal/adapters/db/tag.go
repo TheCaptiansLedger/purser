@@ -37,20 +37,25 @@ func (r *tagRepo) List(ctx context.Context, f ports.TagFilter) ([]*domain.Tag, e
 	var args []any
 	var conditions []string
 
+	if f.GroupID != "" {
+		q += ` JOIN group_tags gt ON gt.tag_id = t.id`
+		conditions = append(conditions, `gt.group_id = ?`)
+		args = append(args, f.GroupID)
+	}
+
 	if len(f.ContentTypes) > 0 {
 		placeholders := make([]string, len(f.ContentTypes))
+		ctArgs := make([]any, len(f.ContentTypes))
 		for i, ct := range f.ContentTypes {
 			placeholders[i] = "?"
-			args = append(args, string(ct))
+			ctArgs[i] = string(ct)
 		}
 		in := strings.Join(placeholders, ",")
-		ctArgs := make([]any, len(f.ContentTypes))
-		copy(ctArgs, args)
 		conditions = append(conditions, fmt.Sprintf(`(
 			EXISTS (SELECT 1 FROM item_tags it JOIN items i ON i.id = it.item_id WHERE it.tag_id = t.id AND i.content_type IN (%s))
 			OR EXISTS (SELECT 1 FROM entry_tags et JOIN library_entries le ON le.id = et.library_entry_id WHERE et.tag_id = t.id AND le.content_type IN (%s))
 		)`, in, in))
-		// duplicate the args for the second IN clause
+		args = append(args, ctArgs...)
 		args = append(args, ctArgs...)
 	}
 
@@ -62,6 +67,11 @@ func (r *tagRepo) List(ctx context.Context, f ports.TagFilter) ([]*domain.Tag, e
 	if f.Key != "" {
 		conditions = append(conditions, `t.key = ?`)
 		args = append(args, string(f.Key))
+	}
+
+	if f.Value != "" {
+		conditions = append(conditions, `t.value = ?`)
+		args = append(args, f.Value)
 	}
 
 	if len(conditions) > 0 {
@@ -87,6 +97,26 @@ func (r *tagRepo) List(ctx context.Context, f ports.TagFilter) ([]*domain.Tag, e
 		tags = append(tags, &t)
 	}
 	return tags, rows.Err()
+}
+
+func (r *tagRepo) AddGroupTag(ctx context.Context, groupID, tagID string) error {
+	_, err := r.db.ExecContext(ctx,
+		`INSERT INTO group_tags(group_id, tag_id) VALUES(?, ?) ON CONFLICT DO NOTHING`,
+		groupID, tagID)
+	if err != nil {
+		return fmt.Errorf("add group tag: %w", err)
+	}
+	return nil
+}
+
+func (r *tagRepo) RemoveGroupTag(ctx context.Context, groupID, tagID string) error {
+	_, err := r.db.ExecContext(ctx,
+		`DELETE FROM group_tags WHERE group_id = ? AND tag_id = ?`,
+		groupID, tagID)
+	if err != nil {
+		return fmt.Errorf("remove group tag: %w", err)
+	}
+	return nil
 }
 
 func (r *tagRepo) Save(ctx context.Context, t *domain.Tag) error {

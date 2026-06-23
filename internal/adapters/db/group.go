@@ -57,6 +57,12 @@ func (r *groupRepo) Get(ctx context.Context, id string) (*domain.Group, error) {
 	}
 	g.ExternalIDs = ids
 
+	tags, err := loadGroupTags(ctx, r.db, id)
+	if err != nil {
+		return nil, fmt.Errorf("load tags for group %s: %w", id, err)
+	}
+	g.Tags = tags
+
 	return g, nil
 }
 

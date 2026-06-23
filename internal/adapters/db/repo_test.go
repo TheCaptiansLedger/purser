@@ -654,6 +654,134 @@ func TestGroupRepo_SaveGetListDelete(t *testing.T) {
 	}
 }
 
+func TestGroupRepo_Tags(t *testing.T) {
+	database := setupTestDB(t)
+	entryRepo := NewLibraryEntryRepo(database)
+	groupRepo := NewGroupRepo(database)
+	tagRepo := NewTagRepo(database)
+	ctx := context.Background()
+
+	entry := &domain.LibraryEntry{
+		ContentType: domain.ContentTypeMusic, Kind: domain.KindArtist,
+		Name: "Led Zeppelin", MonitorMode: domain.MonitorAll, Status: domain.EntryStatusActive,
+	}
+	if err := entryRepo.Save(ctx, entry); err != nil {
+		t.Fatalf("Save entry: %v", err)
+	}
+
+	group := &domain.Group{
+		LibraryEntryID: entry.ID, Title: "IV", Number: 4, MonitorMode: domain.MonitorAll,
+	}
+	if err := groupRepo.Save(ctx, group); err != nil {
+		t.Fatalf("Save group: %v", err)
+	}
+
+	tag := &domain.Tag{Key: domain.TagKeyLabel, Value: "Atlantic Records", Scope: domain.TagScopeMetadata}
+	if err := tagRepo.Save(ctx, tag); err != nil {
+		t.Fatalf("Save tag: %v", err)
+	}
+
+	if err := tagRepo.AddGroupTag(ctx, group.ID, tag.ID); err != nil {
+		t.Fatalf("AddGroupTag: %v", err)
+	}
+
+	got, err := groupRepo.Get(ctx, group.ID)
+	if err != nil {
+		t.Fatalf("Get group: %v", err)
+	}
+	if len(got.Tags) != 1 || got.Tags[0].Value != "Atlantic Records" {
+		t.Errorf("Tags = %v, want [Atlantic Records]", got.Tags)
+	}
+	if got.Tags[0].Key != domain.TagKeyLabel {
+		t.Errorf("Tag.Key = %q, want %q", got.Tags[0].Key, domain.TagKeyLabel)
+	}
+
+	if err := tagRepo.RemoveGroupTag(ctx, group.ID, tag.ID); err != nil {
+		t.Fatalf("RemoveGroupTag: %v", err)
+	}
+	got, err = groupRepo.Get(ctx, group.ID)
+	if err != nil {
+		t.Fatalf("Get group after remove: %v", err)
+	}
+	if len(got.Tags) != 0 {
+		t.Errorf("Tags after remove = %v, want empty", got.Tags)
+	}
+}
+
+func TestTagRepo_List_FilterByGroupID(t *testing.T) {
+	database := setupTestDB(t)
+	entryRepo := NewLibraryEntryRepo(database)
+	groupRepo := NewGroupRepo(database)
+	tagRepo := NewTagRepo(database)
+	ctx := context.Background()
+
+	entry := &domain.LibraryEntry{
+		ContentType: domain.ContentTypeMusic, Kind: domain.KindArtist,
+		Name: "Artist", MonitorMode: domain.MonitorAll, Status: domain.EntryStatusActive,
+	}
+	entryRepo.Save(ctx, entry) //nolint:errcheck
+
+	g1 := &domain.Group{LibraryEntryID: entry.ID, Title: "Album 1", Number: 1, MonitorMode: domain.MonitorAll}
+	g2 := &domain.Group{LibraryEntryID: entry.ID, Title: "Album 2", Number: 2, MonitorMode: domain.MonitorAll}
+	groupRepo.Save(ctx, g1) //nolint:errcheck
+	groupRepo.Save(ctx, g2) //nolint:errcheck
+
+	genreTag := &domain.Tag{Key: domain.TagKeyGenre, Value: "Drama", Scope: domain.TagScopeMetadata}
+	labelTag := &domain.Tag{Key: domain.TagKeyLabel, Value: "Atlantic Records", Scope: domain.TagScopeMetadata}
+	tagRepo.Save(ctx, genreTag) //nolint:errcheck
+	tagRepo.Save(ctx, labelTag) //nolint:errcheck
+
+	tagRepo.AddGroupTag(ctx, g1.ID, genreTag.ID) //nolint:errcheck
+	tagRepo.AddGroupTag(ctx, g2.ID, labelTag.ID) //nolint:errcheck
+
+	g1Tags, err := tagRepo.List(ctx, ports.TagFilter{GroupID: g1.ID})
+	if err != nil {
+		t.Fatalf("List by GroupID g1: %v", err)
+	}
+	if len(g1Tags) != 1 || g1Tags[0].Value != "Drama" {
+		t.Errorf("g1 tags = %v, want [Drama]", g1Tags)
+	}
+
+	g2Tags, err := tagRepo.List(ctx, ports.TagFilter{GroupID: g2.ID})
+	if err != nil {
+		t.Fatalf("List by GroupID g2: %v", err)
+	}
+	if len(g2Tags) != 1 || g2Tags[0].Value != "Atlantic Records" {
+		t.Errorf("g2 tags = %v, want [Atlantic Records]", g2Tags)
+	}
+}
+
+func TestTagRepo_List_FilterByValue(t *testing.T) {
+	repo := NewTagRepo(setupTestDB(t))
+	ctx := context.Background()
+
+	for _, tag := range []*domain.Tag{
+		{Key: domain.TagKeyGenre, Value: "Drama", Scope: domain.TagScopeMetadata},
+		{Key: domain.TagKeyLabel, Value: "Atlantic Records", Scope: domain.TagScopeMetadata},
+		{Key: domain.TagKeyGenre, Value: "Comedy", Scope: domain.TagScopeMetadata},
+	} {
+		if err := repo.Save(ctx, tag); err != nil {
+			t.Fatalf("Save tag: %v", err)
+		}
+	}
+
+	res, err := repo.List(ctx, ports.TagFilter{Value: "Drama"})
+	if err != nil {
+		t.Fatalf("List by value: %v", err)
+	}
+	if len(res) != 1 || res[0].Value != "Drama" {
+		t.Errorf("value filter = %v, want [Drama]", res)
+	}
+
+	res, err = repo.List(ctx, ports.TagFilter{Key: domain.TagKeyGenre, Value: "Comedy"})
+	if err != nil {
+		t.Fatalf("List by key+value: %v", err)
+	}
+	if len(res) != 1 || res[0].Value != "Comedy" {
+		t.Errorf("key+value filter = %v, want [Comedy]", res)
+	}
+}
+
 // ── MediaFileRepo ─────────────────────────────────────────────────────────────
 
 func TestMediaFileRepo_SaveAndGet(t *testing.T) {

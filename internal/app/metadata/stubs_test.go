@@ -142,7 +142,9 @@ func (r *stubTagRepo) Save(_ context.Context, t *domain.Tag) error {
 	return nil
 }
 
-func (r *stubTagRepo) Delete(_ context.Context, _ string) error { return nil }
+func (r *stubTagRepo) Delete(_ context.Context, _ string) error            { return nil }
+func (r *stubTagRepo) AddGroupTag(_ context.Context, _, _ string) error    { return nil }
+func (r *stubTagRepo) RemoveGroupTag(_ context.Context, _, _ string) error { return nil }
 
 // ── External ID repo stubs ────────────────────────────────────────────────────
 

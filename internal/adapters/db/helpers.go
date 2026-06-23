@@ -264,6 +264,20 @@ func saveItemTags(ctx context.Context, tx *sql.Tx, itemID string, tags []domain.
 	return nil
 }
 
+func loadGroupTags(ctx context.Context, db *sql.DB, groupID string) ([]domain.Tag, error) {
+	rows, err := db.QueryContext(ctx,
+		`SELECT t.id, t.key, t.value, t.scope FROM tags t
+		 JOIN group_tags gt ON gt.tag_id = t.id
+		 WHERE gt.group_id = ?
+		 ORDER BY t.value`,
+		groupID)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+	return scanTags(rows)
+}
+
 func saveEntryTags(ctx context.Context, tx *sql.Tx, entryID string, tags []domain.Tag) error {
 	if _, err := tx.ExecContext(ctx, `DELETE FROM entry_tags WHERE library_entry_id = ?`, entryID); err != nil {
 		return err

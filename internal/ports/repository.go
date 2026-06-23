@@ -88,6 +88,8 @@ type PersonRepository interface {
 type TagFilter struct {
 	Scope        domain.TagScope
 	Key          domain.TagKey
+	Value        string               // exact match on tag value
+	GroupID      string               // only tags linked to this group
 	ContentTypes []domain.ContentType // when set, only tags used by one of these content types are returned
 }
 
@@ -97,6 +99,8 @@ type TagRepository interface {
 	List(ctx context.Context, f TagFilter) ([]*domain.Tag, error)
 	Save(ctx context.Context, t *domain.Tag) error
 	Delete(ctx context.Context, id string) error
+	AddGroupTag(ctx context.Context, groupID, tagID string) error
+	RemoveGroupTag(ctx context.Context, groupID, tagID string) error
 }
 
 // ExternalIDRepository resolves external source identifiers to internal entity IDs.
