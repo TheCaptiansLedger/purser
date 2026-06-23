@@ -233,9 +233,9 @@ export function AlbumDetail() {
               <p className="text-xs font-semibold text-white/40 uppercase tracking-widest mb-2">Music Label</p>
               <div className="flex flex-wrap gap-1.5">
                 {labelTags.map(t => (
-                  <span key={t.id} className="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium border" style={{ borderColor: ACCENT + '44', color: ACCENT }}>
+                  <Link key={t.id} to={`/tags/${encodeURIComponent(t.key)}/${encodeURIComponent(t.value)}`} className="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium border hover:opacity-80 transition-opacity" style={{ borderColor: ACCENT + '44', color: ACCENT }}>
                     {t.value}
-                  </span>
+                  </Link>
                 ))}
               </div>
             </div>
@@ -245,9 +245,9 @@ export function AlbumDetail() {
               <p className="text-xs font-semibold text-white/40 uppercase tracking-widest mb-2">Tags</p>
               <div className="flex flex-wrap gap-1.5">
                 {otherTags.map(t => (
-                  <span key={t.id} className="inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium border border-white/10 text-white/50">
+                  <Link key={t.id} to={`/tags/${encodeURIComponent(t.key)}/${encodeURIComponent(t.value)}`} className="inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium border border-white/10 text-white/50 hover:text-white/80 hover:border-white/20 transition-colors">
                     <span className="text-white/30 font-mono mr-1">{t.key}:</span>{t.value}
-                  </span>
+                  </Link>
                 ))}
               </div>
             </div>

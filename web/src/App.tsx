@@ -47,6 +47,8 @@ import { TagsPage } from './pages/afterdark/TagsPage'
 import { PerformerDetail } from './pages/afterdark/PerformerDetail'
 import { SceneDetail } from './pages/afterdark/SceneDetail'
 
+import { TagBrowsePage } from './pages/tags/TagBrowsePage'
+
 import { PeoplePage } from './pages/people/PeoplePage'
 import { PersonDetail } from './pages/people/PersonDetail'
 import { Roadmap } from './pages/Roadmap'
@@ -126,6 +128,8 @@ function AppRoutes() {
             <Route path="scenes/:id" element={<SceneDetail />} />
           </Route>
         )}
+
+        <Route path="tags/:key/:value" element={<TagBrowsePage />} />
 
         <Route path="people" element={<PeoplePage />} />
         <Route path="people/:id" element={<PersonDetail />} />

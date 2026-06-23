@@ -34,6 +34,8 @@ interface ItemFilter {
   search?: string
   sort?: SortField
   sortDir?: SortDir
+  tag_key?: string
+  tag_value?: string
   limit?: number
   offset?: number
 }

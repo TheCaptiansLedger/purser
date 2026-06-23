@@ -186,7 +186,11 @@ export function MovieDetail() {
           <section>
             <h2 className="text-sm font-semibold text-white/40 uppercase tracking-widest mb-3">Genre</h2>
             <div className="flex flex-wrap gap-2">
-              {genreTags.map(t => <Badge key={t.id} color={ACCENT}>{t.value}</Badge>)}
+              {genreTags.map(t => (
+                <Link key={t.id} to={`/tags/${encodeURIComponent(t.key)}/${encodeURIComponent(t.value)}`}>
+                  <Badge color={ACCENT}>{t.value}</Badge>
+                </Link>
+              ))}
             </div>
           </section>
         )}
@@ -197,10 +201,10 @@ export function MovieDetail() {
             <h2 className="text-sm font-semibold text-white/40 uppercase tracking-widest mb-3">Production</h2>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
               {productionTags.map(t => (
-                <div key={t.id} className="bg-white/3 rounded-lg p-3">
+                <Link key={t.id} to={`/tags/${encodeURIComponent(t.key)}/${encodeURIComponent(t.value)}`} className="bg-white/3 rounded-lg p-3 hover:bg-white/6 transition-colors block">
                   <p className="text-xs text-white/35 mb-0.5">Production Company</p>
                   <p className="text-sm text-white/80 truncate">{t.value}</p>
-                </div>
+                </Link>
               ))}
             </div>
           </section>
@@ -211,7 +215,11 @@ export function MovieDetail() {
           <section>
             <h2 className="text-sm font-semibold text-white/40 uppercase tracking-widest mb-3">Tags</h2>
             <div className="flex flex-wrap gap-2">
-              {otherTags.map(t => <Badge key={t.id}>{t.value}</Badge>)}
+              {otherTags.map(t => (
+                <Link key={t.id} to={`/tags/${encodeURIComponent(t.key)}/${encodeURIComponent(t.value)}`}>
+                  <Badge>{t.value}</Badge>
+                </Link>
+              ))}
             </div>
           </section>
         )}

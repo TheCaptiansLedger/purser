@@ -142,9 +142,9 @@ export function SeriesDetail() {
                 <h2 className="text-sm font-semibold text-white/40 uppercase tracking-widest mb-3">Network</h2>
                 <div className="flex flex-wrap gap-1.5">
                   {networkTags.map(t => (
-                    <span key={t.id} className="inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium border text-white/70" style={{ borderColor: ACCENT + '44', color: ACCENT }}>
+                    <Link key={t.id} to={`/tags/${encodeURIComponent(t.key)}/${encodeURIComponent(t.value)}`} className="inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium border hover:opacity-80 transition-opacity" style={{ borderColor: ACCENT + '44', color: ACCENT }}>
                       {t.value}
-                    </span>
+                    </Link>
                   ))}
                 </div>
               </div>
@@ -154,9 +154,9 @@ export function SeriesDetail() {
                 <h2 className="text-sm font-semibold text-white/40 uppercase tracking-widest mb-3">Tags</h2>
                 <div className="flex flex-wrap gap-1.5">
                   {otherTags.map(t => (
-                    <span key={t.id} className="inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium border border-white/10 text-white/50">
+                    <Link key={t.id} to={`/tags/${encodeURIComponent(t.key)}/${encodeURIComponent(t.value)}`} className="inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium border border-white/10 text-white/50 hover:text-white/80 hover:border-white/20 transition-colors">
                       {t.value}
-                    </span>
+                    </Link>
                   ))}
                 </div>
               </div>
