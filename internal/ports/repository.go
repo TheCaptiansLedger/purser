@@ -13,6 +13,8 @@ type LibraryFilter struct {
 	PersonID    string // entries where this person is a member (via entry_people)
 	Monitored   *bool
 	Search      string
+	TagKey      domain.TagKey
+	TagValue    string
 	Limit       int
 	Offset      int
 }
@@ -32,6 +34,8 @@ type LibraryEntryRepository interface {
 type GroupFilter struct {
 	LibraryEntryID string
 	Monitored      *bool
+	TagKey         domain.TagKey
+	TagValue       string
 }
 
 // GroupRepository manages persistence for groups (seasons, albums, series).
@@ -51,6 +55,8 @@ type ItemFilter struct {
 	Monitored      *bool
 	PersonID       string   // items featuring this person
 	TagIDs         []string // items carrying all of these tags
+	TagKey         domain.TagKey
+	TagValue       string
 	Search         string
 	Sort           string // "date" | "title"; adapter defaults to "date"
 	SortDir        string // "asc" | "desc"; adapter defaults to "desc"

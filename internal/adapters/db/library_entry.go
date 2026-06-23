@@ -92,9 +92,8 @@ func (r *libraryEntryRepo) Get(ctx context.Context, id string) (*domain.LibraryE
 	return e, nil
 }
 
-func (r *libraryEntryRepo) List(ctx context.Context, f ports.LibraryFilter) ([]*domain.LibraryEntry, int, error) {
-	w := &whereClause{}
-
+func buildEntryWhere(f ports.LibraryFilter) (join string, w *whereClause) {
+	w = &whereClause{}
 	if f.ContentType != "" {
 		w.add("le.content_type = ?", string(f.ContentType))
 	}
@@ -110,13 +109,29 @@ func (r *libraryEntryRepo) List(ctx context.Context, f ports.LibraryFilter) ([]*
 	if f.Search != "" {
 		w.add("le.name LIKE ?", "%"+f.Search+"%")
 	}
-
-	join := ""
+	if f.TagKey != "" || f.TagValue != "" {
+		var conds []string
+		var tagArgs []any
+		if f.TagKey != "" {
+			conds = append(conds, "t.key = ?")
+			tagArgs = append(tagArgs, string(f.TagKey))
+		}
+		if f.TagValue != "" {
+			conds = append(conds, "t.value = ?")
+			tagArgs = append(tagArgs, f.TagValue)
+		}
+		sub := "SELECT et.library_entry_id FROM entry_tags et JOIN tags t ON t.id = et.tag_id WHERE " + strings.Join(conds, " AND ")
+		w.add("le.id IN ("+sub+")", tagArgs...) //nolint:gosec // sub contains only hardcoded column predicates with ? parameters
+	}
 	if f.PersonID != "" {
 		join = " JOIN entry_people ep ON ep.library_entry_id = le.id"
 		w.add("ep.person_id = ?", f.PersonID)
 	}
+	return join, w
+}
 
+func (r *libraryEntryRepo) List(ctx context.Context, f ports.LibraryFilter) ([]*domain.LibraryEntry, int, error) {
+	join, w := buildEntryWhere(f)
 	where, args := w.build()
 
 	var total int

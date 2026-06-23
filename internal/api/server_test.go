@@ -1215,6 +1215,119 @@ func TestGroups_GetAndPatchAndDelete(t *testing.T) {
 	}
 }
 
+func TestGroups_TagAttachDetachAndFilter(t *testing.T) {
+	h := newHandler(t)
+
+	// Create a music library entry (label) and two albums under it.
+	w := do(t, h, http.MethodPost, "/api/v1/library-entries", map[string]any{
+		"contentType": "music", "kind": "artist", "name": "Test Artist",
+	})
+	var entry struct {
+		ID string `json:"id"`
+	}
+	decodeJSON(t, w, &entry)
+
+	w = do(t, h, http.MethodPost, "/api/v1/groups", map[string]any{
+		"libraryEntryId": entry.ID, "title": "Album A", "number": 1,
+	})
+	if w.Code != http.StatusCreated {
+		t.Fatalf("create group A: %d", w.Code)
+	}
+	var groupA struct {
+		ID   string `json:"id"`
+		Tags []struct {
+			ID    string `json:"id"`
+			Key   string `json:"key"`
+			Value string `json:"value"`
+			Scope string `json:"scope"`
+		} `json:"tags"`
+	}
+	decodeJSON(t, w, &groupA)
+
+	w = do(t, h, http.MethodPost, "/api/v1/groups", map[string]any{
+		"libraryEntryId": entry.ID, "title": "Album B", "number": 2,
+	})
+	var groupB struct {
+		ID string `json:"id"`
+	}
+	decodeJSON(t, w, &groupB)
+
+	// Tags list must be empty on a fresh group.
+	if len(groupA.Tags) != 0 {
+		t.Errorf("new group tags len = %d, want 0", len(groupA.Tags))
+	}
+
+	// Create a tag and attach it to group A.
+	w = do(t, h, http.MethodPost, "/api/v1/tags", map[string]any{
+		"key": "label", "value": "Atlantic Records", "scope": "metadata",
+	})
+	if w.Code != http.StatusCreated {
+		t.Fatalf("create tag: %d", w.Code)
+	}
+	var tag struct {
+		ID string `json:"id"`
+	}
+	decodeJSON(t, w, &tag)
+
+	w = do(t, h, http.MethodPost, "/api/v1/groups/"+groupA.ID+"/tags", map[string]any{
+		"tagId": tag.ID,
+	})
+	if w.Code != http.StatusOK {
+		t.Fatalf("add tag to group: %d body: %s", w.Code, w.Body.String())
+	}
+	var updated struct {
+		Tags []struct {
+			Key   string `json:"key"`
+			Value string `json:"value"`
+		} `json:"tags"`
+	}
+	decodeJSON(t, w, &updated)
+	if len(updated.Tags) != 1 || updated.Tags[0].Key != "label" || updated.Tags[0].Value != "Atlantic Records" {
+		t.Errorf("add tag: got %+v", updated.Tags)
+	}
+
+	// GET /:id should include the tag.
+	w = do(t, h, http.MethodGet, "/api/v1/groups/"+groupA.ID, nil)
+	var fetched struct {
+		Tags []struct {
+			Key string `json:"key"`
+		} `json:"tags"`
+	}
+	decodeJSON(t, w, &fetched)
+	if len(fetched.Tags) != 1 || fetched.Tags[0].Key != "label" {
+		t.Errorf("GET group tags = %+v, want [{label}]", fetched.Tags)
+	}
+
+	// Filter groups by tag_key+tag_value — only group A matches.
+	w = do(t, h, http.MethodGet, "/api/v1/groups?tag_key=label&tag_value=Atlantic+Records", nil)
+	var listResp struct {
+		Total int `json:"total"`
+	}
+	decodeJSON(t, w, &listResp)
+	if listResp.Total != 1 {
+		t.Errorf("filter by tag: total = %d, want 1", listResp.Total)
+	}
+
+	// Remove the tag from group A.
+	w = do(t, h, http.MethodDelete, "/api/v1/groups/"+groupA.ID+"/tags/"+tag.ID, nil)
+	if w.Code != http.StatusNoContent {
+		t.Fatalf("remove tag: %d", w.Code)
+	}
+
+	// After removal, GET should have empty tags and filter should return 0.
+	w = do(t, h, http.MethodGet, "/api/v1/groups/"+groupA.ID, nil)
+	decodeJSON(t, w, &fetched)
+	if len(fetched.Tags) != 0 {
+		t.Errorf("after remove, tags len = %d, want 0", len(fetched.Tags))
+	}
+
+	w = do(t, h, http.MethodGet, "/api/v1/groups?tag_key=label&tag_value=Atlantic+Records", nil)
+	decodeJSON(t, w, &listResp)
+	if listResp.Total != 0 {
+		t.Errorf("filter after remove: total = %d, want 0", listResp.Total)
+	}
+}
+
 func TestItems_GetAndDelete(t *testing.T) {
 	h := newHandler(t)
 

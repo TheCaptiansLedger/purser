@@ -134,6 +134,8 @@ func (h *itemHandler) list(w http.ResponseWriter, r *http.Request) {
 		Search:         q.Get("search"),
 		Sort:           q.Get("sort"),
 		SortDir:        q.Get("sortDir"),
+		TagKey:         domain.TagKey(q.Get("tag_key")),
+		TagValue:       q.Get("tag_value"),
 		Limit:          limit,
 		Offset:         offset,
 	}

@@ -118,6 +118,20 @@ func buildItemWhere(f ports.ItemFilter) *whereClause {
 			append(tagArgs, len(f.TagIDs))...,
 		)
 	}
+	if f.TagKey != "" || f.TagValue != "" {
+		var conds []string
+		var tagArgs []any
+		if f.TagKey != "" {
+			conds = append(conds, "t.key = ?")
+			tagArgs = append(tagArgs, string(f.TagKey))
+		}
+		if f.TagValue != "" {
+			conds = append(conds, "t.value = ?")
+			tagArgs = append(tagArgs, f.TagValue)
+		}
+		sub := "SELECT it.item_id FROM item_tags it JOIN tags t ON t.id = it.tag_id WHERE " + strings.Join(conds, " AND ")
+		w.add("id IN ("+sub+")", tagArgs...) //nolint:gosec // sub contains only hardcoded column predicates with ? parameters
+	}
 	if f.Search != "" {
 		w.add("title LIKE ?", "%"+f.Search+"%")
 	}

@@ -19,6 +19,8 @@ func (h *groupHandler) routes(r chi.Router) {
 	r.Get("/{id}", h.get)
 	r.Patch("/{id}", h.update)
 	r.Delete("/{id}", h.delete)
+	r.Post("/{id}/tags", h.addTag)
+	r.Delete("/{id}/tags/{tagId}", h.removeTag)
 }
 
 // ── Response types ────────────────────────────────────────────────────────────
@@ -35,6 +37,7 @@ type groupResponse struct {
 	MonitorMode    string               `json:"monitorMode"`
 	CoverURL       string               `json:"coverUrl,omitempty"`
 	ExternalIDs    []externalIDResponse `json:"externalIds"`
+	Tags           []tagResponse        `json:"tags"`
 	Metadata       map[string]any       `json:"metadata,omitempty"`
 	LockedFields   []string             `json:"lockedFields"`
 }
@@ -53,6 +56,7 @@ func toGroupResponse(g *domain.Group) *groupResponse {
 		CoverURL:       imageURL("groups", g.ID, g.CoverPath),
 		Metadata:       g.Metadata,
 		ExternalIDs:    []externalIDResponse{},
+		Tags:           []tagResponse{},
 		LockedFields:   g.LockedFields,
 	}
 	if r.LockedFields == nil {
@@ -64,6 +68,9 @@ func toGroupResponse(g *domain.Group) *groupResponse {
 			Value:  id.Value,
 		})
 	}
+	for _, t := range g.Tags {
+		r.Tags = append(r.Tags, tagResponse{ID: t.ID, Key: string(t.Key), Value: t.Value, Scope: string(t.Scope)})
+	}
 	return r
 }
 
@@ -74,6 +81,8 @@ func (h *groupHandler) list(w http.ResponseWriter, r *http.Request) {
 	groups, err := h.svc.ListGroups(r.Context(), ports.GroupFilter{
 		LibraryEntryID: q.Get("libraryEntryId"),
 		Monitored:      boolPtr(r, "monitored"),
+		TagKey:         domain.TagKey(q.Get("tag_key")),
+		TagValue:       q.Get("tag_value"),
 	})
 	if handleErr(w, err) {
 		return
@@ -203,6 +212,40 @@ func (h *groupHandler) update(w http.ResponseWriter, r *http.Request) {
 func (h *groupHandler) delete(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 	if err := h.svc.DeleteGroup(r.Context(), id); handleErr(w, err) {
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+type addGroupTagRequest struct {
+	TagID string `json:"tagId"`
+}
+
+func (h *groupHandler) addTag(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	var req addGroupTagRequest
+	if err := decode(r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, "INVALID_REQUEST", "invalid JSON body")
+		return
+	}
+	if req.TagID == "" {
+		writeError(w, http.StatusUnprocessableEntity, "VALIDATION_ERROR", "tagId is required")
+		return
+	}
+	if err := h.svc.AddGroupTag(r.Context(), id, req.TagID); handleErr(w, err) {
+		return
+	}
+	g, err := h.svc.GetGroup(r.Context(), id)
+	if handleErr(w, err) {
+		return
+	}
+	writeJSON(w, http.StatusOK, toGroupResponse(g))
+}
+
+func (h *groupHandler) removeTag(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	tagID := chi.URLParam(r, "tagId")
+	if err := h.svc.RemoveGroupTag(r.Context(), id, tagID); handleErr(w, err) {
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)

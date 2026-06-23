@@ -135,6 +135,19 @@ func (s *Service) DeleteGroup(ctx context.Context, id string) error {
 	return s.groups.Delete(ctx, id)
 }
 
+// AddGroupTag links an existing tag to a group.
+func (s *Service) AddGroupTag(ctx context.Context, groupID, tagID string) error {
+	if _, err := s.GetGroup(ctx, groupID); err != nil {
+		return err
+	}
+	return s.tags.AddGroupTag(ctx, groupID, tagID)
+}
+
+// RemoveGroupTag unlinks a tag from a group.
+func (s *Service) RemoveGroupTag(ctx context.Context, groupID, tagID string) error {
+	return s.tags.RemoveGroupTag(ctx, groupID, tagID)
+}
+
 // ── Items ─────────────────────────────────────────────────────────────────────
 
 // CreateItem validates and persists a new leaf item.

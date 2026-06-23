@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"purser/internal/domain"
 	"purser/internal/ports"
+	"strings"
 )
 
 type groupRepo struct {
@@ -74,6 +75,20 @@ func (r *groupRepo) List(ctx context.Context, f ports.GroupFilter) ([]*domain.Gr
 	}
 	if f.Monitored != nil {
 		w.add("monitored = ?", boolToInt(*f.Monitored))
+	}
+	if f.TagKey != "" || f.TagValue != "" {
+		var conds []string
+		var tagArgs []any
+		if f.TagKey != "" {
+			conds = append(conds, "t.key = ?")
+			tagArgs = append(tagArgs, string(f.TagKey))
+		}
+		if f.TagValue != "" {
+			conds = append(conds, "t.value = ?")
+			tagArgs = append(tagArgs, f.TagValue)
+		}
+		sub := "SELECT gt.group_id FROM group_tags gt JOIN tags t ON t.id = gt.tag_id WHERE " + strings.Join(conds, " AND ")
+		w.add("id IN ("+sub+")", tagArgs...) //nolint:gosec // sub contains only hardcoded column predicates with ? parameters
 	}
 
 	where, args := w.build()

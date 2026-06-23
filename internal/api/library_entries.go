@@ -127,6 +127,8 @@ func (h *libraryEntryHandler) list(w http.ResponseWriter, r *http.Request) {
 		PersonID:    q.Get("personId"),
 		Monitored:   boolPtr(r, "monitored"),
 		Search:      q.Get("search"),
+		TagKey:      domain.TagKey(q.Get("tag_key")),
+		TagValue:    q.Get("tag_value"),
 		Limit:       limit,
 		Offset:      offset,
 	})
