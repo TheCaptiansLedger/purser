@@ -3,6 +3,7 @@ import { useParams, Link } from 'react-router-dom'
 import { ArrowLeft, Calendar, Clock, ImageIcon } from 'lucide-react'
 import { useLibraryEntry } from '../../api/library'
 import { useItems } from '../../api/items'
+import { useImageVersion } from '../../hooks/useImageVersion'
 import { LibraryEntryEditor } from '../../components/edit/editors/LibraryEntryEditor'
 import { Hero } from '../../components/layout/Hero'
 import { Badge } from '../../components/ui/Badge'
@@ -16,11 +17,11 @@ const ACCENT = '#3b82f6'
 export function MovieDetail() {
   const { id } = useParams<{ id: string }>()
   const [editOpen, setEditOpen] = useState(false)
-  const [imgVersion, setImgVersion] = useState(0)
 
   const { data: entry, isLoading } = useLibraryEntry(id!)
   const { data: itemsPage } = useItems({ libraryEntryId: id!, limit: 1 })
   const item = itemsPage?.data[0]
+  const [versionedImageUrl, bumpImageVersion] = useImageVersion(entry?.imageUrl)
 
   if (isLoading) {
     return (
@@ -65,7 +66,7 @@ export function MovieDetail() {
         <div className="flex gap-6 items-end">
           <div className="shrink-0 w-44 rounded-xl overflow-hidden border border-white/10 shadow-2xl" style={{ aspectRatio: '2/3' }}>
             {entry.imageUrl ? (
-              <img src={`${entry.imageUrl}?v=${imgVersion}`} alt={entry.name} className="w-full h-full object-cover" />
+              <img src={versionedImageUrl} alt={entry.name} className="w-full h-full object-cover" />
             ) : (
               <div className="w-full h-full bg-white/5 flex items-center justify-center">
                 <ImageIcon size={40} className="text-white/15" strokeWidth={1} />
@@ -187,7 +188,7 @@ export function MovieDetail() {
         <LibraryEntryEditor
           entry={entry}
           onClose={() => setEditOpen(false)}
-          onImageSet={() => setImgVersion(v => v + 1)}
+          onImageSet={bumpImageVersion}
         />
       )}
     </div>

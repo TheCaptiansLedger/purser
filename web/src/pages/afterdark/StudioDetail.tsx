@@ -3,6 +3,7 @@ import { useParams, Link } from 'react-router-dom'
 import { ArrowLeft, Film, Users, ImageIcon, RefreshCw } from 'lucide-react'
 import { useLibraryEntry } from '../../api/library'
 import { useItems } from '../../api/items'
+import { useImageVersion } from '../../hooks/useImageVersion'
 import type { SortField, SortDir } from '../../api/items'
 import { useActiveJobForEntry } from '../../api/jobs'
 import { refreshStudio } from '../../api/commands'
@@ -49,7 +50,7 @@ export function StudioDetail() {
 
   const [editOpen, setEditOpen] = useState(false)
   const [submitting, setSubmitting] = useState(false)
-  const [imgVersion, setImgVersion] = useState(0)
+  const [versionedImageUrl, bumpImageVersion] = useImageVersion(entry?.imageUrl)
 
   const handleRefresh = async () => {
     if (submitting || isRefreshing) return
@@ -85,10 +86,6 @@ export function StudioDetail() {
     ? activeJob.message ?? `${activeJob.current}/${activeJob.total} scenes`
     : 'Refresh'
 
-  const effectiveImageUrl = imgVersion && entry.imageUrl
-    ? `${entry.imageUrl}?v=${imgVersion}`
-    : entry.imageUrl
-
   return (
     <div>
       <div className="px-8 pt-6 flex items-center justify-between">
@@ -117,11 +114,11 @@ export function StudioDetail() {
         </div>
       </div>
 
-      <Hero backdropUrl={effectiveImageUrl} accent={ACCENT}>
+      <Hero backdropUrl={versionedImageUrl} accent={ACCENT}>
         <div className="flex gap-6 items-end">
           <div className="shrink-0 w-40 rounded-xl overflow-hidden border border-white/10 shadow-2xl" style={{ aspectRatio: '16/9' }}>
-            {effectiveImageUrl ? (
-              <img src={effectiveImageUrl} alt={entry.name} className="w-full h-full object-contain p-2" />
+            {versionedImageUrl ? (
+              <img src={versionedImageUrl} alt={entry.name} className="w-full h-full object-contain p-2" />
             ) : (
               <div className="w-full h-full bg-white/5 flex items-center justify-center">
                 <ImageIcon size={32} className="text-white/15" strokeWidth={1} />
@@ -225,7 +222,7 @@ export function StudioDetail() {
         <LibraryEntryEditor
           entry={entry}
           onClose={() => setEditOpen(false)}
-          onImageSet={() => setImgVersion(v => v + 1)}
+          onImageSet={bumpImageVersion}
         />
       )}
     </div>

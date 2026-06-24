@@ -3,6 +3,7 @@ import { useParams, Link } from 'react-router-dom'
 import { ArrowLeft, ImageIcon, User } from 'lucide-react'
 import { useLibraryEntry } from '../../api/library'
 import { useItems } from '../../api/items'
+import { useImageVersion } from '../../hooks/useImageVersion'
 import { LibraryEntryEditor } from '../../components/edit/editors/LibraryEntryEditor'
 import { Hero } from '../../components/layout/Hero'
 import { Badge } from '../../components/ui/Badge'
@@ -13,12 +14,12 @@ const ACCENT = '#f59e0b'
 export function BookDetail() {
   const { id } = useParams<{ id: string }>()
   const [editOpen, setEditOpen] = useState(false)
-  const [imgVersion, setImgVersion] = useState(0)
 
   const { data: entry, isLoading } = useLibraryEntry(id!)
   const { data: itemsPage } = useItems({ libraryEntryId: id!, limit: 1 })
   const item = itemsPage?.data[0]
   const authors = entry?.people.filter(p => p.role === 'author') ?? []
+  const [versionedImageUrl, bumpImageVersion] = useImageVersion(entry?.imageUrl)
 
   if (isLoading) return <div className="px-8 py-10"><Skeleton className="h-64 w-full" /></div>
   if (!entry) return null
@@ -41,7 +42,7 @@ export function BookDetail() {
         <div className="flex gap-6 items-end">
           <div className="shrink-0 w-36 rounded-xl overflow-hidden border border-white/10 shadow-2xl" style={{ aspectRatio: '2/3' }}>
             {entry.imageUrl ? (
-              <img src={`${entry.imageUrl}?v=${imgVersion}`} alt={entry.name} className="w-full h-full object-cover" />
+              <img src={versionedImageUrl} alt={entry.name} className="w-full h-full object-cover" />
             ) : (
               <div className="w-full h-full bg-white/5 flex items-center justify-center">
                 <ImageIcon size={36} className="text-white/15" strokeWidth={1} />
@@ -132,7 +133,7 @@ export function BookDetail() {
         <LibraryEntryEditor
           entry={entry}
           onClose={() => setEditOpen(false)}
-          onImageSet={() => setImgVersion(v => v + 1)}
+          onImageSet={bumpImageVersion}
         />
       )}
     </div>

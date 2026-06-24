@@ -3,6 +3,7 @@ import { useParams, Link } from 'react-router-dom'
 import { ArrowLeft, ImageIcon, ChevronRight } from 'lucide-react'
 import { useLibraryEntry } from '../../api/library'
 import { useGroups } from '../../api/groups'
+import { useImageVersion } from '../../hooks/useImageVersion'
 import { LibraryEntryEditor } from '../../components/edit/editors/LibraryEntryEditor'
 import { Hero } from '../../components/layout/Hero'
 import { Badge } from '../../components/ui/Badge'
@@ -14,10 +15,10 @@ const ACCENT = '#8b5cf6'
 export function SeriesDetail() {
   const { id } = useParams<{ id: string }>()
   const [editOpen, setEditOpen] = useState(false)
-  const [imgVersion, setImgVersion] = useState(0)
 
   const { data: entry, isLoading } = useLibraryEntry(id!)
   const { data: groupsPage } = useGroups(id!)
+  const [versionedImageUrl, bumpImageVersion] = useImageVersion(entry?.imageUrl)
 
   if (isLoading) return <div className="px-8 py-10"><Skeleton className="h-64 w-full" /></div>
   if (!entry) return null
@@ -45,7 +46,7 @@ export function SeriesDetail() {
         <div className="flex gap-6 items-end">
           <div className="shrink-0 w-40 rounded-xl overflow-hidden border border-white/10 shadow-2xl" style={{ aspectRatio: '2/3' }}>
             {entry.imageUrl ? (
-              <img src={`${entry.imageUrl}?v=${imgVersion}`} alt={entry.name} className="w-full h-full object-cover" />
+              <img src={versionedImageUrl} alt={entry.name} className="w-full h-full object-cover" />
             ) : (
               <div className="w-full h-full bg-white/5 flex items-center justify-center">
                 <ImageIcon size={36} className="text-white/15" strokeWidth={1} />
@@ -133,7 +134,7 @@ export function SeriesDetail() {
         <LibraryEntryEditor
           entry={entry}
           onClose={() => setEditOpen(false)}
-          onImageSet={() => setImgVersion(v => v + 1)}
+          onImageSet={bumpImageVersion}
         />
       )}
     </div>

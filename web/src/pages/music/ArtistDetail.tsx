@@ -4,6 +4,7 @@ import { ArrowLeft, ImageIcon, ChevronLeft, ChevronRight, Disc3, Users, ArrowUpN
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useLibraryEntry } from '../../api/library'
 import { useGroups, patchGroup, sortGroupsByYear } from '../../api/groups'
+import { useImageVersion } from '../../hooks/useImageVersion'
 import type { YearSortDir } from '../../api/groups'
 import { useActiveJobForEntry } from '../../api/jobs'
 import { refreshArtist } from '../../api/commands'
@@ -162,12 +163,12 @@ export function ArtistDetail() {
   const [sortDir, setSortDir] = useState<YearSortDir>('desc')
   const [submitting, setSubmitting] = useState(false)
   const [editOpen, setEditOpen] = useState(false)
-  const [imgVersion, setImgVersion] = useState(0)
 
   const activeJob   = useActiveJobForEntry(id!, 'RefreshArtist')
   const isImporting = activeJob !== null
 
   const { data: entry, isLoading } = useLibraryEntry(id!)
+  const [versionedImageUrl, bumpImageVersion] = useImageVersion(entry?.imageUrl)
   const { data: albumsPage } = useGroups(id!, isImporting ? 2000 : undefined)
   const albums = albumsPage?.data ?? []
 
@@ -226,7 +227,7 @@ export function ArtistDetail() {
         <div className="flex gap-6 items-end">
           <div className="shrink-0 w-36 h-36 rounded-full overflow-hidden border-2 shadow-2xl" style={{ borderColor: ACCENT + '44' }}>
             {entry.imageUrl ? (
-              <img src={`${entry.imageUrl}?v=${imgVersion}`} alt={entry.name} className="w-full h-full object-cover" />
+              <img src={versionedImageUrl} alt={entry.name} className="w-full h-full object-cover" />
             ) : (
               <div className="w-full h-full bg-white/5 flex items-center justify-center">
                 <ImageIcon size={32} className="text-white/15" strokeWidth={1} />
@@ -323,7 +324,7 @@ export function ArtistDetail() {
         <LibraryEntryEditor
           entry={entry}
           onClose={() => setEditOpen(false)}
-          onImageSet={() => setImgVersion(v => v + 1)}
+          onImageSet={bumpImageVersion}
         />
       )}
     </div>
