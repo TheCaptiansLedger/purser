@@ -94,7 +94,7 @@ func newHandlerWithConfigSvc(t *testing.T, cfgSvc ports.ConfigService) http.Hand
 		Log:      config.LogConfig{Level: "info", Format: "text"},
 	}
 	return api.New(0, "", cfg, database, libSvc, peopleSvc, metaSvc, tagRepo, jobQueue,
-		dbadapter.NewSettingsRepo(database), cfgSvc, nil, uiFS).Handler()
+		dbadapter.NewSettingsRepo(database), cfgSvc, nil, uiFS, nil).Handler()
 }
 
 // newHandlerWithDB builds a full server backed by a temp-file SQLite database
@@ -140,7 +140,7 @@ func newHandlerWithDB(t *testing.T) (http.Handler, *sql.DB) {
 		Log: config.LogConfig{Level: "info", Format: "text"},
 	}
 	settingsRepo := dbadapter.NewSettingsRepo(database)
-	return api.New(0, "", cfg, database, libSvc, peopleSvc, metaSvc, tagRepo, jobQueue, settingsRepo, noopConfigSvc{}, nil, uiFS).Handler(), database
+	return api.New(0, "", cfg, database, libSvc, peopleSvc, metaSvc, tagRepo, jobQueue, settingsRepo, noopConfigSvc{}, nil, uiFS, nil).Handler(), database
 }
 
 // newHandler builds a full server backed by a temp-file SQLite database.
@@ -198,7 +198,7 @@ func newHandlerWithMedia(t *testing.T, mediaPath string) http.Handler {
 		Log: config.LogConfig{Level: "info", Format: "text"},
 	}
 	settingsRepo := dbadapter.NewSettingsRepo(database)
-	return api.New(0, mediaPath, cfg, database, libSvc, peopleSvc, metaSvc, tagRepo, jobQueue, settingsRepo, noopConfigSvc{}, nil, uiFS).Handler()
+	return api.New(0, mediaPath, cfg, database, libSvc, peopleSvc, metaSvc, tagRepo, jobQueue, settingsRepo, noopConfigSvc{}, nil, uiFS, fspkg.NewImageDownloader(mediaPath)).Handler()
 }
 
 func do(t *testing.T, h http.Handler, method, path string, body any) *httptest.ResponseRecorder {
@@ -347,7 +347,7 @@ func TestConfig_Get_Sources_KeysMasked(t *testing.T) {
 		},
 		Log: config.LogConfig{Level: "info", Format: "text"},
 	}
-	h := api.New(0, "", cfg, database, libSvc, peopleSvc, metaSvc, tagRepo, jobQueue, dbadapter.NewSettingsRepo(database), noopConfigSvc{}, nil, uiFS).Handler()
+	h := api.New(0, "", cfg, database, libSvc, peopleSvc, metaSvc, tagRepo, jobQueue, dbadapter.NewSettingsRepo(database), noopConfigSvc{}, nil, uiFS, nil).Handler()
 
 	w := do(t, h, http.MethodGet, "/api/v1/config", nil)
 	if w.Code != http.StatusOK {
@@ -2163,7 +2163,7 @@ func TestJobs_Cancel_SetsStatus(t *testing.T) {
 		Database: config.DatabaseConfig{Driver: "sqlite", DSN: dbPath},
 		Log:      config.LogConfig{Level: "info", Format: "text"},
 	}
-	h := api.New(0, "", cfg, database, libSvc, peopleSvc, metaSvc, tagRepo, jobQueue, dbadapter.NewSettingsRepo(database), noopConfigSvc{}, nil, uiFS).Handler()
+	h := api.New(0, "", cfg, database, libSvc, peopleSvc, metaSvc, tagRepo, jobQueue, dbadapter.NewSettingsRepo(database), noopConfigSvc{}, nil, uiFS, nil).Handler()
 
 	// DELETE /api/v1/jobs/:id should cancel it.
 	w := do(t, h, http.MethodDelete, "/api/v1/jobs/"+submitted.ID, nil)
@@ -2805,7 +2805,7 @@ func newHandlerWithSources(t *testing.T, sources []ports.MetadataSource) http.Ha
 		Database: config.DatabaseConfig{Driver: "sqlite", DSN: dbPath},
 		Log:      config.LogConfig{Level: "info", Format: "text"},
 	}
-	return api.New(0, "", cfg, database, libSvc, peopleSvc, metaSvc, tagRepo, jobQueue, dbadapter.NewSettingsRepo(database), noopConfigSvc{}, sources, uiFS).Handler()
+	return api.New(0, "", cfg, database, libSvc, peopleSvc, metaSvc, tagRepo, jobQueue, dbadapter.NewSettingsRepo(database), noopConfigSvc{}, sources, uiFS, nil).Handler()
 }
 
 func TestVerify_BadJSON(t *testing.T) {

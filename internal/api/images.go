@@ -14,8 +14,6 @@ import (
 	"strings"
 
 	"github.com/go-chi/chi/v5"
-
-	fsadapter "purser/internal/adapters/fs"
 )
 
 // ── Image serve handler ───────────────────────────────────────────────────────
@@ -49,7 +47,7 @@ func (h *imageHandler) get(w http.ResponseWriter, r *http.Request) {
 
 	base := filepath.Clean(h.basePath)
 	for _, ext := range []string{".jpg", ".jpeg", ".png", ".webp", ".svg"} {
-		candidate := fsadapter.ImagePath(h.basePath, entityType, entityID, ext)
+		candidate := imagePath(h.basePath, entityType, entityID, ext)
 		if !strings.HasPrefix(filepath.Clean(candidate), base) {
 			http.NotFound(w, r)
 			return
@@ -96,11 +94,11 @@ type entityImageSetHandler struct {
 	mediaPath  string
 }
 
-func newEntityImageSetHandler(libSvc *library.Service, peopleSvc *people.Service, mediaPath string) *entityImageSetHandler {
+func newEntityImageSetHandler(libSvc *library.Service, peopleSvc *people.Service, mediaPath string, downloader ports.ImageDownloader) *entityImageSetHandler {
 	return &entityImageSetHandler{
 		libSvc:     libSvc,
 		peopleSvc:  peopleSvc,
-		downloader: fsadapter.NewImageDownloader(mediaPath),
+		downloader: downloader,
 		mediaPath:  mediaPath,
 	}
 }
@@ -330,7 +328,7 @@ func (h *entityImageSetHandler) saveUploadedImage(r *http.Request, entityType, i
 		return "", false
 	}
 
-	destBase := fsadapter.ImagePath(h.mediaPath, entityType, id, "")
+	destBase := imagePath(h.mediaPath, entityType, id, "")
 	if err := os.MkdirAll(filepath.Dir(destBase), 0o750); err != nil { //nolint:gosec // G703: path validated by safeEntityID + HasPrefix check below
 		slog.Warn("failed to create image dir", "error", err)
 		return "", false
@@ -381,7 +379,7 @@ func atomicWriteImage(dir, dest string, head []byte, rest io.Reader) error {
 // removeEntityImages deletes all known image extension variants for the entity.
 func removeEntityImages(mediaPath, entityType, id string) {
 	for _, ext := range []string{".jpg", ".jpeg", ".png", ".webp", ".svg", ".gif"} {
-		_ = os.Remove(fsadapter.ImagePath(mediaPath, entityType, id, ext)) //nolint:gosec // G703: id validated by safeEntityID before reaching this call
+		_ = os.Remove(imagePath(mediaPath, entityType, id, ext)) //nolint:gosec // G703: id validated by safeEntityID before reaching this call
 	}
 }
 
@@ -393,7 +391,7 @@ func removeEntityImagesExcept(mediaPath, entityType, id, keepExt string) {
 		if ext == keepExt {
 			continue
 		}
-		_ = os.Remove(fsadapter.ImagePath(mediaPath, entityType, id, ext)) //nolint:gosec // G703: id validated by safeEntityID before reaching this call
+		_ = os.Remove(imagePath(mediaPath, entityType, id, ext)) //nolint:gosec // G703: id validated by safeEntityID before reaching this call
 	}
 }
 
@@ -405,6 +403,16 @@ func validImageURL(raw string) bool {
 		return false
 	}
 	return u.Scheme == "http" || u.Scheme == "https"
+}
+
+// imagePath returns the on-disk path for an entity image using the sharded layout:
+// {base}/{entityType}/{id[0:2]}/{id}{ext}
+func imagePath(base, entityType, id, ext string) string {
+	shard := id
+	if len(id) >= 2 {
+		shard = id[:2]
+	}
+	return filepath.Join(base, entityType, shard, id+ext)
 }
 
 // safeEntityID rejects IDs containing path separators or double-dots.

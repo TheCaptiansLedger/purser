@@ -37,12 +37,13 @@ func New(
 	cfgSvc ports.ConfigService,
 	sources []ports.MetadataSource,
 	uiFS fs.FS,
+	imgDownloader ports.ImageDownloader,
 ) *Server {
 	s := &Server{
 		router: chi.NewRouter(),
 		port:   port,
 	}
-	s.mount(mediaPath, cfg, db, libSvc, peopleSvc, metaSvc, tagRepo, jobQueue, settingsRepo, cfgSvc, sources, uiFS)
+	s.mount(mediaPath, cfg, db, libSvc, peopleSvc, metaSvc, tagRepo, jobQueue, settingsRepo, cfgSvc, sources, uiFS, imgDownloader)
 	return s
 }
 
@@ -59,6 +60,7 @@ func (s *Server) mount(
 	cfgSvc ports.ConfigService,
 	sources []ports.MetadataSource,
 	uiFS fs.FS,
+	imgDownloader ports.ImageDownloader,
 ) {
 	r := s.router
 
@@ -75,7 +77,7 @@ func (s *Server) mount(
 
 		providerImagesH := &providerImagesHandler{svc: metaSvc}
 
-		imgSetH := newEntityImageSetHandler(libSvc, peopleSvc, mediaPath)
+		imgSetH := newEntityImageSetHandler(libSvc, peopleSvc, mediaPath, imgDownloader)
 
 		entryH := &libraryEntryHandler{svc: libSvc}
 		r.Route("/library-entries", func(r chi.Router) {

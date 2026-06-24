@@ -87,14 +87,15 @@ func run(cfgPath string) error {
 	libSvc := library.New(entryRepo, groupRepo, itemRepo, personRepo, tagRepo)
 	peopleSvc := people.New(personRepo)
 	sources := buildSources(cfg)
-	metaSvc := metadata.New(sources, jobQueue, entryRepo, groupRepo, itemRepo, personRepo, tagRepo, extIDRepo, fsadapter.NewImageDownloader(cfg.Media.Path))
+	imgDownloader := fsadapter.NewImageDownloader(cfg.Media.Path)
+	metaSvc := metadata.New(sources, jobQueue, entryRepo, groupRepo, itemRepo, personRepo, tagRepo, extIDRepo, imgDownloader)
 
 	uiFS, err := fs.Sub(web.Dist, "dist")
 	if err != nil {
 		return fmt.Errorf("load embedded UI: %w", err)
 	}
 
-	srv := api.New(cfg.Server.Port, cfg.Media.Path, cfg, database, libSvc, peopleSvc, metaSvc, tagRepo, jobQueue, settingsRepo, cfgSvc, sources, uiFS)
+	srv := api.New(cfg.Server.Port, cfg.Media.Path, cfg, database, libSvc, peopleSvc, metaSvc, tagRepo, jobQueue, settingsRepo, cfgSvc, sources, uiFS, imgDownloader)
 
 	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer cancel()
