@@ -7,50 +7,10 @@ import { Badge } from '../../components/ui/Badge'
 import { EntryCard } from '../../components/media/EntryCard'
 import { ItemCard } from '../../components/media/ItemCard'
 import { Skeleton } from '../../components/ui/Skeleton'
-import type { LibraryEntry, Item, ContentType } from '../../types'
+import { contentTypeConfig } from '../../config/contentTypes'
+import type { ContentType } from '../../types'
 
 const ACCENT = '#6366f1'
-
-function entryHref(entry: LibraryEntry): string {
-  switch (entry.contentType) {
-    case 'music':  return `/music/${entry.id}`
-    case 'adult':  return entry.kind === 'network' ? `/afterdark/networks/${entry.id}` : `/afterdark/studios/${entry.id}`
-    case 'tv':     return `/tv/${entry.id}`
-    case 'movie':  return `/movies/${entry.id}`
-    case 'book':  return `/books/${entry.id}`
-    default:       return `/people`
-  }
-}
-
-function itemHref(item: Item): string {
-  switch (item.contentType) {
-    case 'adult':
-    case 'jav':   return `/afterdark/scenes/${item.id}`
-    case 'movie': return `/movies/${item.libraryEntryId}`
-    case 'tv':    return `/tv/${item.libraryEntryId}`
-    case 'music': return `/music/${item.libraryEntryId}`
-    case 'book': return `/books/${item.libraryEntryId}`
-    default:      return `/people`
-  }
-}
-
-const CONTENT_TYPE_LABEL: Record<ContentType, string> = {
-  adult:  'Scenes',
-  jav:    'JAV Titles',
-  movie:  'Movies',
-  tv:     'Episodes',
-  music:  'Tracks',
-  book:   'Books',
-}
-
-const ENTRY_TYPE_LABEL: Record<ContentType, string> = {
-  music:  'Bands & Artists',
-  adult:  'Studios & Networks',
-  jav:    'Studios',
-  tv:     'TV Shows',
-  movie:  'Movies',
-  book:   'Publishers & Books',
-}
 
 function groupBy<T>(items: T[], key: (item: T) => string): Record<string, T[]> {
   return items.reduce<Record<string, T[]>>((acc, item) => {
@@ -148,14 +108,14 @@ export function PersonDetail() {
           {Object.entries(entriesByType).map(([ct, entries]) => (
             <section key={ct}>
               <h2 className="text-xs font-semibold text-white/35 uppercase tracking-widest mb-4">
-                {ENTRY_TYPE_LABEL[ct as ContentType] ?? ct}
+                {contentTypeConfig[ct as ContentType]?.entrySectionLabel ?? ct}
               </h2>
               <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
                 {entries.map(entry => (
                   <EntryCard
                     key={entry.id}
                     entry={entry}
-                    href={entryHref(entry)}
+                    href={contentTypeConfig[entry.contentType]?.entryPath(entry) ?? '/people'}
                     accent={ACCENT}
                   />
                 ))}
@@ -167,14 +127,14 @@ export function PersonDetail() {
           {Object.entries(itemsByType).map(([ct, ctItems]) => (
             <section key={ct}>
               <h2 className="text-xs font-semibold text-white/35 uppercase tracking-widest mb-4">
-                {CONTENT_TYPE_LABEL[ct as ContentType] ?? ct}
+                {contentTypeConfig[ct as ContentType]?.itemSectionLabel ?? ct}
               </h2>
               <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
                 {ctItems.map(item => (
                   <ItemCard
                     key={item.id}
                     item={item}
-                    href={itemHref(item)}
+                    href={contentTypeConfig[item.contentType]?.itemPath(item) ?? '/people'}
                     aspect="16/9"
                     accent={ACCENT}
                   />

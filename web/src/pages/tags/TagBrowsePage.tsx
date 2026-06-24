@@ -1,89 +1,22 @@
 import { useParams, Link } from 'react-router-dom'
-import { Tag as TagIcon, Film, Tv, Music2, BookOpen, Video, Layers, FileVideo } from 'lucide-react'
+import { Tag as TagIcon, Layers, FileVideo } from 'lucide-react'
 import { useLibraryEntries } from '../../api/library'
 import { useAllGroups } from '../../api/groups'
 import { useItems } from '../../api/items'
 import { useLibraryEntry } from '../../api/library'
 import { EmptyState } from '../../components/ui/EmptyState'
 import { Skeleton } from '../../components/ui/Skeleton'
+import { contentTypeConfig, defaultIcon } from '../../config/contentTypes'
 import type { LibraryEntry, Group, Item, ContentType } from '../../types'
 
 const ACCENT = '#6366f1'
 
-function entryLink(entry: LibraryEntry): string {
-  switch (entry.contentType) {
-    case 'movie':  return `/movies/${entry.id}`
-    case 'tv':     return `/tv/${entry.id}`
-    case 'music':  return `/music/${entry.id}`
-    case 'book':   return `/books/${entry.id}`
-    case 'adult':
-    case 'jav':    return `/afterdark/studios/${entry.id}`
-    default:       return '#'
-  }
-}
-
-function itemLink(item: Item): string {
-  switch (item.contentType) {
-    case 'adult':
-    case 'jav':   return `/afterdark/scenes/${item.id}`
-    case 'movie': return item.libraryEntryId ? `/movies/${item.libraryEntryId}` : '#'
-    case 'tv':    return item.libraryEntryId ? `/tv/${item.libraryEntryId}` : '#'
-    case 'music': return item.libraryEntryId ? `/music/${item.libraryEntryId}` : '#'
-    case 'book':  return item.libraryEntryId ? `/books/${item.libraryEntryId}` : '#'
-    default:      return '#'
-  }
-}
-
-function contentTypeIcon(ct: ContentType) {
-  switch (ct) {
-    case 'movie':  return Film
-    case 'tv':     return Tv
-    case 'music':  return Music2
-    case 'book':   return BookOpen
-    case 'adult':
-    case 'jav':    return Video
-    default:       return Layers
-  }
-}
-
-function contentTypeLabel(ct: ContentType): string {
-  switch (ct) {
-    case 'movie': return 'Movie'
-    case 'tv':    return 'TV Series'
-    case 'music': return 'Artist'
-    case 'book':  return 'Book'
-    case 'adult': return 'Studio'
-    case 'jav':   return 'Studio'
-    default:      return ct
-  }
-}
-
-function itemTypeLabel(ct: ContentType): string {
-  switch (ct) {
-    case 'movie': return 'Movie'
-    case 'tv':    return 'Episode'
-    case 'music': return 'Track'
-    case 'book':  return 'Book'
-    case 'adult':
-    case 'jav':   return 'Scene'
-    default:      return 'Item'
-  }
-}
-
-function groupLink(group: Group, parentEntry: LibraryEntry | undefined): string {
-  if (!parentEntry) return '#'
-  switch (parentEntry.contentType) {
-    case 'music': return `/music/${group.libraryEntryId}/albums/${group.id}`
-    case 'tv':    return `/tv/${group.libraryEntryId}/seasons/${group.number}`
-    default:      return '#'
-  }
-}
-
 function EntryRow({ entry }: { entry: LibraryEntry }) {
-  const Icon = contentTypeIcon(entry.contentType)
+  const cfg  = contentTypeConfig[entry.contentType]
+  const Icon = cfg?.icon ?? defaultIcon
   return (
     <Link
-      to={entryLink(entry)}
+      to={cfg?.entryPath(entry) ?? '#'}
       className="flex items-center gap-3 px-4 py-3 rounded-xl bg-white/3 border border-white/5 hover:bg-white/6 hover:border-white/12 transition-all duration-150 group"
     >
       {entry.imageUrl ? (
@@ -95,7 +28,7 @@ function EntryRow({ entry }: { entry: LibraryEntry }) {
       )}
       <div className="flex-1 min-w-0">
         <p className="text-sm font-medium text-white/80 group-hover:text-white transition-colors truncate">{entry.name}</p>
-        <p className="text-xs text-white/35">{contentTypeLabel(entry.contentType)}</p>
+        <p className="text-xs text-white/35">{cfg?.entryTypeLabel ?? entry.contentType}</p>
       </div>
     </Link>
   )
@@ -106,7 +39,9 @@ function GroupRow({ group }: { group: Group }) {
   // because tag browse returns at most 100 groups and React Query deduplicates
   // identical requests. Track as Option A in #223 if this becomes a problem.
   const { data: parent } = useLibraryEntry(group.libraryEntryId)
-  const href = groupLink(group, parent)
+  const href = parent
+    ? contentTypeConfig[parent.contentType as ContentType]?.groupPath?.(group) ?? '#'
+    : '#'
 
   const inner = (
     <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-white/3 border border-white/5 hover:bg-white/6 hover:border-white/12 transition-all duration-150 group">
@@ -120,7 +55,7 @@ function GroupRow({ group }: { group: Group }) {
       <div className="flex-1 min-w-0">
         <p className="text-sm font-medium text-white/80 group-hover:text-white transition-colors truncate">{group.title}</p>
         <p className="text-xs text-white/35">
-          {parent ? `${contentTypeLabel(parent.contentType as ContentType)} — ${parent.name}` : 'Album'}
+          {parent ? `${contentTypeConfig[parent.contentType as ContentType]?.entryTypeLabel ?? parent.contentType} — ${parent.name}` : 'Album'}
           {group.year > 0 ? ` · ${group.year}` : ''}
         </p>
       </div>
@@ -131,8 +66,9 @@ function GroupRow({ group }: { group: Group }) {
 }
 
 function ItemRow({ item }: { item: Item }) {
-  const href = itemLink(item)
-  const Icon = contentTypeIcon(item.contentType)
+  const cfg  = contentTypeConfig[item.contentType]
+  const href = cfg?.itemPath(item) ?? '#'
+  const Icon = cfg?.icon ?? defaultIcon
 
   const inner = (
     <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-white/3 border border-white/5 hover:bg-white/6 hover:border-white/12 transition-all duration-150 group">
@@ -145,7 +81,7 @@ function ItemRow({ item }: { item: Item }) {
       )}
       <div className="flex-1 min-w-0">
         <p className="text-sm font-medium text-white/80 group-hover:text-white transition-colors truncate">{item.title}</p>
-        <p className="text-xs text-white/35">{itemTypeLabel(item.contentType)}</p>
+        <p className="text-xs text-white/35">{cfg?.itemTypeLabel ?? 'Item'}</p>
       </div>
       <Icon size={14} className="text-white/20 shrink-0" />
     </div>
