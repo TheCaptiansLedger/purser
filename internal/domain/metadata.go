@@ -86,3 +86,26 @@ type ExternalGroup struct {
 	PrimaryType    string   // source-specific primary classification (e.g. "Album", "Single")
 	SecondaryTypes []string // source-specific secondary classifications (e.g. ["Live"], ["Compilation"])
 }
+
+// AlbumFilterToken returns the Purser album section identifier for this external group.
+// Values: "ep", "single", "studio", "live", "compilation", "other".
+func (eg *ExternalGroup) AlbumFilterToken() string {
+	switch eg.PrimaryType {
+	case "EP":
+		return "ep"
+	case "Single":
+		return "single"
+	case "Album":
+		for _, s := range eg.SecondaryTypes {
+			switch s {
+			case "Live":
+				return "live"
+			case "Compilation":
+				return "compilation"
+			}
+		}
+		return "studio"
+	default:
+		return "other"
+	}
+}

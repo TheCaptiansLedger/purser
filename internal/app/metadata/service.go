@@ -986,31 +986,8 @@ func isImportableAlbum(eg *domain.ExternalGroup, filter []string) bool {
 	if len(filter) == 0 {
 		filter = []string{"studio", "live"}
 	}
-	token := albumFilterToken(eg)
+	token := eg.AlbumFilterToken()
 	return slices.Contains(filter, token)
-}
-
-// albumFilterToken maps an ExternalGroup's MusicBrainz type pair to one of the
-// user-facing filter tokens understood by isImportableAlbum.
-func albumFilterToken(eg *domain.ExternalGroup) string {
-	switch eg.PrimaryType {
-	case "EP":
-		return "ep"
-	case "Single":
-		return "single"
-	case "Album":
-		for _, s := range eg.SecondaryTypes {
-			switch s {
-			case "Live":
-				return "live"
-			case "Compilation":
-				return "compilation"
-			}
-		}
-		return "studio"
-	default:
-		return "other"
-	}
 }
 
 // buildEntryMeta constructs the metadata map for a new library entry from an
