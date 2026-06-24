@@ -1,10 +1,10 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { User } from 'lucide-react'
-import type { Person } from '../../types'
+import type { Person, PersonRef } from '../../types'
 
 interface Props {
-  person: Person
+  person: PersonRef | Person
   href: string
   accent?: string
 }
@@ -43,7 +43,7 @@ export function PersonCard({ person, href, accent }: Props) {
       {/* Info */}
       <div className="px-0.5">
         <p className="text-sm font-medium text-white/90 truncate leading-tight">{person.name}</p>
-        {person.aliases.length > 0 && (
+        {'aliases' in person && person.aliases.length > 0 && (
           <p className="text-xs text-white/35 truncate mt-0.5">
             {person.aliases.slice(0, 2).join(', ')}
           </p>

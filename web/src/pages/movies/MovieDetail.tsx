@@ -102,7 +102,7 @@ export function MovieDetail() {
             <h2 className="text-sm font-semibold text-white/40 uppercase tracking-widest mb-4">Cast</h2>
             <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-3">
               {performers.map(({ person, personId }) => person ? (
-                <PersonCard key={personId} person={{ id: personId, name: person.name, sortName: person.sortName, imageUrl: person.imageUrl, overview: '', monitored: false, monitorMode: 'all', aliases: [], externalIds: [], addedAt: '' }} href={`/people/${personId}`} accent={ACCENT} />
+                <PersonCard key={personId} person={person} href={`/people/${personId}`} accent={ACCENT} />
               ) : null)}
             </div>
           </section>

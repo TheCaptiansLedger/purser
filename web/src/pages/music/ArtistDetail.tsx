@@ -309,7 +309,7 @@ export function ArtistDetail() {
               {entry.people.map(ep => ep.person && (
                 <PersonCard
                   key={ep.personId}
-                  person={{ ...ep.person, aliases: [], monitored: false, monitorMode: 'all', overview: '', externalIds: [], addedAt: '' }}
+                  person={ep.person}
                   href={`/people/${ep.personId}`}
                   accent={ACCENT}
                 />

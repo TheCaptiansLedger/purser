@@ -185,7 +185,7 @@ export function SceneDetail() {
               {performers.map(({ person, personId }) => person ? (
                 <PersonCard
                   key={personId}
-                  person={{ id: personId, name: person.name, sortName: person.sortName, imageUrl: person.imageUrl, overview: '', monitored: false, monitorMode: 'all', aliases: [], externalIds: [], addedAt: '' }}
+                  person={person}
                   href={`/afterdark/performers/${personId}`}
                   accent={ACCENT}
                 />

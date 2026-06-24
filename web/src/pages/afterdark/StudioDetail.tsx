@@ -14,7 +14,7 @@ import { PersonCard } from '../../components/media/PersonCard'
 import { Badge } from '../../components/ui/Badge'
 import { Pagination } from '../../components/ui/Pagination'
 import { Skeleton } from '../../components/ui/Skeleton'
-import type { Person } from '../../types'
+import type { PersonRef } from '../../types'
 
 const ACCENT = '#f43f5e'
 const LIMIT = 48
@@ -61,22 +61,11 @@ export function StudioDetail() {
     }
   }
 
-  const performerMap = new Map<string, Person>()
+  const performerMap = new Map<string, PersonRef>()
   for (const scene of scenes) {
     for (const ip of scene.people) {
       if (!performerMap.has(ip.personId) && ip.person) {
-        performerMap.set(ip.personId, {
-          id: ip.personId,
-          name: ip.person.name,
-          sortName: ip.person.sortName,
-          imageUrl: ip.person.imageUrl,
-          overview: '',
-          monitored: false,
-          monitorMode: 'all',
-          aliases: [],
-          externalIds: [],
-          addedAt: '',
-        })
+        performerMap.set(ip.personId, ip.person)
       }
     }
   }
