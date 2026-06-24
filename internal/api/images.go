@@ -46,7 +46,7 @@ func (h *imageHandler) get(w http.ResponseWriter, r *http.Request) {
 	slog.Debug("image.get", "entity_type", entityType, "entity_id", entityID)
 
 	base := filepath.Clean(h.basePath)
-	for _, ext := range []string{".jpg", ".jpeg", ".png", ".webp", ".svg"} {
+	for _, ext := range imageExtensions {
 		candidate := imagePath(h.basePath, entityType, entityID, ext)
 		if !strings.HasPrefix(filepath.Clean(candidate), base) {
 			http.NotFound(w, r)
@@ -76,6 +76,11 @@ func imageURL(entityType, entityID, imagePath string) string {
 // ── Image set/clear handler ───────────────────────────────────────────────────
 
 const maxImageUploadBytes = 10 << 20 // 10 MB
+
+// imageExtensions is the canonical list of extensions for stored images.
+// Must stay aligned with imageUploadAllowedTypes; SVG is excluded from direct
+// upload (XSS risk) but included here because it can arrive via URL download.
+var imageExtensions = []string{".jpg", ".jpeg", ".png", ".webp", ".gif", ".svg"}
 
 // imageUploadAllowedTypes maps detected MIME types to file extensions.
 // SVG is intentionally excluded: it can embed scripts and is served directly by
@@ -378,7 +383,7 @@ func atomicWriteImage(dir, dest string, head []byte, rest io.Reader) error {
 
 // removeEntityImages deletes all known image extension variants for the entity.
 func removeEntityImages(mediaPath, entityType, id string) {
-	for _, ext := range []string{".jpg", ".jpeg", ".png", ".webp", ".svg", ".gif"} {
+	for _, ext := range imageExtensions {
 		_ = os.Remove(imagePath(mediaPath, entityType, id, ext)) //nolint:gosec // G703: id validated by safeEntityID before reaching this call
 	}
 }
@@ -387,7 +392,7 @@ func removeEntityImages(mediaPath, entityType, id string) {
 // Called after a new image is saved so stale files from previous uploads or downloads
 // cannot shadow the new one in the extension-ordered serve loop.
 func removeEntityImagesExcept(mediaPath, entityType, id, keepExt string) {
-	for _, ext := range []string{".jpg", ".jpeg", ".png", ".webp", ".svg", ".gif"} {
+	for _, ext := range imageExtensions {
 		if ext == keepExt {
 			continue
 		}

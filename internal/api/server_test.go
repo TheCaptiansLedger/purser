@@ -2732,6 +2732,27 @@ func TestImages_Get_MultipleExtensions(t *testing.T) {
 	}
 }
 
+func TestImages_Get_ServesGIF(t *testing.T) {
+	mediaPath := t.TempDir()
+	entityID := "gif001"
+	path := fspkg.ImagePath(mediaPath, "entries", entityID, ".gif")
+	if err := os.MkdirAll(filepath.Dir(path), 0o750); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, []byte("GIF89a"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	h := newHandlerWithMedia(t, mediaPath)
+	w := do(t, h, http.MethodGet, "/api/v1/images/entries/"+entityID, nil)
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", w.Code)
+	}
+	if ct := w.Result().Header.Get("Content-Type"); ct != "image/gif" {
+		t.Errorf("Content-Type = %q, want image/gif", ct)
+	}
+}
+
 // ── Setup ─────────────────────────────────────────────────────────────────────
 
 func TestSetup_Status_Fresh(t *testing.T) {
