@@ -87,6 +87,22 @@ func (r *itemRepo) Get(ctx context.Context, id string) (*domain.Item, error) {
 	return item, nil
 }
 
+func addItemContentTypes(w *whereClause, cts []domain.ContentType) {
+	switch len(cts) {
+	case 0:
+		// no filter
+	case 1:
+		w.add("content_type = ?", string(cts[0]))
+	default:
+		ph := listPlaceholders(len(cts))
+		args := make([]any, len(cts))
+		for i, ct := range cts {
+			args[i] = string(ct)
+		}
+		w.add("content_type IN ("+ph+")", args...) //nolint:gosec // ph is "?" markers built from len, not user input
+	}
+}
+
 func buildItemWhere(f ports.ItemFilter) *whereClause {
 	w := &whereClause{}
 	if f.LibraryEntryID != "" {
@@ -95,9 +111,7 @@ func buildItemWhere(f ports.ItemFilter) *whereClause {
 	if f.GroupID != "" {
 		w.add("group_id = ?", f.GroupID)
 	}
-	if f.ContentType != "" {
-		w.add("content_type = ?", string(f.ContentType))
-	}
+	addItemContentTypes(w, f.ContentTypes)
 	if f.Status != "" {
 		w.add("status = ?", string(f.Status))
 	}

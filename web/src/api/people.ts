@@ -1,10 +1,10 @@
 import { useQuery } from '@tanstack/react-query'
 import { get, getPage } from './client'
-import type { Person, ContentType, PersonRole } from '../types'
+import type { Person, PersonRole } from '../types'
 
 interface PeopleFilter {
   search?: string
-  contentType?: ContentType
+  contentType?: string
   role?: PersonRole
   monitored?: boolean
   limit?: number

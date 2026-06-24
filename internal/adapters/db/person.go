@@ -67,6 +67,42 @@ func (r *personRepo) Get(ctx context.Context, id string) (*domain.Person, error)
 	return p, nil
 }
 
+func addPersonContentTypes(w *whereClause, cts []domain.ContentType) {
+	switch len(cts) {
+	case 0:
+		// no filter
+	case 1:
+		ct := string(cts[0])
+		w.add(`id IN (
+			SELECT ip.person_id FROM item_people ip
+			JOIN items i ON i.id = ip.item_id
+			WHERE i.content_type = ?
+			UNION
+			SELECT ep.person_id FROM entry_people ep
+			JOIN library_entries le ON le.id = ep.library_entry_id
+			WHERE le.content_type = ?
+		)`, ct, ct)
+	default:
+		ph := listPlaceholders(len(cts))
+		args := make([]any, 0, len(cts)*2)
+		for _, ct := range cts {
+			args = append(args, string(ct))
+		}
+		for _, ct := range cts {
+			args = append(args, string(ct))
+		}
+		w.add(`id IN (
+			SELECT ip.person_id FROM item_people ip
+			JOIN items i ON i.id = ip.item_id
+			WHERE i.content_type IN (`+ph+`)
+			UNION
+			SELECT ep.person_id FROM entry_people ep
+			JOIN library_entries le ON le.id = ep.library_entry_id
+			WHERE le.content_type IN (`+ph+`)
+		)`, args...) //nolint:gosec // ph is "?" markers built from len, not user input
+	}
+}
+
 func (r *personRepo) List(ctx context.Context, f ports.PersonFilter) ([]*domain.Person, int, error) {
 	w := &whereClause{}
 
@@ -80,17 +116,7 @@ func (r *personRepo) List(ctx context.Context, f ports.PersonFilter) ([]*domain.
 			SELECT person_id FROM entry_people WHERE role = ?
 		)`, string(f.Role), string(f.Role))
 	}
-	if f.ContentType != "" {
-		w.add(`id IN (
-			SELECT ip.person_id FROM item_people ip
-			JOIN items i ON i.id = ip.item_id
-			WHERE i.content_type = ?
-			UNION
-			SELECT ep.person_id FROM entry_people ep
-			JOIN library_entries le ON le.id = ep.library_entry_id
-			WHERE le.content_type = ?
-		)`, string(f.ContentType), string(f.ContentType))
-	}
+	addPersonContentTypes(w, f.ContentTypes)
 	if f.Search != "" {
 		w.add(`(name LIKE ? OR id IN (
 			SELECT person_id FROM people_aliases WHERE alias LIKE ?

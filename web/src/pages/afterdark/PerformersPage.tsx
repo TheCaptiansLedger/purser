@@ -16,18 +16,11 @@ export function PerformersPage() {
 
   const resetPage = (v: string) => { setSearch(v); setOffset(0) }
 
-  const adult = usePeople({ contentType: 'adult', search: search || undefined, limit: LIMIT, offset })
-  const jav   = usePeople({ contentType: 'jav',   search: search || undefined, limit: LIMIT, offset })
+  const performers = usePeople({ contentType: 'adult,jav', search: search || undefined, limit: LIMIT, offset })
 
-  const loading = adult.isLoading || jav.isLoading
-
-  // Merge and deduplicate by id, sort alphabetically
-  const seen = new Set<string>()
-  const all = [...(adult.data?.data ?? []), ...(jav.data?.data ?? [])]
-    .filter(p => { if (seen.has(p.id)) return false; seen.add(p.id); return true })
-    .sort((a, b) => a.sortName.localeCompare(b.sortName))
-
-  const total = (adult.data?.total ?? 0) + (jav.data?.total ?? 0)
+  const loading = performers.isLoading
+  const all = performers.data?.data ?? []
+  const total = performers.data?.total ?? 0
 
   return (
     <div>

@@ -31,8 +31,8 @@ export function ScenesPage() {
     setOffset(0)
   }
 
-  const adultScenes = useItems({
-    contentType: 'adult',
+  const scenes = useItems({
+    contentType: 'adult,jav',
     search: search || undefined,
     sort,
     sortDir,
@@ -40,31 +40,9 @@ export function ScenesPage() {
     offset,
   })
 
-  const javScenes = useItems({
-    contentType: 'jav',
-    search: search || undefined,
-    sort,
-    sortDir,
-    limit: LIMIT,
-    offset,
-  })
-
-  const loading = adultScenes.isLoading || javScenes.isLoading
-
-  const allScenes = [
-    ...(adultScenes.data?.data ?? []),
-    ...(javScenes.data?.data ?? []),
-  ].sort((a, b) => {
-    if (sort === 'title') {
-      const cmp = a.title.localeCompare(b.title)
-      return sortDir === 'asc' ? cmp : -cmp
-    }
-    const da = a.date ? new Date(a.date).getTime() : 0
-    const db = b.date ? new Date(b.date).getTime() : 0
-    return sortDir === 'asc' ? da - db : db - da
-  })
-
-  const total = (adultScenes.data?.total ?? 0) + (javScenes.data?.total ?? 0)
+  const loading = scenes.isLoading
+  const allScenes = scenes.data?.data ?? []
+  const total = scenes.data?.total ?? 0
 
   return (
     <div>

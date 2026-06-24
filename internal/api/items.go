@@ -120,6 +120,22 @@ func toItemResponse(item *domain.Item) *itemResponse {
 	return r
 }
 
+// parseContentTypes splits a comma-separated contentType query param into a
+// slice of ContentType values. Returns nil when raw is empty.
+func parseContentTypes(raw string) []domain.ContentType {
+	if raw == "" {
+		return nil
+	}
+	parts := strings.Split(raw, ",")
+	cts := make([]domain.ContentType, 0, len(parts))
+	for _, p := range parts {
+		if p = strings.TrimSpace(p); p != "" {
+			cts = append(cts, domain.ContentType(p))
+		}
+	}
+	return cts
+}
+
 // ── Handlers ──────────────────────────────────────────────────────────────────
 
 func (h *itemHandler) list(w http.ResponseWriter, r *http.Request) {
@@ -129,7 +145,7 @@ func (h *itemHandler) list(w http.ResponseWriter, r *http.Request) {
 	f := ports.ItemFilter{
 		LibraryEntryID: q.Get("libraryEntryId"),
 		GroupID:        q.Get("groupId"),
-		ContentType:    domain.ContentType(q.Get("contentType")),
+		ContentTypes:   parseContentTypes(q.Get("contentType")),
 		Status:         domain.ItemStatus(q.Get("status")),
 		Monitored:      boolPtr(r, "monitored"),
 		PersonID:       q.Get("personId"),

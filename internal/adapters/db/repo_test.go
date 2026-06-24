@@ -536,6 +536,115 @@ func TestItemRepo_List_ByPersonID(t *testing.T) {
 	}
 }
 
+func TestItemRepo_List_MultiContentType(t *testing.T) {
+	database := setupTestDB(t)
+	entryRepo := NewLibraryEntryRepo(database)
+	itemRepo := NewItemRepo(database)
+	ctx := context.Background()
+
+	adultEntry := &domain.LibraryEntry{ContentType: domain.ContentTypeAdult, Kind: domain.KindStudio, Name: "Adult Studio", MonitorMode: domain.MonitorAll, Status: domain.EntryStatusActive}
+	javEntry := &domain.LibraryEntry{ContentType: domain.ContentTypeJAV, Kind: domain.KindStudio, Name: "JAV Studio", MonitorMode: domain.MonitorAll, Status: domain.EntryStatusActive}
+	tvEntry := &domain.LibraryEntry{ContentType: domain.ContentTypeTV, Kind: domain.KindSeries, Name: "TV Series", MonitorMode: domain.MonitorAll, Status: domain.EntryStatusActive}
+	for _, e := range []*domain.LibraryEntry{adultEntry, javEntry, tvEntry} {
+		if err := entryRepo.Save(ctx, e); err != nil {
+			t.Fatalf("Save entry: %v", err)
+		}
+	}
+
+	items := []*domain.Item{
+		{ContentType: domain.ContentTypeAdult, LibraryEntryID: adultEntry.ID, Title: "Adult Scene 1", Status: domain.StatusWanted},
+		{ContentType: domain.ContentTypeAdult, LibraryEntryID: adultEntry.ID, Title: "Adult Scene 2", Status: domain.StatusWanted},
+		{ContentType: domain.ContentTypeJAV, LibraryEntryID: javEntry.ID, Title: "JAV Scene 1", Status: domain.StatusWanted},
+		{ContentType: domain.ContentTypeTV, LibraryEntryID: tvEntry.ID, Title: "TV Episode 1", Status: domain.StatusWanted},
+	}
+	for _, item := range items {
+		if err := itemRepo.Save(ctx, item); err != nil {
+			t.Fatalf("Save item: %v", err)
+		}
+	}
+
+	got, total, err := itemRepo.List(ctx, ports.ItemFilter{
+		ContentTypes: []domain.ContentType{domain.ContentTypeAdult, domain.ContentTypeJAV},
+		Limit:        50,
+	})
+	if err != nil {
+		t.Fatalf("List multi content type: %v", err)
+	}
+	if total != 3 {
+		t.Errorf("total = %d, want 3", total)
+	}
+	if len(got) != 3 {
+		t.Errorf("len = %d, want 3", len(got))
+	}
+	for _, item := range got {
+		if item.ContentType == domain.ContentTypeTV {
+			t.Errorf("TV item %q must not appear in adult,jav query", item.Title)
+		}
+	}
+}
+
+func TestPersonRepo_List_MultiContentType(t *testing.T) {
+	database := setupTestDB(t)
+	entryRepo := NewLibraryEntryRepo(database)
+	itemRepo := NewItemRepo(database)
+	personRepo := NewPersonRepo(database)
+	ctx := context.Background()
+
+	adultEntry := &domain.LibraryEntry{ContentType: domain.ContentTypeAdult, Kind: domain.KindStudio, Name: "Adult Studio", MonitorMode: domain.MonitorAll, Status: domain.EntryStatusActive}
+	javEntry := &domain.LibraryEntry{ContentType: domain.ContentTypeJAV, Kind: domain.KindStudio, Name: "JAV Studio", MonitorMode: domain.MonitorAll, Status: domain.EntryStatusActive}
+	tvEntry := &domain.LibraryEntry{ContentType: domain.ContentTypeTV, Kind: domain.KindSeries, Name: "TV Series", MonitorMode: domain.MonitorAll, Status: domain.EntryStatusActive}
+	for _, e := range []*domain.LibraryEntry{adultEntry, javEntry, tvEntry} {
+		if err := entryRepo.Save(ctx, e); err != nil {
+			t.Fatalf("Save entry: %v", err)
+		}
+	}
+
+	adultPerformer := &domain.Person{Name: "Alice", SortName: "Alice", MonitorMode: domain.MonitorAll}
+	javPerformer := &domain.Person{Name: "Yuki", SortName: "Yuki", MonitorMode: domain.MonitorAll}
+	tvActor := &domain.Person{Name: "Bob", SortName: "Bob", MonitorMode: domain.MonitorAll}
+	for _, p := range []*domain.Person{adultPerformer, javPerformer, tvActor} {
+		if err := personRepo.Save(ctx, p); err != nil {
+			t.Fatalf("Save person: %v", err)
+		}
+	}
+
+	adultItem := &domain.Item{ContentType: domain.ContentTypeAdult, LibraryEntryID: adultEntry.ID, Title: "Adult Scene", Status: domain.StatusWanted, People: []domain.ItemPerson{{PersonID: adultPerformer.ID, Role: domain.RolePerformer}}}
+	javItem := &domain.Item{ContentType: domain.ContentTypeJAV, LibraryEntryID: javEntry.ID, Title: "JAV Scene", Status: domain.StatusWanted, People: []domain.ItemPerson{{PersonID: javPerformer.ID, Role: domain.RolePerformer}}}
+	tvItem := &domain.Item{ContentType: domain.ContentTypeTV, LibraryEntryID: tvEntry.ID, Title: "TV Episode", Status: domain.StatusWanted, People: []domain.ItemPerson{{PersonID: tvActor.ID, Role: domain.RolePerformer}}}
+	for _, item := range []*domain.Item{adultItem, javItem, tvItem} {
+		if err := itemRepo.Save(ctx, item); err != nil {
+			t.Fatalf("Save item: %v", err)
+		}
+	}
+
+	got, total, err := personRepo.List(ctx, ports.PersonFilter{
+		ContentTypes: []domain.ContentType{domain.ContentTypeAdult, domain.ContentTypeJAV},
+		Limit:        50,
+	})
+	if err != nil {
+		t.Fatalf("List multi content type: %v", err)
+	}
+	if total != 2 {
+		t.Errorf("total = %d, want 2", total)
+	}
+	if len(got) != 2 {
+		t.Errorf("len = %d, want 2", len(got))
+	}
+	ids := make(map[string]bool, len(got))
+	for _, p := range got {
+		ids[p.ID] = true
+	}
+	if !ids[adultPerformer.ID] {
+		t.Error("adult performer must be in result")
+	}
+	if !ids[javPerformer.ID] {
+		t.Error("jav performer must be in result")
+	}
+	if ids[tvActor.ID] {
+		t.Error("tv actor must not be in result")
+	}
+}
+
 // ── TagRepo ───────────────────────────────────────────────────────────────────
 
 func TestTagRepo_SaveListDelete(t *testing.T) {
@@ -1213,7 +1322,7 @@ func TestItemRepo_List_Filters(t *testing.T) {
 	}
 
 	// Filter by contentType
-	_, total, err = itemRepo.List(ctx, ports.ItemFilter{ContentType: domain.ContentTypeTV, Limit: 50})
+	_, total, err = itemRepo.List(ctx, ports.ItemFilter{ContentTypes: []domain.ContentType{domain.ContentTypeTV}, Limit: 50})
 	if err != nil {
 		t.Fatalf("List by contentType: %v", err)
 	}

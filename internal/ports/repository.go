@@ -50,7 +50,7 @@ type GroupRepository interface {
 type ItemFilter struct {
 	LibraryEntryID string
 	GroupID        string
-	ContentType    domain.ContentType
+	ContentTypes   []domain.ContentType
 	Status         domain.ItemStatus
 	Monitored      *bool
 	PersonID       string   // items featuring this person
@@ -74,12 +74,12 @@ type ItemRepository interface {
 
 // PersonFilter specifies criteria for listing People.
 type PersonFilter struct {
-	ContentType domain.ContentType
-	Monitored   *bool
-	Role        domain.PersonRole
-	Search      string
-	Limit       int
-	Offset      int
+	ContentTypes []domain.ContentType
+	Monitored    *bool
+	Role         domain.PersonRole
+	Search       string
+	Limit        int
+	Offset       int
 }
 
 // PersonRepository manages persistence for people (performers, cast, artists, actresses).

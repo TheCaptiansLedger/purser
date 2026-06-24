@@ -76,12 +76,12 @@ func (h *peopleHandler) list(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query()
 
 	people, total, err := h.svc.ListPeople(r.Context(), ports.PersonFilter{
-		ContentType: domain.ContentType(q.Get("contentType")),
-		Monitored:   boolPtr(r, "monitored"),
-		Role:        domain.PersonRole(q.Get("role")),
-		Search:      q.Get("search"),
-		Limit:       limit,
-		Offset:      offset,
+		ContentTypes: parseContentTypes(q.Get("contentType")),
+		Monitored:    boolPtr(r, "monitored"),
+		Role:         domain.PersonRole(q.Get("role")),
+		Search:       q.Get("search"),
+		Limit:        limit,
+		Offset:       offset,
 	})
 	if handleErr(w, err) {
 		return
