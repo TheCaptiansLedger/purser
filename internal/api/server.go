@@ -70,6 +70,8 @@ func (s *Server) mount(
 		cfgH := &configHandler{cfg: cfg, cfgSvc: cfgSvc}
 		r.Get("/config", cfgH.get)
 		r.Patch("/config", cfgH.patch)
+		r.Get("/config/content-types", cfgH.contentTypes)
+		r.Get("/config/kinds", cfgH.kinds)
 
 		providerImagesH := &providerImagesHandler{svc: metaSvc}
 

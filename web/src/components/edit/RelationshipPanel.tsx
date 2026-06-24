@@ -7,47 +7,27 @@ import {
   useAddItemPerson,
   useRemoveItemPerson,
 } from '../../api/relationships'
-import type { EntryPerson, ItemPerson, Kind, ContentType, Person } from '../../types'
+import type { ContentTypeConfig, EntryPerson, ItemPerson, KindConfig, Person } from '../../types'
 
-export function rolesFor(
-  entityType: 'entry' | 'item',
-  contentType: ContentType,
-  kind?: Kind,
-): string[] {
-  if (entityType === 'entry') {
-    switch (kind) {
-      case 'artist':    return ['member', 'former_member', 'vocalist', 'guitarist', 'bassist', 'drummer', 'keyboardist', 'producer']
-      case 'studio':    return ['performer', 'director', 'contracted_performer']
-      case 'network':   return ['affiliated_performer', 'director', 'producer']
-      case 'series':    return ['regular_cast', 'recurring_cast', 'director', 'producer', 'writer']
-      case 'movie':     return ['actor', 'actress', 'director', 'producer', 'writer']
-      case 'book':      return ['author', 'editor', 'narrator', 'illustrator']
-      case 'publisher': return ['author', 'editor']
-      default:          return ['member']
-    }
-  }
-  switch (contentType) {
-    case 'adult':
-    case 'jav':    return ['performer', 'actress', 'actor', 'director']
-    case 'tv':     return ['actor', 'actress', 'director', 'guest_star', 'writer']
-    case 'movie':  return ['actor', 'actress', 'director', 'producer', 'writer']
-    case 'music':  return ['artist', 'featured_artist', 'producer', 'songwriter']
-    case 'book':  return ['author', 'editor', 'illustrator', 'narrator']
-    default:       return ['performer']
-  }
+export function itemPersonRoles(configs: ContentTypeConfig[], contentType: string): string[] {
+  return configs.find(c => c.contentType === contentType)?.personRoles ?? ['performer']
+}
+
+export function entryPersonRoles(configs: KindConfig[], kind: string | undefined): string[] {
+  if (!kind) return ['member']
+  return configs.find(c => c.kind === kind)?.personRoles ?? ['member']
 }
 
 // ── Entry panel ───────────────────────────────────────────────────────────────
 
 interface EntryPanelProps {
   entryId: string
-  contentType: ContentType
-  kind?: Kind
+  roles: string[]
+  showDates: boolean
   people: EntryPerson[]
 }
 
-function EntryPanel({ entryId, contentType, kind, people }: EntryPanelProps) {
-  const roles = rolesFor('entry', contentType, kind)
+function EntryPanel({ entryId, roles, showDates, people }: EntryPanelProps) {
   const [role, setRole] = useState(roles[0])
   const [startYear, setStartYear] = useState('')
   const [endYear, setEndYear] = useState('')
@@ -55,8 +35,6 @@ function EntryPanel({ entryId, contentType, kind, people }: EntryPanelProps) {
 
   const add    = useAddEntryPerson(entryId)
   const remove = useRemoveEntryPerson(entryId)
-
-  const showDates = kind === 'artist'
 
   function handleSelect(person: Person) {
     add.mutate({
@@ -156,12 +134,11 @@ function EntryPanel({ entryId, contentType, kind, people }: EntryPanelProps) {
 
 interface ItemPanelProps {
   itemId: string
-  contentType: ContentType
+  roles: string[]
   people: ItemPerson[]
 }
 
-function ItemPanel({ itemId, contentType, people }: ItemPanelProps) {
-  const roles = rolesFor('item', contentType)
+function ItemPanel({ itemId, roles, people }: ItemPanelProps) {
   const [role, setRole] = useState(roles[0])
   const [confirming, setConfirming] = useState<string | null>(null)
 
@@ -242,26 +219,26 @@ function ItemPanel({ itemId, contentType, people }: ItemPanelProps) {
 interface RelationshipPanelProps {
   entityType: 'entry' | 'item'
   entityId: string
-  contentType: ContentType
-  kind?: Kind
+  roles: string[]
+  showDates?: boolean
   people: EntryPerson[] | ItemPerson[]
 }
 
-export function RelationshipPanel({ entityType, entityId, contentType, kind, people }: RelationshipPanelProps) {
+export function RelationshipPanel({ entityType, entityId, roles, showDates, people }: RelationshipPanelProps) {
   return (
     <div>
       <h3 className="text-sm font-semibold text-white/40 uppercase tracking-widest mb-4">Links</h3>
       {entityType === 'entry' ? (
         <EntryPanel
           entryId={entityId}
-          contentType={contentType}
-          kind={kind}
+          roles={roles}
+          showDates={showDates ?? false}
           people={people as EntryPerson[]}
         />
       ) : (
         <ItemPanel
           itemId={entityId}
-          contentType={contentType}
+          roles={roles}
           people={people as ItemPerson[]}
         />
       )}

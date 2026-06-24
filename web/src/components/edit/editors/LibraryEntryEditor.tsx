@@ -1,5 +1,7 @@
 import { useQueryClient } from '@tanstack/react-query'
 import { useAddEntryTag, useRemoveEntryTag, updateLibraryEntry } from '../../../api/library'
+import { useKindConfigs } from '../../../api/config'
+import { entryPersonRoles } from '../RelationshipPanel'
 import { useEditForm } from '../../../hooks/useEditForm'
 import { EditDrawer } from '../EditDrawer'
 import { ImageSelector } from '../ImageSelector'
@@ -64,6 +66,11 @@ export function LibraryEntryEditor({ entry, onClose, onImageSet }: LibraryEntryE
   const queryClient = useQueryClient()
   const addTag    = useAddEntryTag(entry.id)
   const removeTag = useRemoveEntryTag(entry.id)
+
+  const { data: kindConfigs = [] } = useKindConfigs()
+  const kindCfg   = kindConfigs.find(c => c.kind === entry.kind)
+  const roles     = entryPersonRoles(kindConfigs, entry.kind)
+  const showDates = kindCfg?.showDates ?? false
 
   const form = useEditForm<FormValues>({
     initial: initialFormValues(entry),
@@ -157,8 +164,8 @@ export function LibraryEntryEditor({ entry, onClose, onImageSet }: LibraryEntryE
         <RelationshipPanel
           entityType="entry"
           entityId={entry.id}
-          contentType={entry.contentType}
-          kind={entry.kind}
+          roles={roles}
+          showDates={showDates}
           people={currentEntry.people}
         />
       </div>

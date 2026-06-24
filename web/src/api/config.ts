@@ -1,5 +1,6 @@
 import { useMutation, useQuery } from '@tanstack/react-query'
 import { get, patchEmpty } from './client'
+import type { ContentTypeConfig, KindConfig } from '../types'
 
 export interface ModuleConfig {
   enabled: boolean
@@ -68,6 +69,22 @@ export interface PatchConfigRequest {
     theaudiodb?:  { api_key?: string }
     stashdb?:     { api_key?: string; url?: string }
   }
+}
+
+export function useContentTypeConfigs() {
+  return useQuery({
+    queryKey: ['config', 'content-types'],
+    queryFn:  () => get<ContentTypeConfig[]>('/config/content-types'),
+    staleTime: Infinity,
+  })
+}
+
+export function useKindConfigs() {
+  return useQuery({
+    queryKey: ['config', 'kinds'],
+    queryFn:  () => get<KindConfig[]>('/config/kinds'),
+    staleTime: Infinity,
+  })
 }
 
 export function useAppConfig() {

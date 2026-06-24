@@ -567,6 +567,110 @@ func TestConfig_Patch_Empty_NoOp(t *testing.T) {
 	}
 }
 
+// ── Config — content types ────────────────────────────────────────────────────
+
+func TestConfig_ContentTypes_ReturnsAllTypes(t *testing.T) {
+	h := newHandler(t)
+	w := do(t, h, http.MethodGet, "/api/v1/config/content-types", nil)
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", w.Code)
+	}
+	var resp []struct {
+		ContentType string   `json:"contentType"`
+		PersonRoles []string `json:"personRoles"`
+	}
+	decodeJSON(t, w, &resp)
+	if len(resp) == 0 {
+		t.Fatal("expected at least one content type")
+	}
+	byType := make(map[string][]string, len(resp))
+	for _, ct := range resp {
+		byType[ct.ContentType] = ct.PersonRoles
+	}
+	for _, expected := range []string{"adult", "jav", "tv", "movie", "music", "book"} {
+		if _, ok := byType[expected]; !ok {
+			t.Errorf("content type %q missing from response", expected)
+		}
+	}
+	if roles := byType["adult"]; len(roles) == 0 {
+		t.Error("adult personRoles should not be empty")
+	}
+	if roles := byType["tv"]; len(roles) == 0 {
+		t.Error("tv personRoles should not be empty")
+	}
+}
+
+func TestConfig_ContentTypes_AdultRolesIncludePerformer(t *testing.T) {
+	h := newHandler(t)
+	w := do(t, h, http.MethodGet, "/api/v1/config/content-types", nil)
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", w.Code)
+	}
+	var resp []struct {
+		ContentType string   `json:"contentType"`
+		PersonRoles []string `json:"personRoles"`
+	}
+	decodeJSON(t, w, &resp)
+	for _, ct := range resp {
+		if ct.ContentType == "adult" {
+			found := false
+			for _, r := range ct.PersonRoles {
+				if r == "performer" {
+					found = true
+				}
+			}
+			if !found {
+				t.Error("adult personRoles must include performer")
+			}
+			return
+		}
+	}
+	t.Error("adult content type not found")
+}
+
+// ── Config — kinds ────────────────────────────────────────────────────────────
+
+func TestConfig_Kinds_ReturnsAllKinds(t *testing.T) {
+	h := newHandler(t)
+	w := do(t, h, http.MethodGet, "/api/v1/config/kinds", nil)
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", w.Code)
+	}
+	var resp []struct {
+		Kind        string   `json:"kind"`
+		PersonRoles []string `json:"personRoles"`
+		ShowDates   bool     `json:"showDates"`
+	}
+	decodeJSON(t, w, &resp)
+	if len(resp) == 0 {
+		t.Fatal("expected at least one kind")
+	}
+	byKind := make(map[string]struct {
+		roles     []string
+		showDates bool
+	}, len(resp))
+	for _, k := range resp {
+		byKind[k.Kind] = struct {
+			roles     []string
+			showDates bool
+		}{k.PersonRoles, k.ShowDates}
+	}
+	for _, expected := range []string{"network", "studio", "series", "artist", "movie", "book"} {
+		if _, ok := byKind[expected]; !ok {
+			t.Errorf("kind %q missing from response", expected)
+		}
+	}
+	if k := byKind["artist"]; !k.showDates {
+		t.Error("artist kind should have showDates=true")
+	}
+	if k := byKind["studio"]; k.showDates {
+		t.Error("studio kind should have showDates=false")
+	}
+	if k := byKind["artist"]; len(k.roles) == 0 {
+		t.Error("artist personRoles should not be empty")
+	}
+}
+
 // ── Library entries ───────────────────────────────────────────────────────────
 
 func TestLibraryEntries_ListEmpty(t *testing.T) {

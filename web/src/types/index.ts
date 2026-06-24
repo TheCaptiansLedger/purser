@@ -36,6 +36,17 @@ export type EntryStatus = 'continuing' | 'ended' | 'active'
 export type ItemStatus = 'wanted' | 'grabbed' | 'downloading' | 'imported' | 'missing' | 'skipped'
 export type PersonRole = 'performer' | 'actress' | 'director' | 'actor' | 'artist' | 'producer' | 'author'
 
+export interface ContentTypeConfig {
+  contentType: ContentType
+  personRoles: string[]
+}
+
+export interface KindConfig {
+  kind: Kind
+  personRoles: string[]
+  showDates: boolean
+}
+
 export interface ExternalID {
   source: string
   value: string

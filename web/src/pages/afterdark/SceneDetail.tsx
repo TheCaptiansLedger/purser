@@ -10,7 +10,8 @@ import { FormField } from '../../components/edit/FormField'
 import { TextInput } from '../../components/edit/fields/TextInput'
 import { Textarea } from '../../components/edit/fields/Textarea'
 import { TagPicker } from '../../components/edit/fields/TagPicker'
-import { RelationshipPanel } from '../../components/edit/RelationshipPanel'
+import { RelationshipPanel, itemPersonRoles } from '../../components/edit/RelationshipPanel'
+import { useContentTypeConfigs } from '../../api/config'
 import { Hero } from '../../components/layout/Hero'
 import { Badge } from '../../components/ui/Badge'
 import { PersonCard } from '../../components/media/PersonCard'
@@ -26,6 +27,8 @@ function SceneEditDrawer({ item, onClose }: { item: Item; onClose: () => void })
   const queryClient = useQueryClient()
   const addTag = useAddItemTag(item.id)
   const removeTag = useRemoveItemTag(item.id)
+  const { data: contentTypeConfigs = [] } = useContentTypeConfigs()
+  const roles = itemPersonRoles(contentTypeConfigs, item.contentType)
 
   const form = useEditForm<SceneFormValues>({
     initial: { title: item.title, overview: item.overview ?? '' },
@@ -61,7 +64,7 @@ function SceneEditDrawer({ item, onClose }: { item: Item; onClose: () => void })
         <RelationshipPanel
           entityType="item"
           entityId={item.id}
-          contentType={item.contentType}
+          roles={roles}
           people={item.people}
         />
       </div>

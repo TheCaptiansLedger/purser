@@ -7,6 +7,7 @@ import (
 	"net/url"
 	"purser/internal/app/errs"
 	"purser/internal/config"
+	"purser/internal/domain"
 	"purser/internal/ports"
 	"strconv"
 )
@@ -126,7 +127,41 @@ type sourcePatchRequest struct {
 	UserAgent *string `json:"user_agent"`
 }
 
+type contentTypeConfigResponse struct {
+	ContentType string   `json:"contentType"`
+	PersonRoles []string `json:"personRoles"`
+}
+
+type kindConfigResponse struct {
+	Kind        string   `json:"kind"`
+	PersonRoles []string `json:"personRoles"`
+	ShowDates   bool     `json:"showDates"`
+}
+
 type configKV struct{ key, value string }
+
+func (h *configHandler) contentTypes(w http.ResponseWriter, _ *http.Request) {
+	out := make([]contentTypeConfigResponse, 0, len(domain.ContentTypes()))
+	for _, ct := range domain.ContentTypes() {
+		out = append(out, contentTypeConfigResponse{
+			ContentType: string(ct),
+			PersonRoles: ct.ItemPersonRoles(),
+		})
+	}
+	writeJSON(w, http.StatusOK, out)
+}
+
+func (h *configHandler) kinds(w http.ResponseWriter, _ *http.Request) {
+	out := make([]kindConfigResponse, 0, len(domain.Kinds()))
+	for _, k := range domain.Kinds() {
+		out = append(out, kindConfigResponse{
+			Kind:        string(k),
+			PersonRoles: k.EntryPersonRoles(),
+			ShowDates:   k.SupportsMemberRelationships(),
+		})
+	}
+	writeJSON(w, http.StatusOK, out)
+}
 
 func (h *configHandler) get(w http.ResponseWriter, _ *http.Request) {
 	c := h.cfg

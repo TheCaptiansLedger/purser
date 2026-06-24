@@ -66,6 +66,56 @@ func (k Kind) SupportsMemberRelationships() bool {
 	return k == KindArtist
 }
 
+// ContentTypes returns all known content types in a stable order.
+func ContentTypes() []ContentType {
+	return []ContentType{ContentTypeMovie, ContentTypeTV, ContentTypeMusic, ContentTypeAdult, ContentTypeJAV, ContentTypeBook}
+}
+
+// Kinds returns all known entry kinds in a stable order.
+func Kinds() []Kind {
+	return []Kind{KindNetwork, KindStudio, KindSeries, KindArtist, KindAuthor, KindMovie, KindPublisher, KindBook}
+}
+
+// ItemPersonRoles returns valid person roles for items of this content type.
+func (c ContentType) ItemPersonRoles() []string {
+	switch c {
+	case ContentTypeAdult, ContentTypeJAV:
+		return []string{"performer", "actress", "actor", "director"}
+	case ContentTypeTV:
+		return []string{"actor", "actress", "director", "guest_star", "writer"}
+	case ContentTypeMovie:
+		return []string{"actor", "actress", "director", "producer", "writer"}
+	case ContentTypeMusic:
+		return []string{"artist", "featured_artist", "producer", "songwriter"}
+	case ContentTypeBook:
+		return []string{"author", "editor", "illustrator", "narrator"}
+	default:
+		return []string{"performer"}
+	}
+}
+
+// EntryPersonRoles returns valid person roles for entries of this kind.
+func (k Kind) EntryPersonRoles() []string {
+	switch k {
+	case KindArtist:
+		return []string{"member", "former_member", "vocalist", "guitarist", "bassist", "drummer", "keyboardist", "producer"}
+	case KindStudio:
+		return []string{"performer", "director", "contracted_performer"}
+	case KindNetwork:
+		return []string{"affiliated_performer", "director", "producer"}
+	case KindSeries:
+		return []string{"regular_cast", "recurring_cast", "director", "producer", "writer"}
+	case KindMovie:
+		return []string{"actor", "actress", "director", "producer", "writer"}
+	case KindBook, KindAuthor:
+		return []string{"author", "editor", "narrator", "illustrator"}
+	case KindPublisher:
+		return []string{"author", "editor"}
+	default:
+		return []string{"member"}
+	}
+}
+
 // MonitorMode controls how newly discovered children of an entry are handled.
 type MonitorMode string
 
