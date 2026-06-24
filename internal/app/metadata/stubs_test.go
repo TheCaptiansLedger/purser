@@ -235,11 +235,13 @@ func (q *stubJobQueue) Cancel(_ context.Context, _ string) error      { return n
 
 // stubSource is a hand-rolled MetadataSource that returns a fixed scene list.
 type stubSource struct {
-	scenes []*domain.ExternalItem
-	total  int
+	scenes        []*domain.ExternalItem
+	total         int
+	imagePriority int
 }
 
-func (s *stubSource) Name() string { return "stashdb" }
+func (s *stubSource) Name() string       { return "stashdb" }
+func (s *stubSource) ImagePriority() int { return s.imagePriority }
 
 func (s *stubSource) ContentTypes() []domain.ContentType {
 	return []domain.ContentType{domain.ContentTypeAdult}
@@ -291,14 +293,16 @@ func (s *stubSource) FetchPersonImage(_ context.Context, _ string) (*domain.Exte
 // stubMusicSource returns albums via FetchEntryContent and per-album tracks via
 // FetchGroupContent. Name() returns "mbz" to match artist entry external IDs.
 type stubMusicSource struct {
-	albums    []*domain.ExternalGroup
-	tracks    map[string][]*domain.ExternalItem // groupExternalID → tracks
-	findItem  *domain.ExternalItem              // if non-nil, returned by FindByExternalID
-	groupItem *domain.ExternalItem              // if non-nil, returned by FindGroupImages
-	people    []*domain.ExternalPerson          // if non-nil, returned by FetchEntryPeople
+	albums        []*domain.ExternalGroup
+	tracks        map[string][]*domain.ExternalItem // groupExternalID → tracks
+	findItem      *domain.ExternalItem              // if non-nil, returned by FindByExternalID
+	groupItem     *domain.ExternalItem              // if non-nil, returned by FindGroupImages
+	people        []*domain.ExternalPerson          // if non-nil, returned by FetchEntryPeople
+	imagePriority int
 }
 
-func (s *stubMusicSource) Name() string { return "mbz" }
+func (s *stubMusicSource) Name() string       { return "mbz" }
+func (s *stubMusicSource) ImagePriority() int { return s.imagePriority }
 
 func (s *stubMusicSource) ContentTypes() []domain.ContentType {
 	return []domain.ContentType{domain.ContentTypeMusic}
@@ -377,13 +381,15 @@ func (d *stubImageDownloader) Download(_ context.Context, url, _, _ string) stri
 // stubImageSource is a configurable metadata source that returns a fixed item
 // from FindByExternalID. contentTypes defaults to [music] when empty.
 type stubImageSource struct {
-	sourceName   string
-	contentTypes []domain.ContentType
-	findItem     *domain.ExternalItem
-	findErr      error
+	sourceName    string
+	contentTypes  []domain.ContentType
+	findItem      *domain.ExternalItem
+	findErr       error
+	imagePriority int
 }
 
-func (s *stubImageSource) Name() string { return s.sourceName }
+func (s *stubImageSource) Name() string       { return s.sourceName }
+func (s *stubImageSource) ImagePriority() int { return s.imagePriority }
 func (s *stubImageSource) ContentTypes() []domain.ContentType {
 	if len(s.contentTypes) > 0 {
 		return s.contentTypes

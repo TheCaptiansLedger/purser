@@ -11,6 +11,7 @@ type stubMetadataSource struct{}
 
 func (s *stubMetadataSource) Name() string                       { return "stub" }
 func (s *stubMetadataSource) ContentTypes() []domain.ContentType { return nil }
+func (s *stubMetadataSource) ImagePriority() int                 { return 0 }
 
 func (s *stubMetadataSource) SearchStudios(_ context.Context, _ string, _ int) ([]*domain.ExternalStudio, error) {
 	return nil, nil

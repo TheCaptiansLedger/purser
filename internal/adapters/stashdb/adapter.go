@@ -57,6 +57,9 @@ func (a *Adapter) ContentTypes() []domain.ContentType {
 	return []domain.ContentType{domain.ContentTypeAdult, domain.ContentTypeJAV}
 }
 
+// ImagePriority returns 0 — StashDB provides scene metadata, not hero or cover images.
+func (a *Adapter) ImagePriority() int { return 0 }
+
 // ── GraphQL transport ─────────────────────────────────────────────────────────
 
 type gqlRequest struct {

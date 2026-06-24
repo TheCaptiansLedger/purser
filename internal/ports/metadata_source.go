@@ -26,6 +26,11 @@ type MetadataSource interface {
 	// ContentTypes returns the content types this source can serve.
 	ContentTypes() []domain.ContentType
 
+	// ImagePriority returns the quality rank of images this source provides.
+	// Higher values are preferred when selecting among multiple sources.
+	// Adapters that do not provide images return 0.
+	ImagePriority() int
+
 	// SearchStudios searches for studios or networks by name.
 	// Used by the "Add Site / Add Network" flow.
 	SearchStudios(ctx context.Context, query string, limit int) ([]*domain.ExternalStudio, error)

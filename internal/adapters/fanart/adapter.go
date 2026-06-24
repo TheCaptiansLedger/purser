@@ -51,6 +51,9 @@ func (a *Adapter) ContentTypes() []domain.ContentType {
 	return []domain.ContentType{domain.ContentTypeMusic}
 }
 
+// ImagePriority returns 50 — fanart.tv is a secondary image source for music.
+func (a *Adapter) ImagePriority() int { return 50 }
+
 // get issues an authenticated GET to path (relative to baseURL) and decodes the JSON response into out.
 func (a *Adapter) get(ctx context.Context, path string, out any) error {
 	u, err := url.Parse(a.baseURL + path)

@@ -26,11 +26,11 @@ type aggStubSource struct {
 	searchPeopleErr  error
 	groupItem        *domain.ExternalItem
 	groupErr         error
+	imagePriority    int
 }
 
-func (s *aggStubSource) Name() string {
-	return s.name
-}
+func (s *aggStubSource) Name() string       { return s.name }
+func (s *aggStubSource) ImagePriority() int { return s.imagePriority }
 
 func (s *aggStubSource) ContentTypes() []domain.ContentType {
 	return s.contentTypes
@@ -321,8 +321,9 @@ func TestAggregator_SearchStudios_MBZSourceWithAudioDBImage(t *testing.T) {
 		},
 	}
 	audiodb := &aggStubSource{
-		name:         "audiodb",
-		contentTypes: []domain.ContentType{domain.ContentTypeMusic},
+		name:          "audiodb",
+		contentTypes:  []domain.ContentType{domain.ContentTypeMusic},
+		imagePriority: 100,
 		searchStudios: []*domain.ExternalStudio{
 			{Source: domain.SourceTheAudioDB, ExternalID: "mbid-whitesnake", Name: "Whitesnake", ImageURL: "https://audiodb.example.com/thumb.jpg"},
 		},
@@ -348,8 +349,9 @@ func TestAggregator_SearchStudios_AudioDBFirstStillPromotesMBZ(t *testing.T) {
 	// audiodb result arrives before mbz in the combined slice (simulates the case
 	// where audiodb is priority 0 or its goroutine finishes first).
 	audiodb := &aggStubSource{
-		name:         "audiodb",
-		contentTypes: []domain.ContentType{domain.ContentTypeMusic},
+		name:          "audiodb",
+		contentTypes:  []domain.ContentType{domain.ContentTypeMusic},
+		imagePriority: 100,
 		searchStudios: []*domain.ExternalStudio{
 			{Source: domain.SourceTheAudioDB, ExternalID: "mbid-whitesnake", Name: "Whitesnake", ImageURL: "https://audiodb.example.com/thumb.jpg"},
 		},

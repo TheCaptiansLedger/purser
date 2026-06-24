@@ -728,7 +728,7 @@ func (s *Service) fetchArtistHeroImage(ctx context.Context, entry *domain.Librar
 	if entry.ImagePath != "" || s.downloader == nil || slices.Contains(entry.LockedFields, "imageUrl") {
 		return
 	}
-	url := preferredHeroURL(merged.Images)
+	url := s.preferredHeroURL(merged.Images)
 	if url == "" {
 		return
 	}
@@ -740,38 +740,39 @@ func (s *Service) fetchArtistHeroImage(ctx context.Context, entry *domain.Librar
 	}
 }
 
-// preferredHeroURL returns the URL of the best available hero image from images,
-// preferring TheAudioDB over Fanart over any other source. Returns "" when no
-// hero image exists.
-func preferredHeroURL(images []domain.ExternalImage) string {
-	priority := []string{string(domain.SourceTheAudioDB), string(domain.SourceFanart)}
-	for _, src := range priority {
-		for _, img := range images {
-			if img.Type == domain.ImageTypeHero && img.Source == src {
-				return img.URL
-			}
-		}
+// preferredHeroURL returns the URL of the hero image with the highest adapter-declared
+// ImagePriority. Falls back to any hero image when no priority-mapped source has one.
+// Returns "" when no hero image exists.
+func (s *Service) preferredHeroURL(images []domain.ExternalImage) string {
+	priority := make(map[string]int, len(s.sources))
+	for _, src := range s.sources {
+		priority[src.Name()] = src.ImagePriority()
 	}
+	var best string
+	bestPri := -1
 	for _, img := range images {
-		if img.Type == domain.ImageTypeHero {
-			return img.URL
+		if img.Type != domain.ImageTypeHero {
+			continue
+		}
+		if p := priority[img.Source]; p > bestPri {
+			best = img.URL
+			bestPri = p
 		}
 	}
-	return ""
+	return best
 }
 
 // fetchAlbumCovers downloads the first album cover for each album that does not
-// already have one. Fanart.tv is queried in a single batch call; TheAudioDB is
-// queried per-album via album-mb.php since its free-tier discography endpoint
-// does not return thumbnails.
+// already have one. All sources with ImagePriority > 0 are queried in descending
+// priority order; each source first attempts a batch fetch via FetchEntryContent
+// and falls back to per-album FetchGroupContent when that is not supported.
 func (s *Service) fetchAlbumCovers(ctx context.Context, contentType domain.ContentType, artistMBID string, albums []artistAlbum) {
 	if s.downloader == nil {
 		return
 	}
 
 	coverByMBID := make(map[string]string)
-	s.collectFanartCovers(ctx, contentType, artistMBID, coverByMBID)
-	s.collectAudioDBCovers(ctx, contentType, albums, coverByMBID)
+	s.collectGroupCovers(ctx, contentType, artistMBID, albums, coverByMBID)
 	slog.Info("refresh artist: album covers", "artist_mbid", artistMBID, "covers", len(coverByMBID), "library_albums", len(albums))
 
 	for _, album := range albums {
@@ -798,38 +799,49 @@ func (s *Service) fetchAlbumCovers(ctx context.Context, contentType domain.Conte
 	}
 }
 
-// collectFanartCovers calls Fanart.tv's FetchEntryContent with the artist MBID,
-// which returns all album cover URLs in a single response, and adds them to out.
-func (s *Service) collectFanartCovers(ctx context.Context, contentType domain.ContentType, artistMBID string, out map[string]string) {
-	src := s.sourceByName(string(domain.SourceFanart))
-	if src == nil {
-		return
+// collectGroupCovers fans out to all sources with ImagePriority > 0 in descending
+// priority order. Each source first attempts a batch fetch via FetchEntryContent
+// (e.g. fanart returns all album covers in one call); when that returns
+// ErrNotSupported it falls back to per-album FetchGroupContent. First writer wins,
+// so higher-priority sources fill the map before lower-priority ones run.
+func (s *Service) collectGroupCovers(ctx context.Context, contentType domain.ContentType, artistMBID string, albums []artistAlbum, out map[string]string) {
+	type srcPri struct {
+		src ports.MetadataSource
+		pri int
 	}
-	_, items, _, err := src.FetchEntryContent(ctx, contentType, artistMBID, 1, 1000)
-	if err != nil {
-		if !errors.Is(err, ports.ErrNotSupported) {
-			slog.Warn("refresh artist: fetch fanart album covers", "artist_mbid", artistMBID, "error", err)
+	var candidates []srcPri
+	for _, src := range s.sources {
+		if p := src.ImagePriority(); p > 0 {
+			candidates = append(candidates, srcPri{src, p})
 		}
-		return
 	}
-	for _, item := range items {
-		rgMBID, ok := item.ExternalIDs["mbid"]
-		if !ok || len(item.Images) == 0 {
+	slices.SortFunc(candidates, func(a, b srcPri) int { return b.pri - a.pri })
+
+	for _, c := range candidates {
+		_, items, _, err := c.src.FetchEntryContent(ctx, contentType, artistMBID, 1, 1000)
+		if err == nil {
+			for _, item := range items {
+				rgMBID, ok := item.ExternalIDs["mbid"]
+				if !ok || len(item.Images) == 0 {
+					continue
+				}
+				if _, exists := out[rgMBID]; !exists {
+					out[rgMBID] = item.Images[0].URL
+				}
+			}
 			continue
 		}
-		if _, exists := out[rgMBID]; !exists {
-			out[rgMBID] = item.Images[0].URL
+		if !errors.Is(err, ports.ErrNotSupported) {
+			slog.Warn("refresh artist: fetch group covers", "source", c.src.Name(), "artist_mbid", artistMBID, "error", err)
+			continue
 		}
+		s.collectGroupCoversByAlbum(ctx, c.src, contentType, albums, out)
 	}
 }
 
-// collectAudioDBCovers calls TheAudioDB's FetchGroupContent for each album that
-// does not already have a cover in out, filling in covers from album-mb.php.
-func (s *Service) collectAudioDBCovers(ctx context.Context, contentType domain.ContentType, albums []artistAlbum, out map[string]string) {
-	src := s.sourceByName(string(domain.SourceTheAudioDB))
-	if src == nil {
-		return
-	}
+// collectGroupCoversByAlbum fills out with per-album cover URLs from src using
+// FetchGroupContent. Albums that already have an entry in out are skipped.
+func (s *Service) collectGroupCoversByAlbum(ctx context.Context, src ports.MetadataSource, contentType domain.ContentType, albums []artistAlbum, out map[string]string) {
 	for _, album := range albums {
 		rgMBID := album.extGroup.ExternalID
 		if _, exists := out[rgMBID]; exists {
@@ -838,7 +850,7 @@ func (s *Service) collectAudioDBCovers(ctx context.Context, contentType domain.C
 		items, _, err := src.FetchGroupContent(ctx, contentType, rgMBID, 1, 1)
 		if err != nil {
 			if !errors.Is(err, ports.ErrNotSupported) {
-				slog.Warn("refresh artist: fetch audiodb album cover", "mbid", rgMBID, "error", err)
+				slog.Warn("refresh artist: fetch group cover", "source", src.Name(), "mbid", rgMBID, "error", err)
 			}
 			continue
 		}
@@ -868,7 +880,7 @@ func (s *Service) fetchPersonHeroImage(ctx context.Context, personID, extID stri
 		}
 		images = append(images, *img)
 	}
-	url := preferredHeroURL(images)
+	url := s.preferredHeroURL(images)
 	if url == "" {
 		return
 	}

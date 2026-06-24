@@ -172,22 +172,35 @@ func (a *Aggregator) SearchStudios(ctx context.Context, query string, contentTyp
 	for r := range ch {
 		all = append(all, r.studios...)
 	}
-	return deduplicateStudios(all), nil
+	return a.deduplicateStudios(all), nil
 }
 
 // deduplicateStudios removes studios that share an ExternalID.
 //
-// When MusicBrainz and TheAudioDB return the same MBID, MBZ is kept as the
-// canonical source (it supports album fetching via FetchEntryContent) but the
-// ImageURL is filled from TheAudioDB when MBZ has none. TheAudioDB-only entries
-// pass through when no non-audiodb counterpart exists. Studios with an empty
-// ExternalID are never deduplicated. Insertion order is stable.
-func deduplicateStudios(studios []*domain.ExternalStudio) []*domain.ExternalStudio {
-	// First pass: collect TheAudioDB images keyed by MBID.
-	audiodbImages := make(map[string]string)
+// When two sources return the same MBID, the lower-ImagePriority source is kept
+// as canonical (it typically supports richer data fetching, e.g. MBZ for album
+// lists) and the best available image URL is filled in from the highest-priority
+// source that has one. Studios with an empty ExternalID are never deduplicated.
+// Insertion order is stable.
+func (a *Aggregator) deduplicateStudios(studios []*domain.ExternalStudio) []*domain.ExternalStudio {
+	priority := make(map[string]int, len(a.sources))
+	for _, src := range a.sources {
+		priority[src.Name()] = src.ImagePriority()
+	}
+
+	// First pass: record the best-priority image URL for each MBID.
+	type bestEntry struct {
+		url string
+		pri int
+	}
+	bestImages := make(map[string]bestEntry)
 	for _, s := range studios {
-		if s.Source == domain.SourceTheAudioDB && s.ExternalID != "" && s.ImageURL != "" {
-			audiodbImages[s.ExternalID] = s.ImageURL
+		if s.ExternalID == "" || s.ImageURL == "" {
+			continue
+		}
+		p := priority[string(s.Source)]
+		if e, ok := bestImages[s.ExternalID]; !ok || p > e.pri {
+			bestImages[s.ExternalID] = bestEntry{s.ImageURL, p}
 		}
 	}
 
@@ -202,18 +215,21 @@ func deduplicateStudios(studios []*domain.ExternalStudio) []*domain.ExternalStud
 		if !ok {
 			entry := *s
 			if entry.ImageURL == "" {
-				entry.ImageURL = audiodbImages[entry.ExternalID]
+				entry.ImageURL = bestImages[entry.ExternalID].url
 			}
 			seen[s.ExternalID] = len(out)
 			out = append(out, &entry)
 			continue
 		}
-		// Duplicate MBID: if the slot is currently audiodb-sourced and the new
-		// entry is not, promote the non-audiodb entry so album fetching works.
-		if out[idx].Source == domain.SourceTheAudioDB && s.Source != domain.SourceTheAudioDB {
+		// Duplicate MBID: prefer the lower-priority source as canonical so that
+		// sources with richer data-fetching support (e.g. MBZ) win the slot.
+		existingPri := priority[string(out[idx].Source)]
+		incomingPri := priority[string(s.Source)]
+		if incomingPri < existingPri {
 			entry := *s
+			entry.ImageURL = bestImages[entry.ExternalID].url
 			if entry.ImageURL == "" {
-				entry.ImageURL = audiodbImages[entry.ExternalID]
+				entry.ImageURL = out[idx].ImageURL
 			}
 			out[idx] = &entry
 		}

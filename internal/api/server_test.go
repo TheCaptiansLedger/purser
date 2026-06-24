@@ -2637,6 +2637,7 @@ type stubSource struct {
 
 func (s *stubSource) Name() string                       { return s.name }
 func (s *stubSource) ContentTypes() []domain.ContentType { return nil }
+func (s *stubSource) ImagePriority() int                 { return 0 }
 func (s *stubSource) Verify(_ context.Context) error     { return s.verifyErr }
 
 func (s *stubSource) SearchStudios(_ context.Context, _ string, _ int) ([]*domain.ExternalStudio, error) {

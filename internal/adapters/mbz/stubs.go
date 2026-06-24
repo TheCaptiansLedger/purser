@@ -6,6 +6,9 @@ import (
 	"purser/internal/ports"
 )
 
+// ImagePriority returns 0 — MusicBrainz does not provide images.
+func (a *Adapter) ImagePriority() int { return 0 }
+
 // FindByHash returns ErrNotSupported — MusicBrainz has no hash-based lookup.
 func (a *Adapter) FindByHash(_ context.Context, _ string) (*domain.ExternalItem, error) {
 	return nil, ports.ErrNotSupported

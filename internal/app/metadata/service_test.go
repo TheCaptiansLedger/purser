@@ -1030,7 +1030,8 @@ func TestRefreshArtist_HeroImagePrefersAudioDB(t *testing.T) {
 		},
 	}
 	audiodbSrc := &stubImageSource{
-		sourceName: string(domain.SourceTheAudioDB),
+		sourceName:    string(domain.SourceTheAudioDB),
+		imagePriority: 100,
 		findItem: &domain.ExternalItem{
 			Source: domain.SourceTheAudioDB,
 			Images: []domain.ExternalImage{
@@ -1095,7 +1096,8 @@ func TestRefreshArtist_PersonImagePrefersAudioDB(t *testing.T) {
 		},
 	}
 	audiodbSrc := &stubImageSource{
-		sourceName: string(domain.SourceTheAudioDB),
+		sourceName:    string(domain.SourceTheAudioDB),
+		imagePriority: 100,
 		findItem: &domain.ExternalItem{
 			Source: domain.SourceTheAudioDB,
 			Images: []domain.ExternalImage{

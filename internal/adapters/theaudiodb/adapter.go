@@ -50,6 +50,9 @@ func (a *Adapter) ContentTypes() []domain.ContentType {
 	return []domain.ContentType{domain.ContentTypeMusic}
 }
 
+// ImagePriority returns 100 — TheAudioDB is the preferred image source for music.
+func (a *Adapter) ImagePriority() int { return 100 }
+
 // get issues a GET to {baseURL}{apiKey}/{path} and decodes the JSON response into out.
 func (a *Adapter) get(ctx context.Context, path string, out any) error {
 	u := a.baseURL + a.apiKey + "/" + path
