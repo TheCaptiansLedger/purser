@@ -1,6 +1,13 @@
 package domain
 
-import "fmt"
+import (
+	"errors"
+	"fmt"
+)
+
+// ErrInvalidTransition is returned when a user-initiated status change is not
+// permitted from the item's current state.
+var ErrInvalidTransition = errors.New("invalid status transition")
 
 // ItemStatus tracks the acquisition state of a leaf item.
 type ItemStatus string
@@ -32,7 +39,7 @@ var legalUserTransitions = map[ItemStatus]map[ItemStatus]bool{
 func ValidateTransition(from, to ItemStatus) error {
 	allowed, ok := legalUserTransitions[from]
 	if !ok || !allowed[to] {
-		return fmt.Errorf("cannot transition item from %q to %q", from, to)
+		return fmt.Errorf("cannot transition item from %q to %q: %w", from, to, ErrInvalidTransition)
 	}
 	return nil
 }

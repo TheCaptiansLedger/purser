@@ -256,10 +256,6 @@ type patchItemRequest struct {
 
 func (h *itemHandler) update(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
-	item, err := h.svc.GetItem(r.Context(), id)
-	if handleErr(w, err) {
-		return
-	}
 
 	var req patchItemRequest
 	if err := decode(r, &req); err != nil {
@@ -267,6 +263,17 @@ func (h *itemHandler) update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if req.Status != nil {
+		if err := h.svc.UpdateItemStatus(r.Context(), id, domain.ItemStatus(*req.Status)); err != nil {
+			handleErr(w, err)
+			return
+		}
+	}
+
+	item, err := h.svc.GetItem(r.Context(), id)
+	if handleErr(w, err) {
+		return
+	}
 	if req.Title != nil {
 		item.Title = *req.Title
 	}
@@ -284,18 +291,6 @@ func (h *itemHandler) update(w http.ResponseWriter, r *http.Request) {
 	}
 	if req.Monitored != nil {
 		item.Monitored = *req.Monitored
-	}
-	if req.Status != nil {
-		newStatus := domain.ItemStatus(*req.Status)
-		if newStatus != domain.StatusWanted && newStatus != domain.StatusSkipped {
-			writeError(w, http.StatusUnprocessableEntity, "INVALID_STATUS", "status must be 'wanted' or 'skipped'")
-			return
-		}
-		if err := domain.ValidateTransition(item.Status, newStatus); err != nil {
-			writeError(w, http.StatusUnprocessableEntity, "INVALID_TRANSITION", err.Error())
-			return
-		}
-		item.Status = newStatus
 	}
 	if req.LockedFields != nil {
 		item.LockedFields = *req.LockedFields

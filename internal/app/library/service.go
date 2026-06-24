@@ -187,6 +187,27 @@ func (s *Service) SaveItem(ctx context.Context, item *domain.Item) error {
 	return s.items.Save(ctx, item)
 }
 
+// ErrInvalidStatusForUserUpdate is returned when the requested status cannot
+// be set by a user action (as opposed to an automated pipeline transition).
+var ErrInvalidStatusForUserUpdate = errors.New("status cannot be set by user action")
+
+// UpdateItemStatus validates and applies a user-initiated status change.
+// Only StatusWanted and StatusSkipped may be set via user action.
+func (s *Service) UpdateItemStatus(ctx context.Context, id string, newStatus domain.ItemStatus) error {
+	if newStatus != domain.StatusWanted && newStatus != domain.StatusSkipped {
+		return ErrInvalidStatusForUserUpdate
+	}
+	item, err := s.GetItem(ctx, id)
+	if err != nil {
+		return err
+	}
+	if err := domain.ValidateTransition(item.Status, newStatus); err != nil {
+		return err
+	}
+	item.Status = newStatus
+	return s.items.Save(ctx, item)
+}
+
 // DeleteItem removes an item by ID, returning an error if not found.
 func (s *Service) DeleteItem(ctx context.Context, id string) error {
 	if _, err := s.GetItem(ctx, id); err != nil {

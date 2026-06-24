@@ -3,6 +3,7 @@ package library_test
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"purser/internal/app/errs"
 	"purser/internal/app/library"
@@ -752,5 +753,80 @@ func TestSaveAndRemoveEntryPerson(t *testing.T) {
 	}
 	if len(entries.people[artist.ID]) != 0 {
 		t.Errorf("people count = %d, want 0 after remove", len(entries.people[artist.ID]))
+	}
+}
+
+// ── UpdateItemStatus tests ────────────────────────────────────────────────────
+
+func TestUpdateItemStatus_ValidTransitions(t *testing.T) {
+	cases := []struct {
+		name       string
+		fromStatus domain.ItemStatus
+		toStatus   domain.ItemStatus
+	}{
+		{"wanted→wanted", domain.StatusWanted, domain.StatusWanted},
+		{"wanted→skipped", domain.StatusWanted, domain.StatusSkipped},
+		{"skipped→wanted", domain.StatusSkipped, domain.StatusWanted},
+		{"missing→wanted", domain.StatusMissing, domain.StatusWanted},
+		{"missing→skipped", domain.StatusMissing, domain.StatusSkipped},
+		{"imported→wanted", domain.StatusImported, domain.StatusWanted},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			items := newMockItemRepo()
+			svc := newSvc(newMockEntryRepo(), newMockGroupRepo(), items)
+
+			item := &domain.Item{ID: "i1", LibraryEntryID: "e1", Status: tc.fromStatus}
+			items.data["i1"] = item
+
+			if err := svc.UpdateItemStatus(context.Background(), "i1", tc.toStatus); err != nil {
+				t.Fatalf("UpdateItemStatus: %v", err)
+			}
+			if items.data["i1"].Status != tc.toStatus {
+				t.Errorf("status = %q, want %q", items.data["i1"].Status, tc.toStatus)
+			}
+		})
+	}
+}
+
+func TestUpdateItemStatus_InvalidUserStatus(t *testing.T) {
+	pipelineStatuses := []domain.ItemStatus{
+		domain.StatusGrabbed,
+		domain.StatusDownloading,
+		domain.StatusImported,
+		domain.StatusMissing,
+	}
+	for _, s := range pipelineStatuses {
+		t.Run(string(s), func(t *testing.T) {
+			items := newMockItemRepo()
+			svc := newSvc(newMockEntryRepo(), newMockGroupRepo(), items)
+			items.data["i1"] = &domain.Item{ID: "i1", LibraryEntryID: "e1", Status: domain.StatusWanted}
+
+			err := svc.UpdateItemStatus(context.Background(), "i1", s)
+			if !errors.Is(err, library.ErrInvalidStatusForUserUpdate) {
+				t.Errorf("expected ErrInvalidStatusForUserUpdate, got %v", err)
+			}
+		})
+	}
+}
+
+func TestUpdateItemStatus_InvalidTransition(t *testing.T) {
+	items := newMockItemRepo()
+	svc := newSvc(newMockEntryRepo(), newMockGroupRepo(), items)
+	// grabbed is pipeline-locked; no user transitions are allowed from it
+	items.data["i1"] = &domain.Item{ID: "i1", LibraryEntryID: "e1", Status: domain.StatusGrabbed}
+
+	err := svc.UpdateItemStatus(context.Background(), "i1", domain.StatusWanted)
+	if !errors.Is(err, domain.ErrInvalidTransition) {
+		t.Errorf("expected ErrInvalidTransition, got %v", err)
+	}
+}
+
+func TestUpdateItemStatus_NotFound(t *testing.T) {
+	svc := newSvc(newMockEntryRepo(), newMockGroupRepo(), newMockItemRepo())
+
+	err := svc.UpdateItemStatus(context.Background(), "nonexistent", domain.StatusWanted)
+	if !errors.Is(err, errs.ErrNotFound) {
+		t.Errorf("expected ErrNotFound, got %v", err)
 	}
 }

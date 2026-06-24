@@ -407,6 +407,14 @@ func handleErr(w http.ResponseWriter, err error) bool {
 		writeError(w, http.StatusUnprocessableEntity, "UNKNOWN_COMMAND", err.Error())
 		return true
 	}
+	if errors.Is(err, library.ErrInvalidStatusForUserUpdate) {
+		writeError(w, http.StatusUnprocessableEntity, "INVALID_STATUS", err.Error())
+		return true
+	}
+	if errors.Is(err, domain.ErrInvalidTransition) {
+		writeError(w, http.StatusUnprocessableEntity, "INVALID_TRANSITION", err.Error())
+		return true
+	}
 	if errs.IsValidation(err) {
 		writeError(w, http.StatusUnprocessableEntity, "VALIDATION_ERROR", err.Error())
 		return true

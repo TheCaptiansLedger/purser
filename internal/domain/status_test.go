@@ -1,6 +1,7 @@
 package domain_test
 
 import (
+	"errors"
 	"purser/internal/domain"
 	"testing"
 )
@@ -55,6 +56,9 @@ func TestValidateTransition(t *testing.T) {
 			}
 			if !tc.wantErr && err != nil {
 				t.Errorf("domain.ValidateTransition(%q, %q) = %v, want nil", tc.from, tc.to, err)
+			}
+			if tc.wantErr && err != nil && !errors.Is(err, domain.ErrInvalidTransition) {
+				t.Errorf("domain.ValidateTransition(%q, %q) error does not wrap ErrInvalidTransition: %v", tc.from, tc.to, err)
 			}
 		})
 	}
