@@ -102,6 +102,9 @@ function EntryRow({ entry }: { entry: LibraryEntry }) {
 }
 
 function GroupRow({ group }: { group: Group }) {
+  // N+1: one useLibraryEntry call per group in the result set. Acceptable here
+  // because tag browse returns at most 100 groups and React Query deduplicates
+  // identical requests. Track as Option A in #223 if this becomes a problem.
   const { data: parent } = useLibraryEntry(group.libraryEntryId)
   const href = groupLink(group, parent)
 
@@ -151,7 +154,7 @@ function ItemRow({ item }: { item: Item }) {
   return href === '#' ? <div>{inner}</div> : <Link to={href}>{inner}</Link>
 }
 
-function ResultSection<T>({
+function ResultSection<T extends { id: string }>({
   label,
   items,
   renderRow,
@@ -168,7 +171,7 @@ function ResultSection<T>({
         <span className="ml-2 font-normal normal-case tracking-normal text-white/20">{items.length}</span>
       </h2>
       <div className="space-y-1.5">
-        {items.map((item, i) => <div key={i}>{renderRow(item)}</div>)}
+        {items.map((item) => <div key={item.id}>{renderRow(item)}</div>)}
       </div>
     </section>
   )
