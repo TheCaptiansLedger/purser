@@ -9,6 +9,7 @@ import (
 	"purser/internal/config"
 	"purser/internal/domain"
 	"purser/internal/ports"
+	"reflect"
 	"strconv"
 )
 
@@ -20,31 +21,18 @@ type configHandler struct {
 // Response types mirror the YAML config structure exactly.
 
 type configResponse struct {
-	Server   serverCfgResponse   `json:"server"`
-	Database databaseCfgResponse `json:"database"`
-	Media    mediaCfgResponse    `json:"media"`
-	Modules  modulesCfgResponse  `json:"modules"`
-	Sources  sourcesCfgResponse  `json:"sources"`
-	Log      logCfgResponse      `json:"log"`
-	Locked   map[string]bool     `json:"locked"`
+	Server   serverCfgResponse            `json:"server"`
+	Database databaseCfgResponse          `json:"database"`
+	Media    mediaCfgResponse             `json:"media"`
+	Modules  map[string]moduleCfgResponse `json:"modules"`
+	Sources  map[string]sourceCfgResponse `json:"sources"`
+	Log      logCfgResponse               `json:"log"`
+	Locked   map[string]bool              `json:"locked"`
 }
 
 type serverCfgResponse struct {
 	Port    int `json:"port"`
 	Workers int `json:"workers"`
-}
-
-type sourcesCfgResponse struct {
-	StashDB     sourceCfgResponse `json:"stashdb"`
-	TPDB        sourceCfgResponse `json:"tpdb"`
-	Stash       sourceCfgResponse `json:"stash"`
-	TMDB        sourceCfgResponse `json:"tmdb"`
-	TVDB        sourceCfgResponse `json:"tvdb"`
-	MusicBrainz sourceCfgResponse `json:"musicbrainz"`
-	Fanart      sourceCfgResponse `json:"fanart"`
-	LastFM      sourceCfgResponse `json:"lastfm"`
-	TheAudioDB  sourceCfgResponse `json:"theaudiodb"`
-	OpenLibrary sourceCfgResponse `json:"openlibrary"`
 }
 
 type sourceCfgResponse struct {
@@ -61,15 +49,6 @@ type databaseCfgResponse struct {
 
 type mediaCfgResponse struct {
 	Path string `json:"path"`
-}
-
-type modulesCfgResponse struct {
-	Movies    moduleCfgResponse `json:"movies"`
-	TV        moduleCfgResponse `json:"tv"`
-	Music     moduleCfgResponse `json:"music"`
-	Books     moduleCfgResponse `json:"books"`
-	AfterDark moduleCfgResponse `json:"afterdark"`
-	JAV       moduleCfgResponse `json:"jav"`
 }
 
 type moduleCfgResponse struct {
@@ -89,35 +68,13 @@ type patchConfigRequest struct {
 	Media    json.RawMessage `json:"media"`
 	Log      json.RawMessage `json:"log"`
 	// Runtime-configurable.
-	Modules *modulesPatchRequest `json:"modules"`
-	Sources *sourcesPatchRequest `json:"sources"`
-}
-
-type modulesPatchRequest struct {
-	Movies    *modulePatchRequest `json:"movies"`
-	TV        *modulePatchRequest `json:"tv"`
-	Music     *modulePatchRequest `json:"music"`
-	Books     *modulePatchRequest `json:"books"`
-	AfterDark *modulePatchRequest `json:"afterdark"`
-	JAV       *modulePatchRequest `json:"jav"`
+	Modules map[string]*modulePatchRequest `json:"modules"`
+	Sources map[string]*sourcePatchRequest `json:"sources"`
 }
 
 type modulePatchRequest struct {
 	Enabled *bool    `json:"enabled"`
 	Roots   []string `json:"roots"`
-}
-
-type sourcesPatchRequest struct {
-	StashDB     *sourcePatchRequest `json:"stashdb"`
-	TPDB        *sourcePatchRequest `json:"tpdb"`
-	Stash       *sourcePatchRequest `json:"stash"`
-	TMDB        *sourcePatchRequest `json:"tmdb"`
-	TVDB        *sourcePatchRequest `json:"tvdb"`
-	MusicBrainz *sourcePatchRequest `json:"musicbrainz"`
-	Fanart      *sourcePatchRequest `json:"fanart"`
-	LastFM      *sourcePatchRequest `json:"lastfm"`
-	TheAudioDB  *sourcePatchRequest `json:"theaudiodb"`
-	OpenLibrary *sourcePatchRequest `json:"openlibrary"`
 }
 
 type sourcePatchRequest struct {
@@ -173,29 +130,46 @@ func (h *configHandler) get(w http.ResponseWriter, _ *http.Request) {
 		Server:   serverCfgResponse{Port: c.Server.Port, Workers: c.Server.Workers},
 		Database: databaseCfgResponse{Driver: c.Database.Driver, DSN: maskDSN(c.Database.DSN)},
 		Media:    mediaCfgResponse{Path: c.Media.Path},
-		Modules: modulesCfgResponse{
-			Movies:    moduleCfgResponse{Enabled: c.Modules.Movies.Enabled, Roots: nullableRoots(c.Modules.Movies.Roots)},
-			TV:        moduleCfgResponse{Enabled: c.Modules.TV.Enabled, Roots: nullableRoots(c.Modules.TV.Roots)},
-			Music:     moduleCfgResponse{Enabled: c.Modules.Music.Enabled, Roots: nullableRoots(c.Modules.Music.Roots)},
-			Books:     moduleCfgResponse{Enabled: c.Modules.Books.Enabled, Roots: nullableRoots(c.Modules.Books.Roots)},
-			AfterDark: moduleCfgResponse{Enabled: c.Modules.AfterDark.Enabled, Roots: nullableRoots(c.Modules.AfterDark.Roots)},
-			JAV:       moduleCfgResponse{Enabled: c.Modules.JAV.Enabled, Roots: nullableRoots(c.Modules.JAV.Roots)},
-		},
-		Sources: sourcesCfgResponse{
-			StashDB:     maskSource(c.Sources.StashDB),
-			TPDB:        maskSource(c.Sources.TPDB),
-			Stash:       maskSource(c.Sources.Stash),
-			TMDB:        maskSource(c.Sources.TMDB),
-			TVDB:        maskSource(c.Sources.TVDB),
-			MusicBrainz: maskSource(c.Sources.MusicBrainz),
-			Fanart:      maskSource(c.Sources.Fanart),
-			LastFM:      maskSource(c.Sources.LastFM),
-			TheAudioDB:  maskSource(c.Sources.TheAudioDB),
-			OpenLibrary: maskSource(c.Sources.OpenLibrary),
-		},
-		Log:    logCfgResponse{Level: c.Log.Level, Format: c.Log.Format},
-		Locked: locked,
+		Modules:  buildModulesMap(c.Modules),
+		Sources:  buildSourcesMap(c.Sources),
+		Log:      logCfgResponse{Level: c.Log.Level, Format: c.Log.Format},
+		Locked:   locked,
 	})
+}
+
+// buildSourcesMap derives the sources response map from mapstructure tags on
+// MetadataSourcesConfig. Adding a new source to that struct automatically
+// includes it here with no changes required in this file.
+func buildSourcesMap(srcs config.MetadataSourcesConfig) map[string]sourceCfgResponse {
+	m := make(map[string]sourceCfgResponse)
+	v := reflect.ValueOf(srcs)
+	t := reflect.TypeOf(srcs)
+	for i := range t.NumField() {
+		key := t.Field(i).Tag.Get("mapstructure")
+		if key == "" {
+			continue
+		}
+		m[key] = maskSource(v.Field(i).Interface().(config.MetadataSourceConfig))
+	}
+	return m
+}
+
+// buildModulesMap derives the modules response map from mapstructure tags on
+// ModulesConfig. Adding a new module to that struct automatically includes it
+// here with no changes required in this file.
+func buildModulesMap(mods config.ModulesConfig) map[string]moduleCfgResponse {
+	m := make(map[string]moduleCfgResponse)
+	v := reflect.ValueOf(mods)
+	t := reflect.TypeOf(mods)
+	for i := range t.NumField() {
+		key := t.Field(i).Tag.Get("mapstructure")
+		if key == "" {
+			continue
+		}
+		mod := v.Field(i).Interface().(config.ModuleConfig)
+		m[key] = moduleCfgResponse{Enabled: mod.Enabled, Roots: nullableRoots(mod.Roots)}
+	}
+	return m
 }
 
 // nullableRoots returns an empty slice instead of nil so the JSON field is always [].
@@ -258,26 +232,12 @@ func (h *configHandler) patch(w http.ResponseWriter, r *http.Request) {
 }
 
 func configPatchKVs(req patchConfigRequest) []configKV {
-	var out []configKV
-	if m := req.Modules; m != nil {
-		out = append(out, modulePatchKVs("movies", m.Movies)...)
-		out = append(out, modulePatchKVs("tv", m.TV)...)
-		out = append(out, modulePatchKVs("music", m.Music)...)
-		out = append(out, modulePatchKVs("books", m.Books)...)
-		out = append(out, modulePatchKVs("afterdark", m.AfterDark)...)
-		out = append(out, modulePatchKVs("jav", m.JAV)...)
+	out := make([]configKV, 0, len(req.Modules)+len(req.Sources))
+	for name, m := range req.Modules {
+		out = append(out, modulePatchKVs(name, m)...)
 	}
-	if s := req.Sources; s != nil {
-		out = append(out, sourcePatchKVs("stashdb", s.StashDB)...)
-		out = append(out, sourcePatchKVs("tpdb", s.TPDB)...)
-		out = append(out, sourcePatchKVs("stash", s.Stash)...)
-		out = append(out, sourcePatchKVs("tmdb", s.TMDB)...)
-		out = append(out, sourcePatchKVs("tvdb", s.TVDB)...)
-		out = append(out, sourcePatchKVs("musicbrainz", s.MusicBrainz)...)
-		out = append(out, sourcePatchKVs("fanart", s.Fanart)...)
-		out = append(out, sourcePatchKVs("lastfm", s.LastFM)...)
-		out = append(out, sourcePatchKVs("theaudiodb", s.TheAudioDB)...)
-		out = append(out, sourcePatchKVs("openlibrary", s.OpenLibrary)...)
+	for name, s := range req.Sources {
+		out = append(out, sourcePatchKVs(name, s)...)
 	}
 	return out
 }

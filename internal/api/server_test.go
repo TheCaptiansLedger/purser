@@ -22,6 +22,7 @@ import (
 	"purser/internal/domain"
 	"purser/internal/ports"
 	"purser/web"
+	"reflect"
 	"testing"
 	"time"
 
@@ -436,6 +437,41 @@ func TestConfig_Get_LockedEmpty(t *testing.T) {
 	}
 	if len(resp.Locked) != 0 {
 		t.Errorf("locked has %d keys, want 0 (noopConfigSvc returns none)", len(resp.Locked))
+	}
+}
+
+func TestConfig_Response_CoversAllConfigSources(t *testing.T) {
+	h := newHandler(t)
+	w := do(t, h, http.MethodGet, "/api/v1/config", nil)
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", w.Code)
+	}
+	var resp struct {
+		Sources map[string]json.RawMessage `json:"sources"`
+		Modules map[string]json.RawMessage `json:"modules"`
+	}
+	decodeJSON(t, w, &resp)
+
+	srcT := reflect.TypeOf(config.MetadataSourcesConfig{})
+	for i := range srcT.NumField() {
+		key := srcT.Field(i).Tag.Get("mapstructure")
+		if key == "" {
+			continue
+		}
+		if _, ok := resp.Sources[key]; !ok {
+			t.Errorf("GET /config sources missing key %q (defined in config.MetadataSourcesConfig)", key)
+		}
+	}
+
+	modT := reflect.TypeOf(config.ModulesConfig{})
+	for i := range modT.NumField() {
+		key := modT.Field(i).Tag.Get("mapstructure")
+		if key == "" {
+			continue
+		}
+		if _, ok := resp.Modules[key]; !ok {
+			t.Errorf("GET /config modules missing key %q (defined in config.ModulesConfig)", key)
+		}
 	}
 }
 
