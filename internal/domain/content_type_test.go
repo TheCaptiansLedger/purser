@@ -32,6 +32,17 @@ func TestKind_Valid(t *testing.T) {
 	}
 }
 
+func TestKind_SupportsMemberRelationships(t *testing.T) {
+	if !KindArtist.SupportsMemberRelationships() {
+		t.Error("KindArtist.SupportsMemberRelationships() = false, want true")
+	}
+	for _, k := range []Kind{KindNetwork, KindStudio, KindSeries, KindAuthor, KindMovie, KindPublisher, KindBook} {
+		if k.SupportsMemberRelationships() {
+			t.Errorf("Kind(%q).SupportsMemberRelationships() = true, want false", k)
+		}
+	}
+}
+
 func TestMonitorMode_Values(t *testing.T) {
 	modes := []struct {
 		mode MonitorMode

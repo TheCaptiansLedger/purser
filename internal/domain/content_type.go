@@ -60,6 +60,12 @@ func (k Kind) SupportsAlbumFilter() bool {
 	return k == KindArtist
 }
 
+// SupportsMemberRelationships reports whether entries of this kind can have
+// member relationships (e.g. band members, ensemble performers).
+func (k Kind) SupportsMemberRelationships() bool {
+	return k == KindArtist
+}
+
 // MonitorMode controls how newly discovered children of an entry are handled.
 type MonitorMode string
 

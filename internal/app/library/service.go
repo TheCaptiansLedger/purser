@@ -213,14 +213,14 @@ func (s *Service) RemoveEntryPerson(ctx context.Context, entryID, personID, role
 }
 
 // ImportArtistMembers upserts each person in members and links them to the given artist entry
-// under the provided role. The entry must be kind=artist.
+// under the provided role. The entry must support member relationships.
 func (s *Service) ImportArtistMembers(ctx context.Context, entryID string, members []domain.Person, role string) error {
 	entry, err := s.GetEntry(ctx, entryID)
 	if err != nil {
 		return err
 	}
-	if entry.Kind != domain.KindArtist {
-		return errs.Validation("ImportArtistMembers: entry must be kind=artist")
+	if !entry.Kind.SupportsMemberRelationships() {
+		return errs.Validation("ImportArtistMembers: entry must support member relationships")
 	}
 	for i := range members {
 		if err := s.persons.Save(ctx, &members[i]); err != nil {
