@@ -233,7 +233,8 @@ func (q *stubJobQueue) Cancel(_ context.Context, _ string) error      { return n
 
 // ── Metadata source stubs ─────────────────────────────────────────────────────
 
-// stubSource is a hand-rolled MetadataSource that returns a fixed scene list.
+// stubSource is a hand-rolled MetadataSource + EntryContentSource that returns
+// a fixed scene list. Represents an adult content source (stashdb-like).
 type stubSource struct {
 	scenes        []*domain.ExternalItem
 	total         int
@@ -247,47 +248,11 @@ func (s *stubSource) ContentTypes() []domain.ContentType {
 	return []domain.ContentType{domain.ContentTypeAdult}
 }
 
-func (s *stubSource) SearchStudios(_ context.Context, _ string, _ int) ([]*domain.ExternalStudio, error) {
-	return nil, nil
-}
-
-func (s *stubSource) SearchPeople(_ context.Context, _ string, _ int) ([]*domain.ExternalPerson, error) {
-	return nil, nil
-}
-
-func (s *stubSource) SearchItems(_ context.Context, _ domain.ContentType, _ string, _ int) ([]*domain.ExternalItem, error) {
-	return nil, nil
-}
-
-func (s *stubSource) FindByHash(_ context.Context, _ string) (*domain.ExternalItem, error) {
-	return nil, ports.ErrNotSupported
-}
-
-func (s *stubSource) FindByExternalID(_ context.Context, _ domain.ContentType, _ string) (*domain.ExternalItem, error) {
-	return nil, ports.ErrNotFound
-}
-
 func (s *stubSource) FetchEntryContent(_ context.Context, _ domain.ContentType, _ string, page, _ int) ([]*domain.ExternalGroup, []*domain.ExternalItem, int, error) {
 	if page == 1 {
 		return nil, s.scenes, s.total, nil
 	}
 	return nil, nil, s.total, nil
-}
-
-func (s *stubSource) FetchGroupContent(_ context.Context, _ domain.ContentType, _ string, _, _ int) ([]*domain.ExternalItem, int, error) {
-	return nil, 0, ports.ErrNotSupported
-}
-
-func (s *stubSource) FetchEntryPeople(_ context.Context, _ string) ([]*domain.ExternalPerson, error) {
-	return nil, ports.ErrNotSupported
-}
-
-func (s *stubSource) FindGroupImages(_ context.Context, _ domain.ContentType, _, _ string) (*domain.ExternalItem, error) {
-	return nil, ports.ErrNotSupported
-}
-
-func (s *stubSource) FetchPersonImage(_ context.Context, _ string) (*domain.ExternalImage, error) {
-	return nil, ports.ErrNotSupported
 }
 
 // stubMusicSource returns albums via FetchEntryContent and per-album tracks via
@@ -306,22 +271,6 @@ func (s *stubMusicSource) ImagePriority() int { return s.imagePriority }
 
 func (s *stubMusicSource) ContentTypes() []domain.ContentType {
 	return []domain.ContentType{domain.ContentTypeMusic}
-}
-
-func (s *stubMusicSource) SearchStudios(_ context.Context, _ string, _ int) ([]*domain.ExternalStudio, error) {
-	return nil, nil
-}
-
-func (s *stubMusicSource) SearchPeople(_ context.Context, _ string, _ int) ([]*domain.ExternalPerson, error) {
-	return nil, nil
-}
-
-func (s *stubMusicSource) SearchItems(_ context.Context, _ domain.ContentType, _ string, _ int) ([]*domain.ExternalItem, error) {
-	return nil, nil
-}
-
-func (s *stubMusicSource) FindByHash(_ context.Context, _ string) (*domain.ExternalItem, error) {
-	return nil, ports.ErrNotSupported
 }
 
 func (s *stubMusicSource) FindByExternalID(_ context.Context, _ domain.ContentType, _ string) (*domain.ExternalItem, error) {
@@ -350,18 +299,14 @@ func (s *stubMusicSource) FetchEntryPeople(_ context.Context, _ string) ([]*doma
 	if s.people != nil {
 		return s.people, nil
 	}
-	return nil, ports.ErrNotSupported
+	return nil, nil
 }
 
 func (s *stubMusicSource) FindGroupImages(_ context.Context, _ domain.ContentType, _, _ string) (*domain.ExternalItem, error) {
 	if s.groupItem != nil {
 		return s.groupItem, nil
 	}
-	return nil, ports.ErrNotSupported
-}
-
-func (s *stubMusicSource) FetchPersonImage(_ context.Context, _ string) (*domain.ExternalImage, error) {
-	return nil, ports.ErrNotSupported
+	return nil, ports.ErrNotFound
 }
 
 // ── Image downloader stub ─────────────────────────────────────────────────────
@@ -378,8 +323,9 @@ func (d *stubImageDownloader) Download(_ context.Context, url, _, _ string) stri
 
 // ── Image-only source stub ────────────────────────────────────────────────────
 
-// stubImageSource is a configurable metadata source that returns a fixed item
-// from FindByExternalID. contentTypes defaults to [music] when empty.
+// stubImageSource is a configurable MetadataSource + ExternalIDSource + PersonImageSource
+// that returns a fixed item from FindByExternalID and extracts the hero image for
+// FetchPersonImage. contentTypes defaults to [music] when empty.
 type stubImageSource struct {
 	sourceName    string
 	contentTypes  []domain.ContentType
@@ -397,40 +343,8 @@ func (s *stubImageSource) ContentTypes() []domain.ContentType {
 	return []domain.ContentType{domain.ContentTypeMusic}
 }
 
-func (s *stubImageSource) SearchStudios(_ context.Context, _ string, _ int) ([]*domain.ExternalStudio, error) {
-	return nil, nil
-}
-
-func (s *stubImageSource) SearchPeople(_ context.Context, _ string, _ int) ([]*domain.ExternalPerson, error) {
-	return nil, nil
-}
-
-func (s *stubImageSource) SearchItems(_ context.Context, _ domain.ContentType, _ string, _ int) ([]*domain.ExternalItem, error) {
-	return nil, nil
-}
-
-func (s *stubImageSource) FindByHash(_ context.Context, _ string) (*domain.ExternalItem, error) {
-	return nil, ports.ErrNotSupported
-}
-
 func (s *stubImageSource) FindByExternalID(_ context.Context, _ domain.ContentType, _ string) (*domain.ExternalItem, error) {
 	return s.findItem, s.findErr
-}
-
-func (s *stubImageSource) FetchEntryContent(_ context.Context, _ domain.ContentType, _ string, _, _ int) ([]*domain.ExternalGroup, []*domain.ExternalItem, int, error) {
-	return nil, nil, 0, nil
-}
-
-func (s *stubImageSource) FetchGroupContent(_ context.Context, _ domain.ContentType, _ string, _, _ int) ([]*domain.ExternalItem, int, error) {
-	return nil, 0, ports.ErrNotSupported
-}
-
-func (s *stubImageSource) FetchEntryPeople(_ context.Context, _ string) ([]*domain.ExternalPerson, error) {
-	return nil, ports.ErrNotSupported
-}
-
-func (s *stubImageSource) FindGroupImages(_ context.Context, _ domain.ContentType, _, _ string) (*domain.ExternalItem, error) {
-	return nil, ports.ErrNotSupported
 }
 
 func (s *stubImageSource) FetchPersonImage(_ context.Context, _ string) (*domain.ExternalImage, error) {

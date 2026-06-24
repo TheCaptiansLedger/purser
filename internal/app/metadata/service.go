@@ -93,7 +93,11 @@ func (s *Service) FetchArtistDiscography(
 	if src == nil {
 		return nil, 0, errs.Validation(fmt.Sprintf("unknown metadata source %q", source))
 	}
-	groups, _, total, err := src.FetchEntryContent(ctx, contentType, externalID, page, perPage)
+	ec, ok := src.(ports.EntryContentSource)
+	if !ok {
+		return nil, 0, fmt.Errorf("fetch artist discography: source %q does not support entry content", src.Name())
+	}
+	groups, _, total, err := ec.FetchEntryContent(ctx, contentType, externalID, page, perPage)
 	if err != nil {
 		return nil, 0, fmt.Errorf("fetch artist discography: %w", err)
 	}
@@ -180,10 +184,14 @@ func (s *Service) ImportAlbum(ctx context.Context, req *ImportAlbumRequest) (*do
 // collectNewGroupTracks pages through FetchGroupContent for a single group and
 // returns tracks not already present in the library.
 func (s *Service) collectNewGroupTracks(ctx context.Context, src ports.MetadataSource, groupExtID string, contentType domain.ContentType) ([]*domain.ExternalItem, error) {
+	gc, ok := src.(ports.GroupContentSource)
+	if !ok {
+		return nil, fmt.Errorf("fetch tracks: source %q does not support group content", src.Name())
+	}
 	const perPage = 100
 	var tracks []*domain.ExternalItem
 	for page := 1; ; page++ {
-		extItems, trackTotal, err := src.FetchGroupContent(ctx, contentType, groupExtID, page, perPage)
+		extItems, trackTotal, err := gc.FetchGroupContent(ctx, contentType, groupExtID, page, perPage)
 		if err != nil {
 			return nil, fmt.Errorf("fetch tracks page %d: %w", page, err)
 		}
@@ -470,11 +478,15 @@ func (s *Service) ImportPerson(ctx context.Context, req *ImportPersonRequest) (*
 // collectNewItems pages through src for the given entry external ID and returns
 // external items that do not yet have a corresponding item record.
 func (s *Service) collectNewItems(ctx context.Context, src ports.MetadataSource, entryName, srcExtID string, contentType domain.ContentType) ([]*domain.ExternalItem, error) {
+	ec, ok := src.(ports.EntryContentSource)
+	if !ok {
+		return nil, fmt.Errorf("refresh studio %q: source %q does not support entry content", entryName, src.Name())
+	}
 	const perPage = 100
 	var newExtItems []*domain.ExternalItem
 
 	for page := 1; ; page++ {
-		_, extItems, total, err := src.FetchEntryContent(ctx, contentType, srcExtID, page, perPage)
+		_, extItems, total, err := ec.FetchEntryContent(ctx, contentType, srcExtID, page, perPage)
 		if err != nil {
 			return nil, fmt.Errorf("refresh studio %q: page %d: %w", entryName, page, err)
 		}
@@ -718,11 +730,13 @@ func (s *Service) RefreshArtist(ctx context.Context, entryID string, p ports.Pro
 // are logged and suppressed — people import is best-effort and must not block
 // the rest of the refresh.
 func (s *Service) importArtistPeople(ctx context.Context, src ports.MetadataSource, entryID, srcExtID string) {
-	members, err := src.FetchEntryPeople(ctx, srcExtID)
+	ep, ok := src.(ports.EntryPeopleSource)
+	if !ok {
+		return
+	}
+	members, err := ep.FetchEntryPeople(ctx, srcExtID)
 	if err != nil {
-		if !errors.Is(err, ports.ErrNotSupported) {
-			slog.Warn("refresh artist: fetch members", "entry_id", entryID, "error", err)
-		}
+		slog.Warn("refresh artist: fetch members", "entry_id", entryID, "error", err)
 		return
 	}
 	personCache := map[string]string{}
@@ -827,10 +841,10 @@ func (s *Service) fetchAlbumCovers(ctx context.Context, contentType domain.Conte
 }
 
 // collectGroupCovers fans out to all sources with ImagePriority > 0 in descending
-// priority order. Each source first attempts a batch fetch via FetchEntryContent
-// (e.g. fanart returns all album covers in one call); when that returns
-// ErrNotSupported it falls back to per-album FetchGroupContent. First writer wins,
-// so higher-priority sources fill the map before lower-priority ones run.
+// priority order. Sources implementing EntryContentSource are called first for a
+// batch fetch (e.g. fanart returns all album covers in one call); sources that
+// only implement GroupContentSource fall back to per-album fetches. First writer
+// wins, so higher-priority sources fill the map before lower-priority ones run.
 func (s *Service) collectGroupCovers(ctx context.Context, contentType domain.ContentType, artistMBID string, albums []artistAlbum, out map[string]string) {
 	type srcPri struct {
 		src ports.MetadataSource
@@ -845,30 +859,32 @@ func (s *Service) collectGroupCovers(ctx context.Context, contentType domain.Con
 	slices.SortFunc(candidates, func(a, b srcPri) int { return b.pri - a.pri })
 
 	for _, c := range candidates {
-		_, items, _, err := c.src.FetchEntryContent(ctx, contentType, artistMBID, 1, 1000)
-		if err == nil {
-			for _, item := range items {
-				rgMBID, ok := item.ExternalIDs["mbid"]
-				if !ok || len(item.Images) == 0 {
-					continue
+		if ec, ok := c.src.(ports.EntryContentSource); ok {
+			_, items, _, err := ec.FetchEntryContent(ctx, contentType, artistMBID, 1, 1000)
+			if err == nil {
+				for _, item := range items {
+					rgMBID, hasID := item.ExternalIDs["mbid"]
+					if !hasID || len(item.Images) == 0 {
+						continue
+					}
+					if _, exists := out[rgMBID]; !exists {
+						out[rgMBID] = item.Images[0].URL
+					}
 				}
-				if _, exists := out[rgMBID]; !exists {
-					out[rgMBID] = item.Images[0].URL
-				}
+				continue
 			}
-			continue
-		}
-		if !errors.Is(err, ports.ErrNotSupported) {
 			slog.Warn("refresh artist: fetch group covers", "source", c.src.Name(), "artist_mbid", artistMBID, "error", err)
 			continue
 		}
-		s.collectGroupCoversByAlbum(ctx, c.src, contentType, albums, out)
+		if gc, ok := c.src.(ports.GroupContentSource); ok {
+			s.collectGroupCoversByAlbum(ctx, gc, contentType, albums, out)
+		}
 	}
 }
 
 // collectGroupCoversByAlbum fills out with per-album cover URLs from src using
 // FetchGroupContent. Albums that already have an entry in out are skipped.
-func (s *Service) collectGroupCoversByAlbum(ctx context.Context, src ports.MetadataSource, contentType domain.ContentType, albums []artistAlbum, out map[string]string) {
+func (s *Service) collectGroupCoversByAlbum(ctx context.Context, src ports.GroupContentSource, contentType domain.ContentType, albums []artistAlbum, out map[string]string) {
 	for _, album := range albums {
 		rgMBID := album.extGroup.ExternalID
 		if _, exists := out[rgMBID]; exists {
@@ -876,9 +892,7 @@ func (s *Service) collectGroupCoversByAlbum(ctx context.Context, src ports.Metad
 		}
 		items, _, err := src.FetchGroupContent(ctx, contentType, rgMBID, 1, 1)
 		if err != nil {
-			if !errors.Is(err, ports.ErrNotSupported) {
-				slog.Warn("refresh artist: fetch group cover", "source", src.Name(), "mbid", rgMBID, "error", err)
-			}
+			slog.Warn("refresh artist: fetch group cover", "mbid", rgMBID, "error", err)
 			continue
 		}
 		if len(items) > 0 && len(items[0].Images) > 0 {
@@ -901,7 +915,11 @@ func (s *Service) fetchPersonHeroImage(ctx context.Context, personID, extID stri
 	}
 	var images []domain.ExternalImage
 	for _, src := range s.sources {
-		img, imgErr := src.FetchPersonImage(ctx, extID)
+		ps, ok := src.(ports.PersonImageSource)
+		if !ok {
+			continue
+		}
+		img, imgErr := ps.FetchPersonImage(ctx, extID)
 		if imgErr != nil || img == nil {
 			continue
 		}
@@ -924,6 +942,10 @@ func (s *Service) fetchPersonHeroImage(ctx context.Context, personID, extID stri
 // slice of all albums (new and existing) with their internal IDs resolved.
 // The album types imported are controlled by entry.Metadata["album_filter"].
 func (s *Service) resolveArtistAlbums(ctx context.Context, src ports.MetadataSource, entry *domain.LibraryEntry, srcExtID string) ([]artistAlbum, error) {
+	ec, ok := src.(ports.EntryContentSource)
+	if !ok {
+		return nil, fmt.Errorf("refresh artist %q: source %q does not support entry content", entry.Name, src.Name())
+	}
 	const perPage = 100
 	var albums []artistAlbum
 
@@ -939,7 +961,7 @@ func (s *Service) resolveArtistAlbums(ctx context.Context, src ports.MetadataSou
 	}
 
 	for page := 1; ; page++ {
-		extGroups, _, albumTotal, err := src.FetchEntryContent(ctx, entry.ContentType, srcExtID, page, perPage)
+		extGroups, _, albumTotal, err := ec.FetchEntryContent(ctx, entry.ContentType, srcExtID, page, perPage)
 		if err != nil {
 			return nil, fmt.Errorf("refresh artist %q: fetch albums page %d: %w", entry.Name, page, err)
 		}
@@ -1018,12 +1040,16 @@ func albumMetadata(eg *domain.ExternalGroup) map[string]any {
 // returns tracks not already present in the library. Albums that fail track
 // lookup are logged and skipped rather than aborting the entire refresh.
 func (s *Service) collectArtistTracks(ctx context.Context, src ports.MetadataSource, entryName string, albums []artistAlbum, contentType domain.ContentType) ([]artistTrack, error) {
+	gc, ok := src.(ports.GroupContentSource)
+	if !ok {
+		return nil, fmt.Errorf("refresh artist %q: source %q does not support group content", entryName, src.Name())
+	}
 	const perPage = 100
 	var tracks []artistTrack
 
 	for _, album := range albums {
 		for page := 1; ; page++ {
-			extItems, trackTotal, err := src.FetchGroupContent(ctx, contentType, album.extGroup.ExternalID, page, perPage)
+			extItems, trackTotal, err := gc.FetchGroupContent(ctx, contentType, album.extGroup.ExternalID, page, perPage)
 			if err != nil {
 				slog.Warn("refresh artist: fetch tracks", "entry", entryName, "album", album.extGroup.Title, "error", err)
 				break

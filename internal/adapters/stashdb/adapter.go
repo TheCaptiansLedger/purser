@@ -13,8 +13,14 @@ import (
 	"purser/pkg/httpclient"
 )
 
-// Compile-time interface check.
-var _ ports.MetadataSource = (*Adapter)(nil)
+// Compile-time interface assertions.
+var (
+	_ ports.MetadataSource     = (*Adapter)(nil)
+	_ ports.SearchableSource   = (*Adapter)(nil)
+	_ ports.HashLookupSource   = (*Adapter)(nil)
+	_ ports.ExternalIDSource   = (*Adapter)(nil)
+	_ ports.EntryContentSource = (*Adapter)(nil)
+)
 
 const (
 	publicURL = "https://stashdb.org/graphql"

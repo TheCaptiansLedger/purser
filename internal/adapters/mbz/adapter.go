@@ -17,8 +17,18 @@ import (
 	"time"
 )
 
-// Compile-time interface check.
-var _ ports.MetadataSource = (*Adapter)(nil)
+// Compile-time interface assertions.
+var (
+	_ ports.MetadataSource     = (*Adapter)(nil)
+	_ ports.SearchableSource   = (*Adapter)(nil)
+	_ ports.ExternalIDSource   = (*Adapter)(nil)
+	_ ports.EntryContentSource = (*Adapter)(nil)
+	_ ports.GroupContentSource = (*Adapter)(nil)
+	_ ports.EntryPeopleSource  = (*Adapter)(nil)
+)
+
+// ImagePriority returns 0 — MusicBrainz does not provide images.
+func (a *Adapter) ImagePriority() int { return 0 }
 
 var errNotFound = errors.New("musicbrainz: not found")
 

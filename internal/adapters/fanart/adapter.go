@@ -14,8 +14,14 @@ import (
 	"strings"
 )
 
-// Compile-time interface check.
-var _ ports.MetadataSource = (*Adapter)(nil)
+// Compile-time interface assertions.
+var (
+	_ ports.MetadataSource     = (*Adapter)(nil)
+	_ ports.ExternalIDSource   = (*Adapter)(nil)
+	_ ports.EntryContentSource = (*Adapter)(nil)
+	_ ports.GroupImageSource   = (*Adapter)(nil)
+	_ ports.PersonImageSource  = (*Adapter)(nil)
+)
 
 const publicBaseURL = "https://webservice.fanart.tv/v3/"
 

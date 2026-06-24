@@ -13,7 +13,13 @@ import (
 	"strings"
 )
 
-var _ ports.MetadataSource = (*Adapter)(nil)
+// Compile-time interface assertions.
+var (
+	_ ports.MetadataSource     = (*Adapter)(nil)
+	_ ports.ExternalIDSource   = (*Adapter)(nil)
+	_ ports.GroupContentSource = (*Adapter)(nil)
+	_ ports.PersonImageSource  = (*Adapter)(nil)
+)
 
 const publicBaseURL = "https://www.theaudiodb.com/api/v1/json/"
 

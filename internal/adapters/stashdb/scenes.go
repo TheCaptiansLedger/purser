@@ -216,27 +216,6 @@ func (a *Adapter) FetchEntryContent(ctx context.Context, _ domain.ContentType, e
 	return nil, items, resp.QueryScenes.Count, nil
 }
 
-// FetchGroupContent returns ErrNotSupported — StashDB scenes are flat; there is
-// no intermediate group layer between a studio and its scenes.
-func (a *Adapter) FetchGroupContent(_ context.Context, _ domain.ContentType, _ string, _, _ int) ([]*domain.ExternalItem, int, error) {
-	return nil, 0, ports.ErrNotSupported
-}
-
-// FetchEntryPeople returns ErrNotSupported — StashDB does not model studio membership.
-func (a *Adapter) FetchEntryPeople(_ context.Context, _ string) ([]*domain.ExternalPerson, error) {
-	return nil, ports.ErrNotSupported
-}
-
-// FindGroupImages returns ErrNotSupported — StashDB scenes are flat; there is no group-level image concept.
-func (a *Adapter) FindGroupImages(_ context.Context, _ domain.ContentType, _, _ string) (*domain.ExternalItem, error) {
-	return nil, ports.ErrNotSupported
-}
-
-// FetchPersonImage returns ErrNotSupported — StashDB does not model person-level images.
-func (a *Adapter) FetchPersonImage(_ context.Context, _ string) (*domain.ExternalImage, error) {
-	return nil, ports.ErrNotSupported
-}
-
 // ── Mapping ───────────────────────────────────────────────────────────────────
 
 func toExternalItem(s *gqlScene, contentType domain.ContentType) *domain.ExternalItem {

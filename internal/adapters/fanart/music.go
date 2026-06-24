@@ -69,11 +69,6 @@ func (a *Adapter) FetchEntryContent(ctx context.Context, ct domain.ContentType, 
 	}
 }
 
-// FetchGroupContent returns ErrNotSupported — fanart.tv has no per-track images.
-func (a *Adapter) FetchGroupContent(_ context.Context, _ domain.ContentType, _ string, _, _ int) ([]*domain.ExternalItem, int, error) {
-	return nil, 0, ports.ErrNotSupported
-}
-
 // FetchPersonImage returns the hero image for the artist identified by MBID.
 func (a *Adapter) FetchPersonImage(ctx context.Context, extID string) (*domain.ExternalImage, error) {
 	item, err := a.findMusicByID(ctx, extID)

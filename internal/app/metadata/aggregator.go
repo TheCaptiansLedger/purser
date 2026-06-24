@@ -53,7 +53,12 @@ func (a *Aggregator) FindByExternalID(ctx context.Context, contentType domain.Co
 		wg.Add(1)
 		go func(priority int, src ports.MetadataSource) {
 			defer wg.Done()
-			item, err := src.FindByExternalID(ctx, contentType, externalID)
+			es, ok := src.(ports.ExternalIDSource)
+			if !ok {
+				ch <- fanResult{priority: priority, source: src.Name()}
+				return
+			}
+			item, err := es.FindByExternalID(ctx, contentType, externalID)
 			ch <- fanResult{priority: priority, source: src.Name(), item: item, err: err}
 		}(i, src)
 	}
@@ -84,8 +89,8 @@ func (a *Aggregator) FindByExternalID(ctx context.Context, contentType domain.Co
 	return merged, nil
 }
 
-// SearchItems fans out to all sources that support contentType and returns the
-// combined results. Errors from individual sources are logged and skipped.
+// SearchItems fans out to all sources that support contentType and implement
+// SearchableSource, then returns the combined results. Errors are logged and skipped.
 func (a *Aggregator) SearchItems(ctx context.Context, contentType domain.ContentType, title string, limit int) ([]*domain.ExternalItem, error) {
 	slog.Info("metadata aggregator: SearchItems", "content_type", contentType, "title", title, "limit", limit)
 	matching := a.sourcesFor(contentType)
@@ -97,7 +102,11 @@ func (a *Aggregator) SearchItems(ctx context.Context, contentType domain.Content
 		wg.Add(1)
 		go func(src ports.MetadataSource) {
 			defer wg.Done()
-			items, err := src.SearchItems(ctx, contentType, title, limit)
+			ss, ok := src.(ports.SearchableSource)
+			if !ok {
+				return
+			}
+			items, err := ss.SearchItems(ctx, contentType, title, limit)
 			if err != nil {
 				slog.Warn("metadata aggregator: SearchItems failed", "source", src.Name(), "error", err)
 				return
@@ -114,9 +123,9 @@ func (a *Aggregator) SearchItems(ctx context.Context, contentType domain.Content
 	return all, nil
 }
 
-// FetchEntryContent fans out to all sources that support contentType and returns
-// the combined item set (first page, up to 100 per source). Errors are logged
-// and skipped.
+// FetchEntryContent fans out to all sources that support contentType and implement
+// EntryContentSource, returning the combined item set (first page, up to 100 per source).
+// Errors are logged and skipped.
 func (a *Aggregator) FetchEntryContent(ctx context.Context, contentType domain.ContentType, entryID string) ([]*domain.ExternalItem, error) {
 	matching := a.sourcesFor(contentType)
 
@@ -127,7 +136,11 @@ func (a *Aggregator) FetchEntryContent(ctx context.Context, contentType domain.C
 		wg.Add(1)
 		go func(src ports.MetadataSource) {
 			defer wg.Done()
-			_, items, _, err := src.FetchEntryContent(ctx, contentType, entryID, 1, 100)
+			ec, ok := src.(ports.EntryContentSource)
+			if !ok {
+				return
+			}
+			_, items, _, err := ec.FetchEntryContent(ctx, contentType, entryID, 1, 100)
 			if err != nil {
 				slog.Warn("metadata aggregator: FetchEntryContent failed", "source", src.Name(), "error", err)
 				return
@@ -144,9 +157,9 @@ func (a *Aggregator) FetchEntryContent(ctx context.Context, contentType domain.C
 	return all, nil
 }
 
-// SearchStudios fans out to all sources that support contentType, combines
-// the results, and deduplicates by ExternalID. When two sources return the
-// same MBID, the TheAudioDB result is preferred over any other source.
+// SearchStudios fans out to all sources that support contentType and implement
+// SearchableSource, combines results, and deduplicates by ExternalID. When two
+// sources return the same MBID, the TheAudioDB result is preferred over any other.
 // Errors from individual sources are logged and skipped.
 func (a *Aggregator) SearchStudios(ctx context.Context, query string, contentType domain.ContentType, limit int) ([]*domain.ExternalStudio, error) {
 	matching := a.sourcesFor(contentType)
@@ -158,7 +171,11 @@ func (a *Aggregator) SearchStudios(ctx context.Context, query string, contentTyp
 		wg.Add(1)
 		go func(src ports.MetadataSource) {
 			defer wg.Done()
-			studios, err := src.SearchStudios(ctx, query, limit)
+			ss, ok := src.(ports.SearchableSource)
+			if !ok {
+				return
+			}
+			studios, err := ss.SearchStudios(ctx, query, limit)
 			if err != nil {
 				slog.Warn("metadata aggregator: SearchStudios failed", "source", src.Name(), "error", err)
 				return
@@ -237,8 +254,8 @@ func (a *Aggregator) deduplicateStudios(studios []*domain.ExternalStudio) []*dom
 	return out
 }
 
-// SearchPeople fans out to all sources that support contentType and returns
-// the combined people results. Errors from individual sources are logged and skipped.
+// SearchPeople fans out to all sources that support contentType and implement
+// SearchableSource, returning combined results. Errors are logged and skipped.
 func (a *Aggregator) SearchPeople(ctx context.Context, query string, contentType domain.ContentType, limit int) ([]*domain.ExternalPerson, error) {
 	matching := a.sourcesFor(contentType)
 
@@ -249,7 +266,11 @@ func (a *Aggregator) SearchPeople(ctx context.Context, query string, contentType
 		wg.Add(1)
 		go func(src ports.MetadataSource) {
 			defer wg.Done()
-			people, err := src.SearchPeople(ctx, query, limit)
+			ss, ok := src.(ports.SearchableSource)
+			if !ok {
+				return
+			}
+			people, err := ss.SearchPeople(ctx, query, limit)
 			if err != nil {
 				slog.Warn("metadata aggregator: SearchPeople failed", "source", src.Name(), "error", err)
 				return
@@ -266,24 +287,28 @@ func (a *Aggregator) SearchPeople(ctx context.Context, query string, contentType
 	return all, nil
 }
 
-// FetchGroupImages fans out FindGroupImages to all sources supporting contentType,
-// pairing IDs by source name (with first-available fallback for sources that share
-// an ID namespace with another source, e.g. fanart using MBZ MBIDs). Results are
-// deduplicated by URL. ErrNotSupported and ErrNotFound are silently skipped.
+// FetchGroupImages fans out FindGroupImages to all GroupImageSource sources for
+// contentType, pairing IDs by source name (with first-available fallback for
+// sources sharing an ID namespace). Results are deduplicated by URL.
+// ErrNotFound is silently skipped.
 func (a *Aggregator) FetchGroupImages(ctx context.Context, contentType domain.ContentType, entryExtIDs, groupExtIDs []domain.ExternalID) []domain.ExternalImage {
 	seen := make(map[string]bool)
 	var all []domain.ExternalImage
 
 	for _, src := range a.sourcesFor(contentType) {
+		gi, ok := src.(ports.GroupImageSource)
+		if !ok {
+			continue
+		}
 		parentExtID := pickExtID(src.Name(), entryExtIDs)
 		groupExtID := pickExtID(src.Name(), groupExtIDs)
 		if parentExtID == "" || groupExtID == "" {
 			continue
 		}
 
-		item, err := src.FindGroupImages(ctx, contentType, parentExtID, groupExtID)
+		item, err := gi.FindGroupImages(ctx, contentType, parentExtID, groupExtID)
 		if err != nil {
-			if !errors.Is(err, ports.ErrNotSupported) && !errors.Is(err, ports.ErrNotFound) {
+			if !errors.Is(err, ports.ErrNotFound) {
 				slog.Warn("metadata aggregator: FindGroupImages failed", "source", src.Name(), "error", err)
 			}
 			continue

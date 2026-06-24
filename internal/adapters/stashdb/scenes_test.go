@@ -91,19 +91,6 @@ func TestFetchEntryContent_ReturnsItemsFlat(t *testing.T) {
 	}
 }
 
-func TestFetchGroupContent_NotSupported(t *testing.T) {
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.WriteHeader(http.StatusInternalServerError) // should never be called
-	}))
-	defer srv.Close()
-
-	a := newTestAdapter(srv)
-	_, _, err := a.FetchGroupContent(context.Background(), domain.ContentTypeAdult, "any-id", 1, 100)
-	if !errors.Is(err, ports.ErrNotSupported) {
-		t.Errorf("expected ErrNotSupported, got %v", err)
-	}
-}
-
 const searchItemsFixture = `{
   "data": {
     "queryScenes": {
