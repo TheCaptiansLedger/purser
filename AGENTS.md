@@ -84,3 +84,31 @@ Start in the UI layer. The first tool call must be against a UI file — compone
 
 ### API response / TypeScript type parity (code review step)
 Every field the Go API returns must exist on the corresponding TypeScript interface in `web/src/types/index.ts`. When reviewing or writing a change that adds a field to a Go response struct, verify the matching TypeScript interface has that field. When a field is missing from the TypeScript type, the compiler gives no error unless a component actually tries to use it — so the gap is invisible until runtime.
+
+### Component-First gate (run before writing any TypeScript or React code)
+
+Before writing or proposing any new page, component, or hook, answer these questions. This is a required check, not a style suggestion.
+
+1. **Does an equivalent pattern already exist for another content type?**
+   Grep `web/src/pages/` for the pattern (tag cloud pages, genre pages, detail editors, add-entity dialogs). If found: extract first, then use. Never add a third copy.
+
+2. **Is this abstraction already in `web/src/components/`?**
+   Known shared components that must be used instead of re-implementing:
+   - `TagCloudPage` — tag browsing pages (any content type)
+   - `GenreListPage` / `GenreFilteredPage` — genre browsing pages
+   - `ImportDialog` — add-entity multi-step search/import dialog
+   - `EditButton` — the inline edit button on detail pages
+   - `AlbumCard` — album/group card in music contexts
+   - `useImageVersion` — cache-busting for editable entity images
+   - `components/edit/editors/` — all entity edit drawers
+   If the component doesn't exist yet but the pattern already appears elsewhere in page files, extract it first.
+
+3. **Does the proposed component branch on content type, kind, or module name?**
+   If yes: do not write it. Fix the design — behavior must come from props/config, never from inline string comparisons.
+
+4. **Am I about to duplicate state management logic?**
+   - Image version counter → `useImageVersion`
+   - localStorage ↔ React state sync → lift state, pass as props
+   - Dual paginated queries merged client-side → single server-side combined query
+
+Writing an inline page-level implementation when a shared component should exist is a defect. The audit will find it and the refactor will happen anyway — do it before, not after.
