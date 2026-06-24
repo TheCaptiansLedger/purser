@@ -1228,6 +1228,30 @@ func TestSubmitRefreshJob_UnknownJob(t *testing.T) {
 	}
 }
 
+func TestSubmitRefreshJob_RefreshArtist_EnqueuesJob(t *testing.T) {
+	q := &stubJobQueue{}
+	svc := metadata.New(nil, q, newStubEntryRepo(), nil, &stubItemRepo{}, &stubPersonRepo{}, &stubTagRepo{}, &stubExternalIDRepo{}, nil)
+	job, err := svc.SubmitRefreshJob(context.Background(), "RefreshArtist", "some-id")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if job == nil || job.Name != "RefreshArtist" {
+		t.Errorf("job = %v, want Name=%q", job, "RefreshArtist")
+	}
+}
+
+func TestSubmitRefreshJob_RefreshStudio_EnqueuesJob(t *testing.T) {
+	q := &stubJobQueue{}
+	svc := metadata.New(nil, q, newStubEntryRepo(), nil, &stubItemRepo{}, &stubPersonRepo{}, &stubTagRepo{}, &stubExternalIDRepo{}, nil)
+	job, err := svc.SubmitRefreshJob(context.Background(), "RefreshStudio", "some-id")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if job == nil || job.Name != "RefreshStudio" {
+		t.Errorf("job = %v, want Name=%q", job, "RefreshStudio")
+	}
+}
+
 func TestRefreshArtist_GroupLinkedToItem(t *testing.T) {
 	entryRepo := newStubEntryRepo()
 	groupRepo := &stubGroupRepo{}

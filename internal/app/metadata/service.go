@@ -496,30 +496,29 @@ func (s *Service) SubmitRefreshJob(ctx context.Context, jobName, entityID string
 	if entityID == "" {
 		return nil, errs.Validation("entryId is required")
 	}
-	dispatch := map[domain.Kind]func(context.Context, string, ports.ProgressReporter) error{
-		domain.KindArtist:    s.RefreshArtist,
-		domain.KindStudio:    s.RefreshStudio,
-		domain.KindNetwork:   s.RefreshStudio,
-		domain.KindSeries:    s.RefreshStudio,
-		domain.KindAuthor:    s.RefreshStudio,
-		domain.KindMovie:     s.RefreshStudio,
-		domain.KindPublisher: s.RefreshStudio,
-		domain.KindBook:      s.RefreshStudio,
-	}
 	for _, k := range domain.Kinds() {
 		if k.RefreshJobName() != jobName {
 			continue
 		}
-		fn, ok := dispatch[k]
-		if !ok {
-			break
-		}
 		return s.jobs.Submit(ctx, jobName, map[string]any{"entry_id": entityID},
 			func(ctx context.Context, p ports.ProgressReporter) error {
-				return fn(ctx, entityID, p)
+				return s.refreshForKind(ctx, k, entityID, p)
 			})
 	}
 	return nil, ErrUnknownJob
+}
+
+// refreshForKind dispatches to the concrete refresh implementation for k.
+// Adding a new Kind requires adding exactly one case here — no string maps.
+func (s *Service) refreshForKind(ctx context.Context, k domain.Kind, entityID string, p ports.ProgressReporter) error {
+	switch k {
+	case domain.KindArtist:
+		return s.RefreshArtist(ctx, entityID, p)
+	case domain.KindStudio, domain.KindNetwork, domain.KindSeries, domain.KindAuthor, domain.KindMovie, domain.KindPublisher, domain.KindBook:
+		return s.RefreshStudio(ctx, entityID, p)
+	default:
+		return fmt.Errorf("no refresh implementation for kind %s: %w", k, ErrUnknownJob)
+	}
 }
 
 // RefreshStudio fetches all content for a studio from its external metadata
