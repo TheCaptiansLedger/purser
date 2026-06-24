@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"purser/internal/app/errs"
 	"purser/internal/app/library"
+	"purser/internal/app/metadata"
 	"purser/internal/domain"
 	"purser/internal/ports"
 	"time"
@@ -400,6 +401,10 @@ func handleErr(w http.ResponseWriter, err error) bool {
 	}
 	if errors.Is(err, errs.ErrNotFound) {
 		writeError(w, http.StatusNotFound, "NOT_FOUND", "resource not found")
+		return true
+	}
+	if errors.Is(err, metadata.ErrUnknownJob) {
+		writeError(w, http.StatusUnprocessableEntity, "UNKNOWN_COMMAND", err.Error())
 		return true
 	}
 	if errs.IsValidation(err) {

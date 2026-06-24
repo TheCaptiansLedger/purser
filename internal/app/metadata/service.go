@@ -16,6 +16,9 @@ import (
 	"github.com/google/uuid"
 )
 
+// ErrUnknownJob is returned when jobName does not correspond to any registered refresh job.
+var ErrUnknownJob = errors.New("unknown refresh job")
+
 // Service fans out metadata searches to all registered sources and handles
 // importing search results into the library as domain entities.
 type Service struct {
@@ -399,14 +402,8 @@ func (s *Service) ImportStudio(ctx context.Context, req *ImportStudioRequest) (*
 	res.Studio = studio
 
 	if req.AutoImport && s.jobs != nil {
-		entryID := studio.ID
-		jobName := kind.RefreshJobName()
-		jobFn := map[string]ports.JobFunc{
-			"RefreshArtist": func(ctx context.Context, p ports.ProgressReporter) error { return s.RefreshArtist(ctx, entryID, p) },
-			"RefreshStudio": func(ctx context.Context, p ports.ProgressReporter) error { return s.RefreshStudio(ctx, entryID, p) },
-		}[jobName]
-		if _, err := s.jobs.Submit(ctx, jobName, map[string]any{"entry_id": entryID}, jobFn); err != nil {
-			slog.Warn("auto-import: failed to enqueue "+jobName, "entry_id", entryID, "error", err)
+		if _, err := s.SubmitRefreshJob(ctx, kind.RefreshJobName(), studio.ID); err != nil {
+			slog.Warn("auto-import: failed to enqueue refresh", "entry_id", studio.ID, "error", err)
 		}
 	}
 
@@ -492,6 +489,37 @@ func (s *Service) collectNewItems(ctx context.Context, src ports.MetadataSource,
 		}
 	}
 	return newExtItems, nil
+}
+
+// SubmitRefreshJob enqueues a metadata refresh for the given entity.
+func (s *Service) SubmitRefreshJob(ctx context.Context, jobName, entityID string) (*domain.Job, error) {
+	if entityID == "" {
+		return nil, errs.Validation("entryId is required")
+	}
+	dispatch := map[domain.Kind]func(context.Context, string, ports.ProgressReporter) error{
+		domain.KindArtist:    s.RefreshArtist,
+		domain.KindStudio:    s.RefreshStudio,
+		domain.KindNetwork:   s.RefreshStudio,
+		domain.KindSeries:    s.RefreshStudio,
+		domain.KindAuthor:    s.RefreshStudio,
+		domain.KindMovie:     s.RefreshStudio,
+		domain.KindPublisher: s.RefreshStudio,
+		domain.KindBook:      s.RefreshStudio,
+	}
+	for _, k := range domain.Kinds() {
+		if k.RefreshJobName() != jobName {
+			continue
+		}
+		fn, ok := dispatch[k]
+		if !ok {
+			break
+		}
+		return s.jobs.Submit(ctx, jobName, map[string]any{"entry_id": entityID},
+			func(ctx context.Context, p ports.ProgressReporter) error {
+				return fn(ctx, entityID, p)
+			})
+	}
+	return nil, ErrUnknownJob
 }
 
 // RefreshStudio fetches all content for a studio from its external metadata

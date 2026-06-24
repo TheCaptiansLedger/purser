@@ -135,7 +135,7 @@ func (s *Server) mount(
 		jobH := &jobHandler{queue: jobQueue}
 		r.Route("/jobs", jobH.routes)
 
-		cmdH := &commandsHandler{metaSvc: metaSvc, jobQueue: jobQueue}
+		cmdH := &commandsHandler{metaSvc: metaSvc}
 		r.Route("/commands", cmdH.routes)
 
 		setupH := &setupHandler{settings: settingsRepo}

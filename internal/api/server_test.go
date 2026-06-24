@@ -2238,15 +2238,15 @@ func TestCommands_RefreshStudio_MissingEntryID(t *testing.T) {
 		"name": "RefreshStudio",
 		// entryId omitted
 	})
-	if w.Code != http.StatusBadRequest {
-		t.Fatalf("status = %d, want 400", w.Code)
+	if w.Code != http.StatusUnprocessableEntity {
+		t.Fatalf("status = %d, want 422", w.Code)
 	}
 	var resp struct {
 		Code string `json:"code"`
 	}
 	decodeJSON(t, w, &resp)
-	if resp.Code != "MISSING_FIELDS" {
-		t.Errorf("code = %q, want MISSING_FIELDS", resp.Code)
+	if resp.Code != "VALIDATION_ERROR" {
+		t.Errorf("code = %q, want VALIDATION_ERROR", resp.Code)
 	}
 }
 
@@ -2290,15 +2290,15 @@ func TestCommands_RefreshArtist_MissingEntryID(t *testing.T) {
 		"name": "RefreshArtist",
 		// entryId omitted
 	})
-	if w.Code != http.StatusBadRequest {
-		t.Fatalf("status = %d, want 400", w.Code)
+	if w.Code != http.StatusUnprocessableEntity {
+		t.Fatalf("status = %d, want 422", w.Code)
 	}
 	var resp struct {
 		Code string `json:"code"`
 	}
 	decodeJSON(t, w, &resp)
-	if resp.Code != "MISSING_FIELDS" {
-		t.Errorf("code = %q, want MISSING_FIELDS", resp.Code)
+	if resp.Code != "VALIDATION_ERROR" {
+		t.Errorf("code = %q, want VALIDATION_ERROR", resp.Code)
 	}
 }
 
@@ -2500,10 +2500,11 @@ func TestLibraryEntries_Artist_PeopleInResponse(t *testing.T) {
 func TestCommands_UnknownCommand(t *testing.T) {
 	h := newHandler(t)
 	w := do(t, h, http.MethodPost, "/api/v1/commands", map[string]any{
-		"name": "NonExistentCommand",
+		"name":    "NonExistentCommand",
+		"entryId": "any-id",
 	})
-	if w.Code != http.StatusBadRequest {
-		t.Fatalf("status = %d, want 400", w.Code)
+	if w.Code != http.StatusUnprocessableEntity {
+		t.Fatalf("status = %d, want 422", w.Code)
 	}
 	var resp struct {
 		Code string `json:"code"`

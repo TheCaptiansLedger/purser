@@ -2,6 +2,7 @@ package metadata_test
 
 import (
 	"context"
+	"errors"
 	"purser/internal/app/errs"
 	"purser/internal/app/metadata"
 	"purser/internal/domain"
@@ -1203,6 +1204,27 @@ func TestImportStudio_MovieStudio_SetsMovieParent(t *testing.T) {
 	}
 	if movieRes.Studio.ParentID != studioRes.Studio.ID {
 		t.Errorf("ParentID = %q, want %q", movieRes.Studio.ParentID, studioRes.Studio.ID)
+	}
+}
+
+// ── SubmitRefreshJob ──────────────────────────────────────────────────────────
+
+func TestSubmitRefreshJob_EmptyEntityID(t *testing.T) {
+	svc := metadata.New(nil, &stubJobQueue{}, newStubEntryRepo(), nil, &stubItemRepo{}, &stubPersonRepo{}, &stubTagRepo{}, &stubExternalIDRepo{}, nil)
+	_, err := svc.SubmitRefreshJob(context.Background(), "RefreshStudio", "")
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+	if !errs.IsValidation(err) {
+		t.Errorf("err = %v, want validation error", err)
+	}
+}
+
+func TestSubmitRefreshJob_UnknownJob(t *testing.T) {
+	svc := metadata.New(nil, &stubJobQueue{}, newStubEntryRepo(), nil, &stubItemRepo{}, &stubPersonRepo{}, &stubTagRepo{}, &stubExternalIDRepo{}, nil)
+	_, err := svc.SubmitRefreshJob(context.Background(), "RefreshNonExistent", "some-id")
+	if !errors.Is(err, metadata.ErrUnknownJob) {
+		t.Errorf("err = %v, want ErrUnknownJob", err)
 	}
 }
 
