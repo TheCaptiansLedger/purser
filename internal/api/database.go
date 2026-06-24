@@ -17,8 +17,9 @@ import (
 )
 
 type databaseHandler struct {
-	db  *sql.DB
-	dsn string
+	db         *sql.DB
+	dsn        string
+	shutdownFn func()
 }
 
 func (h *databaseHandler) routes(r chi.Router) {
@@ -218,10 +219,10 @@ func (h *databaseHandler) restore(w http.ResponseWriter, r *http.Request) {
 		TotalRows: totalRows,
 	})
 
-	go func() {
-		time.Sleep(300 * time.Millisecond)
-		os.Exit(0)
-	}()
+	// Signal the application lifecycle to shut down cleanly. A process supervisor
+	// (systemd, Docker restart policy, k8s) will restart the process to load
+	// the restored database file.
+	go h.shutdownFn()
 }
 
 // ── helpers ───────────────────────────────────────────────────────────────────

@@ -6,7 +6,9 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"io"
 	"io/fs"
+	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -94,7 +96,7 @@ func newHandlerWithConfigSvc(t *testing.T, cfgSvc ports.ConfigService) http.Hand
 		Log:      config.LogConfig{Level: "info", Format: "text"},
 	}
 	return api.New(0, "", cfg, database, libSvc, peopleSvc, metaSvc, tagRepo, jobQueue,
-		dbadapter.NewSettingsRepo(database), cfgSvc, nil, uiFS, nil).Handler()
+		dbadapter.NewSettingsRepo(database), cfgSvc, nil, uiFS, nil, func() {}).Handler()
 }
 
 // newHandlerWithDB builds a full server backed by a temp-file SQLite database
@@ -140,7 +142,7 @@ func newHandlerWithDB(t *testing.T) (http.Handler, *sql.DB) {
 		Log: config.LogConfig{Level: "info", Format: "text"},
 	}
 	settingsRepo := dbadapter.NewSettingsRepo(database)
-	return api.New(0, "", cfg, database, libSvc, peopleSvc, metaSvc, tagRepo, jobQueue, settingsRepo, noopConfigSvc{}, nil, uiFS, nil).Handler(), database
+	return api.New(0, "", cfg, database, libSvc, peopleSvc, metaSvc, tagRepo, jobQueue, settingsRepo, noopConfigSvc{}, nil, uiFS, nil, func() {}).Handler(), database
 }
 
 // newHandler builds a full server backed by a temp-file SQLite database.
@@ -198,7 +200,7 @@ func newHandlerWithMedia(t *testing.T, mediaPath string) http.Handler {
 		Log: config.LogConfig{Level: "info", Format: "text"},
 	}
 	settingsRepo := dbadapter.NewSettingsRepo(database)
-	return api.New(0, mediaPath, cfg, database, libSvc, peopleSvc, metaSvc, tagRepo, jobQueue, settingsRepo, noopConfigSvc{}, nil, uiFS, fspkg.NewImageDownloader(mediaPath)).Handler()
+	return api.New(0, mediaPath, cfg, database, libSvc, peopleSvc, metaSvc, tagRepo, jobQueue, settingsRepo, noopConfigSvc{}, nil, uiFS, fspkg.NewImageDownloader(mediaPath), func() {}).Handler()
 }
 
 func do(t *testing.T, h http.Handler, method, path string, body any) *httptest.ResponseRecorder {
@@ -347,7 +349,7 @@ func TestConfig_Get_Sources_KeysMasked(t *testing.T) {
 		},
 		Log: config.LogConfig{Level: "info", Format: "text"},
 	}
-	h := api.New(0, "", cfg, database, libSvc, peopleSvc, metaSvc, tagRepo, jobQueue, dbadapter.NewSettingsRepo(database), noopConfigSvc{}, nil, uiFS, nil).Handler()
+	h := api.New(0, "", cfg, database, libSvc, peopleSvc, metaSvc, tagRepo, jobQueue, dbadapter.NewSettingsRepo(database), noopConfigSvc{}, nil, uiFS, nil, func() {}).Handler()
 
 	w := do(t, h, http.MethodGet, "/api/v1/config", nil)
 	if w.Code != http.StatusOK {
@@ -2163,7 +2165,7 @@ func TestJobs_Cancel_SetsStatus(t *testing.T) {
 		Database: config.DatabaseConfig{Driver: "sqlite", DSN: dbPath},
 		Log:      config.LogConfig{Level: "info", Format: "text"},
 	}
-	h := api.New(0, "", cfg, database, libSvc, peopleSvc, metaSvc, tagRepo, jobQueue, dbadapter.NewSettingsRepo(database), noopConfigSvc{}, nil, uiFS, nil).Handler()
+	h := api.New(0, "", cfg, database, libSvc, peopleSvc, metaSvc, tagRepo, jobQueue, dbadapter.NewSettingsRepo(database), noopConfigSvc{}, nil, uiFS, nil, func() {}).Handler()
 
 	// DELETE /api/v1/jobs/:id should cancel it.
 	w := do(t, h, http.MethodDelete, "/api/v1/jobs/"+submitted.ID, nil)
@@ -2805,7 +2807,7 @@ func newHandlerWithSources(t *testing.T, sources []ports.MetadataSource) http.Ha
 		Database: config.DatabaseConfig{Driver: "sqlite", DSN: dbPath},
 		Log:      config.LogConfig{Level: "info", Format: "text"},
 	}
-	return api.New(0, "", cfg, database, libSvc, peopleSvc, metaSvc, tagRepo, jobQueue, dbadapter.NewSettingsRepo(database), noopConfigSvc{}, sources, uiFS, nil).Handler()
+	return api.New(0, "", cfg, database, libSvc, peopleSvc, metaSvc, tagRepo, jobQueue, dbadapter.NewSettingsRepo(database), noopConfigSvc{}, sources, uiFS, nil, func() {}).Handler()
 }
 
 func TestVerify_BadJSON(t *testing.T) {
@@ -2871,5 +2873,133 @@ func TestVerify_Source_Fail(t *testing.T) {
 	}
 	if resp.Error != "invalid API key" {
 		t.Errorf("error = %q, want \"invalid API key\"", resp.Error)
+	}
+}
+
+// ── Database ──────────────────────────────────────────────────────────────────
+
+// minimalPurserDump is the smallest SQL dump that passes the restore validator.
+const minimalPurserDump = `CREATE TABLE schema_migrations (version bigint not null primary key, dirty boolean not null);`
+
+// multipartDump builds a multipart/form-data body with the given SQL as the "database" field.
+func multipartDump(t *testing.T, sql string) (*bytes.Buffer, string) {
+	t.Helper()
+	var body bytes.Buffer
+	mw := multipart.NewWriter(&body)
+	fw, err := mw.CreateFormFile("database", "purser.sql")
+	if err != nil {
+		t.Fatalf("create form file: %v", err)
+	}
+	if _, err := io.WriteString(fw, sql); err != nil {
+		t.Fatalf("write form file: %v", err)
+	}
+	mw.Close()
+	return &body, mw.FormDataContentType()
+}
+
+func TestDatabase_Stats_OK(t *testing.T) {
+	h := newHandler(t)
+	w := do(t, h, http.MethodGet, "/api/v1/database/stats", nil)
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200 — body: %s", w.Code, w.Body.String())
+	}
+	var resp struct {
+		SQLiteVersion string `json:"sqlite_version"`
+	}
+	decodeJSON(t, w, &resp)
+	if resp.SQLiteVersion == "" {
+		t.Error("sqlite_version should not be empty")
+	}
+}
+
+func TestDatabase_Restore_CallsShutdown(t *testing.T) {
+	dbPath := t.TempDir() + "/test.db"
+	database, err := dbadapter.Open(dbPath)
+	if err != nil {
+		t.Fatalf("open test db: %v", err)
+	}
+	t.Cleanup(func() { database.Close() })
+
+	personRepo := dbadapter.NewPersonRepo(database)
+	tagRepo := dbadapter.NewTagRepo(database)
+	libSvc := library.New(
+		dbadapter.NewLibraryEntryRepo(database),
+		dbadapter.NewGroupRepo(database),
+		dbadapter.NewItemRepo(database),
+		personRepo,
+		tagRepo,
+	)
+	peopleSvc := people.New(personRepo)
+	jobQueue := jobsadapter.New(1)
+	t.Cleanup(jobQueue.Close)
+	metaSvc := metadata.New(nil, jobQueue,
+		dbadapter.NewLibraryEntryRepo(database), dbadapter.NewGroupRepo(database),
+		dbadapter.NewItemRepo(database), dbadapter.NewPersonRepo(database),
+		dbadapter.NewTagRepo(database), dbadapter.NewExternalIDRepo(database), nil)
+	uiFS, _ := fs.Sub(web.Dist, "dist")
+	cfg := &config.Config{
+		Server:   config.ServerConfig{Port: 0, Workers: 1},
+		Database: config.DatabaseConfig{Driver: "sqlite", DSN: dbPath},
+		Log:      config.LogConfig{Level: "info", Format: "text"},
+	}
+
+	shutdownCalled := make(chan struct{}, 1)
+	h := api.New(0, "", cfg, database, libSvc, peopleSvc, metaSvc, tagRepo, jobQueue,
+		dbadapter.NewSettingsRepo(database), noopConfigSvc{}, nil, uiFS, nil,
+		func() { shutdownCalled <- struct{}{} }).Handler()
+
+	body, ct := multipartDump(t, minimalPurserDump)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/database/restore", body)
+	req.Header.Set("Content-Type", ct)
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200 — body: %s", w.Code, w.Body.String())
+	}
+
+	select {
+	case <-shutdownCalled:
+		// expected
+	case <-time.After(time.Second):
+		t.Error("shutdownFn was not called within 1s after successful restore")
+	}
+}
+
+func TestDatabase_Restore_NoFile_400(t *testing.T) {
+	h := newHandler(t)
+	body := bytes.NewBufferString("--boundary\r\nContent-Disposition: form-data; name=\"other\"\r\n\r\nvalue\r\n--boundary--\r\n")
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/database/restore", body)
+	req.Header.Set("Content-Type", "multipart/form-data; boundary=boundary")
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, req)
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want 400 — body: %s", w.Code, w.Body.String())
+	}
+	var resp struct {
+		Code string `json:"code"`
+	}
+	decodeJSON(t, w, &resp)
+	if resp.Code != "FILE_MISSING" {
+		t.Errorf("code = %q, want FILE_MISSING", resp.Code)
+	}
+}
+
+func TestDatabase_Restore_InvalidDB_400(t *testing.T) {
+	h := newHandler(t)
+	body, ct := multipartDump(t, "CREATE TABLE unrelated (id integer primary key);")
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/database/restore", body)
+	req.Header.Set("Content-Type", ct)
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, req)
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want 400 — body: %s", w.Code, w.Body.String())
+	}
+	var resp struct {
+		Code string `json:"code"`
+	}
+	decodeJSON(t, w, &resp)
+	if resp.Code != "INVALID_DB" {
+		t.Errorf("code = %q, want INVALID_DB", resp.Code)
 	}
 }

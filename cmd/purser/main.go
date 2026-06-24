@@ -2,9 +2,11 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io/fs"
 	"log/slog"
+	"net/http"
 	"os"
 	"os/signal"
 	"purser/internal/adapters/db"
@@ -22,6 +24,7 @@ import (
 	"purser/internal/version"
 	"purser/web"
 	"syscall"
+	"time"
 
 	fsadapter "purser/internal/adapters/fs"
 
@@ -95,20 +98,31 @@ func run(cfgPath string) error {
 		return fmt.Errorf("load embedded UI: %w", err)
 	}
 
-	srv := api.New(cfg.Server.Port, cfg.Media.Path, cfg, database, libSvc, peopleSvc, metaSvc, tagRepo, jobQueue, settingsRepo, cfgSvc, sources, uiFS, imgDownloader)
+	signalCtx, signalStop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	defer signalStop()
+	lifecycleCtx, shutdown := context.WithCancel(context.Background())
+	go func() {
+		<-signalCtx.Done()
+		shutdown()
+	}()
 
-	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
-	defer cancel()
+	srv := api.New(cfg.Server.Port, cfg.Media.Path, cfg, database, libSvc, peopleSvc, metaSvc, tagRepo, jobQueue, settingsRepo, cfgSvc, sources, uiFS, imgDownloader, shutdown)
 
 	go func() {
 		slog.Info("listening", "port", cfg.Server.Port)
-		if err := srv.Start(); err != nil {
-			slog.Error("server stopped", "error", err)
+		if err := srv.Start(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			slog.Error("server error", "error", err)
+			shutdown()
 		}
 	}()
 
-	<-ctx.Done()
+	<-lifecycleCtx.Done()
 	slog.Info("shutting down")
+	drainCtx, drainCancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer drainCancel()
+	if err := srv.Shutdown(drainCtx); err != nil {
+		slog.Error("shutdown error", "error", err)
+	}
 	return nil
 }
 

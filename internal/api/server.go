@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	"io/fs"
@@ -18,8 +19,8 @@ import (
 
 // Server is the HTTP server. It owns the Chi router and all handler registration.
 type Server struct {
-	router *chi.Mux
-	port   int
+	httpServer *http.Server
+	router     *chi.Mux
 }
 
 // New wires up all routes and returns a ready-to-start Server.
@@ -38,12 +39,19 @@ func New(
 	sources []ports.MetadataSource,
 	uiFS fs.FS,
 	imgDownloader ports.ImageDownloader,
+	shutdownFn func(),
 ) *Server {
 	s := &Server{
 		router: chi.NewRouter(),
-		port:   port,
 	}
-	s.mount(mediaPath, cfg, db, libSvc, peopleSvc, metaSvc, tagRepo, jobQueue, settingsRepo, cfgSvc, sources, uiFS, imgDownloader)
+	s.mount(mediaPath, cfg, db, libSvc, peopleSvc, metaSvc, tagRepo, jobQueue, settingsRepo, cfgSvc, sources, uiFS, imgDownloader, shutdownFn)
+	s.httpServer = &http.Server{
+		Addr:         fmt.Sprintf(":%d", port),
+		Handler:      s.router,
+		ReadTimeout:  30 * time.Second,
+		WriteTimeout: 120 * time.Second,
+		IdleTimeout:  120 * time.Second,
+	}
 	return s
 }
 
@@ -61,6 +69,7 @@ func (s *Server) mount(
 	sources []ports.MetadataSource,
 	uiFS fs.FS,
 	imgDownloader ports.ImageDownloader,
+	shutdownFn func(),
 ) {
 	r := s.router
 
@@ -117,7 +126,7 @@ func (s *Server) mount(
 		imgH := &imageHandler{basePath: mediaPath}
 		r.Route("/images", imgH.routes)
 
-		dbH := &databaseHandler{db: db, dsn: cfg.Database.DSN}
+		dbH := &databaseHandler{db: db, dsn: cfg.Database.DSN, shutdownFn: shutdownFn}
 		r.Route("/database", dbH.routes)
 
 		metaH := &metadataHandler{svc: metaSvc}
@@ -154,16 +163,14 @@ func (s *Server) mount(
 	})
 }
 
+// Shutdown gracefully drains in-flight requests before stopping the server.
+func (s *Server) Shutdown(ctx context.Context) error {
+	return s.httpServer.Shutdown(ctx)
+}
+
 // Start begins listening on the configured port. It blocks until the server exits.
 func (s *Server) Start() error {
-	srv := &http.Server{
-		Addr:         fmt.Sprintf(":%d", s.port),
-		Handler:      s.router,
-		ReadTimeout:  30 * time.Second,
-		WriteTimeout: 120 * time.Second,
-		IdleTimeout:  120 * time.Second,
-	}
-	return srv.ListenAndServe()
+	return s.httpServer.ListenAndServe()
 }
 
 // Handler returns the underlying http.Handler, useful for testing.
