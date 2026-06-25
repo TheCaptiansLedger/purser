@@ -74,6 +74,31 @@ func TestImageDownloader_PathTraversal(t *testing.T) {
 	}
 }
 
+func TestImageDownloader_PartialDownload_NoFileLeft(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		hj, ok := w.(http.Hijacker)
+		if !ok {
+			t.Error("server does not support hijacking")
+			return
+		}
+		conn, bufw, _ := hj.Hijack()
+		defer conn.Close()
+		// Advertise 1000 bytes but close after 2 — simulates a crash mid-copy.
+		_, _ = bufw.WriteString("HTTP/1.1 200 OK\r\nContent-Type: image/jpeg\r\nContent-Length: 1000\r\n\r\n\xff\xd8")
+		_ = bufw.Flush()
+	}))
+	defer srv.Close()
+
+	dir := t.TempDir()
+	ext := NewImageDownloader(dir).Download(t.Context(), srv.URL, "entries", "abc123")
+	if ext != "" {
+		t.Errorf("ext = %q, want empty on partial download", ext)
+	}
+	if _, err := os.Stat(ImagePath(dir, "entries", "abc123", ".jpg")); err == nil {
+		t.Error("partial download left a file at the destination path")
+	}
+}
+
 func TestExtFromContentType(t *testing.T) {
 	cases := []struct{ ct, want string }{
 		{"image/jpeg", ".jpg"},

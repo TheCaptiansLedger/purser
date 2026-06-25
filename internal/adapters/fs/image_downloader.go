@@ -57,15 +57,29 @@ func (d *ImageDownloader) Download(ctx context.Context, url, entityType, entityI
 		slog.Warn("image path outside media dir", "path", dest)
 		return ""
 	}
-	f, err := os.Create(dest) //nolint:gosec
+	tmp, err := os.CreateTemp(filepath.Dir(dest), ".img-download-*")
 	if err != nil {
-		slog.Warn("failed to create image file", "path", dest, "error", err)
+		slog.Warn("failed to create temp image file", "dir", filepath.Dir(dest), "error", err)
 		return ""
 	}
-	defer func() { _ = f.Close() }()
-	if _, err := io.Copy(f, resp.Body); err != nil {
-		slog.Warn("failed to write image", "path", dest, "error", err)
-		_ = os.Remove(dest)
+	committed := false
+	defer func() {
+		_ = tmp.Close()
+		if !committed {
+			_ = os.Remove(tmp.Name())
+		}
+	}()
+	if _, err := io.Copy(tmp, resp.Body); err != nil {
+		slog.Warn("failed to write image", "path", tmp.Name(), "error", err)
+		return ""
+	}
+	if err := tmp.Close(); err != nil {
+		slog.Warn("failed to close temp image file", "path", tmp.Name(), "error", err)
+		return ""
+	}
+	committed = true
+	if err := os.Rename(tmp.Name(), dest); err != nil {
+		slog.Warn("failed to rename image file", "src", tmp.Name(), "dest", dest, "error", err)
 		return ""
 	}
 	slog.Debug("image.downloaded", "url", url, "entity_type", entityType, "entity_id", entityID, "ext", ext)
