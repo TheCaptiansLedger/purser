@@ -1,16 +1,8 @@
 import { NavLink, useLocation } from 'react-router-dom'
-import { Film, Tv2, Music2, BookOpen, Sparkles, Users, Settings, ChevronLeft, ChevronRight, Hexagon, Loader2, Map } from 'lucide-react'
+import { Users, Settings, ChevronLeft, ChevronRight, Hexagon, Loader2, Map } from 'lucide-react'
 import { useModules } from '../../context/ModulesContext'
-import type { EnabledModules } from '../../context/ModulesContext'
 import { useJobs } from '../../api/jobs'
-
-const NAV: Array<{ path: string; label: string; icon: React.ElementType; accent: string; module: keyof EnabledModules }> = [
-  { path: '/movies',    label: 'Movies',    icon: Film,      accent: '#3b82f6', module: 'movies'    },
-  { path: '/tv',        label: 'TV Shows',  icon: Tv2,       accent: '#8b5cf6', module: 'tv'        },
-  { path: '/music',     label: 'Music',     icon: Music2,    accent: '#10b981', module: 'music'     },
-  { path: '/books',     label: 'Books',     icon: BookOpen,  accent: '#f59e0b', module: 'books'     },
-  { path: '/afterdark', label: 'AfterDark', icon: Sparkles,  accent: '#f43f5e', module: 'afterdark' },
-]
+import { MODULE_REGISTRY } from '../../config/modules'
 
 const BOTTOM_NAV = [
   { path: '/people',   label: 'People',   icon: Users    },
@@ -27,8 +19,8 @@ export function Sidebar({ collapsed, onCollapsedChange }: SidebarProps) {
   const location = useLocation()
   const modules = useModules()
 
-  const visibleNav = NAV.filter(n => modules[n.module])
-  const activeAccent = visibleNav.find(n => location.pathname.startsWith(n.path))?.accent ?? '#6366f1'
+  const visibleNav = MODULE_REGISTRY.filter(m => modules[m.key])
+  const activeAccent = visibleNav.find(m => location.pathname.startsWith(m.path))?.accent ?? '#6366f1'
 
   const { data: jobsData } = useJobs()
   const pendingCount = (jobsData?.data ?? []).filter(
