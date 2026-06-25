@@ -1099,7 +1099,7 @@ func (s *Service) findOrCreateTagByKey(ctx context.Context, key domain.TagKey, v
 			return t, nil
 		}
 	}
-	t := &domain.Tag{Key: key, Value: value, Scope: scope}
+	t := &domain.Tag{ID: uuid.New().String(), Key: key, Value: value, Scope: scope}
 	if err := s.tags.Save(ctx, t); err != nil {
 		return nil, fmt.Errorf("find or create tag: save: %w", err)
 	}

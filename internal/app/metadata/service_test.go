@@ -9,6 +9,8 @@ import (
 	"purser/internal/ports"
 	"testing"
 	"time"
+
+	"github.com/google/uuid"
 )
 
 func newService() *metadata.Service {
@@ -835,6 +837,37 @@ func TestImportAlbum_AttachesLabelTag(t *testing.T) {
 	}
 	if len(tagRepo.groupTagCalls) != 1 {
 		t.Errorf("AddGroupTag calls = %d, want 1", len(tagRepo.groupTagCalls))
+	}
+}
+
+func TestImportAlbum_LabelTagHasUUID(t *testing.T) {
+	entryRepo := newStubEntryRepo()
+	groupRepo := &stubGroupRepo{}
+	tagRepo := &stubTagRepo{}
+	entry := artistEntry(domain.MonitorAll, time.Date(2020, 1, 1, 0, 0, 0, 0, time.UTC))
+	entryRepo.data[entry.ID] = entry
+
+	src, albums, _ := twoAlbumsWithTracks()
+	svc := metadata.New([]ports.MetadataSource{src}, nil, entryRepo, groupRepo, &stubItemRepo{}, &stubPersonRepo{}, tagRepo, &stubExternalIDRepo{}, nil)
+
+	_, err := svc.ImportAlbum(context.Background(), &metadata.ImportAlbumRequest{
+		Source:         domain.SourceMusicBrainz,
+		ExternalID:     albums[0].ExternalID,
+		LibraryEntryID: entry.ID,
+		Title:          albums[0].Title,
+		Year:           albums[0].Year,
+		Monitored:      true,
+		MonitorMode:    domain.MonitorAll,
+		LabelName:      "Columbia Records",
+	})
+	if err != nil {
+		t.Fatalf("ImportAlbum: %v", err)
+	}
+	if len(tagRepo.saved) == 0 {
+		t.Fatal("no tags saved")
+	}
+	if _, parseErr := uuid.Parse(tagRepo.saved[0].ID); parseErr != nil {
+		t.Errorf("tag ID %q is not a valid UUID: %v", tagRepo.saved[0].ID, parseErr)
 	}
 }
 
