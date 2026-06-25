@@ -4,6 +4,7 @@ import { ArrowLeft, Calendar, Clock, ImageIcon } from 'lucide-react'
 import { useLibraryEntry } from '../../api/library'
 import { useItems } from '../../api/items'
 import { useImageVersion } from '../../hooks/useImageVersion'
+import { EditButton } from '../../components/EditButton'
 import { LibraryEntryEditor } from '../../components/edit/editors/LibraryEntryEditor'
 import { Hero } from '../../components/layout/Hero'
 import { Badge } from '../../components/ui/Badge'
@@ -54,12 +55,7 @@ export function MovieDetail() {
           <ArrowLeft size={14} />
           Movies
         </Link>
-        <button
-          onClick={() => setEditOpen(true)}
-          className="inline-flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg border border-white/10 text-white/50 hover:text-white/80 hover:border-white/20 transition-colors"
-        >
-          Edit
-        </button>
+        <EditButton onClick={() => setEditOpen(true)} />
       </div>
 
       <Hero backdropUrl={entry.imageUrl ?? item?.coverUrl} accent={ACCENT}>

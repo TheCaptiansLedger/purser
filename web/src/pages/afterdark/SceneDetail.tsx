@@ -1,10 +1,11 @@
 import { useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
-import { Calendar, Clock, User, ImageIcon, Edit2 } from 'lucide-react'
+import { Calendar, Clock, User, ImageIcon } from 'lucide-react'
 import { useQueryClient } from '@tanstack/react-query'
 import { useItem, updateItem, useAddItemTag, useRemoveItemTag } from '../../api/items'
 import { useLibraryEntry } from '../../api/library'
 import { useEditForm } from '../../hooks/useEditForm'
+import { EditButton } from '../../components/EditButton'
 import { EditDrawer } from '../../components/edit/EditDrawer'
 import { FormField } from '../../components/edit/FormField'
 import { TextInput } from '../../components/edit/fields/TextInput'
@@ -99,12 +100,7 @@ export function SceneDetail() {
           <span className="text-white/20">›</span>
           <span className="text-white/60 truncate max-w-xs">{item.title}</span>
         </nav>
-        <button
-          onClick={() => setEditOpen(true)}
-          className="inline-flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg border border-white/10 text-white/50 hover:text-white/80 hover:border-white/20 transition-colors shrink-0"
-        >
-          <Edit2 size={12} /> Edit
-        </button>
+        <EditButton onClick={() => setEditOpen(true)} className="shrink-0" />
       </div>
 
       {/* Hero — 16:9 cover */}

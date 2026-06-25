@@ -8,6 +8,7 @@ import type { SortField, SortDir } from '../../api/items'
 import { useActiveJobForEntry } from '../../api/jobs'
 import { refreshStudio } from '../../api/commands'
 import { useStatusOverlay } from '../../hooks/useStatusOverlay'
+import { EditButton } from '../../components/EditButton'
 import { LibraryEntryEditor } from '../../components/edit/editors/LibraryEntryEditor'
 import { Hero } from '../../components/layout/Hero'
 import { ItemCard } from '../../components/media/ItemCard'
@@ -94,12 +95,7 @@ export function StudioDetail() {
         </Link>
 
         <div className="flex items-center gap-2">
-          <button
-            onClick={() => setEditOpen(true)}
-            className="inline-flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg border border-white/10 text-white/50 hover:text-white/80 hover:border-white/20 transition-colors"
-          >
-            Edit
-          </button>
+          <EditButton onClick={() => setEditOpen(true)} />
           <button
             onClick={handleRefresh}
             disabled={submitting || isRefreshing}

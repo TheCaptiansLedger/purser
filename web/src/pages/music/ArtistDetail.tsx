@@ -8,6 +8,7 @@ import { useImageVersion } from '../../hooks/useImageVersion'
 import type { YearSortDir } from '../../api/groups'
 import { useActiveJobForEntry } from '../../api/jobs'
 import { refreshArtist } from '../../api/commands'
+import { EditButton } from '../../components/EditButton'
 import { LibraryEntryEditor } from '../../components/edit/editors/LibraryEntryEditor'
 import { Hero } from '../../components/layout/Hero'
 import { PersonCard } from '../../components/media/PersonCard'
@@ -206,12 +207,7 @@ export function ArtistDetail() {
         </Link>
 
         <div className="flex items-center gap-2">
-          <button
-            onClick={() => setEditOpen(true)}
-            className="inline-flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg border border-white/10 text-white/50 hover:text-white/80 hover:border-white/20 transition-colors"
-          >
-            Edit
-          </button>
+          <EditButton onClick={() => setEditOpen(true)} />
           <button
             onClick={handleRefresh}
             disabled={submitting || isImporting}

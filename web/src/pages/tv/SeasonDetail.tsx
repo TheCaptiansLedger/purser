@@ -1,9 +1,10 @@
 import { useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
-import { ArrowLeft, Clock, Edit2, ImageIcon } from 'lucide-react'
+import { ArrowLeft, Clock, ImageIcon } from 'lucide-react'
 import { useLibraryEntry } from '../../api/library'
 import { useGroups } from '../../api/groups'
 import { useItems } from '../../api/items'
+import { EditButton } from '../../components/EditButton'
 import { GroupEditor } from '../../components/edit/editors/GroupEditor'
 import { fmtRuntime } from '../../components/ui/Runtime'
 import { Skeleton } from '../../components/ui/Skeleton'
@@ -37,12 +38,7 @@ export function SeasonDetail() {
           {entry?.name ?? 'Series'}
         </Link>
         {season && (
-          <button
-            onClick={() => setEditOpen(true)}
-            className="inline-flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg border border-white/10 text-white/50 hover:text-white/80 hover:border-white/20 transition-colors"
-          >
-            <Edit2 size={12} /> Edit
-          </button>
+          <EditButton onClick={() => setEditOpen(true)} />
         )}
       </div>
 

@@ -1,10 +1,11 @@
 import { useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
-import { ArrowLeft, Music2, Eye, EyeOff, SkipForward, BookmarkCheck, Edit2 } from 'lucide-react'
+import { ArrowLeft, Music2, Eye, EyeOff, SkipForward, BookmarkCheck } from 'lucide-react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useLibraryEntry } from '../../api/library'
 import { useGroup, patchGroup } from '../../api/groups'
 import { useItems, patchItem } from '../../api/items'
+import { EditButton } from '../../components/EditButton'
 import { GroupEditor } from '../../components/edit/editors/GroupEditor'
 import { fmtRuntime } from '../../components/ui/Runtime'
 import { Skeleton } from '../../components/ui/Skeleton'
@@ -124,12 +125,7 @@ export function AlbumDetail() {
         <Link to={`/music/${id}`} className="inline-flex items-center gap-1.5 text-sm text-white/40 hover:text-white/70 transition-colors">
           <ArrowLeft size={14} /> {artist?.name ?? 'Artist'}
         </Link>
-        <button
-          onClick={() => setEditOpen(true)}
-          className="inline-flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg border border-white/10 text-white/50 hover:text-white/80 hover:border-white/20 transition-colors"
-        >
-          <Edit2 size={12} /> Edit
-        </button>
+        <EditButton onClick={() => setEditOpen(true)} />
       </div>
 
       <div className="flex gap-6 items-start mb-8">
