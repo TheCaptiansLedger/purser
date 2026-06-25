@@ -11,8 +11,8 @@ const tags: Tag[] = [
 ]
 
 describe('filterTagsForModule', () => {
-  it('returns all tags for afterdark module', () => {
-    expect(filterTagsForModule(tags, 'afterdark')).toEqual(tags)
+  it('returns all tags for adult content type', () => {
+    expect(filterTagsForModule(tags, 'adult')).toEqual(tags)
   })
 
   it('strips adult tags for non-afterdark modules', () => {
@@ -21,8 +21,8 @@ describe('filterTagsForModule', () => {
     expect(result.every(t => t.key !== 'adult')).toBe(true)
   })
 
-  it('strips adult tags for movies module', () => {
-    const result = filterTagsForModule(tags, 'movies')
+  it('strips adult tags for movie content type', () => {
+    const result = filterTagsForModule(tags, 'movie')
     expect(result.find(t => t.key === 'adult')).toBeUndefined()
   })
 

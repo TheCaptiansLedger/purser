@@ -43,7 +43,7 @@ export function MovieDetail() {
   if (!entry) return null
 
   const performers = entry.people.filter(p => p.role === 'actor' || p.role === 'actress')
-  const visibleTags = filterTagsForModule(entry.tags, 'movies')
+  const visibleTags = filterTagsForModule(entry.tags, 'movie')
   const genreTags = visibleTags.filter(t => t.key === 'genre')
   const productionTags = visibleTags.filter(t => t.key === 'production_company')
   const otherTags = visibleTags.filter(t => t.key !== 'genre' && t.key !== 'production_company')
