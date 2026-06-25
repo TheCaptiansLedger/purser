@@ -23,6 +23,7 @@ import (
 	"purser/internal/ports"
 	"purser/web"
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 
@@ -3059,5 +3060,24 @@ func TestDatabase_Restore_InvalidDB_400(t *testing.T) {
 	decodeJSON(t, w, &resp)
 	if resp.Code != "INVALID_DB" {
 		t.Errorf("code = %q, want INVALID_DB", resp.Code)
+	}
+}
+
+func TestDatabase_Backup_OK(t *testing.T) {
+	h := newHandler(t)
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/database/backup", nil)
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", w.Code)
+	}
+	if ct := w.Header().Get("Content-Type"); !strings.HasPrefix(ct, "text/plain") {
+		t.Errorf("Content-Type = %q, want text/plain", ct)
+	}
+	body := w.Body.String()
+	for _, want := range []string{"BEGIN TRANSACTION", "COMMIT", "schema_migrations"} {
+		if !strings.Contains(body, want) {
+			t.Errorf("backup body missing %q", want)
+		}
 	}
 }

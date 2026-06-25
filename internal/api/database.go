@@ -64,6 +64,7 @@ func (h *databaseHandler) stats(w http.ResponseWriter, r *http.Request) {
 	_ = total
 
 	var fileSize int64
+	// h.dsn is assumed to be a filesystem path; file size is best-effort and may be 0 for non-file DSNs.
 	if info, err := os.Stat(h.dsn); err == nil {
 		fileSize = info.Size()
 	}
@@ -112,33 +113,16 @@ func (h *databaseHandler) backup(w http.ResponseWriter, r *http.Request) {
 			tables = append(tables, name)
 		}
 	}
+	if err := schemaRows.Err(); err != nil {
+		_ = schemaRows.Close()
+		return
+	}
 	_ = schemaRows.Close()
 
 	for _, table := range tables {
-		dataRows, err := h.db.QueryContext(ctx, fmt.Sprintf("SELECT * FROM %q", table))
-		if err != nil {
-			continue
+		if err := h.dumpTableData(ctx, bw, table); err != nil {
+			return
 		}
-		cols, _ := dataRows.Columns()
-		for dataRows.Next() {
-			vals := make([]any, len(cols))
-			ptrs := make([]any, len(cols))
-			for i := range vals {
-				ptrs[i] = &vals[i]
-			}
-			if err := dataRows.Scan(ptrs...); err != nil {
-				continue
-			}
-			_, _ = fmt.Fprintf(bw, "INSERT INTO %q VALUES (", table)
-			for i, v := range vals {
-				if i > 0 {
-					_, _ = fmt.Fprint(bw, ",")
-				}
-				writeSQLVal(bw, v)
-			}
-			_, _ = fmt.Fprintln(bw, ");")
-		}
-		_ = dataRows.Close()
 	}
 
 	_, _ = fmt.Fprintln(bw, "\nCOMMIT;")
@@ -206,7 +190,10 @@ func (h *databaseHandler) restore(w http.ResponseWriter, r *http.Request) {
 	tables, totalRows := collectTableStats(r.Context(), tmpDB)
 	_ = tmpDB.Close()
 
-	_, _ = h.db.ExecContext(r.Context(), "PRAGMA wal_checkpoint(TRUNCATE)")
+	if _, err := h.db.ExecContext(r.Context(), "PRAGMA wal_checkpoint(TRUNCATE)"); err != nil {
+		writeError(w, http.StatusInternalServerError, "BACKUP_FAILED", "WAL checkpoint failed")
+		return
+	}
 
 	if err := os.Rename(tmpPath, h.dsn); err != nil {
 		writeError(w, http.StatusInternalServerError, "REPLACE_ERROR", "failed to replace database")
@@ -223,6 +210,42 @@ func (h *databaseHandler) restore(w http.ResponseWriter, r *http.Request) {
 	// (systemd, Docker restart policy, k8s) will restart the process to load
 	// the restored database file.
 	go h.shutdownFn()
+}
+
+func (h *databaseHandler) dumpTableData(ctx context.Context, bw *bufio.Writer, table string) error {
+	dataRows, err := h.db.QueryContext(ctx, fmt.Sprintf("SELECT * FROM %q", table))
+	if err != nil {
+		return err
+	}
+	cols, err := dataRows.Columns()
+	if err != nil {
+		_ = dataRows.Close()
+		return err
+	}
+	for dataRows.Next() {
+		vals := make([]any, len(cols))
+		ptrs := make([]any, len(cols))
+		for i := range vals {
+			ptrs[i] = &vals[i]
+		}
+		if err := dataRows.Scan(ptrs...); err != nil {
+			_ = dataRows.Close()
+			return err
+		}
+		_, _ = fmt.Fprintf(bw, "INSERT INTO %q VALUES (", table)
+		for i, v := range vals {
+			if i > 0 {
+				_, _ = fmt.Fprint(bw, ",")
+			}
+			writeSQLVal(bw, v)
+		}
+		_, _ = fmt.Fprintln(bw, ");")
+	}
+	if err := dataRows.Err(); err != nil {
+		_ = dataRows.Close()
+		return err
+	}
+	return dataRows.Close()
 }
 
 // ── helpers ───────────────────────────────────────────────────────────────────
