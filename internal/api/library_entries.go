@@ -135,9 +135,7 @@ func (h *libraryEntryHandler) list(w http.ResponseWriter, r *http.Request) {
 		Limit:       limit,
 		Offset:      offset,
 	})
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, "LIST_FAILED", "failed to list library entries")
-		slog.Error("list library entries", "error", err)
+	if handleErr(w, err) {
 		return
 	}
 
