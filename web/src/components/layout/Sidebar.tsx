@@ -1,4 +1,3 @@
-import { useState, useEffect } from 'react'
 import { NavLink, useLocation } from 'react-router-dom'
 import { Film, Tv2, Music2, BookOpen, Sparkles, Users, Settings, ChevronLeft, ChevronRight, Hexagon, Loader2, Map } from 'lucide-react'
 import { useModules } from '../../context/ModulesContext'
@@ -19,16 +18,14 @@ const BOTTOM_NAV = [
   { path: '/settings', label: 'Settings', icon: Settings },
 ]
 
-export function Sidebar() {
-  const [collapsed, setCollapsed] = useState(() => {
-    return localStorage.getItem('sidebar-collapsed') === 'true'
-  })
+interface SidebarProps {
+  collapsed: boolean
+  onCollapsedChange: (collapsed: boolean) => void
+}
+
+export function Sidebar({ collapsed, onCollapsedChange }: SidebarProps) {
   const location = useLocation()
   const modules = useModules()
-
-  useEffect(() => {
-    localStorage.setItem('sidebar-collapsed', String(collapsed))
-  }, [collapsed])
 
   const visibleNav = NAV.filter(n => modules[n.module])
   const activeAccent = visibleNav.find(n => location.pathname.startsWith(n.path))?.accent ?? '#6366f1'
@@ -170,7 +167,7 @@ export function Sidebar() {
 
       {/* Collapse toggle */}
       <button
-        onClick={() => setCollapsed(c => !c)}
+        onClick={() => onCollapsedChange(!collapsed)}
         className="flex items-center justify-center h-10 mx-2 mb-3 rounded-lg text-white/30 hover:text-white/60 hover:bg-white/5 transition-all duration-150"
         aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
       >
