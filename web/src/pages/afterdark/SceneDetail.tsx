@@ -1,77 +1,17 @@
 import { useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { Calendar, Clock, User, ImageIcon } from 'lucide-react'
-import { useQueryClient } from '@tanstack/react-query'
-import { useItem, updateItem, useAddItemTag, useRemoveItemTag } from '../../api/items'
+import { useItem } from '../../api/items'
 import { useLibraryEntry } from '../../api/library'
-import { useEditForm } from '../../hooks/useEditForm'
 import { EditButton } from '../../components/EditButton'
-import { EditDrawer } from '../../components/edit/EditDrawer'
-import { FormField } from '../../components/edit/FormField'
-import { TextInput } from '../../components/edit/fields/TextInput'
-import { Textarea } from '../../components/edit/fields/Textarea'
-import { TagPicker } from '../../components/edit/fields/TagPicker'
-import { RelationshipPanel, itemPersonRoles } from '../../components/edit/RelationshipPanel'
-import { useContentTypeConfigs } from '../../api/config'
+import { ItemEditor } from '../../components/edit/editors/ItemEditor'
 import { Hero } from '../../components/layout/Hero'
 import { Badge } from '../../components/ui/Badge'
 import { PersonCard } from '../../components/media/PersonCard'
 import { fmtRuntime, fmtDate, fmtBytes } from '../../components/ui/Runtime'
 import { Skeleton } from '../../components/ui/Skeleton'
-import type { Item } from '../../types'
 
 const ACCENT = '#f43f5e'
-
-type SceneFormValues = { title: string; overview: string }
-
-function SceneEditDrawer({ item, onClose }: { item: Item; onClose: () => void }) {
-  const queryClient = useQueryClient()
-  const addTag = useAddItemTag(item.id)
-  const removeTag = useRemoveItemTag(item.id)
-  const { data: contentTypeConfigs = [] } = useContentTypeConfigs()
-  const roles = itemPersonRoles(contentTypeConfigs, item.contentType)
-
-  const form = useEditForm<SceneFormValues>({
-    initial: { title: item.title, overview: item.overview ?? '' },
-    lockedFields: item.lockedFields,
-    onSubmit: async (values, lockedFields) => {
-      const updated = await updateItem(item.id, { ...values, lockedFields })
-      queryClient.setQueryData(['items', item.id], updated)
-    },
-    onSuccess: onClose,
-  })
-
-  const currentItem = queryClient.getQueryData<Item>(['items', item.id]) ?? item
-
-  return (
-    <EditDrawer title={item.title} onClose={onClose} onSave={form.submit} saving={form.submitting}>
-      <div className="space-y-8">
-        <div className="grid grid-cols-2 gap-6">
-          <FormField label="Title" fieldKey="title" locked={form.lockedFields.has('title')} onToggleLock={form.toggleLock} fullWidth>
-            <TextInput value={form.values.title} onChange={v => form.setField('title', v)} />
-          </FormField>
-          <FormField label="Overview" fieldKey="overview" locked={form.lockedFields.has('overview')} onToggleLock={form.toggleLock} fullWidth>
-            <Textarea value={form.values.overview} onChange={v => form.setField('overview', v)} rows={6} />
-          </FormField>
-        </div>
-        <FormField label="Tags" fieldKey="tags" locked={false} onToggleLock={() => {}} fullWidth>
-          <TagPicker
-            value={currentItem.tags}
-            onAdd={tag => addTag.mutate(tag.id)}
-            onRemove={tagId => removeTag.mutate(tagId)}
-            hideKeys={['adult']}
-          />
-        </FormField>
-        <RelationshipPanel
-          entityType="item"
-          entityId={item.id}
-          roles={roles}
-          people={item.people}
-        />
-      </div>
-    </EditDrawer>
-  )
-}
 
 export function SceneDetail() {
   const { id } = useParams<{ id: string }>()
@@ -241,7 +181,7 @@ export function SceneDetail() {
         )}
       </div>
 
-      {editOpen && <SceneEditDrawer item={item} onClose={() => setEditOpen(false)} />}
+      {editOpen && <ItemEditor item={item} onClose={() => setEditOpen(false)} hideTagKeys={['adult']} />}
     </div>
   )
 }
