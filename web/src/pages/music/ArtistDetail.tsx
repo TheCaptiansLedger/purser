@@ -1,18 +1,17 @@
 import { useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { ArrowLeft, ImageIcon, ChevronLeft, ChevronRight, Disc3, Users, ArrowUpNarrowWide, ArrowDownNarrowWide, RefreshCw } from 'lucide-react'
-import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useLibraryEntry } from '../../api/library'
-import { useGroups, patchGroup, sortGroupsByYear } from '../../api/groups'
+import { useGroups, sortGroupsByYear } from '../../api/groups'
 import { useImageVersion } from '../../hooks/useImageVersion'
 import type { YearSortDir } from '../../api/groups'
 import { useActiveJobForEntry } from '../../api/jobs'
 import { refreshArtist } from '../../api/commands'
+import { AlbumCard } from '../../components/AlbumCard'
 import { EditButton } from '../../components/EditButton'
 import { LibraryEntryEditor } from '../../components/edit/editors/LibraryEntryEditor'
 import { Hero } from '../../components/layout/Hero'
 import { PersonCard } from '../../components/media/PersonCard'
-import { Badge } from '../../components/ui/Badge'
 import { Skeleton } from '../../components/ui/Skeleton'
 import type { Group } from '../../types'
 
@@ -39,62 +38,6 @@ function albumSectionToken(album: Group): string {
   if (secondary.includes('Live'))        return 'live'
   if (secondary.includes('Compilation')) return 'compilation'
   return 'studio'
-}
-
-// ── Album card ────────────────────────────────────────────────────────────────
-
-function AlbumCard({ album, artistId }: { album: Group; artistId: string }) {
-  const queryClient = useQueryClient()
-  const [imgFailed, setImgFailed] = useState(false)
-
-  const toggleMonitor = useMutation({
-    mutationFn: () => patchGroup(album.id, { monitored: !album.monitored }),
-    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ['groups'] }),
-  })
-
-  const showCover = !!album.coverUrl && !imgFailed
-
-  return (
-    <div className="group flex flex-col gap-2">
-      <div className="relative rounded-xl overflow-hidden bg-white/4 border border-white/5 group-hover:border-white/15 transition-all duration-200 group-hover:scale-[1.02]" style={{ aspectRatio: '1/1' }}>
-        <Link to={`/music/${artistId}/albums/${album.id}`} className="block w-full h-full flex items-center justify-center">
-          {showCover ? (
-            <img
-              src={album.coverUrl}
-              alt={album.title}
-              className="w-full h-full object-cover"
-              onError={() => setImgFailed(true)}
-            />
-          ) : (
-            <ImageIcon size={32} className="text-white/10" strokeWidth={1} />
-          )}
-        </Link>
-
-        <div
-          className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none rounded-xl"
-          style={{ boxShadow: `inset 0 0 0 1.5px ${ACCENT}55` }}
-        />
-        <div className="absolute bottom-0 inset-x-0 h-16 bg-gradient-to-t from-black/70 to-transparent pointer-events-none" />
-
-        <button
-          onClick={() => toggleMonitor.mutate()}
-          className="absolute bottom-2 left-2 pointer-events-auto"
-          title={album.monitored ? 'Monitored — click to unmonitor' : 'Unmonitored — click to monitor'}
-        >
-          <Badge color={album.monitored ? ACCENT : undefined}>
-            {album.monitored ? 'Monitored' : 'Unmonitored'}
-          </Badge>
-        </button>
-      </div>
-
-      <div className="px-0.5">
-        <Link to={`/music/${artistId}/albums/${album.id}`} className="text-sm font-medium text-white/80 truncate hover:text-white block">
-          {album.title}
-        </Link>
-        {album.year > 0 && <p className="text-xs text-white/35">{album.year}</p>}
-      </div>
-    </div>
-  )
 }
 
 // ── Section with arrow pagination ────────────────────────────────────────────
@@ -149,7 +92,13 @@ function DiscographySection({
 
       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
         {slice.map(album => (
-          <AlbumCard key={album.id} album={album} artistId={artistId} />
+          <AlbumCard
+            key={album.id}
+            album={album}
+            href={`/music/${artistId}/albums/${album.id}`}
+            showMonitorBadge
+            accent={ACCENT}
+          />
         ))}
       </div>
     </div>
