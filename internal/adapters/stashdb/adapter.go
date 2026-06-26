@@ -56,7 +56,7 @@ func New(cfg config.MetadataSourceConfig) *Adapter {
 }
 
 // Name returns the identifier for this metadata source.
-func (a *Adapter) Name() string { return "stashdb" }
+func (a *Adapter) Name() string { return string(domain.SourceStashDB) }
 
 // ContentTypes returns the content types this adapter can provide metadata for.
 func (a *Adapter) ContentTypes() []domain.ContentType {
