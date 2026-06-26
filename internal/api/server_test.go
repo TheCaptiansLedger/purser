@@ -1491,6 +1491,149 @@ func TestGroups_TagAttachDetachAndFilter(t *testing.T) {
 	}
 }
 
+func TestLibraryEntries_TagAttachDetach(t *testing.T) {
+	h := newHandler(t)
+
+	w := do(t, h, http.MethodPost, "/api/v1/library-entries", map[string]any{
+		"contentType": "adult", "kind": "studio", "name": "Test Studio",
+	})
+	if w.Code != http.StatusCreated {
+		t.Fatalf("create entry: %d", w.Code)
+	}
+	var entry struct {
+		ID   string `json:"id"`
+		Tags []any  `json:"tags"`
+	}
+	decodeJSON(t, w, &entry)
+	if len(entry.Tags) != 0 {
+		t.Errorf("new entry tags len = %d, want 0", len(entry.Tags))
+	}
+
+	w = do(t, h, http.MethodPost, "/api/v1/tags", map[string]any{
+		"key": "genre", "value": "outdoor", "scope": "metadata",
+	})
+	if w.Code != http.StatusCreated {
+		t.Fatalf("create tag: %d", w.Code)
+	}
+	var tag struct {
+		ID string `json:"id"`
+	}
+	decodeJSON(t, w, &tag)
+
+	w = do(t, h, http.MethodPost, "/api/v1/library-entries/"+entry.ID+"/tags", map[string]any{
+		"tagId": tag.ID,
+	})
+	if w.Code != http.StatusOK {
+		t.Fatalf("add tag to entry: %d body: %s", w.Code, w.Body.String())
+	}
+	var updated struct {
+		Tags []struct {
+			Key   string `json:"key"`
+			Value string `json:"value"`
+		} `json:"tags"`
+	}
+	decodeJSON(t, w, &updated)
+	if len(updated.Tags) != 1 || updated.Tags[0].Key != "genre" || updated.Tags[0].Value != "outdoor" {
+		t.Errorf("add tag: got %+v", updated.Tags)
+	}
+
+	w = do(t, h, http.MethodGet, "/api/v1/library-entries/"+entry.ID, nil)
+	var fetched struct {
+		Tags []struct {
+			Key string `json:"key"`
+		} `json:"tags"`
+	}
+	decodeJSON(t, w, &fetched)
+	if len(fetched.Tags) != 1 || fetched.Tags[0].Key != "genre" {
+		t.Errorf("GET entry tags = %+v, want [{genre}]", fetched.Tags)
+	}
+
+	w = do(t, h, http.MethodDelete, "/api/v1/library-entries/"+entry.ID+"/tags/"+tag.ID, nil)
+	if w.Code != http.StatusNoContent {
+		t.Fatalf("remove tag: %d", w.Code)
+	}
+
+	w = do(t, h, http.MethodGet, "/api/v1/library-entries/"+entry.ID, nil)
+	decodeJSON(t, w, &fetched)
+	if len(fetched.Tags) != 0 {
+		t.Errorf("after remove, tags len = %d, want 0", len(fetched.Tags))
+	}
+}
+
+func TestItems_TagAttachDetach(t *testing.T) {
+	h := newHandler(t)
+
+	w := do(t, h, http.MethodPost, "/api/v1/library-entries", map[string]any{
+		"contentType": "adult", "kind": "studio", "name": "Test Studio",
+	})
+	var entry struct {
+		ID string `json:"id"`
+	}
+	decodeJSON(t, w, &entry)
+
+	w = do(t, h, http.MethodPost, "/api/v1/items", map[string]any{
+		"libraryEntryId": entry.ID, "title": "Test Scene",
+	})
+	if w.Code != http.StatusCreated {
+		t.Fatalf("create item: %d", w.Code)
+	}
+	var item struct {
+		ID   string `json:"id"`
+		Tags []any  `json:"tags"`
+	}
+	decodeJSON(t, w, &item)
+	if len(item.Tags) != 0 {
+		t.Errorf("new item tags len = %d, want 0", len(item.Tags))
+	}
+
+	w = do(t, h, http.MethodPost, "/api/v1/tags", map[string]any{
+		"key": "genre", "value": "outdoor", "scope": "metadata",
+	})
+	var tag struct {
+		ID string `json:"id"`
+	}
+	decodeJSON(t, w, &tag)
+
+	w = do(t, h, http.MethodPost, "/api/v1/items/"+item.ID+"/tags", map[string]any{
+		"tagId": tag.ID,
+	})
+	if w.Code != http.StatusOK {
+		t.Fatalf("add tag to item: %d body: %s", w.Code, w.Body.String())
+	}
+	var updated struct {
+		Tags []struct {
+			Key   string `json:"key"`
+			Value string `json:"value"`
+		} `json:"tags"`
+	}
+	decodeJSON(t, w, &updated)
+	if len(updated.Tags) != 1 || updated.Tags[0].Key != "genre" || updated.Tags[0].Value != "outdoor" {
+		t.Errorf("add tag: got %+v", updated.Tags)
+	}
+
+	w = do(t, h, http.MethodGet, "/api/v1/items/"+item.ID, nil)
+	var fetched struct {
+		Tags []struct {
+			Key string `json:"key"`
+		} `json:"tags"`
+	}
+	decodeJSON(t, w, &fetched)
+	if len(fetched.Tags) != 1 || fetched.Tags[0].Key != "genre" {
+		t.Errorf("GET item tags = %+v, want [{genre}]", fetched.Tags)
+	}
+
+	w = do(t, h, http.MethodDelete, "/api/v1/items/"+item.ID+"/tags/"+tag.ID, nil)
+	if w.Code != http.StatusNoContent {
+		t.Fatalf("remove tag: %d", w.Code)
+	}
+
+	w = do(t, h, http.MethodGet, "/api/v1/items/"+item.ID, nil)
+	decodeJSON(t, w, &fetched)
+	if len(fetched.Tags) != 0 {
+		t.Errorf("after remove, tags len = %d, want 0", len(fetched.Tags))
+	}
+}
+
 func TestItems_GetAndDelete(t *testing.T) {
 	h := newHandler(t)
 
