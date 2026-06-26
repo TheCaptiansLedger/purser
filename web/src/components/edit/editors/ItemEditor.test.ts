@@ -8,7 +8,9 @@ const baseItem: Item = {
   libraryEntryId: 'entry-1',
   title: 'Test Scene',
   overview: 'An overview',
-  runtimeSeconds: 3600,
+  date: '2024-03-15',
+  sequence: 'S01E02',
+  runtimeSeconds: 3723,
   monitored: true,
   status: 'imported',
   people: [],
@@ -20,14 +22,30 @@ const baseItem: Item = {
 }
 
 describe('initialFormValues', () => {
-  it('maps item fields to form values', () => {
+  it('maps all item fields to form values', () => {
     const v = initialFormValues(baseItem)
     expect(v.title).toBe('Test Scene')
     expect(v.overview).toBe('An overview')
+    expect(v.date).toBe('2024-03-15')
+    expect(v.sequence).toBe('S01E02')
+    expect(v.runtimeSeconds).toBe(3723)
+    expect(v.monitored).toBe(true)
   })
 
   it('falls back to empty string when overview is absent', () => {
     expect(initialFormValues({ ...baseItem, overview: undefined as unknown as string }).overview).toBe('')
+  })
+
+  it('falls back to empty string when date is absent', () => {
+    expect(initialFormValues({ ...baseItem, date: undefined }).date).toBe('')
+  })
+
+  it('falls back to empty string when sequence is absent', () => {
+    expect(initialFormValues({ ...baseItem, sequence: undefined }).sequence).toBe('')
+  })
+
+  it('preserves monitored false', () => {
+    expect(initialFormValues({ ...baseItem, monitored: false }).monitored).toBe(false)
   })
 
   it('preserves title exactly', () => {

@@ -101,6 +101,8 @@ Before writing or proposing any new page, component, or hook, answer these quest
    - `AlbumCard` — album/group card in music contexts
    - `useImageVersion` — cache-busting for editable entity images
    - `components/edit/editors/` — all entity edit drawers
+   - `Toggle` — boolean on/off switch (`components/edit/fields/Toggle.tsx`)
+   - `RuntimeInput` — h/m/s runtime compound field (`components/edit/fields/RuntimeInput.tsx`)
    If the component doesn't exist yet but the pattern already appears elsewhere in page files, extract it first.
 
 3. **Does the proposed component branch on content type, kind, or module name?**

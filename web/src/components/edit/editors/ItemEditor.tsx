@@ -7,15 +7,29 @@ import { EditDrawer } from '../EditDrawer'
 import { FormField } from '../FormField'
 import { TextInput } from '../fields/TextInput'
 import { Textarea } from '../fields/Textarea'
+import { DateInput } from '../fields/DateInput'
+import { RuntimeInput } from '../fields/RuntimeInput'
 import { TagPicker } from '../fields/TagPicker'
+import { Toggle } from '../fields/Toggle'
 import type { Item } from '../../../types'
 
-type FormValues = { title: string; overview: string }
+type FormValues = {
+  title: string
+  overview: string
+  date: string
+  sequence: string
+  monitored: boolean
+  runtimeSeconds: number
+}
 
 export function initialFormValues(item: Item): FormValues {
   return {
     title: item.title,
     overview: item.overview ?? '',
+    date: item.date ?? '',
+    sequence: item.sequence ?? '',
+    monitored: item.monitored,
+    runtimeSeconds: item.runtimeSeconds,
   }
 }
 
@@ -36,7 +50,15 @@ export function ItemEditor({ item, onClose, hideTagKeys = [] }: ItemEditorProps)
     initial: initialFormValues(item),
     lockedFields: item.lockedFields,
     onSubmit: async (values, lockedFields) => {
-      const updated = await updateItem(item.id, { ...values, lockedFields })
+      const updated = await updateItem(item.id, {
+        title: values.title,
+        overview: values.overview,
+        ...(values.date ? { date: values.date } : {}),
+        ...(values.sequence ? { sequence: values.sequence } : {}),
+        monitored: values.monitored,
+        runtimeSeconds: values.runtimeSeconds,
+        lockedFields,
+      })
       queryClient.setQueryData(['items', item.id], updated)
     },
     onSuccess: onClose,
@@ -51,10 +73,28 @@ export function ItemEditor({ item, onClose, hideTagKeys = [] }: ItemEditorProps)
           <FormField label="Title" fieldKey="title" locked={form.lockedFields.has('title')} onToggleLock={form.toggleLock} fullWidth>
             <TextInput value={form.values.title} onChange={v => form.setField('title', v)} />
           </FormField>
+
+          <FormField label="Date" fieldKey="date" locked={form.lockedFields.has('date')} onToggleLock={form.toggleLock}>
+            <DateInput value={form.values.date} onChange={v => form.setField('date', v)} />
+          </FormField>
+
+          <FormField label="Sequence" fieldKey="sequence" locked={form.lockedFields.has('sequence')} onToggleLock={form.toggleLock}>
+            <TextInput value={form.values.sequence} onChange={v => form.setField('sequence', v)} placeholder="e.g. S01E03" />
+          </FormField>
+
+          <FormField label="Runtime" fieldKey="runtimeSeconds" locked={form.lockedFields.has('runtimeSeconds')} onToggleLock={form.toggleLock}>
+            <RuntimeInput value={form.values.runtimeSeconds} onChange={v => form.setField('runtimeSeconds', v)} />
+          </FormField>
+
+          <FormField label="Monitored" fieldKey="monitored" locked={form.lockedFields.has('monitored')} onToggleLock={form.toggleLock}>
+            <Toggle value={form.values.monitored} onChange={v => form.setField('monitored', v)} />
+          </FormField>
+
           <FormField label="Overview" fieldKey="overview" locked={form.lockedFields.has('overview')} onToggleLock={form.toggleLock} fullWidth>
             <Textarea value={form.values.overview} onChange={v => form.setField('overview', v)} rows={6} />
           </FormField>
         </div>
+
         <FormField label="Tags" fieldKey="tags" locked={false} onToggleLock={() => {}} fullWidth>
           <TagPicker
             value={currentItem.tags}
@@ -63,6 +103,7 @@ export function ItemEditor({ item, onClose, hideTagKeys = [] }: ItemEditorProps)
             hideKeys={hideTagKeys}
           />
         </FormField>
+
         <RelationshipPanel
           entityType="item"
           entityId={item.id}
