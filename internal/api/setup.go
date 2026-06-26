@@ -8,7 +8,7 @@ import (
 )
 
 type setupHandler struct {
-	settings ports.SettingsRepository
+	config ports.ConfigService
 }
 
 type setupStatusResponse struct {
@@ -16,7 +16,7 @@ type setupStatusResponse struct {
 }
 
 func (h *setupHandler) status(w http.ResponseWriter, r *http.Request) {
-	val, err := h.settings.Get(r.Context(), "setup_complete")
+	val, err := h.config.Get(r.Context(), "setup_complete")
 	if err != nil && !errors.Is(err, errs.ErrNotFound) {
 		writeError(w, http.StatusInternalServerError, "INTERNAL_ERROR", "failed to read setting")
 		return
@@ -25,7 +25,7 @@ func (h *setupHandler) status(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *setupHandler) complete(w http.ResponseWriter, r *http.Request) {
-	if err := h.settings.Set(r.Context(), "setup_complete", "true"); err != nil {
+	if err := h.config.Set(r.Context(), "setup_complete", "true"); err != nil {
 		writeError(w, http.StatusInternalServerError, "INTERNAL_ERROR", "failed to save setting")
 		return
 	}

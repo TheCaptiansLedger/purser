@@ -34,7 +34,6 @@ func New(
 	metaSvc *metadata.Service,
 	tagRepo ports.TagRepository,
 	jobQueue ports.JobQueue,
-	settingsRepo ports.SettingsRepository,
 	cfgSvc ports.ConfigService,
 	sources []ports.MetadataSource,
 	uiFS fs.FS,
@@ -44,7 +43,7 @@ func New(
 	s := &Server{
 		router: chi.NewRouter(),
 	}
-	s.mount(mediaPath, cfg, db, libSvc, peopleSvc, metaSvc, tagRepo, jobQueue, settingsRepo, cfgSvc, sources, uiFS, imgDownloader, shutdownFn)
+	s.mount(mediaPath, cfg, db, libSvc, peopleSvc, metaSvc, tagRepo, jobQueue, cfgSvc, sources, uiFS, imgDownloader, shutdownFn)
 	s.httpServer = &http.Server{
 		Addr:         fmt.Sprintf(":%d", port),
 		Handler:      s.router,
@@ -64,7 +63,6 @@ func (s *Server) mount(
 	metaSvc *metadata.Service,
 	tagRepo ports.TagRepository,
 	jobQueue ports.JobQueue,
-	settingsRepo ports.SettingsRepository,
 	cfgSvc ports.ConfigService,
 	sources []ports.MetadataSource,
 	uiFS fs.FS,
@@ -138,7 +136,7 @@ func (s *Server) mount(
 		cmdH := &commandsHandler{metaSvc: metaSvc}
 		r.Route("/commands", cmdH.routes)
 
-		setupH := &setupHandler{settings: settingsRepo}
+		setupH := &setupHandler{config: cfgSvc}
 		r.Route("/setup", func(r chi.Router) {
 			r.Get("/status", setupH.status)
 			r.Post("/complete", setupH.complete)
