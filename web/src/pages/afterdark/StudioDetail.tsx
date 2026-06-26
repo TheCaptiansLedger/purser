@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { ArrowLeft, Film, Users, ImageIcon, RefreshCw } from 'lucide-react'
 import { useLibraryEntry } from '../../api/library'
@@ -63,17 +63,17 @@ export function StudioDetail() {
     }
   }
 
-  const performerMap = new Map<string, PersonRef>()
-  for (const scene of scenes) {
-    for (const ip of scene.people) {
-      if (!performerMap.has(ip.personId) && ip.person) {
-        performerMap.set(ip.personId, ip.person)
+  const performers = useMemo(() => {
+    const map = new Map<string, PersonRef>()
+    for (const scene of scenes) {
+      for (const ip of scene.people) {
+        if (!map.has(ip.personId) && ip.person) {
+          map.set(ip.personId, ip.person)
+        }
       }
     }
-  }
-  const performers = Array.from(performerMap.values()).sort((a, b) =>
-    a.sortName.localeCompare(b.sortName)
-  )
+    return Array.from(map.values()).sort((a, b) => a.sortName.localeCompare(b.sortName))
+  }, [scenes])
 
   if (isLoading) return (
     <div className="px-8 py-10 space-y-4">

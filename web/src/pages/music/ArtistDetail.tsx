@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { ArrowLeft, ImageIcon, ChevronLeft, ChevronRight, Disc3, Users, ArrowUpNarrowWide, ArrowDownNarrowWide, RefreshCw } from 'lucide-react'
 import { useLibraryEntry } from '../../api/library'
@@ -132,12 +132,15 @@ export function ArtistDetail() {
     }
   }
 
+  const bySection = useMemo(
+    () => Object.fromEntries(
+      SECTIONS.map(s => [s.token, albums.filter(a => albumSectionToken(a) === s.token)])
+    ),
+    [albums]
+  )
+
   if (isLoading) return <div className="px-8 py-10"><Skeleton className="h-64 w-full" /></div>
   if (!entry) return null
-
-  const bySection = Object.fromEntries(
-    SECTIONS.map(s => [s.token, albums.filter(a => albumSectionToken(a) === s.token)])
-  )
 
   const TABS: { id: ArtistTab; label: string; icon: typeof Disc3 }[] = [
     { id: 'discography', label: 'Discography', icon: Disc3  },
