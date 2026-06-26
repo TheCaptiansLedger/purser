@@ -9,7 +9,7 @@ import (
 	"time"
 )
 
-func waitForTerminal(t *testing.T, q *Queue, id string) *domain.Job {
+func waitForTerminal(t *testing.T, q ports.JobQueue, id string) *domain.Job {
 	t.Helper()
 	deadline := time.Now().Add(2 * time.Second)
 	for time.Now().Before(deadline) {

@@ -16,6 +16,14 @@ type ProgressReporter interface {
 // error if the work fails. A nil error means the job completed successfully.
 type JobFunc func(ctx context.Context, p ProgressReporter) error
 
+// ShutdownableJobQueue is JobQueue extended with a Close method for lifecycle
+// management. Used at the composition root; consumers that only submit or
+// inspect jobs depend on the narrower JobQueue interface.
+type ShutdownableJobQueue interface {
+	JobQueue
+	Close()
+}
+
 // JobQueue manages the lifecycle of background jobs.
 // The implementation is an in-memory worker pool; the interface is defined here
 // so app services depend on the abstraction, not the goroutine machinery.

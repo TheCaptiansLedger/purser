@@ -35,7 +35,7 @@ type Queue struct {
 }
 
 // New returns a Queue backed by workerCount goroutines. Call Close when done.
-func New(workerCount int) *Queue {
+func New(workerCount int) ports.ShutdownableJobQueue {
 	q := &Queue{
 		jobs: make(map[string]*jobEntry),
 		ch:   make(chan workItem, workerCount*4),
@@ -222,4 +222,4 @@ func copyJob(j *domain.Job) *domain.Job {
 }
 
 // Compile-time interface check.
-var _ ports.JobQueue = (*Queue)(nil)
+var _ ports.ShutdownableJobQueue = (*Queue)(nil)
