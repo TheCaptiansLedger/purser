@@ -1,8 +1,12 @@
+import { useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { ArrowLeft, User } from 'lucide-react'
 import { usePerson } from '../../api/people'
 import { useItems } from '../../api/items'
 import { useLibraryEntries } from '../../api/library'
+import { useImageVersion } from '../../hooks/useImageVersion'
+import { EditButton } from '../../components/EditButton'
+import { PersonEditor } from '../../components/edit/editors/PersonEditor'
 import { Badge } from '../../components/ui/Badge'
 import { EntryCard } from '../../components/media/EntryCard'
 import { ItemCard } from '../../components/media/ItemCard'
@@ -23,7 +27,9 @@ function groupBy<T>(items: T[], key: (item: T) => string): Record<string, T[]> {
 
 export function PersonDetail() {
   const { id } = useParams<{ id: string }>()
+  const [editOpen, setEditOpen] = useState(false)
   const { data: person, isLoading } = usePerson(id!)
+  const [versionedImageUrl, bumpImageVersion] = useImageVersion(person?.imageUrl)
   const { data: itemsPage }   = useItems({ personId: id!, limit: 48 })
   const { data: entriesPage } = useLibraryEntries({ personId: id! })
 
@@ -41,8 +47,8 @@ export function PersonDetail() {
       {/* Left panel */}
       <aside className="w-72 shrink-0 sticky top-0 h-screen overflow-y-auto flex flex-col border-r border-white/5">
         <div className="relative" style={{ aspectRatio: '2/3' }}>
-          {person.imageUrl ? (
-            <img src={person.imageUrl} alt={person.name} className="w-full h-full object-cover object-top" />
+          {versionedImageUrl ? (
+            <img src={versionedImageUrl} alt={person.name} className="w-full h-full object-cover object-top" />
           ) : (
             <div className="w-full h-full bg-white/3 flex items-center justify-center">
               <User size={64} className="text-white/10" strokeWidth={1} />
@@ -80,10 +86,11 @@ export function PersonDetail() {
 
       {/* Right panel */}
       <div className="flex-1 min-w-0 overflow-y-auto">
-        <div className="px-8 pt-6">
+        <div className="px-8 pt-6 flex items-center justify-between">
           <Link to="/people" className="inline-flex items-center gap-1.5 text-sm text-white/40 hover:text-white/70 transition-colors">
             <ArrowLeft size={14} /> People
           </Link>
+          <EditButton onClick={() => setEditOpen(true)} />
         </div>
 
         <div className="px-8 py-6 space-y-8">
@@ -144,6 +151,14 @@ export function PersonDetail() {
           ))}
         </div>
       </div>
+
+      {editOpen && (
+        <PersonEditor
+          person={person}
+          onClose={() => setEditOpen(false)}
+          onImageSet={bumpImageVersion}
+        />
+      )}
     </div>
   )
 }

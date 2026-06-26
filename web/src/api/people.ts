@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
-import { get, getPage } from './client'
+import { get, getPage, patch } from './client'
 import type { Person, PersonRole } from '../types'
 
 interface PeopleFilter {
@@ -24,4 +24,8 @@ export function usePerson(id: string) {
     queryFn: () => get<Person>(`/people/${id}`),
     enabled: !!id,
   })
+}
+
+export function updatePerson(id: string, body: Record<string, unknown>) {
+  return patch<Person>(`/people/${id}`, body)
 }

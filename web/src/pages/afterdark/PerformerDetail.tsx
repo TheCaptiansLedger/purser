@@ -1,8 +1,12 @@
+import { useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import type { ReactNode } from 'react'
 import { ArrowLeft, User, Film } from 'lucide-react'
 import { usePerson } from '../../api/people'
 import { useItems } from '../../api/items'
+import { useImageVersion } from '../../hooks/useImageVersion'
+import { EditButton } from '../../components/EditButton'
+import { PersonEditor } from '../../components/edit/editors/PersonEditor'
 import { Badge } from '../../components/ui/Badge'
 import { CountryChip } from '../../components/ui/CountryChip'
 import { ItemCard } from '../../components/media/ItemCard'
@@ -23,7 +27,9 @@ function MetaRow({ label, value }: { label: string; value?: ReactNode }) {
 
 export function PerformerDetail() {
   const { id } = useParams<{ id: string }>()
+  const [editOpen, setEditOpen] = useState(false)
   const { data: person, isLoading } = usePerson(id!)
+  const [versionedImageUrl, bumpImageVersion] = useImageVersion(person?.imageUrl)
   const { data: scenesPage } = useItems({ personId: id!, limit: 48 })
   const scenes = scenesPage?.data ?? []
 
@@ -48,8 +54,8 @@ export function PerformerDetail() {
       <aside className="w-80 shrink-0 sticky top-0 h-screen overflow-y-auto flex flex-col border-r border-white/5">
         {/* Photo */}
         <div className="relative" style={{ aspectRatio: '2/3' }}>
-          {person.imageUrl ? (
-            <img src={person.imageUrl} alt={person.name} className="w-full h-full object-cover object-top" />
+          {versionedImageUrl ? (
+            <img src={versionedImageUrl} alt={person.name} className="w-full h-full object-cover object-top" />
           ) : (
             <div className="w-full h-full bg-white/3 flex items-center justify-center">
               <User size={64} className="text-white/10" strokeWidth={1} />
@@ -111,10 +117,11 @@ export function PerformerDetail() {
 
       {/* Right panel — bio + scenes */}
       <div className="flex-1 min-w-0 overflow-y-auto">
-        <div className="px-8 pt-6">
+        <div className="px-8 pt-6 flex items-center justify-between">
           <Link to="/afterdark" className="inline-flex items-center gap-1.5 text-sm text-white/40 hover:text-white/70 transition-colors">
             <ArrowLeft size={14} /> AfterDark
           </Link>
+          <EditButton onClick={() => setEditOpen(true)} />
         </div>
 
         <div className="px-8 py-6 space-y-10">
@@ -152,6 +159,14 @@ export function PerformerDetail() {
           </section>
         </div>
       </div>
+
+      {editOpen && (
+        <PersonEditor
+          person={person}
+          onClose={() => setEditOpen(false)}
+          onImageSet={bumpImageVersion}
+        />
+      )}
     </div>
   )
 }

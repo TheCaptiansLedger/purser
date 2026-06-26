@@ -147,13 +147,18 @@ func (h *peopleHandler) create(w http.ResponseWriter, r *http.Request) {
 }
 
 type patchPersonRequest struct {
-	Name         *string   `json:"name"`
-	SortName     *string   `json:"sortName"`
-	Overview     *string   `json:"overview"`
-	Monitored    *bool     `json:"monitored"`
-	MonitorMode  *string   `json:"monitorMode"`
-	Aliases      []string  `json:"aliases"`
-	LockedFields *[]string `json:"lockedFields"`
+	Name        *string  `json:"name"`
+	SortName    *string  `json:"sortName"`
+	Overview    *string  `json:"overview"`
+	Monitored   *bool    `json:"monitored"`
+	MonitorMode *string  `json:"monitorMode"`
+	Aliases     []string `json:"aliases"`
+	ExternalIDs []struct {
+		Source string `json:"source"`
+		Value  string `json:"value"`
+	} `json:"externalIds"`
+	Metadata     map[string]any `json:"metadata"`
+	LockedFields *[]string      `json:"lockedFields"`
 }
 
 func (h *peopleHandler) update(w http.ResponseWriter, r *http.Request) {
@@ -186,6 +191,18 @@ func (h *peopleHandler) update(w http.ResponseWriter, r *http.Request) {
 	}
 	if req.Aliases != nil {
 		p.Aliases = req.Aliases
+	}
+	if req.ExternalIDs != nil {
+		p.ExternalIDs = nil
+		for _, id := range req.ExternalIDs {
+			p.ExternalIDs = append(p.ExternalIDs, domain.ExternalID{
+				Source: domain.ExternalIDSource(id.Source),
+				Value:  id.Value,
+			})
+		}
+	}
+	if req.Metadata != nil {
+		p.Metadata = req.Metadata
 	}
 	if req.LockedFields != nil {
 		p.LockedFields = *req.LockedFields
