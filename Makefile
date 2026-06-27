@@ -1,4 +1,4 @@
-COMPOSE := podman-compose -f ops/compose.yml
+COMPOSE := docker compose -f ops/compose.yml
 
 .PHONY: build-web build-go test dev up down logs reset reset-data reset-media install-hooks help
 
@@ -25,7 +25,7 @@ install-hooks: ## Install git pre-commit hooks (run once after clone)
 
 dev: build-web ## Build UI + container image then (re)launch; volumes persist
 	$(COMPOSE) down
-	podman build --no-cache -f ops/Containerfile -t purser_app:latest .
+	docker build --no-cache -f ops/Containerfile -t purser_app:latest .
 	$(COMPOSE) up -d
 
 up: ## Start dev stack without rebuilding
@@ -45,12 +45,12 @@ reset: ## Wipe ALL volumes and restart fresh (database + all media)
 
 reset-data: ## Wipe only the database volume (keeps downloaded art and content)
 	$(COMPOSE) down
-	podman volume rm purser_purser-data || true
+	docker volume rm purser_purser-data || true
 	$(COMPOSE) up -d
 
 reset-media: ## Wipe only downloaded art/logos (keeps database and content)
 	$(COMPOSE) down
-	podman volume rm purser_purser-media || true
+	docker volume rm purser_purser-media || true
 	$(COMPOSE) up -d
 
 # ── Help ──────────────────────────────────────────────────────────────────────

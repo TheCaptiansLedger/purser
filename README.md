@@ -34,7 +34,7 @@ Runs as a single binary, a container, or a Kubernetes workload. No cloud account
 
 Purser looks for `purser.yaml` in the working directory. Override with `$CONFIG_PATH`.
 
-### Docker / Podman
+### Docker
 
 ```bash
 docker run -p 7474:7474 -v ./data:/data ghcr.io/purser-app/purser
