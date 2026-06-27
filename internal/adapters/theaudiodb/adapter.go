@@ -16,6 +16,8 @@ import (
 // Compile-time interface assertions.
 var (
 	_ ports.MetadataSource     = (*Adapter)(nil)
+	_ ports.StudioSearchSource = (*Adapter)(nil)
+	_ ports.StudioThumbSource  = (*Adapter)(nil)
 	_ ports.ExternalIDSource   = (*Adapter)(nil)
 	_ ports.GroupContentSource = (*Adapter)(nil)
 	_ ports.PersonImageSource  = (*Adapter)(nil)

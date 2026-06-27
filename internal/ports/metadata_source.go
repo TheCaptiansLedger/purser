@@ -22,12 +22,22 @@ type MetadataSource interface {
 	ImagePriority() int
 }
 
-// SearchableSource is implemented by sources supporting text search across
-// studios/artists, people, and items/recordings. ID-only sources (fanart.tv)
-// and single-method sources (theaudiodb) do not implement this.
-type SearchableSource interface {
+// StudioSearchSource is implemented by sources that support text search for
+// studios or artists. A source may implement this without also implementing
+// PeopleSearchSource or ItemSearchSource.
+type StudioSearchSource interface {
 	SearchStudios(ctx context.Context, query string, limit int) ([]*domain.ExternalStudio, error)
+}
+
+// PeopleSearchSource is implemented by sources that support text search for
+// people or performers.
+type PeopleSearchSource interface {
 	SearchPeople(ctx context.Context, query string, limit int) ([]*domain.ExternalPerson, error)
+}
+
+// ItemSearchSource is implemented by sources that support text search for
+// items, scenes, or recordings.
+type ItemSearchSource interface {
 	SearchItems(ctx context.Context, contentType domain.ContentType, query string, limit int) ([]*domain.ExternalItem, error)
 }
 
@@ -72,4 +82,11 @@ type GroupImageSource interface {
 // fanart and theaudiodb implement this.
 type PersonImageSource interface {
 	FetchPersonImage(ctx context.Context, extID string) (*domain.ExternalImage, error)
+}
+
+// StudioThumbSource is implemented by sources that can return a studio or artist
+// thumbnail URL by external ID. Used to enrich search results that have an MBID
+// but no image after the initial text-search fan-out.
+type StudioThumbSource interface {
+	FetchStudioThumb(ctx context.Context, externalID string) (string, error)
 }

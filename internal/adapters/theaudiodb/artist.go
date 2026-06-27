@@ -82,6 +82,16 @@ func (a *Adapter) findArtistByMBID(ctx context.Context, mbid string) (*domain.Ex
 	}, nil
 }
 
+// FetchStudioThumb returns the artist thumbnail URL for the given MusicBrainz ID.
+// Used to enrich search results that have an MBID but no image.
+func (a *Adapter) FetchStudioThumb(ctx context.Context, mbid string) (string, error) {
+	item, err := a.findArtistByMBID(ctx, mbid)
+	if err != nil {
+		return "", err
+	}
+	return item.ImageURL, nil
+}
+
 // FetchPersonImage returns the hero image for the artist identified by MBID.
 func (a *Adapter) FetchPersonImage(ctx context.Context, extID string) (*domain.ExternalImage, error) {
 	item, err := a.findArtistByMBID(ctx, extID)

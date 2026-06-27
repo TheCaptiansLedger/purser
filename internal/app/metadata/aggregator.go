@@ -8,6 +8,7 @@ import (
 	"purser/internal/domain"
 	"purser/internal/ports"
 	"sync"
+	"time"
 )
 
 // Aggregator fans out metadata queries to all enabled providers for a content
@@ -102,7 +103,7 @@ func (a *Aggregator) SearchItems(ctx context.Context, contentType domain.Content
 		wg.Add(1)
 		go func(src ports.MetadataSource) {
 			defer wg.Done()
-			ss, ok := src.(ports.SearchableSource)
+			ss, ok := src.(ports.ItemSearchSource)
 			if !ok {
 				return
 			}
@@ -171,7 +172,7 @@ func (a *Aggregator) SearchStudios(ctx context.Context, query string, contentTyp
 		wg.Add(1)
 		go func(src ports.MetadataSource) {
 			defer wg.Done()
-			ss, ok := src.(ports.SearchableSource)
+			ss, ok := src.(ports.StudioSearchSource)
 			if !ok {
 				return
 			}
@@ -189,7 +190,55 @@ func (a *Aggregator) SearchStudios(ctx context.Context, query string, contentTyp
 	for r := range ch {
 		all = append(all, r.studios...)
 	}
-	return a.deduplicateStudios(all), nil
+	out := a.deduplicateStudios(all)
+	a.enrichStudioThumbs(ctx, contentType, out)
+	return out, nil
+}
+
+// enrichStudioThumbs fills in missing ImageURLs by doing concurrent per-MBID
+// lookups against all StudioThumbSource sources. Studios that already have an
+// image, or have no ExternalID, are skipped. If all lookups are not complete
+// within 3 seconds the call returns with whatever images were fetched in time.
+func (a *Aggregator) enrichStudioThumbs(ctx context.Context, contentType domain.ContentType, studios []*domain.ExternalStudio) {
+	var thumbSources []ports.StudioThumbSource
+	for _, src := range a.sourcesFor(contentType) {
+		if ts, ok := src.(ports.StudioThumbSource); ok {
+			thumbSources = append(thumbSources, ts)
+		}
+	}
+	if len(thumbSources) == 0 {
+		return
+	}
+
+	enrichCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	defer cancel()
+
+	var wg sync.WaitGroup
+	for _, s := range studios {
+		if s.ImageURL != "" || s.ExternalID == "" {
+			continue
+		}
+		wg.Add(1)
+		go func(s *domain.ExternalStudio) {
+			defer wg.Done()
+			for _, ts := range thumbSources {
+				url, err := ts.FetchStudioThumb(enrichCtx, s.ExternalID)
+				if err != nil || url == "" {
+					continue
+				}
+				s.ImageURL = url
+				return
+			}
+		}(s)
+	}
+
+	done := make(chan struct{})
+	go func() { wg.Wait(); close(done) }()
+	select {
+	case <-done:
+	case <-enrichCtx.Done():
+		slog.Warn("metadata aggregator: studio thumb enrichment timed out")
+	}
 }
 
 // deduplicateStudios removes studios that share an ExternalID.
@@ -266,7 +315,7 @@ func (a *Aggregator) SearchPeople(ctx context.Context, query string, contentType
 		wg.Add(1)
 		go func(src ports.MetadataSource) {
 			defer wg.Done()
-			ss, ok := src.(ports.SearchableSource)
+			ss, ok := src.(ports.PeopleSearchSource)
 			if !ok {
 				return
 			}

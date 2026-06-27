@@ -401,6 +401,137 @@ func TestAggregator_SearchStudios_PreservesDistinctMBIDs(t *testing.T) {
 	}
 }
 
+func TestAggregator_SearchStudios_StudioOnlySourceContributes(t *testing.T) {
+	// A source that implements only StudioSearchSource (not PeopleSearchSource or
+	// ItemSearchSource) must still participate in the studio search fan-out.
+	// This is the TheAudioDB case: it can search studios but not people or items.
+	src := &studioSearchOnlyStub{
+		name: "audiodb",
+		ct:   domain.ContentTypeMusic,
+		studios: []*domain.ExternalStudio{
+			{Source: domain.SourceTheAudioDB, ExternalID: "mbid-1", Name: "Radiohead", ImageURL: "https://audiodb.example.com/radiohead.jpg"},
+		},
+	}
+	agg := metadata.NewAggregator([]ports.MetadataSource{src})
+
+	studios, err := agg.SearchStudios(context.Background(), "radiohead", domain.ContentTypeMusic, 10)
+	if err != nil {
+		t.Fatalf("SearchStudios: %v", err)
+	}
+	if len(studios) != 1 {
+		t.Fatalf("studio count = %d, want 1", len(studios))
+	}
+	if studios[0].ImageURL != "https://audiodb.example.com/radiohead.jpg" {
+		t.Errorf("ImageURL = %q, want audiodb image URL", studios[0].ImageURL)
+	}
+}
+
+// studioSearchOnlyStub satisfies MetadataSource and StudioSearchSource but
+// deliberately does not implement PeopleSearchSource or ItemSearchSource.
+type studioSearchOnlyStub struct {
+	name    string
+	ct      domain.ContentType
+	studios []*domain.ExternalStudio
+}
+
+func (s *studioSearchOnlyStub) Name() string                       { return s.name }
+func (s *studioSearchOnlyStub) ContentTypes() []domain.ContentType { return []domain.ContentType{s.ct} }
+func (s *studioSearchOnlyStub) ImagePriority() int                 { return 100 }
+func (s *studioSearchOnlyStub) SearchStudios(_ context.Context, _ string, _ int) ([]*domain.ExternalStudio, error) {
+	return s.studios, nil
+}
+
+// studioSearchAndThumbStub implements StudioSearchSource and StudioThumbSource
+// but not PeopleSearchSource or ItemSearchSource. Used to test thumb enrichment.
+type studioSearchAndThumbStub struct {
+	name       string
+	ct         domain.ContentType
+	imagePri   int
+	studios    []*domain.ExternalStudio
+	thumbsByID map[string]string
+}
+
+func (s *studioSearchAndThumbStub) Name() string { return s.name }
+func (s *studioSearchAndThumbStub) ContentTypes() []domain.ContentType {
+	return []domain.ContentType{s.ct}
+}
+func (s *studioSearchAndThumbStub) ImagePriority() int { return s.imagePri }
+func (s *studioSearchAndThumbStub) SearchStudios(_ context.Context, _ string, _ int) ([]*domain.ExternalStudio, error) {
+	return s.studios, nil
+}
+
+func (s *studioSearchAndThumbStub) FetchStudioThumb(_ context.Context, id string) (string, error) {
+	if url, ok := s.thumbsByID[id]; ok {
+		return url, nil
+	}
+	return "", ports.ErrNotFound
+}
+
+func TestAggregator_SearchStudios_ThumbEnrichmentFillsMissingImages(t *testing.T) {
+	// MBZ returns two artists (no images). TheAudioDB text search returns nothing
+	// but has FetchStudioThumb. Enrichment must fill images for both results.
+	mbz := &aggStubSource{
+		name:         "mbz",
+		contentTypes: []domain.ContentType{domain.ContentTypeMusic},
+		searchStudios: []*domain.ExternalStudio{
+			{Source: domain.SourceMusicBrainz, ExternalID: "mbid-1", Name: "Radiohead"},
+			{Source: domain.SourceMusicBrainz, ExternalID: "mbid-2", Name: "Portishead"},
+		},
+	}
+	audiodb := &studioSearchAndThumbStub{
+		name:     "audiodb",
+		ct:       domain.ContentTypeMusic,
+		imagePri: 100,
+		thumbsByID: map[string]string{
+			"mbid-1": "https://audiodb.example.com/radiohead.jpg",
+			"mbid-2": "https://audiodb.example.com/portishead.jpg",
+		},
+	}
+	agg := metadata.NewAggregator([]ports.MetadataSource{mbz, audiodb})
+
+	studios, err := agg.SearchStudios(context.Background(), "music", domain.ContentTypeMusic, 10)
+	if err != nil {
+		t.Fatalf("SearchStudios: %v", err)
+	}
+	if len(studios) != 2 {
+		t.Fatalf("studio count = %d, want 2", len(studios))
+	}
+	for _, s := range studios {
+		if s.ImageURL == "" {
+			t.Errorf("studio %q: ImageURL empty after enrichment", s.Name)
+		}
+	}
+}
+
+func TestAggregator_SearchStudios_ThumbEnrichmentSkipsExistingImage(t *testing.T) {
+	// A studio that already has an image (from dedup) must not be overwritten.
+	existing := "https://existing.example.com/image.jpg"
+	mbz := &aggStubSource{
+		name:         "mbz",
+		contentTypes: []domain.ContentType{domain.ContentTypeMusic},
+		searchStudios: []*domain.ExternalStudio{
+			{Source: domain.SourceMusicBrainz, ExternalID: "mbid-1", Name: "Radiohead", ImageURL: existing},
+		},
+	}
+	audiodb := &studioSearchAndThumbStub{
+		name:     "audiodb",
+		ct:       domain.ContentTypeMusic,
+		imagePri: 100,
+		thumbsByID: map[string]string{
+			"mbid-1": "https://audiodb.example.com/different.jpg",
+		},
+	}
+	agg := metadata.NewAggregator([]ports.MetadataSource{mbz, audiodb})
+
+	studios, err := agg.SearchStudios(context.Background(), "radiohead", domain.ContentTypeMusic, 10)
+	if err != nil {
+		t.Fatalf("SearchStudios: %v", err)
+	}
+	if studios[0].ImageURL != existing {
+		t.Errorf("ImageURL = %q, want existing image preserved", studios[0].ImageURL)
+	}
+}
+
 // ── SearchPeople ──────────────────────────────────────────────────────────────
 
 func TestAggregator_SearchPeople_FanOut(t *testing.T) {
