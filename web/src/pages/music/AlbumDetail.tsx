@@ -7,6 +7,7 @@ import { useGroup, patchGroup } from '../../api/groups'
 import { useItems, patchItem } from '../../api/items'
 import { EditButton } from '../../components/EditButton'
 import { GroupEditor } from '../../components/edit/editors/GroupEditor'
+import { Lightbox } from '../../components/ui/Lightbox'
 import { fmtRuntime } from '../../components/ui/Runtime'
 import { Skeleton } from '../../components/ui/Skeleton'
 import { filterTagsForModule } from '../../utils/filterTagsForModule'
@@ -95,6 +96,7 @@ export function AlbumDetail() {
   const { id, albumId } = useParams<{ id: string; albumId: string }>()
   const queryClient = useQueryClient()
   const [editOpen, setEditOpen] = useState(false)
+  const [lightboxOpen, setLightboxOpen] = useState(false)
   const { data: artist } = useLibraryEntry(id!)
   const { data: album, isLoading } = useGroup(albumId!)
   const { data: tracksPage } = useItems({ groupId: albumId!, limit: 500 })
@@ -131,12 +133,18 @@ export function AlbumDetail() {
       <div className="flex gap-6 items-start mb-8">
         <div className="shrink-0 w-40 h-40 rounded-xl overflow-hidden bg-white/5 border border-white/8 flex items-center justify-center shadow-2xl">
           {showCover ? (
-            <img
-              src={album.coverUrl}
-              alt={album.title}
-              className="w-full h-full object-cover"
-              onError={() => setImgFailed(true)}
-            />
+            <button
+              className="block w-full h-full cursor-zoom-in"
+              onClick={() => setLightboxOpen(true)}
+              aria-label={`View ${album.title} cover art`}
+            >
+              <img
+                src={album.coverUrl}
+                alt={album.title}
+                className="w-full h-full object-cover"
+                onError={() => setImgFailed(true)}
+              />
+            </button>
           ) : (
             <Music2 size={48} className="text-white/10" strokeWidth={1} />
           )}
@@ -207,6 +215,10 @@ export function AlbumDetail() {
           group={album}
           onClose={() => setEditOpen(false)}
         />
+      )}
+
+      {lightboxOpen && album.coverUrl && (
+        <Lightbox src={album.coverUrl} alt={album.title} onClose={() => setLightboxOpen(false)} />
       )}
     </div>
   )

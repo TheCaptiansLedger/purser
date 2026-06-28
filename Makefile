@@ -23,9 +23,9 @@ install-hooks: ## Install git pre-commit hooks (run once after clone)
 
 # ── Dev lifecycle ─────────────────────────────────────────────────────────────
 
-dev: build-web ## Build UI + container image then (re)launch; volumes persist
+dev: ## Build UI + container image then (re)launch; volumes persist
 	$(COMPOSE) down
-	docker build --no-cache -f ops/Containerfile -t purser_app:latest .
+	$(COMPOSE) build --no-cache
 	$(COMPOSE) up -d
 
 up: ## Start dev stack without rebuilding

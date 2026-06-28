@@ -12,6 +12,7 @@ import { EditButton } from '../../components/EditButton'
 import { LibraryEntryEditor } from '../../components/edit/editors/LibraryEntryEditor'
 import { Hero } from '../../components/layout/Hero'
 import { PersonCard } from '../../components/media/PersonCard'
+import { Lightbox } from '../../components/ui/Lightbox'
 import { Skeleton } from '../../components/ui/Skeleton'
 import type { Group } from '../../types'
 
@@ -113,6 +114,7 @@ export function ArtistDetail() {
   const [sortDir, setSortDir] = useState<YearSortDir>('desc')
   const [submitting, setSubmitting] = useState(false)
   const [editOpen, setEditOpen] = useState(false)
+  const [lightboxOpen, setLightboxOpen] = useState(false)
 
   const activeJob   = useActiveJobForEntry(id!, 'RefreshArtist')
   const isImporting = activeJob !== null
@@ -175,7 +177,13 @@ export function ArtistDetail() {
         <div className="flex gap-6 items-end">
           <div className="shrink-0 w-36 h-36 rounded-full overflow-hidden border-2 shadow-2xl" style={{ borderColor: ACCENT + '44' }}>
             {entry.imageUrl ? (
-              <img src={versionedImageUrl} alt={entry.name} className="w-full h-full object-cover" />
+              <button
+                className="block w-full h-full cursor-zoom-in"
+                onClick={() => setLightboxOpen(true)}
+                aria-label={`View ${entry.name} avatar`}
+              >
+                <img src={versionedImageUrl} alt={entry.name} className="w-full h-full object-cover" />
+              </button>
             ) : (
               <div className="w-full h-full bg-white/5 flex items-center justify-center">
                 <ImageIcon size={32} className="text-white/15" strokeWidth={1} />
@@ -274,6 +282,10 @@ export function ArtistDetail() {
           onClose={() => setEditOpen(false)}
           onImageSet={bumpImageVersion}
         />
+      )}
+
+      {lightboxOpen && entry.imageUrl && (
+        <Lightbox src={entry.imageUrl} alt={entry.name} onClose={() => setLightboxOpen(false)} />
       )}
     </div>
   )

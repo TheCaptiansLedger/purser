@@ -31,18 +31,20 @@ export function AlbumCard({ album, href, showMonitorBadge = false, accent = '#10
   return (
     <div className="group flex flex-col gap-2">
       <div className="relative rounded-xl overflow-hidden bg-white/4 border border-white/5 group-hover:border-white/15 transition-all duration-200 group-hover:scale-[1.02]" style={{ aspectRatio: '1/1' }}>
-        <Link to={href} className="block w-full h-full flex items-center justify-center">
-          {showCover ? (
+        {showCover ? (
+          <Link to={href} className="block w-full h-full">
             <img
               src={album.coverUrl}
               alt={album.title}
               className="w-full h-full object-cover"
               onError={() => setImgFailed(true)}
             />
-          ) : (
+          </Link>
+        ) : (
+          <Link to={href} className="flex w-full h-full items-center justify-center">
             <ImageIcon size={32} className="text-white/10" strokeWidth={1} />
-          )}
-        </Link>
+          </Link>
+        )}
 
         <div
           className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none rounded-xl"
@@ -69,6 +71,7 @@ export function AlbumCard({ album, href, showMonitorBadge = false, accent = '#10
         </Link>
         {album.year > 0 && <p className="text-xs text-white/35">{album.year}</p>}
       </div>
+
     </div>
   )
 }

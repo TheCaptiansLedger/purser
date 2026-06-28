@@ -10,6 +10,7 @@ import { PersonEditor } from '../../components/edit/editors/PersonEditor'
 import { Badge } from '../../components/ui/Badge'
 import { EntryCard } from '../../components/media/EntryCard'
 import { ItemCard } from '../../components/media/ItemCard'
+import { Lightbox } from '../../components/ui/Lightbox'
 import { Skeleton } from '../../components/ui/Skeleton'
 import { contentTypeConfig } from '../../config/contentTypes'
 import type { ContentType } from '../../types'
@@ -28,6 +29,7 @@ function groupBy<T>(items: T[], key: (item: T) => string): Record<string, T[]> {
 export function PersonDetail() {
   const { id } = useParams<{ id: string }>()
   const [editOpen, setEditOpen] = useState(false)
+  const [lightboxOpen, setLightboxOpen] = useState(false)
   const { data: person, isLoading } = usePerson(id!)
   const [versionedImageUrl, bumpImageVersion] = useImageVersion(person?.imageUrl)
   const { data: itemsPage }   = useItems({ personId: id!, limit: 48 })
@@ -48,13 +50,19 @@ export function PersonDetail() {
       <aside className="w-72 shrink-0 sticky top-0 h-screen overflow-y-auto flex flex-col border-r border-white/5">
         <div className="relative" style={{ aspectRatio: '2/3' }}>
           {versionedImageUrl ? (
-            <img src={versionedImageUrl} alt={person.name} className="w-full h-full object-cover object-top" />
+            <button
+              className="block w-full h-full cursor-zoom-in"
+              onClick={() => setLightboxOpen(true)}
+              aria-label={`View ${person.name} photo`}
+            >
+              <img src={versionedImageUrl} alt={person.name} className="w-full h-full object-cover object-top" />
+            </button>
           ) : (
             <div className="w-full h-full bg-white/3 flex items-center justify-center">
               <User size={64} className="text-white/10" strokeWidth={1} />
             </div>
           )}
-          <div className="absolute inset-0 bg-gradient-to-t from-[#08080e] via-transparent to-transparent" />
+          <div className="absolute inset-0 bg-gradient-to-t from-[#08080e] via-transparent to-transparent pointer-events-none" />
         </div>
 
         <div className="px-5 pb-6 -mt-6 relative z-10">
@@ -158,6 +166,10 @@ export function PersonDetail() {
           onClose={() => setEditOpen(false)}
           onImageSet={bumpImageVersion}
         />
+      )}
+
+      {lightboxOpen && versionedImageUrl && (
+        <Lightbox src={versionedImageUrl} alt={person.name} onClose={() => setLightboxOpen(false)} />
       )}
     </div>
   )

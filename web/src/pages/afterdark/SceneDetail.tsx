@@ -7,6 +7,7 @@ import { EditButton } from '../../components/EditButton'
 import { ItemEditor } from '../../components/edit/editors/ItemEditor'
 import { Hero } from '../../components/layout/Hero'
 import { Badge } from '../../components/ui/Badge'
+import { Lightbox } from '../../components/ui/Lightbox'
 import { PersonCard } from '../../components/media/PersonCard'
 import { fmtRuntime, fmtDate, fmtBytes } from '../../components/ui/Runtime'
 import { Skeleton } from '../../components/ui/Skeleton'
@@ -16,6 +17,7 @@ const ACCENT = '#f43f5e'
 export function SceneDetail() {
   const { id } = useParams<{ id: string }>()
   const [editOpen, setEditOpen] = useState(false)
+  const [lightboxOpen, setLightboxOpen] = useState(false)
 
   const { data: item, isLoading } = useItem(id!)
   const { data: entry } = useLibraryEntry(item?.libraryEntryId ?? '')
@@ -48,7 +50,13 @@ export function SceneDetail() {
         <div className="flex gap-6 items-end">
           <div className="shrink-0 w-64 rounded-xl overflow-hidden border border-white/10 shadow-2xl" style={{ aspectRatio: '16/9' }}>
             {item.coverUrl ? (
-              <img src={item.coverUrl} alt={item.title} className="w-full h-full object-cover" />
+              <button
+                className="block w-full h-full cursor-zoom-in"
+                onClick={() => setLightboxOpen(true)}
+                aria-label={`View ${item.title} thumbnail`}
+              >
+                <img src={item.coverUrl} alt={item.title} className="w-full h-full object-cover" />
+              </button>
             ) : (
               <div className="w-full h-full bg-white/5 flex items-center justify-center">
                 <ImageIcon size={40} className="text-white/15" strokeWidth={1} />
@@ -182,6 +190,10 @@ export function SceneDetail() {
       </div>
 
       {editOpen && <ItemEditor item={item} onClose={() => setEditOpen(false)} hideTagKeys={['adult']} />}
+
+      {lightboxOpen && item.coverUrl && (
+        <Lightbox src={item.coverUrl} alt={item.title} onClose={() => setLightboxOpen(false)} />
+      )}
     </div>
   )
 }
