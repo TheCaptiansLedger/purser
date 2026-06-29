@@ -153,6 +153,7 @@ export interface LibraryEntry {
   metadataProfileId?: string
   path?: string
   imageUrl?: string
+  bannerUrl?: string
   externalIds: ExternalID[]
   tags: Tag[]
   people: EntryPerson[]

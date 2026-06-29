@@ -6,7 +6,7 @@ import { useItems } from '../../api/items'
 import { useImageVersion } from '../../hooks/useImageVersion'
 import { EditButton } from '../../components/EditButton'
 import { LibraryEntryEditor } from '../../components/edit/editors/LibraryEntryEditor'
-import { Hero } from '../../components/layout/Hero'
+import { EntryHero } from '../../components/layout/EntryHero'
 import { Badge } from '../../components/ui/Badge'
 import { PersonCard } from '../../components/media/PersonCard'
 import { fmtRuntime, fmtBytes } from '../../components/ui/Runtime'
@@ -58,7 +58,7 @@ export function MovieDetail() {
         <EditButton onClick={() => setEditOpen(true)} />
       </div>
 
-      <Hero backdropUrl={entry.imageUrl ?? item?.coverUrl} accent={ACCENT}>
+      <EntryHero entry={entry} backdropFallbackUrl={versionedImageUrl ?? item?.coverUrl} accent={ACCENT}>
         <div className="flex gap-6 items-end">
           <div className="shrink-0 w-44 rounded-xl overflow-hidden border border-white/10 shadow-2xl" style={{ aspectRatio: '2/3' }}>
             {entry.imageUrl ? (
@@ -91,7 +91,7 @@ export function MovieDetail() {
             )}
           </div>
         </div>
-      </Hero>
+      </EntryHero>
 
       <div className="px-8 py-8 space-y-10">
         {performers.length > 0 && (

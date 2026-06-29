@@ -1,7 +1,6 @@
-# Never send host node_modules into the build context — the COPY web/ . step
-# would overwrite the Linux node_modules installed inside the container.
+# node_modules are never sent — they are OS-specific and rebuilt inside the
+# container; sending them would corrupt the Linux build.
 web/node_modules/
-web/dist/
 
 # Go build artifacts
 purser

@@ -6,7 +6,7 @@ import { useItems } from '../../api/items'
 import { useImageVersion } from '../../hooks/useImageVersion'
 import { EditButton } from '../../components/EditButton'
 import { LibraryEntryEditor } from '../../components/edit/editors/LibraryEntryEditor'
-import { Hero } from '../../components/layout/Hero'
+import { EntryHero } from '../../components/layout/EntryHero'
 import { Badge } from '../../components/ui/Badge'
 import { Skeleton } from '../../components/ui/Skeleton'
 
@@ -34,7 +34,7 @@ export function BookDetail() {
         <EditButton onClick={() => setEditOpen(true)} />
       </div>
 
-      <Hero backdropUrl={entry.imageUrl} accent={ACCENT}>
+      <EntryHero entry={entry} backdropFallbackUrl={versionedImageUrl} accent={ACCENT}>
         <div className="flex gap-6 items-end">
           <div className="shrink-0 w-36 rounded-xl overflow-hidden border border-white/10 shadow-2xl" style={{ aspectRatio: '2/3' }}>
             {entry.imageUrl ? (
@@ -65,7 +65,7 @@ export function BookDetail() {
             )}
           </div>
         </div>
-      </Hero>
+      </EntryHero>
 
       <div className="px-8 py-8 space-y-8">
         {entry.overview && (

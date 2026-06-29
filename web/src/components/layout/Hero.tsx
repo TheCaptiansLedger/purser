@@ -1,18 +1,23 @@
 interface Props {
   backdropUrl?: string
+  backdropBlur?: boolean
   accent?: string
   children: React.ReactNode
 }
 
-export function Hero({ backdropUrl, accent, children }: Props) {
+export function Hero({ backdropUrl, backdropBlur = true, accent, children }: Props) {
+  const backdropFilter = backdropBlur
+    ? 'blur(20px) brightness(0.35)'
+    : 'blur(6px) brightness(0.55)'
+
   return (
-    <div className="relative min-h-[28rem] flex items-end overflow-hidden">
+    <div className="relative min-h-[36rem] flex items-end overflow-hidden">
       {/* Backdrop */}
       {backdropUrl ? (
         <>
           <div
             className="absolute inset-0 bg-cover bg-center scale-105"
-            style={{ backgroundImage: `url(${backdropUrl})`, filter: 'blur(20px) brightness(0.35)' }}
+            style={{ backgroundImage: `url(${backdropUrl})`, filter: backdropFilter }}
           />
           <div
             className="absolute inset-0"

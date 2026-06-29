@@ -1,19 +1,10 @@
 # syntax=docker/dockerfile:1
-# Build context must be the project root: podman build -f ops/Containerfile .
+# Build context must be the project root.
+# web/dist/ must be pre-built before calling docker build:
+#   cd web && npm run build
+# The Makefile dev target handles this automatically.
 # ──────────────────────────────────────────────────────────────────────────────
-# Stage 1: Build the React UI
-# ──────────────────────────────────────────────────────────────────────────────
-FROM node:22-slim AS ui-builder
-WORKDIR /app/web
-
-COPY web/package.json ./
-RUN npm install
-
-COPY web/ .
-RUN npm run build
-
-# ──────────────────────────────────────────────────────────────────────────────
-# Stage 2: Build Go binary
+# Stage 1: Build Go binary (web/dist/ is provided by the build context)
 # ──────────────────────────────────────────────────────────────────────────────
 FROM golang:1.26-bookworm AS go-builder
 WORKDIR /app
@@ -22,7 +13,6 @@ COPY go.mod go.sum ./
 RUN go mod download
 
 COPY . .
-COPY --from=ui-builder /app/web/dist ./web/dist
 
 ARG VERSION=dev
 ARG COMMIT_SHA=unknown
@@ -32,7 +22,7 @@ RUN CGO_ENABLED=0 GOOS=linux go build -trimpath \
     -o /out/purser ./cmd/purser
 
 # ──────────────────────────────────────────────────────────────────────────────
-# Stage 3: Runtime image
+# Stage 2: Runtime image
 # ──────────────────────────────────────────────────────────────────────────────
 # distroless/static includes ca-certificates and tzdata; no shell, no package
 # manager, no writable filesystem outside mounted volumes.

@@ -5,7 +5,7 @@ import { useLibraryEntry, useChildren } from '../../api/library'
 import { useImageVersion } from '../../hooks/useImageVersion'
 import { EditButton } from '../../components/EditButton'
 import { LibraryEntryEditor } from '../../components/edit/editors/LibraryEntryEditor'
-import { Hero } from '../../components/layout/Hero'
+import { EntryHero } from '../../components/layout/EntryHero'
 import { EntryCard } from '../../components/media/EntryCard'
 import { Skeleton } from '../../components/ui/Skeleton'
 import { EmptyState } from '../../components/ui/EmptyState'
@@ -38,7 +38,7 @@ export function NetworkDetail() {
         <EditButton onClick={() => setEditOpen(true)} />
       </div>
 
-      <Hero backdropUrl={entry.imageUrl} accent={ACCENT}>
+      <EntryHero entry={entry} backdropFallbackUrl={versionedImageUrl} accent={ACCENT}>
         <div className="flex gap-6 items-end">
           <div className="shrink-0 w-40 rounded-xl overflow-hidden border border-white/10 shadow-2xl" style={{ aspectRatio: '16/9' }}>
             {entry.imageUrl ? (
@@ -61,7 +61,7 @@ export function NetworkDetail() {
             )}
           </div>
         </div>
-      </Hero>
+      </EntryHero>
 
       <div className="px-8 py-8">
         {entry.overview && (

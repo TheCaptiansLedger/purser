@@ -23,9 +23,10 @@ install-hooks: ## Install git pre-commit hooks (run once after clone)
 
 # ── Dev lifecycle ─────────────────────────────────────────────────────────────
 
-dev: ## Build UI + container image then (re)launch; volumes persist
+dev: ## Build UI locally, then rebuild container image from scratch and (re)launch
 	$(COMPOSE) down
-	$(COMPOSE) build --no-cache
+	cd web && npm run build
+	$(COMPOSE) build --no-cache --pull
 	$(COMPOSE) up -d
 
 up: ## Start dev stack without rebuilding

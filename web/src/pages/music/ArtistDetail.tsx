@@ -10,7 +10,7 @@ import { refreshArtist } from '../../api/commands'
 import { AlbumCard } from '../../components/AlbumCard'
 import { EditButton } from '../../components/EditButton'
 import { LibraryEntryEditor } from '../../components/edit/editors/LibraryEntryEditor'
-import { Hero } from '../../components/layout/Hero'
+import { EntryHero } from '../../components/layout/EntryHero'
 import { PersonCard } from '../../components/media/PersonCard'
 import { Lightbox } from '../../components/ui/Lightbox'
 import { Skeleton } from '../../components/ui/Skeleton'
@@ -173,7 +173,7 @@ export function ArtistDetail() {
         </div>
       </div>
 
-      <Hero backdropUrl={entry.imageUrl} accent={ACCENT}>
+      <EntryHero entry={entry} backdropFallbackUrl={versionedImageUrl} accent={ACCENT}>
         <div className="flex gap-6 items-end">
           <div className="shrink-0 w-36 h-36 rounded-full overflow-hidden border-2 shadow-2xl" style={{ borderColor: ACCENT + '44' }}>
             {entry.imageUrl ? (
@@ -200,7 +200,7 @@ export function ArtistDetail() {
             </div>
           </div>
         </div>
-      </Hero>
+      </EntryHero>
 
       <div className="px-8 py-6">
         {entry.overview && (

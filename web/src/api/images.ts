@@ -1,5 +1,5 @@
 import { get } from './client'
-import type { ProviderImage } from '../types'
+import type { LibraryEntry, ProviderImage } from '../types'
 
 const BASE = '/api/v1'
 
@@ -30,4 +30,31 @@ export async function uploadImage(entityPath: string, id: string, file: File): P
     const err = await res.json().catch(() => ({ error: res.statusText }))
     throw new Error(err.error ?? res.statusText)
   }
+}
+
+async function bannerRequest(id: string, init: RequestInit): Promise<LibraryEntry> {
+  const res = await fetch(`${BASE}/library-entries/${id}/banner`, init)
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: res.statusText }))
+    throw new Error(err.error ?? res.statusText)
+  }
+  return res.json() as Promise<LibraryEntry>
+}
+
+export function setEntryBannerFromUrl(id: string, url: string): Promise<LibraryEntry> {
+  return bannerRequest(id, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ url }),
+  })
+}
+
+export function uploadEntryBanner(id: string, file: File): Promise<LibraryEntry> {
+  const form = new FormData()
+  form.append('image', file)
+  return bannerRequest(id, { method: 'POST', body: form })
+}
+
+export function clearEntryBanner(id: string): Promise<LibraryEntry> {
+  return bannerRequest(id, { method: 'DELETE' })
 }

@@ -48,6 +48,7 @@ type entryResponse struct {
 	MetadataProfileID string                `json:"metadataProfileId,omitempty"`
 	Path              string                `json:"path,omitempty"`
 	ImageURL          string                `json:"imageUrl,omitempty"`
+	BannerURL         *string               `json:"bannerUrl,omitempty"`
 	ExternalIDs       []externalIDResponse  `json:"externalIds"`
 	Tags              []tagResponse         `json:"tags"`
 	People            []entryPersonResponse `json:"people"`
@@ -73,6 +74,7 @@ func toEntryResponse(e *domain.LibraryEntry) *entryResponse {
 		MetadataProfileID: e.MetadataProfileID,
 		Path:              e.Path,
 		ImageURL:          imageURL("entries", e.ID, e.ImagePath),
+		BannerURL:         e.BannerURL,
 		Metadata:          e.Metadata,
 		AddedAt:           e.AddedAt,
 		UpdatedAt:         e.UpdatedAt,
@@ -237,6 +239,7 @@ type patchEntryRequest struct {
 	QualityProfileID  *string                `json:"qualityProfileId"`
 	MetadataProfileID *string                `json:"metadataProfileId"`
 	Path              *string                `json:"path"`
+	BannerURL         *string                `json:"bannerUrl"`
 	LockedFields      *[]string              `json:"lockedFields"`
 	ExternalIDs       *[]externalIDPatchItem `json:"externalIds"`
 }
@@ -271,6 +274,9 @@ func applyEntryPatch(e *domain.LibraryEntry, req *patchEntryRequest) {
 	}
 	if req.Path != nil {
 		e.Path = *req.Path
+	}
+	if req.BannerURL != nil {
+		e.BannerURL = req.BannerURL
 	}
 	if req.LockedFields != nil {
 		e.LockedFields = *req.LockedFields

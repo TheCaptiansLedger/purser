@@ -31,7 +31,7 @@ func (h *imageHandler) get(w http.ResponseWriter, r *http.Request) {
 	entityID := chi.URLParam(r, "entityID")
 
 	switch entityType {
-	case "people", "entries", "items", "groups":
+	case "people", "entries", "entry-banners", "items", "groups":
 	default:
 		http.NotFound(w, r)
 		return
@@ -146,6 +146,51 @@ func (h *entityImageSetHandler) clearEntryImage(w http.ResponseWriter, r *http.R
 	}
 	removeEntityImages(h.mediaPath, "entries", id)
 	e.ImagePath = ""
+	if err := h.libSvc.SaveEntry(r.Context(), e); handleErr(w, err) {
+		return
+	}
+	writeJSON(w, http.StatusOK, toEntryResponse(e))
+}
+
+// ── Library entry banners ─────────────────────────────────────────────────────
+
+func (h *entityImageSetHandler) setEntryBanner(w http.ResponseWriter, r *http.Request) {
+	r.Body = http.MaxBytesReader(w, r.Body, maxImageUploadBytes)
+	id := chi.URLParam(r, "id")
+	if !safeEntityID(id) {
+		writeError(w, http.StatusBadRequest, "INVALID_ID", "invalid entity id")
+		return
+	}
+	e, err := h.libSvc.GetEntry(r.Context(), id)
+	if handleErr(w, err) {
+		return
+	}
+	ext, ok := h.saveImage(r, "entry-banners", id)
+	if !ok {
+		writeError(w, http.StatusUnprocessableEntity, "IMAGE_ERROR", "failed to save banner image")
+		return
+	}
+	removeEntityImagesExcept(h.mediaPath, "entry-banners", id, ext)
+	bannerURL := imageURL("entry-banners", id, ext)
+	e.BannerURL = &bannerURL
+	if err := h.libSvc.SaveEntry(r.Context(), e); handleErr(w, err) {
+		return
+	}
+	writeJSON(w, http.StatusOK, toEntryResponse(e))
+}
+
+func (h *entityImageSetHandler) clearEntryBanner(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	if !safeEntityID(id) {
+		writeError(w, http.StatusBadRequest, "INVALID_ID", "invalid entity id")
+		return
+	}
+	e, err := h.libSvc.GetEntry(r.Context(), id)
+	if handleErr(w, err) {
+		return
+	}
+	removeEntityImages(h.mediaPath, "entry-banners", id)
+	e.BannerURL = nil
 	if err := h.libSvc.SaveEntry(r.Context(), e); handleErr(w, err) {
 		return
 	}

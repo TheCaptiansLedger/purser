@@ -23,6 +23,7 @@ type LibraryEntry struct {
 	MetadataProfileID string
 	Path              string
 	ImagePath         string
+	BannerURL         *string
 	ExternalIDs       []ExternalID
 	Tags              []Tag
 	People            []EntryPerson

@@ -146,6 +146,19 @@ jobs:
         with:
           ref: ${{ needs.release.outputs.new_release_git_tag }}
 
+      - name: Set up Node
+        uses: actions/setup-node@v6
+        with:
+          node-version-file: web/package.json
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Build frontend
+        working-directory: web
+        run: |
+          npm ci
+          npm run build
+
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v4
 

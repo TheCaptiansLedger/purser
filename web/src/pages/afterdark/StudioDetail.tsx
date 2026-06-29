@@ -10,7 +10,7 @@ import { refreshStudio } from '../../api/commands'
 import { useStatusOverlay } from '../../hooks/useStatusOverlay'
 import { EditButton } from '../../components/EditButton'
 import { LibraryEntryEditor } from '../../components/edit/editors/LibraryEntryEditor'
-import { Hero } from '../../components/layout/Hero'
+import { EntryHero } from '../../components/layout/EntryHero'
 import { ItemCard } from '../../components/media/ItemCard'
 import { PersonCard } from '../../components/media/PersonCard'
 import { Badge } from '../../components/ui/Badge'
@@ -110,7 +110,7 @@ export function StudioDetail() {
         </div>
       </div>
 
-      <Hero backdropUrl={versionedImageUrl} accent={ACCENT}>
+      <EntryHero entry={entry} backdropFallbackUrl={versionedImageUrl} accent={ACCENT}>
         <div className="flex gap-6 items-end">
           <div className="shrink-0 w-40 rounded-xl overflow-hidden border border-white/10 shadow-2xl" style={{ aspectRatio: '16/9' }}>
             {versionedImageUrl ? (
@@ -143,7 +143,7 @@ export function StudioDetail() {
             </div>
           </div>
         </div>
-      </Hero>
+      </EntryHero>
 
       <div className="px-8 py-8 space-y-12">
         {entry.overview && (

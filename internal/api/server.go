@@ -92,6 +92,8 @@ func (s *Server) mount(
 			r.Get("/{id}/provider-images", providerImagesH.forEntry)
 			r.Post("/{id}/image", imgSetH.setEntryImage)
 			r.Delete("/{id}/image", imgSetH.clearEntryImage)
+			r.Post("/{id}/banner", imgSetH.setEntryBanner)
+			r.Delete("/{id}/banner", imgSetH.clearEntryBanner)
 		})
 
 		groupH := &groupHandler{svc: libSvc}
