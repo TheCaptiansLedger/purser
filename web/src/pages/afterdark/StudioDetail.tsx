@@ -9,6 +9,8 @@ import { useActiveJobForEntry } from '../../api/jobs'
 import { refreshStudio } from '../../api/commands'
 import { useStatusOverlay } from '../../hooks/useStatusOverlay'
 import { StatusFilterChips } from '../../components/media/StatusFilterChips'
+import { ChipTabs } from '../../components/ui/ChipTabs'
+import type { ChipTab } from '../../components/ui/ChipTabs'
 import { EditButton } from '../../components/EditButton'
 import { LibraryEntryEditor } from '../../components/edit/editors/LibraryEntryEditor'
 import { EntryHero } from '../../components/layout/EntryHero'
@@ -22,6 +24,13 @@ import type { PersonRef, ItemStatus } from '../../types'
 const ACCENT = '#f43f5e'
 const LIMIT = 48
 
+type StudioTab = 'scenes' | 'performers'
+
+const STUDIO_TABS: ChipTab<StudioTab>[] = [
+  { id: 'scenes',     label: 'Scenes',     icon: Film  },
+  { id: 'performers', label: 'Performers', icon: Users },
+]
+
 export function StudioDetail() {
   const { id } = useParams<{ id: string }>()
   const { data: entry, isLoading } = useLibraryEntry(id!)
@@ -29,6 +38,7 @@ export function StudioDetail() {
   const activeJob = useActiveJobForEntry(id!, 'RefreshStudio')
   const isRefreshing = activeJob !== null
 
+  const [tab, setTab] = useState<StudioTab>('scenes')
   const [sceneOffset, setSceneOffset] = useState(0)
   const [sort, setSort] = useState<SortField>('date')
   const [sortDir, setSortDir] = useState<SortDir>('desc')
@@ -94,6 +104,38 @@ export function StudioDetail() {
     ? activeJob.message ?? `${activeJob.current}/${activeJob.total} scenes`
     : 'Refresh'
 
+  const sceneSortControls = (
+    <div className="flex items-center gap-2">
+      <button
+        onClick={toggleStatus}
+        className={[
+          'text-xs px-2.5 py-1 rounded-lg border transition-colors',
+          alwaysShowStatus
+            ? 'border-transparent text-white'
+            : 'border-white/10 text-white/40 hover:text-white/70',
+        ].join(' ')}
+        style={alwaysShowStatus ? { background: ACCENT + '22', color: ACCENT, borderColor: ACCENT + '44' } : {}}
+      >
+        Status
+      </button>
+      {([['date', 'Date'], ['title', 'A–Z']] as [SortField, string][]).map(([key, label]) => (
+        <button
+          key={key}
+          onClick={() => changeSort(key)}
+          className={[
+            'text-xs px-2.5 py-1 rounded-lg border transition-colors',
+            sort === key
+              ? 'border-transparent text-white'
+              : 'border-white/10 text-white/40 hover:text-white/70 hover:border-white/20',
+          ].join(' ')}
+          style={sort === key ? { background: ACCENT + '33', color: ACCENT, borderColor: ACCENT + '55' } : {}}
+        >
+          {label}{sort === key ? (sortDir === 'asc' ? ' ↑' : ' ↓') : ''}
+        </button>
+      ))}
+    </div>
+  )
+
   return (
     <div>
       <div className="px-8 pt-6 flex items-center justify-between">
@@ -136,13 +178,10 @@ export function StudioDetail() {
             <h1 className="text-3xl font-bold text-white mb-2 leading-tight">{entry.name}</h1>
             <div className="flex flex-wrap items-center gap-2">
               {entry.status && entry.status !== 'active' && <Badge color="#ef4444">{entry.status}</Badge>}
-              {scenes.length > 0 && (
+              {scenesPage?.total != null && scenesPage.total > 0 && (
                 <span className="text-sm text-white/40">
-                  {scenesPage?.total ?? scenes.length} scene{(scenesPage?.total ?? scenes.length) !== 1 ? 's' : ''}
+                  {scenesPage.total} scene{scenesPage.total !== 1 ? 's' : ''}
                 </span>
-              )}
-              {performers.length > 0 && (
-                <span className="text-sm text-white/40">· {performers.length} performer{performers.length !== 1 ? 's' : ''}</span>
               )}
               {isRefreshing && (
                 <span className="text-xs text-white/30 italic">importing…</span>
@@ -152,7 +191,7 @@ export function StudioDetail() {
         </div>
       </EntryHero>
 
-      <div className="px-8 py-8 space-y-12">
+      <div className="px-8 py-8 space-y-8">
         {entry.overview && (
           <section>
             <h2 className="text-xs font-semibold text-white/35 uppercase tracking-widest mb-3">About</h2>
@@ -173,68 +212,50 @@ export function StudioDetail() {
           </section>
         )}
 
-        {(scenes.length > 0 || sceneOffset > 0 || statusFilter !== undefined) && (
-          <section>
-            <div className="flex items-center justify-between mb-3">
-              <h2 className="text-xs font-semibold text-white/35 uppercase tracking-widest flex items-center gap-2">
-                <Film size={13} style={{ color: ACCENT }} />
-                Scenes
-              </h2>
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={toggleStatus}
-                  className={[
-                    'text-xs px-2.5 py-1 rounded-lg border transition-colors',
-                    alwaysShowStatus
-                      ? 'border-transparent text-white'
-                      : 'border-white/10 text-white/40 hover:text-white/70',
-                  ].join(' ')}
-                  style={alwaysShowStatus ? { background: ACCENT + '22', color: ACCENT, borderColor: ACCENT + '44' } : {}}
-                >
-                  Status
-                </button>
-                {([['date', 'Date'], ['title', 'A–Z']] as [SortField, string][]).map(([key, label]) => (
-                  <button
-                    key={key}
-                    onClick={() => changeSort(key)}
-                    className={[
-                      'text-xs px-2.5 py-1 rounded-lg border transition-colors',
-                      sort === key
-                        ? 'border-transparent text-white'
-                        : 'border-white/10 text-white/40 hover:text-white/70 hover:border-white/20',
-                    ].join(' ')}
-                    style={sort === key ? { background: ACCENT + '33', color: ACCENT, borderColor: ACCENT + '55' } : {}}
-                  >
-                    {label}{sort === key ? (sortDir === 'asc' ? ' ↑' : ' ↓') : ''}
-                  </button>
-                ))}
-              </div>
-            </div>
-            <div className="mb-4">
-              <StatusFilterChips value={statusFilter} onChange={changeStatusFilter} accent={ACCENT} />
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-              {scenes.map(scene => (
-                <ItemCard key={scene.id} item={scene} href={`/afterdark/scenes/${scene.id}`} aspect="16/9" accent={ACCENT} showPeople alwaysShowStatus={alwaysShowStatus || statusFilter !== undefined} />
-              ))}
-            </div>
-            <Pagination total={scenesPage?.total ?? 0} limit={LIMIT} offset={sceneOffset} onChange={setSceneOffset} accent={ACCENT} />
-          </section>
-        )}
+        <div>
+          <ChipTabs
+            tabs={STUDIO_TABS}
+            value={tab}
+            onChange={setTab}
+            accent={ACCENT}
+            rightControls={tab === 'scenes' ? sceneSortControls : undefined}
+          />
 
-        {performers.length > 0 && (
-          <section>
-            <h2 className="text-xs font-semibold text-white/35 uppercase tracking-widest mb-4 flex items-center gap-2">
-              <Users size={13} style={{ color: ACCENT }} />
-              Performers
-            </h2>
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8 gap-3">
-              {performers.map(p => (
-                <PersonCard key={p.id} person={p} href={`/afterdark/performers/${p.id}`} accent={ACCENT} />
-              ))}
-            </div>
-          </section>
-        )}
+          {tab === 'scenes' && (
+            <>
+              <div className="mb-4">
+                <StatusFilterChips value={statusFilter} onChange={changeStatusFilter} accent={ACCENT} />
+              </div>
+              {scenes.length === 0 && sceneOffset === 0 && statusFilter === undefined ? (
+                <p className="text-white/30 text-sm">No scenes added yet.</p>
+              ) : (
+                <>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                    {scenes.map(scene => (
+                      <ItemCard key={scene.id} item={scene} href={`/afterdark/scenes/${scene.id}`} aspect="16/9" accent={ACCENT} showPeople alwaysShowStatus={alwaysShowStatus || statusFilter !== undefined} />
+                    ))}
+                  </div>
+                  <Pagination total={scenesPage?.total ?? 0} limit={LIMIT} offset={sceneOffset} onChange={setSceneOffset} accent={ACCENT} />
+                </>
+              )}
+            </>
+          )}
+
+          {tab === 'performers' && (
+            performers.length === 0 ? (
+              <p className="text-white/30 text-sm">No performers found on this page of scenes.</p>
+            ) : (
+              <>
+                <p className="text-xs text-white/30 mb-4">Showing performers from the current page of scenes only. <a href="https://github.com/TheCaptiansLedger/purser/issues/319" className="underline hover:text-white/50 transition-colors">#319</a> will add a complete list.</p>
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8 gap-3">
+                  {performers.map(p => (
+                    <PersonCard key={p.id} person={p} href={`/afterdark/performers/${p.id}`} accent={ACCENT} />
+                  ))}
+                </div>
+              </>
+            )
+          )}
+        </div>
       </div>
 
       {editOpen && (

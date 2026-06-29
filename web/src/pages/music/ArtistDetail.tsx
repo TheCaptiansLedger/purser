@@ -1,6 +1,8 @@
 import { useMemo, useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { ArrowLeft, ImageIcon, ChevronLeft, ChevronRight, Disc3, Users, ArrowUpNarrowWide, ArrowDownNarrowWide, RefreshCw } from 'lucide-react'
+import { ChipTabs } from '../../components/ui/ChipTabs'
+import type { ChipTab } from '../../components/ui/ChipTabs'
 import { useLibraryEntry } from '../../api/library'
 import { useGroups, sortGroupsByYear } from '../../api/groups'
 import { useImageVersion } from '../../hooks/useImageVersion'
@@ -20,6 +22,11 @@ const ACCENT = '#10b981'
 const PAGE_SIZE = 6
 
 type ArtistTab = 'discography' | 'members'
+
+const ARTIST_TABS: ChipTab<ArtistTab>[] = [
+  { id: 'discography', label: 'Discography', icon: Disc3 },
+  { id: 'members',     label: 'Members',     icon: Users },
+]
 
 type DiscographySection = { label: string; token: string }
 
@@ -144,11 +151,6 @@ export function ArtistDetail() {
   if (isLoading) return <div className="px-8 py-10"><Skeleton className="h-64 w-full" /></div>
   if (!entry) return null
 
-  const TABS: { id: ArtistTab; label: string; icon: typeof Disc3 }[] = [
-    { id: 'discography', label: 'Discography', icon: Disc3  },
-    { id: 'members',     label: 'Members',     icon: Users  },
-  ]
-
   const refreshLabel = isImporting
     ? activeJob.message ?? `${activeJob.current}/${activeJob.total} albums`
     : 'Refresh'
@@ -207,26 +209,12 @@ export function ArtistDetail() {
           <p className="text-sm text-white/60 leading-relaxed max-w-3xl mb-6">{entry.overview}</p>
         )}
 
-        <div className="flex items-center justify-between mb-8">
-          <div className="flex gap-1">
-            {TABS.map(({ id: tid, label, icon: Icon }) => (
-              <button
-                key={tid}
-                onClick={() => setTab(tid)}
-                className={[
-                  'flex items-center gap-1.5 px-3 h-8 rounded-lg text-xs font-medium transition-all duration-150',
-                  tab === tid
-                    ? 'text-white'
-                    : 'text-white/40 hover:text-white/65 hover:bg-white/5',
-                ].join(' ')}
-                style={tab === tid ? { background: ACCENT + '28', color: ACCENT } : {}}
-              >
-                <Icon size={13} />
-                {label}
-              </button>
-            ))}
-          </div>
-          {tab === 'discography' && (
+        <ChipTabs
+          tabs={ARTIST_TABS}
+          value={tab}
+          onChange={setTab}
+          accent={ACCENT}
+          rightControls={tab === 'discography' ? (
             <button
               type="button"
               onClick={() => setSortDir(d => d === 'asc' ? 'desc' : 'asc')}
@@ -237,8 +225,8 @@ export function ArtistDetail() {
               {sortDir === 'asc' ? <ArrowUpNarrowWide size={13} /> : <ArrowDownNarrowWide size={13} />}
               {sortDir === 'asc' ? 'Oldest first' : 'Newest first'}
             </button>
-          )}
-        </div>
+          ) : undefined}
+        />
 
         {tab === 'discography' && (
           albums.length === 0 ? (
