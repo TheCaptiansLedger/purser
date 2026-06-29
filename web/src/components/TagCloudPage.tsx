@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { Link } from 'react-router-dom'
 import { Tag as TagIcon } from 'lucide-react'
 import { useTags } from '../api/tags'
 import { PageHeader } from './layout/PageHeader'
@@ -8,7 +9,6 @@ import type { Tag } from '../types'
 interface TagCloudPageProps {
   contentType: string
   accent: string
-  onTagClick?: (tag: Tag) => void
 }
 
 export function filterTags(tags: Tag[], search: string): Tag[] {
@@ -17,7 +17,7 @@ export function filterTags(tags: Tag[], search: string): Tag[] {
   return tags.filter(t => t.value.toLowerCase().includes(q))
 }
 
-export function TagCloudPage({ contentType, accent, onTagClick }: TagCloudPageProps) {
+export function TagCloudPage({ contentType, accent }: TagCloudPageProps) {
   const [search, setSearch] = useState('')
   const tags = useTags({ scope: 'metadata', contentType })
   const filtered = filterTags(tags.data?.data ?? [], search)
@@ -36,26 +36,16 @@ export function TagCloudPage({ contentType, accent, onTagClick }: TagCloudPagePr
           <EmptyState icon={TagIcon} title="No tags yet" accent={accent} />
         ) : (
           <div className="flex flex-wrap gap-2">
-            {filtered.map(tag =>
-              onTagClick ? (
-                <button
-                  key={tag.id}
-                  onClick={() => onTagClick(tag)}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium border border-white/10 bg-white/5 text-white/70 hover:text-white hover:border-white/20 transition-all duration-150"
-                >
-                  <TagIcon size={12} className="text-white/40" />
-                  {tag.value}
-                </button>
-              ) : (
-                <span
-                  key={tag.id}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium border border-white/10 bg-white/5 text-white/70 cursor-default select-none"
-                >
-                  <TagIcon size={12} className="text-white/40" />
-                  {tag.value}
-                </span>
-              )
-            )}
+            {filtered.map(tag => (
+              <Link
+                key={tag.id}
+                to={`/tags/${encodeURIComponent(tag.key)}/${encodeURIComponent(tag.value)}`}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium border border-white/10 bg-white/5 text-white/70 hover:text-white hover:border-white/20 transition-all duration-150"
+              >
+                <TagIcon size={12} className="text-white/40" />
+                {tag.value}
+              </Link>
+            ))}
           </div>
         )}
       </div>
