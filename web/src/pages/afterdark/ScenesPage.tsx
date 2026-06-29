@@ -1,8 +1,10 @@
 import { useState } from 'react'
 import { Film } from 'lucide-react'
 import { useItems } from '../../api/items'
+import type { ItemStatus } from '../../types'
 import type { SortField, SortDir } from '../../api/items'
 import { useStatusOverlay } from '../../hooks/useStatusOverlay'
+import { StatusFilterChips } from '../../components/media/StatusFilterChips'
 import { PageHeader } from '../../components/layout/PageHeader'
 import { ItemCard } from '../../components/media/ItemCard'
 import { Pagination } from '../../components/ui/Pagination'
@@ -17,9 +19,11 @@ export function ScenesPage() {
   const [offset, setOffset] = useState(0)
   const [sort, setSort] = useState<SortField>('date')
   const [sortDir, setSortDir] = useState<SortDir>('desc')
+  const [statusFilter, setStatusFilter] = useState<ItemStatus | undefined>(undefined)
   const [alwaysShowStatus, toggleStatus] = useStatusOverlay('afterdark')
 
   const resetPage = (v: string) => { setSearch(v); setOffset(0) }
+  const changeStatusFilter = (s: ItemStatus | undefined) => { setStatusFilter(s); setOffset(0) }
 
   const changeSort = (newSort: SortField) => {
     if (newSort === sort) {
@@ -36,6 +40,7 @@ export function ScenesPage() {
     search: search || undefined,
     sort,
     sortDir,
+    status: statusFilter,
     limit: LIMIT,
     offset,
   })
@@ -55,7 +60,7 @@ export function ScenesPage() {
         statusOverlay={{ value: alwaysShowStatus, onToggle: toggleStatus }}
       />
       <div className="px-8 py-6">
-        <div className="flex items-center gap-2 mb-4">
+        <div className="flex items-center gap-2 mb-2">
           <span className="text-xs text-white/30 uppercase tracking-widest mr-1">Sort</span>
           {([['date', 'Date'], ['title', 'A–Z']] as [SortField, string][]).map(([key, label]) => (
             <button
@@ -73,6 +78,9 @@ export function ScenesPage() {
             </button>
           ))}
         </div>
+        <div className="mb-4">
+          <StatusFilterChips value={statusFilter} onChange={changeStatusFilter} accent={ACCENT} />
+        </div>
         {loading ? (
           <SkeletonGrid count={24} aspect="16/9" />
         ) : !allScenes.length ? (
@@ -88,7 +96,7 @@ export function ScenesPage() {
                   aspect="16/9"
                   accent={ACCENT}
                   showPeople
-                  alwaysShowStatus={alwaysShowStatus}
+                  alwaysShowStatus={alwaysShowStatus || statusFilter !== undefined}
                 />
               ))}
             </div>

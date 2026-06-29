@@ -4,6 +4,8 @@ import { ArrowLeft, Clock, ImageIcon } from 'lucide-react'
 import { useLibraryEntry } from '../../api/library'
 import { useGroups } from '../../api/groups'
 import { useItems } from '../../api/items'
+import type { ItemStatus } from '../../types'
+import { StatusFilterChips } from '../../components/media/StatusFilterChips'
 import { EditButton } from '../../components/EditButton'
 import { GroupEditor } from '../../components/edit/editors/GroupEditor'
 import { fmtRuntime } from '../../components/ui/Runtime'
@@ -14,6 +16,7 @@ const ACCENT = '#8b5cf6'
 export function SeasonDetail() {
   const { id, num } = useParams<{ id: string; num: string }>()
   const [editOpen, setEditOpen] = useState(false)
+  const [statusFilter, setStatusFilter] = useState<ItemStatus | undefined>(undefined)
   const { data: entry } = useLibraryEntry(id!)
   const { data: groupsPage } = useGroups(id!)
 
@@ -21,6 +24,7 @@ export function SeasonDetail() {
   const { data: itemsPage, isLoading } = useItems({
     groupId: season?.id,
     libraryEntryId: id!,
+    status: statusFilter,
     limit: 200,
   })
 
@@ -48,6 +52,9 @@ export function SeasonDetail() {
         {season?.overview && <p className="text-white/55 text-sm mt-2 max-w-2xl">{season.overview}</p>}
       </div>
 
+      <div className="mb-4">
+        <StatusFilterChips value={statusFilter} onChange={setStatusFilter} accent={ACCENT} />
+      </div>
       {isLoading ? (
         <div className="space-y-2">{Array.from({ length: 8 }).map((_, i) => <Skeleton key={i} className="h-20 w-full" />)}</div>
       ) : (

@@ -5,6 +5,7 @@ import { ArrowLeft, User, Film } from 'lucide-react'
 import { usePerson } from '../../api/people'
 import { useItems } from '../../api/items'
 import { useImageVersion } from '../../hooks/useImageVersion'
+import { StatusFilterChips } from '../../components/media/StatusFilterChips'
 import { EditButton } from '../../components/EditButton'
 import { PersonEditor } from '../../components/edit/editors/PersonEditor'
 import { Badge } from '../../components/ui/Badge'
@@ -12,6 +13,7 @@ import { CountryChip } from '../../components/ui/CountryChip'
 import { ItemCard } from '../../components/media/ItemCard'
 import { Skeleton } from '../../components/ui/Skeleton'
 import { fmtDate } from '../../components/ui/Runtime'
+import type { ItemStatus } from '../../types'
 
 const ACCENT = '#f43f5e'
 
@@ -28,9 +30,10 @@ function MetaRow({ label, value }: { label: string; value?: ReactNode }) {
 export function PerformerDetail() {
   const { id } = useParams<{ id: string }>()
   const [editOpen, setEditOpen] = useState(false)
+  const [statusFilter, setStatusFilter] = useState<ItemStatus | undefined>(undefined)
   const { data: person, isLoading } = usePerson(id!)
   const [versionedImageUrl, bumpImageVersion] = useImageVersion(person?.imageUrl)
-  const { data: scenesPage } = useItems({ personId: id!, limit: 48 })
+  const { data: scenesPage } = useItems({ personId: id!, status: statusFilter, limit: 48 })
   const scenes = scenesPage?.data ?? []
 
   if (isLoading) return (
@@ -143,16 +146,19 @@ export function PerformerDetail() {
 
           {/* Scenes grid */}
           <section>
-            <h2 className="text-xs font-semibold text-white/35 uppercase tracking-widest mb-4 flex items-center gap-2">
+            <h2 className="text-xs font-semibold text-white/35 uppercase tracking-widest mb-3 flex items-center gap-2">
               <Film size={13} style={{ color: ACCENT }} />
               Scenes
             </h2>
+            <div className="mb-4">
+              <StatusFilterChips value={statusFilter} onChange={setStatusFilter} accent={ACCENT} />
+            </div>
             {scenes.length === 0 ? (
-              <p className="text-white/30 text-sm">No scenes yet.</p>
+              <p className="text-white/30 text-sm">{statusFilter ? 'No scenes match this filter.' : 'No scenes yet.'}</p>
             ) : (
               <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
                 {scenes.map(scene => (
-                  <ItemCard key={scene.id} item={scene} href={`/afterdark/scenes/${scene.id}`} aspect="16/9" accent={ACCENT} showPeople />
+                  <ItemCard key={scene.id} item={scene} href={`/afterdark/scenes/${scene.id}`} aspect="16/9" accent={ACCENT} showPeople alwaysShowStatus={statusFilter !== undefined} />
                 ))}
               </div>
             )}

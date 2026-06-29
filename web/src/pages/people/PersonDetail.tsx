@@ -13,7 +13,8 @@ import { ItemCard } from '../../components/media/ItemCard'
 import { Lightbox } from '../../components/ui/Lightbox'
 import { Skeleton } from '../../components/ui/Skeleton'
 import { contentTypeConfig } from '../../config/contentTypes'
-import type { ContentType } from '../../types'
+import type { ContentType, ItemStatus } from '../../types'
+import { StatusFilterChips } from '../../components/media/StatusFilterChips'
 
 const ACCENT = '#6366f1'
 
@@ -30,9 +31,10 @@ export function PersonDetail() {
   const { id } = useParams<{ id: string }>()
   const [editOpen, setEditOpen] = useState(false)
   const [lightboxOpen, setLightboxOpen] = useState(false)
+  const [statusFilter, setStatusFilter] = useState<ItemStatus | undefined>(undefined)
   const { data: person, isLoading } = usePerson(id!)
   const [versionedImageUrl, bumpImageVersion] = useImageVersion(person?.imageUrl)
-  const { data: itemsPage }   = useItems({ personId: id!, limit: 48 })
+  const { data: itemsPage }   = useItems({ personId: id!, status: statusFilter, limit: 48 })
   const { data: entriesPage } = useLibraryEntries({ personId: id! })
 
   const items         = itemsPage?.data   ?? []
@@ -139,6 +141,9 @@ export function PersonDetail() {
           ))}
 
           {/* Item appearances — grouped by content type */}
+          <div className="mb-4">
+            <StatusFilterChips value={statusFilter} onChange={setStatusFilter} accent={ACCENT} />
+          </div>
           {Object.entries(itemsByType).map(([ct, ctItems]) => (
             <section key={ct}>
               <h2 className="text-xs font-semibold text-white/35 uppercase tracking-widest mb-4">
@@ -152,6 +157,7 @@ export function PersonDetail() {
                     href={contentTypeConfig[item.contentType]?.itemPath(item) ?? '/people'}
                     aspect="16/9"
                     accent={ACCENT}
+                    alwaysShowStatus={statusFilter !== undefined}
                   />
                 ))}
               </div>

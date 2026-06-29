@@ -8,6 +8,7 @@ import type { SortField, SortDir } from '../../api/items'
 import { useActiveJobForEntry } from '../../api/jobs'
 import { refreshStudio } from '../../api/commands'
 import { useStatusOverlay } from '../../hooks/useStatusOverlay'
+import { StatusFilterChips } from '../../components/media/StatusFilterChips'
 import { EditButton } from '../../components/EditButton'
 import { LibraryEntryEditor } from '../../components/edit/editors/LibraryEntryEditor'
 import { EntryHero } from '../../components/layout/EntryHero'
@@ -16,7 +17,7 @@ import { PersonCard } from '../../components/media/PersonCard'
 import { Badge } from '../../components/ui/Badge'
 import { Pagination } from '../../components/ui/Pagination'
 import { Skeleton } from '../../components/ui/Skeleton'
-import type { PersonRef } from '../../types'
+import type { PersonRef, ItemStatus } from '../../types'
 
 const ACCENT = '#f43f5e'
 const LIMIT = 48
@@ -31,7 +32,13 @@ export function StudioDetail() {
   const [sceneOffset, setSceneOffset] = useState(0)
   const [sort, setSort] = useState<SortField>('date')
   const [sortDir, setSortDir] = useState<SortDir>('desc')
+  const [statusFilter, setStatusFilter] = useState<ItemStatus | undefined>(undefined)
   const [alwaysShowStatus, toggleStatus] = useStatusOverlay('afterdark')
+
+  const changeStatusFilter = (s: ItemStatus | undefined) => {
+    setStatusFilter(s)
+    setSceneOffset(0)
+  }
 
   const changeSort = (newSort: SortField) => {
     if (newSort === sort) {
@@ -44,7 +51,7 @@ export function StudioDetail() {
   }
 
   const { data: scenesPage } = useItems(
-    { libraryEntryId: id!, sort, sortDir, limit: LIMIT, offset: sceneOffset },
+    { libraryEntryId: id!, sort, sortDir, status: statusFilter, limit: LIMIT, offset: sceneOffset },
     isRefreshing ? 2000 : undefined,
   )
   const scenes = scenesPage?.data ?? []
@@ -166,9 +173,9 @@ export function StudioDetail() {
           </section>
         )}
 
-        {(scenes.length > 0 || sceneOffset > 0) && (
+        {(scenes.length > 0 || sceneOffset > 0 || statusFilter !== undefined) && (
           <section>
-            <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center justify-between mb-3">
               <h2 className="text-xs font-semibold text-white/35 uppercase tracking-widest flex items-center gap-2">
                 <Film size={13} style={{ color: ACCENT }} />
                 Scenes
@@ -203,9 +210,12 @@ export function StudioDetail() {
                 ))}
               </div>
             </div>
+            <div className="mb-4">
+              <StatusFilterChips value={statusFilter} onChange={changeStatusFilter} accent={ACCENT} />
+            </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
               {scenes.map(scene => (
-                <ItemCard key={scene.id} item={scene} href={`/afterdark/scenes/${scene.id}`} aspect="16/9" accent={ACCENT} showPeople alwaysShowStatus={alwaysShowStatus} />
+                <ItemCard key={scene.id} item={scene} href={`/afterdark/scenes/${scene.id}`} aspect="16/9" accent={ACCENT} showPeople alwaysShowStatus={alwaysShowStatus || statusFilter !== undefined} />
               ))}
             </div>
             <Pagination total={scenesPage?.total ?? 0} limit={LIMIT} offset={sceneOffset} onChange={setSceneOffset} accent={ACCENT} />

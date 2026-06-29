@@ -7,6 +7,7 @@ import { useGroup, patchGroup } from '../../api/groups'
 import { useItems, patchItem } from '../../api/items'
 import { EditButton } from '../../components/EditButton'
 import { GroupEditor } from '../../components/edit/editors/GroupEditor'
+import { StatusFilterChips } from '../../components/media/StatusFilterChips'
 import { Lightbox } from '../../components/ui/Lightbox'
 import { fmtRuntime } from '../../components/ui/Runtime'
 import { Skeleton } from '../../components/ui/Skeleton'
@@ -97,9 +98,10 @@ export function AlbumDetail() {
   const queryClient = useQueryClient()
   const [editOpen, setEditOpen] = useState(false)
   const [lightboxOpen, setLightboxOpen] = useState(false)
+  const [statusFilter, setStatusFilter] = useState<ItemStatus | undefined>(undefined)
   const { data: artist } = useLibraryEntry(id!)
   const { data: album, isLoading } = useGroup(albumId!)
-  const { data: tracksPage } = useItems({ groupId: albumId!, limit: 500 })
+  const { data: tracksPage } = useItems({ groupId: albumId!, status: statusFilter, limit: 500 })
   const tracks = tracksPage?.data ?? []
 
   const toggleAlbumMonitor = useMutation({
@@ -204,6 +206,9 @@ export function AlbumDetail() {
         </div>
       )}
 
+      <div className="mb-3">
+        <StatusFilterChips value={statusFilter} onChange={setStatusFilter} accent={ACCENT} />
+      </div>
       <div className="space-y-0.5">
         {tracks.map(track => (
           <TrackRow key={track.id} track={track} />
