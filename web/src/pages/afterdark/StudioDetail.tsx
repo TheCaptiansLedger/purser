@@ -153,6 +153,19 @@ export function StudioDetail() {
           </section>
         )}
 
+        {entry.tags.length > 0 && (
+          <section>
+            <h2 className="text-xs font-semibold text-white/35 uppercase tracking-widest mb-3">Tags</h2>
+            <div className="flex flex-wrap gap-2">
+              {entry.tags.map(t => (
+                <Link key={t.id} to={`/tags/${encodeURIComponent(t.key)}/${encodeURIComponent(t.value)}`}>
+                  <Badge>{t.value}</Badge>
+                </Link>
+              ))}
+            </div>
+          </section>
+        )}
+
         {(scenes.length > 0 || sceneOffset > 0) && (
           <section>
             <div className="flex items-center justify-between mb-4">
