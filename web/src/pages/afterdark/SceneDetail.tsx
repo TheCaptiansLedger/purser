@@ -11,6 +11,7 @@ import { Lightbox } from '../../components/ui/Lightbox'
 import { PersonCard } from '../../components/media/PersonCard'
 import { fmtRuntime, fmtDate, fmtBytes } from '../../components/ui/Runtime'
 import { Skeleton } from '../../components/ui/Skeleton'
+import { ExpandableText } from '../../components/ui/ExpandableText'
 
 const ACCENT = '#f43f5e'
 
@@ -48,7 +49,7 @@ export function SceneDetail() {
       {/* Hero — 16:9 cover */}
       <Hero backdropUrl={item.coverUrl} accent={ACCENT}>
         <div className="flex gap-6 items-end">
-          <div className="shrink-0 w-64 rounded-xl overflow-hidden border border-white/10 shadow-2xl" style={{ aspectRatio: '16/9' }}>
+          <div className="shrink-0 min-w-[16rem] max-w-lg w-[480px] rounded-xl overflow-hidden border border-white/10 shadow-2xl" style={{ aspectRatio: '16/9' }}>
             {item.coverUrl ? (
               <button
                 className="block w-full h-full cursor-zoom-in"
@@ -74,7 +75,7 @@ export function SceneDetail() {
                 {entry.name}
               </Link>
             )}
-            <h1 className="text-2xl font-bold text-white mb-2 leading-tight">{item.title}</h1>
+            <h1 className="text-4xl font-bold text-white mb-2 leading-tight">{item.title}</h1>
             <div className="flex flex-wrap items-center gap-2 mb-3">
               {item.date && (
                 <span className="flex items-center gap-1 text-sm text-white/50">
@@ -117,7 +118,7 @@ export function SceneDetail() {
         {item.overview && (
           <section>
             <h2 className="text-sm font-semibold text-white/40 uppercase tracking-widest mb-3">Description</h2>
-            <p className="text-sm text-white/60 leading-relaxed max-w-3xl">{item.overview}</p>
+            <ExpandableText text={item.overview} />
           </section>
         )}
 
@@ -125,7 +126,7 @@ export function SceneDetail() {
         {performers.length > 0 && (
           <section>
             <h2 className="text-sm font-semibold text-white/40 uppercase tracking-widest mb-4">Performers</h2>
-            <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-3">
+            <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-3">
               {performers.map(({ person, personId }) => person ? (
                 <PersonCard
                   key={personId}

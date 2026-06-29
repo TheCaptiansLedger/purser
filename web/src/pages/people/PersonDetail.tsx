@@ -15,6 +15,7 @@ import { Skeleton } from '../../components/ui/Skeleton'
 import { contentTypeConfig } from '../../config/contentTypes'
 import type { ContentType, ItemStatus } from '../../types'
 import { StatusFilterChips } from '../../components/media/StatusFilterChips'
+import { ExpandableText } from '../../components/ui/ExpandableText'
 
 const ACCENT = '#6366f1'
 
@@ -117,7 +118,7 @@ export function PersonDetail() {
           {person.overview && (
             <section>
               <h2 className="text-xs font-semibold text-white/35 uppercase tracking-widest mb-3">Biography</h2>
-              <p className="text-sm text-white/60 leading-relaxed max-w-3xl">{person.overview}</p>
+              <ExpandableText text={person.overview} />
             </section>
           )}
 
