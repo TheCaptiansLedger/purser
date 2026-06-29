@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { Link } from 'react-router-dom'
 import { Tag as TagIcon, Library } from 'lucide-react'
 import { useTags } from '../../api/tags'
 import { PageHeader } from '../../components/layout/PageHeader'
@@ -12,9 +12,17 @@ const KEY_LABELS: Record<string, string> = {
   genre: 'Genres',
 }
 
+export function getTagDisplayText(key: string, value: string): string {
+  return key in KEY_LABELS ? value : `${key}:${value}`
+}
+
+export function getTagHref(key: string, value: string): string {
+  if (key === 'label') return `/music/labels/${encodeURIComponent(value)}`
+  return `/tags/${encodeURIComponent(key)}/${encodeURIComponent(value)}`
+}
+
 export function MusicTagsPage() {
   const [search, setSearch] = useState('')
-  const navigate = useNavigate()
 
   const { data, isLoading } = useTags({ contentType: 'music', limit: 500 })
 
@@ -62,26 +70,19 @@ export function MusicTagsPage() {
                 </div>
                 <div className="flex flex-wrap gap-2">
                   {tags.map(tag => (
-                    isLabel ? (
-                      <button
-                        key={tag.id}
-                        type="button"
-                        onClick={() => navigate(`/music/labels/${encodeURIComponent(tag.value)}`)}
-                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium border border-white/10 bg-white/5 text-white/70 hover:text-white hover:border-white/20 hover:bg-white/8 transition-all duration-150"
-                        style={{ borderColor: ACCENT + '33' }}
-                      >
+                    <Link
+                      key={tag.id}
+                      to={getTagHref(key, tag.value)}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium border border-white/10 bg-white/5 text-white/70 hover:text-white hover:border-white/20 hover:bg-white/8 transition-all duration-150"
+                      style={isLabel ? { borderColor: ACCENT + '33' } : undefined}
+                    >
+                      {isLabel ? (
                         <Library size={11} style={{ color: ACCENT }} />
-                        {tag.value}
-                      </button>
-                    ) : (
-                      <span
-                        key={tag.id}
-                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium border border-white/10 bg-white/5 text-white/70 cursor-default select-none"
-                      >
+                      ) : (
                         <TagIcon size={11} className="text-white/40" />
-                        {tag.value}
-                      </span>
-                    )
+                      )}
+                      {getTagDisplayText(key, tag.value)}
+                    </Link>
                   ))}
                 </div>
               </section>
