@@ -47,7 +47,7 @@ jobs:
       - name: Stub web dist for compilation
         run: mkdir -p web/dist && echo '<!DOCTYPE html><html><body>stub</body></html>' > web/dist/index.html
 
-      - uses: golangci/golangci-lint-action@v8
+      - uses: golangci/golangci-lint-action@v9
         with:
           version: v2.12.2
           args: --timeout=5m
