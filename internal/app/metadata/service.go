@@ -68,9 +68,10 @@ func (s *Service) SearchStudios(ctx context.Context, query string, contentType d
 	return s.agg.SearchStudios(ctx, query, contentType, limit)
 }
 
-// SearchPeople queries all sources that serve contentType and merges the results.
-func (s *Service) SearchPeople(ctx context.Context, query string, contentType domain.ContentType, limit int) ([]*domain.ExternalPerson, error) {
-	return s.agg.SearchPeople(ctx, query, contentType, limit)
+// SearchPeople queries all sources that cover role and merges the results.
+// An empty role queries all sources.
+func (s *Service) SearchPeople(ctx context.Context, query string, role domain.PersonRole, limit int) ([]*domain.ExternalPerson, error) {
+	return s.agg.SearchPeople(ctx, query, role, limit)
 }
 
 // FetchArtistDiscography returns one page of release groups for the artist
@@ -453,12 +454,18 @@ func (s *Service) ImportPerson(ctx context.Context, req *ImportPersonRequest) (*
 		imagePath = s.downloader.Download(ctx, req.ImageURL, "people", personID)
 	}
 
+	var roles []domain.PersonRole
+	if req.Role != "" {
+		roles = []domain.PersonRole{req.Role}
+	}
+
 	p := &domain.Person{
 		ID:          personID,
 		Name:        req.Name,
 		SortName:    req.Name,
 		Overview:    req.Overview,
 		Aliases:     req.Aliases,
+		Roles:       roles,
 		Monitored:   req.Monitored,
 		MonitorMode: monitorMode,
 		ImagePath:   imagePath,

@@ -33,6 +33,7 @@ type personResponse struct {
 	MonitorMode  string               `json:"monitorMode"`
 	ImageURL     string               `json:"imageUrl,omitempty"`
 	Aliases      []string             `json:"aliases"`
+	Roles        []string             `json:"roles"`
 	ExternalIDs  []externalIDResponse `json:"externalIds"`
 	Metadata     map[string]any       `json:"metadata,omitempty"`
 	LockedFields []string             `json:"lockedFields"`
@@ -52,6 +53,7 @@ func toPersonResponse(p *domain.Person) *personResponse {
 		LockedFields: p.LockedFields,
 		AddedAt:      p.AddedAt,
 		Aliases:      []string{},
+		Roles:        []string{},
 		ExternalIDs:  []externalIDResponse{},
 	}
 	if r.LockedFields == nil {
@@ -59,6 +61,9 @@ func toPersonResponse(p *domain.Person) *personResponse {
 	}
 	if len(p.Aliases) > 0 {
 		r.Aliases = p.Aliases
+	}
+	for _, role := range p.Roles {
+		r.Roles = append(r.Roles, string(role))
 	}
 	for _, id := range p.ExternalIDs {
 		r.ExternalIDs = append(r.ExternalIDs, externalIDResponse{
@@ -110,6 +115,7 @@ type createPersonRequest struct {
 	Monitored   bool     `json:"monitored"`
 	MonitorMode string   `json:"monitorMode"`
 	Aliases     []string `json:"aliases"`
+	Roles       []string `json:"roles"`
 	ExternalIDs []struct {
 		Source string `json:"source"`
 		Value  string `json:"value"`
@@ -133,6 +139,9 @@ func (h *peopleHandler) create(w http.ResponseWriter, r *http.Request) {
 		Aliases:     req.Aliases,
 		Metadata:    req.Metadata,
 	}
+	for _, r := range req.Roles {
+		p.Roles = append(p.Roles, domain.PersonRole(r))
+	}
 	for _, id := range req.ExternalIDs {
 		p.ExternalIDs = append(p.ExternalIDs, domain.ExternalID{
 			Source: domain.ExternalIDSource(id.Source),
@@ -153,6 +162,7 @@ type patchPersonRequest struct {
 	Monitored   *bool    `json:"monitored"`
 	MonitorMode *string  `json:"monitorMode"`
 	Aliases     []string `json:"aliases"`
+	Roles       []string `json:"roles"`
 	ExternalIDs []struct {
 		Source string `json:"source"`
 		Value  string `json:"value"`
@@ -161,19 +171,7 @@ type patchPersonRequest struct {
 	LockedFields *[]string      `json:"lockedFields"`
 }
 
-func (h *peopleHandler) update(w http.ResponseWriter, r *http.Request) {
-	id := chi.URLParam(r, "id")
-	p, err := h.svc.GetPerson(r.Context(), id)
-	if handleErr(w, err) {
-		return
-	}
-
-	var req patchPersonRequest
-	if err := decode(r, &req); err != nil {
-		writeError(w, http.StatusBadRequest, "INVALID_REQUEST", "invalid JSON body")
-		return
-	}
-
+func applyPersonPatch(p *domain.Person, req patchPersonRequest) {
 	if req.Name != nil {
 		p.Name = *req.Name
 	}
@@ -192,6 +190,12 @@ func (h *peopleHandler) update(w http.ResponseWriter, r *http.Request) {
 	if req.Aliases != nil {
 		p.Aliases = req.Aliases
 	}
+	if req.Roles != nil {
+		p.Roles = nil
+		for _, r := range req.Roles {
+			p.Roles = append(p.Roles, domain.PersonRole(r))
+		}
+	}
 	if req.ExternalIDs != nil {
 		p.ExternalIDs = nil
 		for _, id := range req.ExternalIDs {
@@ -204,6 +208,23 @@ func (h *peopleHandler) update(w http.ResponseWriter, r *http.Request) {
 	if req.Metadata != nil {
 		p.Metadata = req.Metadata
 	}
+}
+
+func (h *peopleHandler) update(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	p, err := h.svc.GetPerson(r.Context(), id)
+	if handleErr(w, err) {
+		return
+	}
+
+	var req patchPersonRequest
+	if err := decode(r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, "INVALID_REQUEST", "invalid JSON body")
+		return
+	}
+
+	applyPersonPatch(p, req)
+
 	if req.LockedFields != nil {
 		p.LockedFields = *req.LockedFields
 	}

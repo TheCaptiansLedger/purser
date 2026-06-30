@@ -1,18 +1,24 @@
 import { useState } from 'react'
-import { Users } from 'lucide-react'
+import { Users, Plus } from 'lucide-react'
+import { useQueryClient } from '@tanstack/react-query'
 import { usePeople } from '../../api/people'
+import { createPerson } from '../../api/people'
+import type { CreatePersonRequest } from '../../api/people'
 import { PageHeader } from '../../components/layout/PageHeader'
 import { PersonCard } from '../../components/media/PersonCard'
 import { Pagination } from '../../components/ui/Pagination'
 import { SkeletonGrid } from '../../components/ui/Skeleton'
 import { EmptyState } from '../../components/ui/EmptyState'
+import { AddPersonDialog } from './AddPersonDialog'
 
 const ACCENT = '#6366f1'
 const LIMIT = 48
 
 export function PeoplePage() {
+  const queryClient = useQueryClient()
   const [search, setSearch] = useState('')
   const [offset, setOffset] = useState(0)
+  const [showAdd, setShowAdd] = useState(false)
 
   const { data, isLoading } = usePeople({
     search: search || undefined,
@@ -20,9 +26,23 @@ export function PeoplePage() {
     offset,
   })
 
+  async function handleAdd(req: CreatePersonRequest) {
+    await createPerson(req)
+    queryClient.invalidateQueries({ queryKey: ['people'] })
+  }
+
   return (
     <div>
-      <PageHeader title="People" accent={ACCENT} search={search} onSearch={v => { setSearch(v); setOffset(0) }} total={data?.total} />
+      <PageHeader title="People" accent={ACCENT} search={search} onSearch={v => { setSearch(v); setOffset(0) }} total={data?.total}>
+        <button
+          onClick={() => setShowAdd(true)}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium text-white transition-colors shrink-0"
+          style={{ background: ACCENT }}
+        >
+          <Plus size={14} />
+          Add Person
+        </button>
+      </PageHeader>
       <div className="px-8 py-6">
         {isLoading ? (
           <SkeletonGrid count={24} aspect="2/3" />
@@ -39,6 +59,13 @@ export function PeoplePage() {
           </>
         )}
       </div>
+
+      <AddPersonDialog
+        open={showAdd}
+        onClose={() => setShowAdd(false)}
+        accent={ACCENT}
+        onAdd={handleAdd}
+      />
     </div>
   )
 }

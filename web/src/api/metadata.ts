@@ -7,8 +7,8 @@ export function searchStudios(q: string, contentType?: ContentType, limit = 25) 
   return get<{ results: ExternalStudio[] }>('/metadata/search', { kind: 'studio', q, contentType, limit })
 }
 
-export function searchPeople(q: string, contentType?: ContentType, limit = 25) {
-  return get<{ results: ExternalPerson[] }>('/metadata/search', { kind: 'person', q, contentType, limit })
+export function searchPeople(q: string, role?: PersonRole, limit = 25) {
+  return get<{ results: ExternalPerson[] }>('/metadata/search', { kind: 'person', q, role, limit })
 }
 
 // ── Import studio ─────────────────────────────────────────────────────────────

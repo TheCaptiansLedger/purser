@@ -28,6 +28,7 @@ type Person struct {
 	MonitorMode  MonitorMode
 	ImagePath    string
 	Aliases      []string
+	Roles        []PersonRole
 	ExternalIDs  []ExternalID
 	Metadata     map[string]any
 	LockedFields []string

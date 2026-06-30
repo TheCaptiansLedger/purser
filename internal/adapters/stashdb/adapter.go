@@ -18,6 +18,7 @@ var (
 	_ ports.MetadataSource     = (*Adapter)(nil)
 	_ ports.StudioSearchSource = (*Adapter)(nil)
 	_ ports.PeopleSearchSource = (*Adapter)(nil)
+	_ ports.PersonRoleSource   = (*Adapter)(nil)
 	_ ports.ItemSearchSource   = (*Adapter)(nil)
 	_ ports.HashLookupSource   = (*Adapter)(nil)
 	_ ports.ExternalIDSource   = (*Adapter)(nil)
@@ -67,6 +68,16 @@ func (a *Adapter) ContentTypes() []domain.ContentType {
 
 // ImagePriority returns 0 — StashDB provides scene metadata, not hero or cover images.
 func (a *Adapter) ImagePriority() int { return 0 }
+
+// PersonRoles declares the person roles StashDB covers.
+func (a *Adapter) PersonRoles() []domain.PersonRole {
+	return []domain.PersonRole{
+		domain.RolePerformer,
+		domain.RoleActress,
+		domain.RoleActor,
+		domain.RoleDirector,
+	}
+}
 
 // ── GraphQL transport ─────────────────────────────────────────────────────────
 

@@ -132,6 +132,7 @@ export interface Person {
   monitorMode: MonitorMode
   imageUrl?: string
   aliases: string[]
+  roles: PersonRole[]
   externalIds: ExternalID[]
   metadata?: Record<string, unknown>
   lockedFields?: string[]

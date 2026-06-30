@@ -58,6 +58,12 @@ func (r *personRepo) Get(ctx context.Context, id string) (*domain.Person, error)
 	}
 	p.Aliases = aliases
 
+	roles, err := loadPersonRoles(ctx, r.db, id)
+	if err != nil {
+		return nil, fmt.Errorf("load roles for person %s: %w", id, err)
+	}
+	p.Roles = roles
+
 	ids, err := loadExternalIDs(ctx, r.db, "person", id)
 	if err != nil {
 		return nil, fmt.Errorf("load external ids for person %s: %w", id, err)
@@ -110,11 +116,7 @@ func (r *personRepo) List(ctx context.Context, f ports.PersonFilter) ([]*domain.
 		w.add("monitored = ?", boolToInt(*f.Monitored))
 	}
 	if f.Role != "" {
-		w.add(`id IN (
-			SELECT person_id FROM item_people WHERE role = ?
-			UNION
-			SELECT person_id FROM entry_people WHERE role = ?
-		)`, string(f.Role), string(f.Role))
+		w.add(`id IN (SELECT person_id FROM person_roles WHERE role = ?)`, string(f.Role))
 	}
 	addPersonContentTypes(w, f.ContentTypes)
 	if f.Search != "" {
@@ -154,10 +156,13 @@ func (r *personRepo) List(ctx context.Context, f ports.PersonFilter) ([]*domain.
 		if err != nil {
 			return nil, 0, err
 		}
-		// Load aliases in list view (needed for search result display).
 		p.Aliases, err = loadAliases(ctx, r.db, p.ID)
 		if err != nil {
 			return nil, 0, fmt.Errorf("load aliases for %s: %w", p.ID, err)
+		}
+		p.Roles, err = loadPersonRoles(ctx, r.db, p.ID)
+		if err != nil {
+			return nil, 0, fmt.Errorf("load roles for %s: %w", p.ID, err)
 		}
 		people = append(people, p)
 	}
@@ -211,6 +216,9 @@ func (r *personRepo) Save(ctx context.Context, p *domain.Person) error {
 
 	if err := saveAliases(ctx, tx, p.ID, p.Aliases); err != nil {
 		return fmt.Errorf("save aliases: %w", err)
+	}
+	if err := savePersonRoles(ctx, tx, p.ID, p.Roles); err != nil {
+		return fmt.Errorf("save roles: %w", err)
 	}
 	if err := saveExternalIDs(ctx, tx, "person", p.ID, p.ExternalIDs); err != nil {
 		return fmt.Errorf("save external ids: %w", err)

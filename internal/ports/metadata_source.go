@@ -35,6 +35,15 @@ type PeopleSearchSource interface {
 	SearchPeople(ctx context.Context, query string, limit int) ([]*domain.ExternalPerson, error)
 }
 
+// PersonRoleSource is implemented by sources that cover a specific set of
+// person roles. The aggregator uses this to narrow fan-out when a role filter
+// is provided: only sources that declare the requested role are queried.
+// Sources that do not implement PersonRoleSource are always included so that
+// sources with no declared role coverage act as a catch-all.
+type PersonRoleSource interface {
+	PersonRoles() []domain.PersonRole
+}
+
 // ItemSearchSource is implemented by sources that support text search for
 // items, scenes, or recordings.
 type ItemSearchSource interface {

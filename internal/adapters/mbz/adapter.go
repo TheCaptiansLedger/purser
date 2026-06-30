@@ -22,6 +22,7 @@ var (
 	_ ports.MetadataSource     = (*Adapter)(nil)
 	_ ports.StudioSearchSource = (*Adapter)(nil)
 	_ ports.PeopleSearchSource = (*Adapter)(nil)
+	_ ports.PersonRoleSource   = (*Adapter)(nil)
 	_ ports.ItemSearchSource   = (*Adapter)(nil)
 	_ ports.ExternalIDSource   = (*Adapter)(nil)
 	_ ports.EntryContentSource = (*Adapter)(nil)
@@ -76,6 +77,11 @@ func (a *Adapter) Name() string { return string(domain.SourceMusicBrainz) }
 // ContentTypes returns the content types this adapter can provide metadata for.
 func (a *Adapter) ContentTypes() []domain.ContentType {
 	return []domain.ContentType{domain.ContentTypeMusic}
+}
+
+// PersonRoles declares the person roles MusicBrainz covers (individual artists).
+func (a *Adapter) PersonRoles() []domain.PersonRole {
+	return []domain.PersonRole{domain.RoleArtist, domain.RoleProducer}
 }
 
 // ── Rate limiter ──────────────────────────────────────────────────────────────

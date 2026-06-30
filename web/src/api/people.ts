@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
-import { get, getPage, patch } from './client'
-import type { Person, PersonRole } from '../types'
+import { get, getPage, patch, post } from './client'
+import type { MonitorMode, Person, PersonRole } from '../types'
 
 interface PeopleFilter {
   search?: string
@@ -28,4 +28,19 @@ export function usePerson(id: string) {
 
 export function updatePerson(id: string, body: Record<string, unknown>) {
   return patch<Person>(`/people/${id}`, body)
+}
+
+export interface CreatePersonRequest {
+  name: string
+  sortName?: string
+  overview?: string
+  aliases?: string[]
+  roles?: PersonRole[]
+  monitored: boolean
+  monitorMode: MonitorMode
+  externalIds?: { source: string; value: string }[]
+}
+
+export function createPerson(req: CreatePersonRequest) {
+  return post<Person>('/people', req)
 }

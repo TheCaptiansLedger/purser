@@ -14,6 +14,7 @@ import (
 type aggStubSource struct {
 	name             string
 	contentTypes     []domain.ContentType
+	personRoles      []domain.PersonRole
 	findItem         *domain.ExternalItem
 	findErr          error
 	searchItems      []*domain.ExternalItem
@@ -27,7 +28,11 @@ type aggStubSource struct {
 	groupItem        *domain.ExternalItem
 	groupErr         error
 	imagePriority    int
+	personImageURL   string
+	personImageErr   error
 }
+
+func (s *aggStubSource) PersonRoles() []domain.PersonRole { return s.personRoles }
 
 func (s *aggStubSource) Name() string       { return s.name }
 func (s *aggStubSource) ImagePriority() int { return s.imagePriority }
@@ -79,7 +84,34 @@ func (s *aggStubSource) FindGroupImages(_ context.Context, _ domain.ContentType,
 }
 
 func (s *aggStubSource) FetchPersonImage(_ context.Context, _ string) (*domain.ExternalImage, error) {
+	if s.personImageErr != nil {
+		return nil, s.personImageErr
+	}
+	if s.personImageURL != "" {
+		return &domain.ExternalImage{URL: s.personImageURL}, nil
+	}
 	return nil, ports.ErrNotSupported
+}
+
+// personImageOnlyStub implements MetadataSource + PersonImageSource but NOT
+// PersonRoleSource, exactly like the real TheAudioDB adapter.
+type personImageOnlyStub struct {
+	name     string
+	imageURL string
+	imageErr error
+}
+
+func (s *personImageOnlyStub) Name() string                       { return s.name }
+func (s *personImageOnlyStub) ContentTypes() []domain.ContentType { return nil }
+func (s *personImageOnlyStub) ImagePriority() int                 { return 0 }
+func (s *personImageOnlyStub) FetchPersonImage(_ context.Context, _ string) (*domain.ExternalImage, error) {
+	if s.imageErr != nil {
+		return nil, s.imageErr
+	}
+	if s.imageURL != "" {
+		return &domain.ExternalImage{URL: s.imageURL}, nil
+	}
+	return nil, ports.ErrNotFound
 }
 
 // ── FindByExternalID ──────────────────────────────────────────────────────────
@@ -545,7 +577,7 @@ func TestAggregator_SearchPeople_FanOut(t *testing.T) {
 	}
 	agg := metadata.NewAggregator([]ports.MetadataSource{src1, src2})
 
-	people, err := agg.SearchPeople(context.Background(), "query", domain.ContentTypeAdult, 10)
+	people, err := agg.SearchPeople(context.Background(), "query", "", 10)
 	if err != nil {
 		t.Fatalf("SearchPeople: %v", err)
 	}
@@ -565,12 +597,85 @@ func TestAggregator_SearchPeople_SourceError(t *testing.T) {
 	}
 	agg := metadata.NewAggregator([]ports.MetadataSource{good, bad})
 
-	people, err := agg.SearchPeople(context.Background(), "query", domain.ContentTypeAdult, 10)
+	people, err := agg.SearchPeople(context.Background(), "query", "", 10)
 	if err != nil {
 		t.Fatalf("SearchPeople should not error when one source fails: %v", err)
 	}
 	if len(people) != 1 {
 		t.Errorf("people count = %d, want 1 (only from good source)", len(people))
+	}
+}
+
+func TestAggregator_SearchPeople_RoleFilter(t *testing.T) {
+	performer := &aggStubSource{
+		name:         "stashdb",
+		personRoles:  []domain.PersonRole{domain.RolePerformer, domain.RoleActress},
+		searchPeople: []*domain.ExternalPerson{{Name: "Alice"}},
+	}
+	musician := &aggStubSource{
+		name:         "mbz",
+		personRoles:  []domain.PersonRole{domain.RoleArtist},
+		searchPeople: []*domain.ExternalPerson{{Name: "Bob"}},
+	}
+	agg := metadata.NewAggregator([]ports.MetadataSource{performer, musician})
+
+	people, err := agg.SearchPeople(context.Background(), "query", domain.RolePerformer, 10)
+	if err != nil {
+		t.Fatalf("SearchPeople: %v", err)
+	}
+	if len(people) != 1 || people[0].Name != "Alice" {
+		t.Errorf("got %v, want only Alice from performer source", people)
+	}
+}
+
+func TestAggregator_SearchPeople_NoRoleFilter_QueriesAll(t *testing.T) {
+	performer := &aggStubSource{
+		name:         "stashdb",
+		personRoles:  []domain.PersonRole{domain.RolePerformer},
+		searchPeople: []*domain.ExternalPerson{{Name: "Alice"}},
+	}
+	musician := &aggStubSource{
+		name:         "mbz",
+		personRoles:  []domain.PersonRole{domain.RoleArtist},
+		searchPeople: []*domain.ExternalPerson{{Name: "Bob"}},
+	}
+	agg := metadata.NewAggregator([]ports.MetadataSource{performer, musician})
+
+	people, err := agg.SearchPeople(context.Background(), "query", "", 10)
+	if err != nil {
+		t.Fatalf("SearchPeople: %v", err)
+	}
+	if len(people) != 2 {
+		t.Errorf("people count = %d, want 2 (all sources when no role filter)", len(people))
+	}
+}
+
+func TestAggregator_SearchPeople_EnrichesImages(t *testing.T) {
+	// MusicBrainz-like: returns artist with ExternalID but no image.
+	searchSrc := &aggStubSource{
+		name:        "mbz",
+		personRoles: []domain.PersonRole{domain.RoleArtist},
+		searchPeople: []*domain.ExternalPerson{
+			{Name: "Stevie Nicks", ExternalID: "mbid-stevie", Source: domain.SourceMusicBrainz},
+		},
+	}
+	// TheAudioDB-like: does NOT implement PersonRoleSource (no PersonRoles method),
+	// so it is always a catch-all for enrichment even when a role filter is applied.
+	imageSrc := &personImageOnlyStub{
+		name:     "audiodb",
+		imageURL: "https://img.audiodb.com/stevie.jpg",
+	}
+	agg := metadata.NewAggregator([]ports.MetadataSource{searchSrc, imageSrc})
+
+	people, err := agg.SearchPeople(context.Background(), "Stevie Nicks", domain.RoleArtist, 10)
+	if err != nil {
+		t.Fatalf("SearchPeople: %v", err)
+	}
+	if len(people) != 1 {
+		t.Fatalf("people count = %d, want 1", len(people))
+	}
+	if people[0].ImageURL == "" {
+		t.Error("ImageURL should be enriched from PersonImageSource but is empty")
 	}
 }
 

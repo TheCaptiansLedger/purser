@@ -10,6 +10,7 @@ const basePerson: Person = {
   monitored: true,
   monitorMode: 'all',
   aliases: ['JD'],
+  roles: ['performer', 'actress'],
   externalIds: [{ source: 'stashdb', value: 'abc-123' }],
   metadata: { hair_color: 'brunette', height: 165 },
   lockedFields: [],
@@ -26,6 +27,16 @@ describe('initialFormValues', () => {
     expect(v.monitorMode).toBe('all')
     expect(v.aliases).toEqual(['JD'])
     expect(v.externalIds).toEqual([{ source: 'stashdb', value: 'abc-123' }])
+  })
+
+  it('maps roles from person', () => {
+    const v = initialFormValues(basePerson)
+    expect(v.roles).toEqual(['performer', 'actress'])
+  })
+
+  it('defaults roles to empty array when person has none', () => {
+    const v = initialFormValues({ ...basePerson, roles: [] })
+    expect(v.roles).toEqual([])
   })
 
   it('converts metadata to strings', () => {

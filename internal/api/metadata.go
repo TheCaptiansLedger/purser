@@ -50,7 +50,8 @@ func (h *metadataHandler) search(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusOK, map[string]any{"results": toExternalStudioResponses(studios)})
 
 	case "person":
-		people, err := h.svc.SearchPeople(r.Context(), query, contentType, limit)
+		role := domain.PersonRole(q.Get("role"))
+		people, err := h.svc.SearchPeople(r.Context(), query, role, limit)
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, "SEARCH_ERROR", "search failed")
 			return

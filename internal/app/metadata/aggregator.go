@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"purser/internal/domain"
 	"purser/internal/ports"
+	"slices"
 	"sync"
 	"time"
 )
@@ -303,10 +304,11 @@ func (a *Aggregator) deduplicateStudios(studios []*domain.ExternalStudio) []*dom
 	return out
 }
 
-// SearchPeople fans out to all sources that support contentType and implement
-// SearchableSource, returning combined results. Errors are logged and skipped.
-func (a *Aggregator) SearchPeople(ctx context.Context, query string, contentType domain.ContentType, limit int) ([]*domain.ExternalPerson, error) {
-	matching := a.sourcesFor(contentType)
+// SearchPeople fans out to all sources that cover role and implement
+// PeopleSearchSource, returning combined results. Errors are logged and skipped.
+// An empty role queries all sources.
+func (a *Aggregator) SearchPeople(ctx context.Context, query string, role domain.PersonRole, limit int) ([]*domain.ExternalPerson, error) {
+	matching := a.sourcesForPersonRole(role)
 
 	type result struct{ people []*domain.ExternalPerson }
 	ch := make(chan result, len(matching))
@@ -333,7 +335,54 @@ func (a *Aggregator) SearchPeople(ctx context.Context, query string, contentType
 	for r := range ch {
 		all = append(all, r.people...)
 	}
+	a.enrichPersonImages(ctx, role, all)
 	return all, nil
+}
+
+// enrichPersonImages fills in missing ImageURLs by doing concurrent per-ID
+// lookups against all PersonImageSource sources. People that already have an
+// image, or have no ExternalID, are skipped. If all lookups are not complete
+// within 3 seconds the call returns with whatever images were fetched in time.
+func (a *Aggregator) enrichPersonImages(ctx context.Context, role domain.PersonRole, people []*domain.ExternalPerson) {
+	var imgSources []ports.PersonImageSource
+	for _, src := range a.sourcesForPersonRole(role) {
+		if ps, ok := src.(ports.PersonImageSource); ok {
+			imgSources = append(imgSources, ps)
+		}
+	}
+	if len(imgSources) == 0 {
+		return
+	}
+
+	enrichCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	defer cancel()
+
+	var wg sync.WaitGroup
+	for _, p := range people {
+		if p.ImageURL != "" || p.ExternalID == "" {
+			continue
+		}
+		wg.Add(1)
+		go func(p *domain.ExternalPerson) {
+			defer wg.Done()
+			for _, ps := range imgSources {
+				img, err := ps.FetchPersonImage(enrichCtx, p.ExternalID)
+				if err != nil || img == nil {
+					continue
+				}
+				p.ImageURL = img.URL
+				return
+			}
+		}(p)
+	}
+
+	done := make(chan struct{})
+	go func() { wg.Wait(); close(done) }()
+	select {
+	case <-done:
+	case <-enrichCtx.Done():
+		slog.Warn("metadata aggregator: person image enrichment timed out")
+	}
 }
 
 // FetchGroupImages fans out FindGroupImages to all GroupImageSource sources for
@@ -392,6 +441,28 @@ func (a *Aggregator) sourcesFor(contentType domain.ContentType) []ports.Metadata
 	var result []ports.MetadataSource
 	for _, src := range a.sources {
 		if servesContentType(src, contentType) {
+			result = append(result, src)
+		}
+	}
+	return result
+}
+
+// sourcesForPersonRole returns sources eligible to search for people with the
+// given role. An empty role returns all sources. For a specific role, sources
+// that implement PersonRoleSource are included only when they declare the role;
+// sources that do not implement PersonRoleSource are always included.
+func (a *Aggregator) sourcesForPersonRole(role domain.PersonRole) []ports.MetadataSource {
+	if role == "" {
+		return a.sources
+	}
+	var result []ports.MetadataSource
+	for _, src := range a.sources {
+		prs, ok := src.(ports.PersonRoleSource)
+		if !ok {
+			result = append(result, src)
+			continue
+		}
+		if slices.Contains(prs.PersonRoles(), role) {
 			result = append(result, src)
 		}
 	}

@@ -30,13 +30,13 @@ func TestOpen_CreatesSchema(t *testing.T) {
 	if err := database.QueryRow(`SELECT COUNT(*) FROM schema_migrations`).Scan(&count); err != nil {
 		t.Fatalf("schema_migrations missing: %v", err)
 	}
-	if count != 13 {
-		t.Errorf("migration count = %d, want 13", count)
+	if count != 14 {
+		t.Errorf("migration count = %d, want 14", count)
 	}
 
 	tables := []string{
 		"library_entries", "groups", "items",
-		"people", "people_aliases", "item_people",
+		"people", "people_aliases", "person_roles", "item_people",
 		"external_ids", "tags", "item_tags", "entry_tags",
 		"media_files", "releases", "downloads",
 		"entry_people", "settings", "group_tags",
@@ -1065,6 +1065,98 @@ func TestPersonRepo_Save_WithMetadata(t *testing.T) {
 	}
 	if got.Metadata["hair"] != "blonde" {
 		t.Errorf("Metadata hair = %v, want blonde", got.Metadata["hair"])
+	}
+}
+
+func TestPersonRepo_Roles(t *testing.T) {
+	repo := NewPersonRepo(setupTestDB(t))
+	ctx := context.Background()
+
+	p := &domain.Person{
+		Name:        "Multi-Role Person",
+		MonitorMode: domain.MonitorAll,
+		Roles:       []domain.PersonRole{domain.RolePerformer, domain.RoleActress},
+	}
+	if err := repo.Save(ctx, p); err != nil {
+		t.Fatalf("Save: %v", err)
+	}
+
+	got, err := repo.Get(ctx, p.ID)
+	if err != nil {
+		t.Fatalf("Get: %v", err)
+	}
+	if len(got.Roles) != 2 {
+		t.Fatalf("Roles count = %d, want 2", len(got.Roles))
+	}
+
+	// roles come back sorted (ORDER BY role)
+	if got.Roles[0] != domain.RoleActress {
+		t.Errorf("Roles[0] = %q, want actress", got.Roles[0])
+	}
+	if got.Roles[1] != domain.RolePerformer {
+		t.Errorf("Roles[1] = %q, want performer", got.Roles[1])
+	}
+}
+
+func TestPersonRepo_Roles_ReplaceOnSave(t *testing.T) {
+	repo := NewPersonRepo(setupTestDB(t))
+	ctx := context.Background()
+
+	p := &domain.Person{
+		Name:        "Role Swap",
+		MonitorMode: domain.MonitorAll,
+		Roles:       []domain.PersonRole{domain.RolePerformer},
+	}
+	if err := repo.Save(ctx, p); err != nil {
+		t.Fatalf("Save: %v", err)
+	}
+
+	p.Roles = []domain.PersonRole{domain.RoleAuthor, domain.RoleDirector}
+	if err := repo.Save(ctx, p); err != nil {
+		t.Fatalf("Save updated: %v", err)
+	}
+
+	got, err := repo.Get(ctx, p.ID)
+	if err != nil {
+		t.Fatalf("Get: %v", err)
+	}
+	if len(got.Roles) != 2 {
+		t.Fatalf("Roles count after update = %d, want 2", len(got.Roles))
+	}
+	for _, r := range got.Roles {
+		if r == domain.RolePerformer {
+			t.Error("old role performer should have been replaced")
+		}
+	}
+}
+
+func TestPersonRepo_List_ByRole(t *testing.T) {
+	repo := NewPersonRepo(setupTestDB(t))
+	ctx := context.Background()
+
+	performer := &domain.Person{Name: "Performer", MonitorMode: domain.MonitorAll, Roles: []domain.PersonRole{domain.RolePerformer}}
+	author := &domain.Person{Name: "Author", MonitorMode: domain.MonitorAll, Roles: []domain.PersonRole{domain.RoleAuthor}}
+	both := &domain.Person{Name: "Both", MonitorMode: domain.MonitorAll, Roles: []domain.PersonRole{domain.RolePerformer, domain.RoleAuthor}}
+	for _, p := range []*domain.Person{performer, author, both} {
+		if err := repo.Save(ctx, p); err != nil {
+			t.Fatalf("Save %s: %v", p.Name, err)
+		}
+	}
+
+	performers, _, err := repo.List(ctx, ports.PersonFilter{Role: domain.RolePerformer, Limit: 50})
+	if err != nil {
+		t.Fatalf("List by performer: %v", err)
+	}
+	if len(performers) != 2 {
+		t.Errorf("performer filter count = %d, want 2", len(performers))
+	}
+
+	authors, _, err := repo.List(ctx, ports.PersonFilter{Role: domain.RoleAuthor, Limit: 50})
+	if err != nil {
+		t.Fatalf("List by author: %v", err)
+	}
+	if len(authors) != 2 {
+		t.Errorf("author filter count = %d, want 2", len(authors))
 	}
 }
 

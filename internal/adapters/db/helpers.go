@@ -414,3 +414,40 @@ func saveAliases(ctx context.Context, tx *sql.Tx, personID string, aliases []str
 	}
 	return nil
 }
+
+// ── Person roles ──────────────────────────────────────────────────────────────
+
+func loadPersonRoles(ctx context.Context, db *sql.DB, personID string) ([]domain.PersonRole, error) {
+	rows, err := db.QueryContext(ctx,
+		`SELECT role FROM person_roles WHERE person_id = ? ORDER BY role`,
+		personID)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+
+	var roles []domain.PersonRole
+	for rows.Next() {
+		var r string
+		if err := rows.Scan(&r); err != nil {
+			return nil, err
+		}
+		roles = append(roles, domain.PersonRole(r))
+	}
+	return roles, rows.Err()
+}
+
+func savePersonRoles(ctx context.Context, tx *sql.Tx, personID string, roles []domain.PersonRole) error {
+	if _, err := tx.ExecContext(ctx,
+		`DELETE FROM person_roles WHERE person_id = ?`, personID); err != nil {
+		return err
+	}
+	for _, r := range roles {
+		if _, err := tx.ExecContext(ctx,
+			`INSERT INTO person_roles(person_id, role) VALUES(?, ?) ON CONFLICT DO NOTHING`,
+			personID, string(r)); err != nil {
+			return err
+		}
+	}
+	return nil
+}

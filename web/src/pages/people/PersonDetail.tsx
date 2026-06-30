@@ -19,6 +19,10 @@ import { ExpandableText } from '../../components/ui/ExpandableText'
 
 const ACCENT = '#6366f1'
 
+function metaLabel(key: string): string {
+  return key.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
+}
+
 function groupBy<T>(items: T[], key: (item: T) => string): Record<string, T[]> {
   return items.reduce<Record<string, T[]>>((acc, item) => {
     const k = key(item)
@@ -77,6 +81,22 @@ export function PersonDetail() {
                   <span key={a} className="text-xs text-white/50 bg-white/5 px-2 py-0.5 rounded-md">{a}</span>
                 ))}
               </div>
+            </div>
+          )}
+
+          {person.metadata && Object.keys(person.metadata).length > 0 && (
+            <div className="mb-4 pt-3 border-t border-white/5">
+              <p className="text-xs text-white/30 uppercase tracking-wider mb-2">Details</p>
+              <dl className="flex flex-col gap-1.5">
+                {Object.entries(person.metadata).map(([k, v]) => (
+                  v != null && v !== '' && (
+                    <div key={k} className="flex gap-2 items-baseline">
+                      <dt className="text-xs text-white/30 shrink-0 w-24">{metaLabel(k)}</dt>
+                      <dd className="text-xs text-white/70 min-w-0 break-words">{String(v)}</dd>
+                    </div>
+                  )
+                ))}
+              </dl>
             </div>
           )}
 
