@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { hasStatus, getQuarterKey, getIssueArea, parseIssueRefs, sortedQuarterKeys, uniqueContributors, GHIssue, GHRelease } from './Roadmap'
+import { hasStatus, getQuarterKey, getIssueArea, parseIssueRefs, sortedQuarterKeys, uniqueContributors, issuesInWindow, GHIssue, GHRelease } from './Roadmap'
 
 // Helper mock issue creator
 const createMockIssue = (labels: { name: string }[]): GHIssue => ({
@@ -105,6 +105,55 @@ describe('sortedQuarterKeys', () => {
 
   it('returns empty array for no releases', () => {
     expect(sortedQuarterKeys([])).toEqual([])
+  })
+})
+
+describe('issuesInWindow', () => {
+  const closedIssue = (closed_at: string, labels: { name: string }[] = []): GHIssue => ({
+    ...createMockIssue(labels),
+    closed_at,
+    state: 'closed',
+  })
+
+  it('returns issues closed within the window', () => {
+    const candidates = [
+      closedIssue('2026-03-15T00:00:00Z'),
+      closedIssue('2026-04-01T00:00:00Z'),
+    ]
+    expect(issuesInWindow(candidates, '2026-03-01T00:00:00Z', '2026-04-01T00:00:00Z')).toHaveLength(2)
+  })
+
+  it('excludes issues closed before prevPublishedAt', () => {
+    const candidates = [closedIssue('2026-02-28T00:00:00Z')]
+    expect(issuesInWindow(candidates, '2026-03-01T00:00:00Z', '2026-04-01T00:00:00Z')).toHaveLength(0)
+  })
+
+  it('excludes issues closed after thisPublishedAt', () => {
+    const candidates = [closedIssue('2026-05-01T00:00:00Z')]
+    expect(issuesInWindow(candidates, '2026-03-01T00:00:00Z', '2026-04-01T00:00:00Z')).toHaveLength(0)
+  })
+
+  it('thisPublishedAt boundary is inclusive', () => {
+    const candidates = [closedIssue('2026-04-01T00:00:00Z')]
+    expect(issuesInWindow(candidates, '2026-03-01T00:00:00Z', '2026-04-01T00:00:00Z')).toHaveLength(1)
+  })
+
+  it('prevPublishedAt boundary is exclusive', () => {
+    const candidates = [closedIssue('2026-03-01T00:00:00Z')]
+    expect(issuesInWindow(candidates, '2026-03-01T00:00:00Z', '2026-04-01T00:00:00Z')).toHaveLength(0)
+  })
+
+  it('null prevPublishedAt matches all issues up to thisPublishedAt', () => {
+    const candidates = [
+      closedIssue('2020-01-01T00:00:00Z'),
+      closedIssue('2026-03-15T00:00:00Z'),
+    ]
+    expect(issuesInWindow(candidates, null, '2026-04-01T00:00:00Z')).toHaveLength(2)
+  })
+
+  it('excludes issues with null closed_at', () => {
+    const open: GHIssue = { ...createMockIssue([]), closed_at: null, state: 'open' }
+    expect(issuesInWindow([open], null, '2026-04-01T00:00:00Z')).toHaveLength(0)
   })
 })
 

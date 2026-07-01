@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import {
   ExternalLink,
@@ -62,6 +62,28 @@ async function fetchIssues(state: 'open' | 'closed'): Promise<GHIssue[]> {
 export function parseIssueRefs(body: string): number[] {
   const matches = body.match(/#(\d+)/g) ?? []
   return [...new Set(matches.map(m => parseInt(m.slice(1), 10)))]
+}
+
+export function issuesInWindow(
+  candidates: GHIssue[],
+  prevPublishedAt: string | null,
+  thisPublishedAt: string
+): GHIssue[] {
+  const prevDate = prevPublishedAt ? new Date(prevPublishedAt) : new Date(0)
+  const thisDate = new Date(thisPublishedAt)
+  return candidates.filter(
+    i => i.closed_at && new Date(i.closed_at) > prevDate && new Date(i.closed_at) <= thisDate
+  )
+}
+
+async function fetchClosedByLabel(label: string): Promise<GHIssue[]> {
+  const res = await fetch(
+    `${GITHUB_API}/issues?state=closed&labels=${encodeURIComponent(label)}&per_page=100`,
+    { headers: { Accept: 'application/vnd.github.v3+json' } }
+  )
+  if (res.status === 403) throw new Error('GitHub API rate limited — try again in a minute.')
+  if (!res.ok) throw new Error('Failed to fetch issues from GitHub.')
+  return res.json()
 }
 
 async function fetchReleases(): Promise<GHRelease[]> {
@@ -255,11 +277,17 @@ function IssueCard({ issue, shipped = false }: { issue: GHIssue; shipped?: boole
   )
 }
 
+const LINKED_ISSUE_LIMIT = 3
+
 function ReleaseCard({ release, linkedIssues, contributors = [] }: {
   release: GHRelease
   linkedIssues: GHIssue[]
   contributors?: GHUser[]
 }) {
+  const [expanded, setExpanded] = useState(false)
+  const shown = expanded ? linkedIssues : linkedIssues.slice(0, LINKED_ISSUE_LIMIT)
+  const overflow = linkedIssues.length - LINKED_ISSUE_LIMIT
+
   return (
     <a
       href={release.html_url}
@@ -271,7 +299,9 @@ function ReleaseCard({ release, linkedIssues, contributors = [] }: {
         <span className="text-[11px] font-mono text-emerald-400/70 shrink-0">{release.tag_name}</span>
         <ExternalLink size={12} className="text-white/20 group-hover:text-white/50 transition-colors shrink-0" />
       </div>
-      <p className="text-sm text-white/80 leading-snug line-clamp-2">{release.name || release.tag_name}</p>
+      {release.name && release.name !== release.tag_name && (
+        <p className="text-sm text-white/80 leading-snug">{release.name}</p>
+      )}
       <div className="flex items-center justify-between gap-2">
         <span className="text-[11px] text-white/25">{shortDate(release.published_at)}</span>
         {contributors.length > 0 && (
@@ -284,7 +314,7 @@ function ReleaseCard({ release, linkedIssues, contributors = [] }: {
       </div>
       {linkedIssues.length > 0 && (
         <div className="mt-1 flex flex-col gap-1 border-t border-white/6 pt-2">
-          {linkedIssues.map(i => (
+          {shown.map(i => (
             <a
               key={i.id}
               href={i.html_url}
@@ -298,6 +328,15 @@ function ReleaseCard({ release, linkedIssues, contributors = [] }: {
               <span className="truncate">{i.title}</span>
             </a>
           ))}
+          {!expanded && overflow > 0 && (
+            <button
+              type="button"
+              className="text-left text-[11px] text-white/30 hover:text-white/60 transition-colors mt-0.5"
+              onClick={e => { e.preventDefault(); e.stopPropagation(); setExpanded(true) }}
+            >
+              +{overflow} more
+            </button>
+          )}
         </div>
       )}
     </a>
@@ -317,15 +356,20 @@ function ReleaseCardWithContributors({ release, prevTag, linkedIssues }: {
   return <ReleaseCard release={release} linkedIssues={linkedIssues} contributors={contributors ?? []} />
 }
 
-function ShippedColumn({ releases, issueMap }: { releases: GHRelease[]; issueMap: Map<number, GHIssue> }) {
+function ShippedColumn({ releases, notableClosedIssues }: { releases: GHRelease[]; notableClosedIssues: GHIssue[] }) {
   const quarterKeys = sortedQuarterKeys(releases)
 
-  const oldestFirst = [...releases].sort(
-    (a, b) => new Date(a.published_at).getTime() - new Date(b.published_at).getTime()
+  const oldestFirst = useMemo(
+    () => [...releases].sort((a, b) => new Date(a.published_at).getTime() - new Date(b.published_at).getTime()),
+    [releases]
   )
-  const prevTagMap = new Map<string, string | null>(
-    oldestFirst.map((r, idx) => [r.tag_name, idx === 0 ? null : oldestFirst[idx - 1].tag_name])
+  const prevTagMap = useMemo(
+    () => new Map<string, string | null>(
+      oldestFirst.map((r, idx) => [r.tag_name, idx === 0 ? null : oldestFirst[idx - 1].tag_name])
+    ),
+    [oldestFirst]
   )
+  const releaseByTag = useMemo(() => new Map(releases.map(r => [r.tag_name, r])), [releases])
 
   return (
     <div className="flex flex-col gap-3 flex-1 min-w-64">
@@ -355,10 +399,9 @@ function ShippedColumn({ releases, issueMap }: { releases: GHRelease[]; issueMap
               </div>
               <div className="flex flex-col gap-2">
                 {items.map(r => {
-                  const refs = parseIssueRefs(r.body ?? '')
-                  const linked = refs
-                    .map(n => issueMap.get(n))
-                    .filter((i): i is GHIssue => !!i && i.labels.some(l => l.name === 'scope: epic'))
+                  const prevTag = prevTagMap.get(r.tag_name) ?? null
+                  const prevPublishedAt = prevTag ? (releaseByTag.get(prevTag)?.published_at ?? null) : null
+                  const linked = issuesInWindow(notableClosedIssues, prevPublishedAt, r.published_at)
                   return (
                     <ReleaseCardWithContributors
                       key={r.id}
@@ -420,11 +463,22 @@ export function Roadmap() {
     staleTime: 5 * 60 * 1000,
   })
 
+  const closedEpics = useQuery<GHIssue[], Error>({
+    queryKey: ['github-issues', 'closed', 'scope: epic'],
+    queryFn: () => fetchClosedByLabel('scope: epic'),
+    staleTime: 5 * 60 * 1000,
+  })
+
   const releases = useQuery<GHRelease[], Error>({
     queryKey: ['github-releases'],
     queryFn: fetchReleases,
     staleTime: 5 * 60 * 1000,
   })
+
+  const notableClosedIssues = useMemo(
+    () => (closedEpics.data ?? []).filter(i => !i.pull_request && i.closed_at),
+    [closedEpics.data]
+  )
 
   const [viewMode, setViewMode] = useState<'kanban' | 'swimlanes'>(() => {
     return (localStorage.getItem('purser:roadmap:viewMode') as 'kanban' | 'swimlanes') || 'swimlanes'
@@ -441,17 +495,14 @@ export function Roadmap() {
     openIssues.some(i => getIssueArea(i) === area.id)
   )
 
-  const issueMap = new Map<number, GHIssue>(
-    [...(open.data ?? []), ...(closed.data ?? [])].map(i => [i.number, i])
-  )
-
   const isLoading = open.isLoading || closed.isLoading
-  const error = open.error?.message ?? closed.error?.message ?? releases.error?.message
+  const error = open.error?.message ?? closed.error?.message ?? releases.error?.message ?? closedEpics.error?.message
 
   function refetch() {
     open.refetch()
     closed.refetch()
     releases.refetch()
+    closedEpics.refetch()
   }
 
   return (
@@ -626,7 +677,7 @@ export function Roadmap() {
         </div>
 
         {releases.data && releases.data.length > 0 && (
-          <ShippedColumn releases={releases.data} issueMap={issueMap} />
+          <ShippedColumn releases={releases.data} notableClosedIssues={notableClosedIssues} />
         )}
       </div>
     </div>
