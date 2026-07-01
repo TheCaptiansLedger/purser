@@ -1,4 +1,5 @@
-import { useCacheStats } from '../../api/cache'
+import { Trash2 } from 'lucide-react'
+import { useCacheStats, useFlushCache } from '../../api/cache'
 import type { CacheStats } from '../../api/cache'
 
 function hitRate(s: CacheStats): number {
@@ -12,7 +13,15 @@ function rateColor(pct: number): string {
   return '#ef4444'
 }
 
+function formatBytes(b: number): string {
+  if (b === 0) return '0 B'
+  if (b < 1024) return `${b} B`
+  if (b < 1024 * 1024) return `${(b / 1024).toFixed(1)} KB`
+  return `${(b / (1024 * 1024)).toFixed(1)} MB`
+}
+
 function CacheCard({ stat }: { stat: CacheStats }) {
+  const { mutate: flush, isPending } = useFlushCache()
   const pct = hitRate(stat)
   const color = rateColor(pct)
   const total = stat.hits + stat.misses
@@ -21,12 +30,23 @@ function CacheCard({ stat }: { stat: CacheStats }) {
     <div className="rounded-xl border border-white/5 bg-white/2 px-5 py-4 flex flex-col gap-4">
       <div className="flex items-center justify-between">
         <span className="text-sm font-semibold text-white/85 font-mono">{stat.name}</span>
-        <span
-          className="text-xs font-bold px-2 py-0.5 rounded-full font-mono"
-          style={{ background: `${color}18`, color }}
-        >
-          {pct}% hit rate
-        </span>
+        <div className="flex items-center gap-2">
+          <span
+            className="text-xs font-bold px-2 py-0.5 rounded-full font-mono"
+            style={{ background: `${color}18`, color }}
+          >
+            {pct}% hit rate
+          </span>
+          <button
+            onClick={() => flush(stat.name)}
+            disabled={isPending || stat.size === 0}
+            title="Flush cache"
+            className="flex items-center gap-1 text-[11px] text-white/30 hover:text-red-400 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+          >
+            <Trash2 size={12} />
+            flush
+          </button>
+        </div>
       </div>
 
       <div className="w-full h-1.5 rounded-full bg-white/5 overflow-hidden">
@@ -36,7 +56,7 @@ function CacheCard({ stat }: { stat: CacheStats }) {
         />
       </div>
 
-      <div className="grid grid-cols-3 gap-3">
+      <div className="grid grid-cols-4 gap-3">
         <div className="flex flex-col gap-0.5">
           <span className="text-[10px] font-semibold uppercase tracking-widest text-white/25">Hits</span>
           <span className="text-sm font-mono text-emerald-400">{stat.hits.toLocaleString()}</span>
@@ -46,8 +66,12 @@ function CacheCard({ stat }: { stat: CacheStats }) {
           <span className="text-sm font-mono text-white/50">{stat.misses.toLocaleString()}</span>
         </div>
         <div className="flex flex-col gap-0.5">
-          <span className="text-[10px] font-semibold uppercase tracking-widest text-white/25">Size</span>
+          <span className="text-[10px] font-semibold uppercase tracking-widest text-white/25">Entries</span>
           <span className="text-sm font-mono text-white/50">{stat.size.toLocaleString()}</span>
+        </div>
+        <div className="flex flex-col gap-0.5">
+          <span className="text-[10px] font-semibold uppercase tracking-widest text-white/25">Memory</span>
+          <span className="text-sm font-mono text-white/50">{formatBytes(stat.bytes)}</span>
         </div>
       </div>
 
@@ -68,8 +92,8 @@ function SkeletonCard() {
         <div className="h-5 w-20 bg-white/5 rounded-full animate-pulse" />
       </div>
       <div className="h-1.5 w-full bg-white/5 rounded-full animate-pulse" />
-      <div className="grid grid-cols-3 gap-3">
-        {[0, 1, 2].map(i => (
+      <div className="grid grid-cols-4 gap-3">
+        {[0, 1, 2, 3].map(i => (
           <div key={i} className="flex flex-col gap-1">
             <div className="h-2.5 w-10 bg-white/5 rounded animate-pulse" />
             <div className="h-4 w-14 bg-white/5 rounded animate-pulse" />

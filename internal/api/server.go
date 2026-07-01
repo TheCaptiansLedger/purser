@@ -158,7 +158,7 @@ func (s *Server) mount(
 		r.Route("/roadmap", roadmapH.routes)
 
 		cacheH := &cacheHandler{caches: caches}
-		r.Get("/cache/stats", cacheH.stats)
+		r.Route("/cache", cacheH.routes)
 	})
 
 	// Serve the embedded web UI for all non-API paths.
