@@ -8,7 +8,7 @@ import (
 
 func newCache(t *testing.T) *cache.Cache {
 	t.Helper()
-	c, err := cache.New(128)
+	c, err := cache.New("test", 128)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -44,7 +44,7 @@ func TestCache_ExpiredEntryMisses(t *testing.T) {
 }
 
 func TestCache_LRUEviction(t *testing.T) {
-	c, err := cache.New(2)
+	c, err := cache.New("test", 2)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -76,6 +76,16 @@ func TestCache_Stats(t *testing.T) {
 	}
 	if s.Size != 1 {
 		t.Errorf("Size = %d, want 1", s.Size)
+	}
+}
+
+func TestCache_StatsIncludesName(t *testing.T) {
+	c, err := cache.New("my-cache", 128)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if s := c.Stats(); s.Name != "my-cache" {
+		t.Errorf("Stats.Name = %q, want %q", s.Name, "my-cache")
 	}
 }
 

@@ -56,6 +56,7 @@ import { SettingsLayout } from './pages/settings/SettingsLayout'
 import { SettingsPage } from './pages/settings/SettingsPage'
 import { DatabasePage } from './pages/settings/DatabasePage'
 import { JobsPanel } from './pages/settings/JobsPanel'
+import { CacheStatsPage } from './pages/settings/CacheStatsPage'
 import { SetupPage } from './pages/setup/SetupPage'
 import { SetupGuard } from './pages/setup/SetupGuard'
 
@@ -141,6 +142,7 @@ function AppRoutes() {
           <Route path="config" element={<SettingsPage />} />
           <Route path="database" element={<DatabasePage />} />
           <Route path="jobs" element={<JobsPanel />} />
+          <Route path="cache" element={<CacheStatsPage />} />
         </Route>
 
         <Route path="*" element={<Navigate to="/" replace />} />

@@ -89,20 +89,24 @@ func run(cfgPath string) error {
 	jobQueue := jobsadapter.New(cfg.Server.Workers)
 	defer jobQueue.Close()
 
-	appCache, err := cache.New(512)
+	githubCache, err := cache.New("github", 256)
 	if err != nil {
-		return fmt.Errorf("create cache: %w", err)
+		return fmt.Errorf("create github cache: %w", err)
+	}
+	metadataCache, err := cache.New("metadata", 1024)
+	if err != nil {
+		return fmt.Errorf("create metadata cache: %w", err)
 	}
 
 	libSvc := library.New(entryRepo, groupRepo, itemRepo, personRepo, tagRepo)
 	peopleSvc := people.New(personRepo)
-	sources := buildSources(cfg, appCache)
+	sources := buildSources(cfg, metadataCache)
 	imgDownloader := fsadapter.NewImageDownloader(cfg.Media.Path)
 	metaSvc := metadata.New(sources, jobQueue, entryRepo, groupRepo, itemRepo, personRepo, tagRepo, extIDRepo, imgDownloader)
 	ghAdapter := githubadapter.New(githubadapter.Config{
 		Repo:  cfg.GitHub.Repo,
 		Token: cfg.GitHub.Token,
-	}, appCache)
+	}, githubCache)
 
 	uiFS, err := fs.Sub(web.Dist, "dist")
 	if err != nil {
@@ -117,7 +121,7 @@ func run(cfgPath string) error {
 		shutdown()
 	}()
 
-	srv := api.New(cfg.Server.Port, cfg.Media.Path, cfg, database, libSvc, peopleSvc, metaSvc, tagRepo, jobQueue, cfgSvc, sources, uiFS, imgDownloader, ghAdapter, appCache, shutdown)
+	srv := api.New(cfg.Server.Port, cfg.Media.Path, cfg, database, libSvc, peopleSvc, metaSvc, tagRepo, jobQueue, cfgSvc, sources, uiFS, imgDownloader, ghAdapter, []*cache.Cache{githubCache, metadataCache}, shutdown)
 
 	go func() {
 		slog.Info("listening", "port", cfg.Server.Port)

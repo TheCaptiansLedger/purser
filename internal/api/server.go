@@ -40,13 +40,13 @@ func New(
 	uiFS fs.FS,
 	imgDownloader ports.ImageDownloader,
 	gh ports.GitHubProxy,
-	appCache *cache.Cache,
+	caches []*cache.Cache,
 	shutdownFn func(),
 ) *Server {
 	s := &Server{
 		router: chi.NewRouter(),
 	}
-	s.mount(mediaPath, cfg, db, libSvc, peopleSvc, metaSvc, tagRepo, jobQueue, cfgSvc, sources, uiFS, imgDownloader, gh, appCache, shutdownFn)
+	s.mount(mediaPath, cfg, db, libSvc, peopleSvc, metaSvc, tagRepo, jobQueue, cfgSvc, sources, uiFS, imgDownloader, gh, caches, shutdownFn)
 	s.httpServer = &http.Server{
 		Addr:         fmt.Sprintf(":%d", port),
 		Handler:      s.router,
@@ -71,7 +71,7 @@ func (s *Server) mount(
 	uiFS fs.FS,
 	imgDownloader ports.ImageDownloader,
 	gh ports.GitHubProxy,
-	appCache *cache.Cache,
+	caches []*cache.Cache,
 	shutdownFn func(),
 ) {
 	r := s.router
@@ -157,7 +157,7 @@ func (s *Server) mount(
 		roadmapH := &roadmapHandler{gh: gh}
 		r.Route("/roadmap", roadmapH.routes)
 
-		cacheH := &cacheHandler{c: appCache}
+		cacheH := &cacheHandler{caches: caches}
 		r.Get("/cache/stats", cacheH.stats)
 	})
 

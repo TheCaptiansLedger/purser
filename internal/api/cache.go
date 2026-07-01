@@ -6,9 +6,17 @@ import (
 )
 
 type cacheHandler struct {
-	c *cache.Cache
+	caches []*cache.Cache
+}
+
+type cacheStatsResponse struct {
+	Caches []cache.Stats `json:"caches"`
 }
 
 func (h *cacheHandler) stats(w http.ResponseWriter, _ *http.Request) {
-	writeJSON(w, http.StatusOK, h.c.Stats())
+	stats := make([]cache.Stats, len(h.caches))
+	for i, c := range h.caches {
+		stats[i] = c.Stats()
+	}
+	writeJSON(w, http.StatusOK, cacheStatsResponse{Caches: stats})
 }

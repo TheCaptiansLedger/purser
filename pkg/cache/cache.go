@@ -14,25 +14,27 @@ type entry struct {
 
 // Cache is a thread-safe in-memory store with per-entry TTL and LRU eviction.
 type Cache struct {
+	name   string
 	lru    *lru.Cache[string, entry]
 	hits   atomic.Int64
 	misses atomic.Int64
 }
 
-// Stats holds diagnostic counters for a Cache.
+// Stats holds diagnostic counters for a single named Cache.
 type Stats struct {
-	Hits   int64 `json:"hits"`
-	Misses int64 `json:"misses"`
-	Size   int   `json:"size"`
+	Name   string `json:"name"`
+	Hits   int64  `json:"hits"`
+	Misses int64  `json:"misses"`
+	Size   int    `json:"size"`
 }
 
-// New creates a Cache that holds at most maxSize live entries.
-func New(maxSize int) (*Cache, error) {
+// New creates a named Cache that holds at most maxSize live entries.
+func New(name string, maxSize int) (*Cache, error) {
 	l, err := lru.New[string, entry](maxSize)
 	if err != nil {
 		return nil, err
 	}
-	return &Cache{lru: l}, nil
+	return &Cache{name: name, lru: l}, nil
 }
 
 // Get returns the cached bytes for key. Returns false if the entry is absent or expired.
@@ -54,9 +56,10 @@ func (c *Cache) Set(key string, value []byte, ttl time.Duration) {
 	c.lru.Add(key, entry{value: value, expiresAt: time.Now().UTC().Add(ttl)})
 }
 
-// Stats returns a snapshot of hit/miss counters and the current entry count.
+// Stats returns a snapshot of the cache name, hit/miss counters, and current entry count.
 func (c *Cache) Stats() Stats {
 	return Stats{
+		Name:   c.name,
 		Hits:   c.hits.Load(),
 		Misses: c.misses.Load(),
 		Size:   c.lru.Len(),

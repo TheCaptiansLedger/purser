@@ -18,7 +18,7 @@ const (
 
 func newTestCache(t *testing.T) *cache.Cache {
 	t.Helper()
-	c, err := cache.New(128)
+	c, err := cache.New("test", 128)
 	if err != nil {
 		t.Fatal(err)
 	}
