@@ -126,6 +126,10 @@ func (m *mockPersonRepo) Save(_ context.Context, p *domain.Person) error {
 	return nil
 }
 
+func (m *mockPersonRepo) ListRoles(_ context.Context) ([]domain.PersonRoleCount, error) {
+	return nil, nil
+}
+
 func (m *mockPersonRepo) Delete(_ context.Context, id string) error {
 	delete(m.data, id)
 	return nil

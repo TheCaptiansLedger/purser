@@ -43,6 +43,20 @@ func (m *mockPersonRepo) Save(_ context.Context, p *domain.Person) error {
 	return nil
 }
 
+func (m *mockPersonRepo) ListRoles(_ context.Context) ([]domain.PersonRoleCount, error) {
+	counts := map[domain.PersonRole]int{}
+	for _, p := range m.data {
+		for _, role := range p.Roles {
+			counts[role]++
+		}
+	}
+	out := make([]domain.PersonRoleCount, 0, len(counts))
+	for role, count := range counts {
+		out = append(out, domain.PersonRoleCount{Role: role, Count: count})
+	}
+	return out, nil
+}
+
 func (m *mockPersonRepo) Delete(_ context.Context, id string) error {
 	delete(m.data, id)
 	return nil
@@ -107,6 +121,41 @@ func TestSavePerson_EmptyName(t *testing.T) {
 	err := svc.SavePerson(context.Background(), &domain.Person{ID: "p1"})
 	if err == nil || !errs.IsValidation(err) {
 		t.Errorf("expected ValidationError for empty name, got %v", err)
+	}
+}
+
+func TestListPeopleRoles(t *testing.T) {
+	repo := newMockPersonRepo()
+	svc := people.New(repo)
+	ctx := context.Background()
+
+	for _, tc := range []struct {
+		name  string
+		roles []domain.PersonRole
+	}{
+		{"Alice", []domain.PersonRole{domain.RolePerformer}},
+		{"Bob", []domain.PersonRole{domain.RoleDirector}},
+		{"Carol", []domain.PersonRole{domain.RolePerformer}},
+	} {
+		svc.CreatePerson(ctx, &domain.Person{Name: tc.name, Roles: tc.roles}) //nolint:errcheck
+	}
+
+	roles, err := svc.ListPeopleRoles(ctx)
+	if err != nil {
+		t.Fatalf("ListPeopleRoles: %v", err)
+	}
+	if len(roles) != 2 {
+		t.Errorf("len(roles) = %d, want 2", len(roles))
+	}
+	counts := map[domain.PersonRole]int{}
+	for _, rc := range roles {
+		counts[rc.Role] = rc.Count
+	}
+	if counts[domain.RolePerformer] != 2 {
+		t.Errorf("performer count = %d, want 2", counts[domain.RolePerformer])
+	}
+	if counts[domain.RoleDirector] != 1 {
+		t.Errorf("director count = %d, want 1", counts[domain.RoleDirector])
 	}
 }
 

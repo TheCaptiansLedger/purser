@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
 import { get, getPage, patch, post } from './client'
-import type { MonitorMode, Person, PersonRole } from '../types'
+import type { MonitorMode, Person, PersonRole, PersonRoleCount } from '../types'
 
 interface PeopleFilter {
   search?: string
@@ -15,6 +15,13 @@ export function usePeople(filter: PeopleFilter = {}) {
   return useQuery({
     queryKey: ['people', filter],
     queryFn: () => getPage<Person>('/people', filter as Record<string, string | number | boolean | undefined>),
+  })
+}
+
+export function usePeopleRoles() {
+  return useQuery({
+    queryKey: ['people', 'roles'],
+    queryFn: () => get<PersonRoleCount[]>('/people/roles'),
   })
 }
 

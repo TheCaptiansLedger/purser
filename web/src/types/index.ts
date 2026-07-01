@@ -36,6 +36,11 @@ export type EntryStatus = 'continuing' | 'ended' | 'active'
 export type ItemStatus = 'wanted' | 'grabbed' | 'downloading' | 'imported' | 'missing' | 'skipped'
 export type PersonRole = 'performer' | 'actress' | 'director' | 'actor' | 'artist' | 'producer' | 'author'
 
+export interface PersonRoleCount {
+  role: PersonRole
+  count: number
+}
+
 export interface ContentTypeConfig {
   contentType: ContentType
   personRoles: string[]

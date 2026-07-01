@@ -180,6 +180,27 @@ func (r *personRepo) List(ctx context.Context, f ports.PersonFilter) ([]*domain.
 	return people, total, nil
 }
 
+func (r *personRepo) ListRoles(ctx context.Context) ([]domain.PersonRoleCount, error) {
+	rows, err := r.db.QueryContext(ctx,
+		`SELECT role, COUNT(DISTINCT person_id) FROM person_roles GROUP BY role ORDER BY role`)
+	if err != nil {
+		return nil, fmt.Errorf("list person roles: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+
+	var out []domain.PersonRoleCount
+	for rows.Next() {
+		var rc domain.PersonRoleCount
+		var role string
+		if err := rows.Scan(&role, &rc.Count); err != nil {
+			return nil, fmt.Errorf("scan role count: %w", err)
+		}
+		rc.Role = domain.PersonRole(role)
+		out = append(out, rc)
+	}
+	return out, rows.Err()
+}
+
 func (r *personRepo) Save(ctx context.Context, p *domain.Person) error {
 	if p.ID == "" {
 		p.ID = newID()

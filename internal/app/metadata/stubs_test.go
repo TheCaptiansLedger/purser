@@ -121,6 +121,10 @@ func (r *stubPersonRepo) Save(_ context.Context, p *domain.Person) error {
 	return nil
 }
 
+func (r *stubPersonRepo) ListRoles(_ context.Context) ([]domain.PersonRoleCount, error) {
+	return nil, nil
+}
+
 func (r *stubPersonRepo) Delete(_ context.Context, _ string) error { return nil }
 
 // ── Tag repo stub ─────────────────────────────────────────────────────────────

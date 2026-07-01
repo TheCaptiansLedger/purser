@@ -1213,12 +1213,17 @@ func (s *Service) resolveOrCreatePerson(ctx context.Context, ep *domain.External
 		imagePath = s.downloader.Download(ctx, ep.ImageURL, "people", personID)
 	}
 
+	var personRoles []domain.PersonRole
+	if ep.Role != "" {
+		personRoles = []domain.PersonRole{ep.Role}
+	}
 	person := &domain.Person{
 		ID:          personID,
 		Name:        ep.Name,
 		SortName:    ep.Name,
 		Overview:    ep.Overview,
 		Aliases:     ep.Aliases,
+		Roles:       personRoles,
 		Monitored:   false,
 		MonitorMode: domain.MonitorNone,
 		ImagePath:   imagePath,

@@ -35,6 +35,12 @@ type Person struct {
 	AddedAt      time.Time
 }
 
+// PersonRoleCount is the count of distinct people carrying a given role.
+type PersonRoleCount struct {
+	Role  PersonRole
+	Count int
+}
+
 // ItemPerson links a Person to a specific Item with their credited role.
 type ItemPerson struct {
 	PersonID string

@@ -4,7 +4,7 @@ import type { LucideIcon } from 'lucide-react'
 export type ChipTab<T extends string> = {
   id: T
   label: string
-  icon: LucideIcon
+  icon?: LucideIcon
 }
 
 export function chipTabClassName(active: boolean): string {
@@ -37,7 +37,7 @@ export function ChipTabs<T extends string>({ tabs, value, onChange, accent, righ
             className={chipTabClassName(value === id)}
             style={chipTabStyle(value === id, accent)}
           >
-            <Icon size={13} />
+            {Icon && <Icon size={13} />}
             {label}
           </button>
         ))}

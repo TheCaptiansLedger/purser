@@ -86,6 +86,7 @@ type PersonFilter struct {
 type PersonRepository interface {
 	Get(ctx context.Context, id string) (*domain.Person, error)
 	List(ctx context.Context, f PersonFilter) ([]*domain.Person, int, error)
+	ListRoles(ctx context.Context) ([]domain.PersonRoleCount, error)
 	Save(ctx context.Context, p *domain.Person) error
 	Delete(ctx context.Context, id string) error
 }

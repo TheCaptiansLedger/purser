@@ -439,6 +439,38 @@ func TestRefreshStudio_ImportsPerformers(t *testing.T) {
 	}
 }
 
+func TestRefreshStudio_PersonRecordCarriesRole(t *testing.T) {
+	entryRepo := newStubEntryRepo()
+	personRepo := &stubPersonRepo{}
+	entry := studioEntry(domain.MonitorAll, time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC))
+	entryRepo.data[entry.ID] = entry
+
+	scenes := []*domain.ExternalItem{{
+		Source:     domain.SourceStashDB,
+		ExternalID: "scene-1",
+		Title:      "Scene",
+		Date:       time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC),
+		People: []*domain.ExternalPerson{
+			{Source: domain.SourceStashDB, ExternalID: "perf-1", Name: "Alice", Role: domain.RolePerformer},
+		},
+	}}
+
+	src := &stubSource{scenes: scenes, total: 1}
+	svc := metadata.New([]ports.MetadataSource{src}, nil, entryRepo, nil, &stubItemRepo{}, personRepo, &stubTagRepo{}, &stubExternalIDRepo{}, nil)
+
+	if err := svc.RefreshStudio(context.Background(), entry.ID, nil); err != nil {
+		t.Fatalf("RefreshStudio: %v", err)
+	}
+
+	if len(personRepo.saved) != 1 {
+		t.Fatalf("person records saved = %d, want 1", len(personRepo.saved))
+	}
+	p := personRepo.saved[0]
+	if len(p.Roles) != 1 || p.Roles[0] != domain.RolePerformer {
+		t.Errorf("person.Roles = %v, want [performer]", p.Roles)
+	}
+}
+
 func TestRefreshStudio_ImportsTags(t *testing.T) {
 	entryRepo := newStubEntryRepo()
 	itemRepo := &stubItemRepo{}

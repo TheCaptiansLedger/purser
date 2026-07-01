@@ -23,6 +23,15 @@ describe('chipTabClassName', () => {
   })
 })
 
+describe('ChipTab icon field', () => {
+  it('icon is optional — tab without icon is a valid ChipTab', () => {
+    const tab = { id: 'all', label: 'All' }
+    expect(tab.id).toBe('all')
+    expect(tab.label).toBe('All')
+    expect('icon' in tab).toBe(false)
+  })
+})
+
 describe('chipTabStyle', () => {
   it('active tab gets accent background and color', () => {
     const style = chipTabStyle(true, '#f43f5e')

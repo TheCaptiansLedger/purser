@@ -47,6 +47,11 @@ func (s *Service) ListPeople(ctx context.Context, f ports.PersonFilter) ([]*doma
 	return s.people.List(ctx, f)
 }
 
+// ListPeopleRoles returns each role present in the library along with its person count.
+func (s *Service) ListPeopleRoles(ctx context.Context) ([]domain.PersonRoleCount, error) {
+	return s.people.ListRoles(ctx)
+}
+
 // SavePerson persists changes to an existing person record.
 func (s *Service) SavePerson(ctx context.Context, p *domain.Person) error {
 	if p.Name == "" {

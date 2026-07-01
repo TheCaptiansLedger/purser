@@ -17,6 +17,7 @@ type peopleHandler struct {
 func (h *peopleHandler) routes(r chi.Router) {
 	r.Get("/", h.list)
 	r.Post("/", h.create)
+	r.Get("/roles", h.listRoles)
 	r.Get("/{id}", h.get)
 	r.Patch("/{id}", h.update)
 	r.Delete("/{id}", h.delete)
@@ -75,6 +76,23 @@ func toPersonResponse(p *domain.Person) *personResponse {
 }
 
 // ── Handlers ──────────────────────────────────────────────────────────────────
+
+type personRoleCountResponse struct {
+	Role  string `json:"role"`
+	Count int    `json:"count"`
+}
+
+func (h *peopleHandler) listRoles(w http.ResponseWriter, r *http.Request) {
+	counts, err := h.svc.ListPeopleRoles(r.Context())
+	if handleErr(w, err) {
+		return
+	}
+	resp := make([]personRoleCountResponse, len(counts))
+	for i, rc := range counts {
+		resp[i] = personRoleCountResponse{Role: string(rc.Role), Count: rc.Count}
+	}
+	writeJSON(w, http.StatusOK, resp)
+}
 
 func (h *peopleHandler) list(w http.ResponseWriter, r *http.Request) {
 	limit, offset := paginate(r)
