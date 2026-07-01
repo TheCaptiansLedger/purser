@@ -136,6 +136,18 @@ jobs:
           GIT_COMMITTER_NAME: TheCaptiansLedger
           GIT_COMMITTER_EMAIL: cold.harp5900@fastmail.com
 
+      - name: Apply release codename
+        if: steps.semantic.outputs.new_release_published == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          minor=$(echo "${{ steps.semantic.outputs.new_release_version }}" | cut -d. -f2)
+          idx=$((minor - 8))
+          name=$(sed -n "$((idx + 1))p" .github/release-names.txt)
+          if [ -n "$name" ]; then
+            gh release edit "${{ steps.semantic.outputs.new_release_git_tag }}" --title "$name"
+          fi
+
   container:
     name: Build and Push Container
     runs-on: ubuntu-latest
