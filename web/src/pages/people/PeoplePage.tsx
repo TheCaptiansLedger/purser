@@ -87,7 +87,7 @@ export function PeoplePage() {
           <EmptyState icon={Users} title="No people yet" description="People appear here when they are linked to items in your library." accent={ACCENT} />
         ) : (
           <>
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-8 gap-4">
               {data.data.map(p => (
                 <PersonCard key={p.id} person={p} href={`/people/${p.id}`} accent={ACCENT} />
               ))}

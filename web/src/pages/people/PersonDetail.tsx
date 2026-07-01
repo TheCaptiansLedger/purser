@@ -49,9 +49,9 @@ export function PersonDetail() {
   const entriesByType = groupBy(linkedEntries, e => e.contentType)
 
   return (
-    <div className="flex min-h-screen">
+    <div className="flex flex-col lg:flex-row min-h-screen">
       {/* Left panel */}
-      <aside className="w-72 shrink-0 sticky top-0 h-screen overflow-y-auto flex flex-col border-r border-white/5">
+      <aside className="w-full lg:w-72 lg:shrink-0 lg:sticky lg:top-0 lg:h-screen overflow-y-auto flex flex-col border-b lg:border-b-0 lg:border-r border-white/5">
         <div className="relative" style={{ aspectRatio: '2/3' }}>
           {versionedImageUrl ? (
             <button
@@ -131,7 +131,7 @@ export function PersonDetail() {
               <h2 className="text-xs font-semibold text-white/35 uppercase tracking-widest mb-4">
                 {contentTypeConfig[ct as ContentType]?.entrySectionLabel ?? ct}
               </h2>
-              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-4">
                 {entries.map(entry => (
                   <EntryCard
                     key={entry.id}
@@ -153,7 +153,7 @@ export function PersonDetail() {
               <h2 className="text-xs font-semibold text-white/35 uppercase tracking-widest mb-4">
                 {contentTypeConfig[ct as ContentType]?.itemSectionLabel ?? ct}
               </h2>
-              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-4">
                 {ctItems.map(item => (
                   <ItemCard
                     key={item.id}

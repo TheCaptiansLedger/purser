@@ -13,9 +13,10 @@ const BOTTOM_NAV = [
 interface SidebarProps {
   collapsed: boolean
   onCollapsedChange: (collapsed: boolean) => void
+  mobileOpen?: boolean
 }
 
-export function Sidebar({ collapsed, onCollapsedChange }: SidebarProps) {
+export function Sidebar({ collapsed, onCollapsedChange, mobileOpen }: SidebarProps) {
   const location = useLocation()
   const modules = useModules()
 
@@ -35,6 +36,7 @@ export function Sidebar({ collapsed, onCollapsedChange }: SidebarProps) {
         'bg-[#05050c] border-r border-white/5',
         'transition-all duration-300 ease-in-out',
         collapsed ? 'w-16' : 'w-60',
+        mobileOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0',
       ].join(' ')}
     >
       {/* Logo */}
@@ -157,10 +159,10 @@ export function Sidebar({ collapsed, onCollapsedChange }: SidebarProps) {
         ))}
       </nav>
 
-      {/* Collapse toggle */}
+      {/* Collapse toggle — hidden on mobile where the backdrop handles closing */}
       <button
         onClick={() => onCollapsedChange(!collapsed)}
-        className="flex items-center justify-center h-10 mx-2 mb-3 rounded-lg text-white/30 hover:text-white/60 hover:bg-white/5 transition-all duration-150"
+        className="hidden md:flex items-center justify-center h-10 mx-2 mb-3 rounded-lg text-white/30 hover:text-white/60 hover:bg-white/5 transition-all duration-150"
         aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
       >
         {collapsed ? <ChevronRight size={16} /> : <ChevronLeft size={16} />}

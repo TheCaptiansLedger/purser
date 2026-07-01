@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
-import { ArrowLeft, ImageIcon, ChevronLeft, ChevronRight, Disc3, Users, ArrowUpNarrowWide, ArrowDownNarrowWide, RefreshCw, Plus } from 'lucide-react'
+import { ArrowLeft, ImageIcon, Disc3, Users, ArrowUpNarrowWide, ArrowDownNarrowWide, RefreshCw, Plus } from 'lucide-react'
 import { ChipTabs } from '../../components/ui/ChipTabs'
 import type { ChipTab } from '../../components/ui/ChipTabs'
 import { useLibraryEntry } from '../../api/library'
@@ -20,8 +20,6 @@ import { Skeleton } from '../../components/ui/Skeleton'
 import type { Group } from '../../types'
 
 const ACCENT = '#10b981'
-const PAGE_SIZE = 6
-
 type ArtistTab = 'discography' | 'members'
 
 const ARTIST_TABS: ChipTab<ArtistTab>[] = [
@@ -49,7 +47,7 @@ function albumSectionToken(album: Group): string {
   return 'studio'
 }
 
-// ── Section with arrow pagination ────────────────────────────────────────────
+// ── Discography section ───────────────────────────────────────────────────────
 
 function DiscographySection({
   section,
@@ -62,45 +60,19 @@ function DiscographySection({
   artistId: string
   sortDir: YearSortDir
 }) {
-  const [page, setPage] = useState(0)
   if (albums.length === 0) return null
 
   const sorted = sortGroupsByYear(albums, sortDir)
-  const pages = Math.ceil(sorted.length / PAGE_SIZE)
-  const slice = sorted.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE)
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-3">
-        <h3 className="text-xs font-semibold text-white/30 uppercase tracking-widest">
-          {section.label}
-          <span className="ml-2 font-normal normal-case tracking-normal text-white/20">{albums.length}</span>
-        </h3>
-        {pages > 1 && (
-          <div className="flex items-center gap-1">
-            <button
-              onClick={() => setPage(p => p - 1)}
-              disabled={page === 0}
-              className="flex items-center justify-center w-7 h-7 rounded-lg text-white/35 hover:text-white/70 hover:bg-white/5 disabled:opacity-20 disabled:cursor-not-allowed transition-all"
-            >
-              <ChevronLeft size={14} />
-            </button>
-            <span className="text-xs text-white/20 w-10 text-center tabular-nums">
-              {page + 1} / {pages}
-            </span>
-            <button
-              onClick={() => setPage(p => p + 1)}
-              disabled={page >= pages - 1}
-              className="flex items-center justify-center w-7 h-7 rounded-lg text-white/35 hover:text-white/70 hover:bg-white/5 disabled:opacity-20 disabled:cursor-not-allowed transition-all"
-            >
-              <ChevronRight size={14} />
-            </button>
-          </div>
-        )}
-      </div>
+      <h3 className="text-xs font-semibold text-white/30 uppercase tracking-widest mb-3">
+        {section.label}
+        <span className="ml-2 font-normal normal-case tracking-normal text-white/20">{albums.length}</span>
+      </h3>
 
-      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
-        {slice.map(album => (
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8 gap-4">
+        {sorted.map(album => (
           <AlbumCard
             key={album.id}
             album={album}
@@ -274,7 +246,7 @@ export function ArtistDetail() {
           entry.people.length === 0 ? (
             <p className="text-white/30 text-sm">No members listed.</p>
           ) : (
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8 2xl:grid-cols-10 gap-4">
               {entry.people.map(ep => ep.person && (
                 <PersonCard
                   key={ep.personId}

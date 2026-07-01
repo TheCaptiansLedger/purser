@@ -39,7 +39,7 @@ export function NetworksPage() {
           <EmptyState icon={Globe} title="No networks yet" accent={ACCENT} />
         ) : (
           <>
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-4">
               {networks.data.data.map(e => (
                 <EntryCard key={e.id} entry={e} href={`/afterdark/networks/${e.id}`} aspect="16/9" accent={ACCENT} />
               ))}

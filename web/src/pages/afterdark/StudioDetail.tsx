@@ -230,7 +230,7 @@ export function StudioDetail() {
                 <p className="text-white/30 text-sm">No scenes added yet.</p>
               ) : (
                 <>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-4">
                     {scenes.map(scene => (
                       <ItemCard key={scene.id} item={scene} href={`/afterdark/scenes/${scene.id}`} aspect="16/9" accent={ACCENT} showPeople alwaysShowStatus={alwaysShowStatus || statusFilter !== undefined} />
                     ))}
@@ -247,7 +247,7 @@ export function StudioDetail() {
             ) : (
               <>
                 <p className="text-xs text-white/30 mb-4">Showing performers from the current page of scenes only. <a href="https://github.com/TheCaptiansLedger/purser/issues/319" className="underline hover:text-white/50 transition-colors">#319</a> will add a complete list.</p>
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8 gap-3">
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8 2xl:grid-cols-10 gap-3">
                   {performers.map(p => (
                     <PersonCard key={p.id} person={p} href={`/afterdark/performers/${p.id}`} accent={ACCENT} />
                   ))}

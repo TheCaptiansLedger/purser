@@ -25,8 +25,8 @@ export function PerformerDetail() {
   const scenes = scenesPage?.data ?? []
 
   if (isLoading) return (
-    <div className="flex gap-0 min-h-screen">
-      <div className="w-80 shrink-0 bg-white/3 animate-pulse" />
+    <div className="flex flex-col lg:flex-row min-h-screen">
+      <div className="w-full lg:w-80 lg:shrink-0 h-64 lg:h-screen bg-white/3 animate-pulse" />
       <div className="flex-1 px-8 py-6 space-y-4">
         <Skeleton className="h-8 w-48" />
         <Skeleton className="h-4 w-64" />
@@ -38,9 +38,9 @@ export function PerformerDetail() {
   if (!person) return null
 
   return (
-    <div className="flex min-h-screen">
+    <div className="flex flex-col lg:flex-row min-h-screen">
       {/* Left panel — sticky photo + metadata */}
-      <aside className="w-80 shrink-0 sticky top-0 h-screen overflow-y-auto flex flex-col border-r border-white/5">
+      <aside className="w-full lg:w-80 lg:shrink-0 lg:sticky lg:top-0 lg:h-screen overflow-y-auto flex flex-col border-b lg:border-b-0 lg:border-r border-white/5">
         {/* Photo */}
         <div className="relative" style={{ aspectRatio: '2/3' }}>
           {versionedImageUrl ? (
@@ -126,7 +126,7 @@ export function PerformerDetail() {
             {scenes.length === 0 ? (
               <p className="text-white/30 text-sm">{statusFilter ? 'No scenes match this filter.' : 'No scenes yet.'}</p>
             ) : (
-              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-4">
                 {scenes.map(scene => (
                   <ItemCard key={scene.id} item={scene} href={`/afterdark/scenes/${scene.id}`} aspect="16/9" accent={ACCENT} showPeople alwaysShowStatus={statusFilter !== undefined} />
                 ))}

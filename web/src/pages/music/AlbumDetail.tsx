@@ -51,76 +51,76 @@ function TrackRow({ track, onEdit }: { track: Item; onEdit: () => void }) {
 
   return (
     <div
-      className="flex items-center gap-4 px-3 py-2.5 rounded-lg hover:bg-white/4 transition-colors group"
+      className="flex items-center gap-5 px-4 py-3.5 rounded-lg hover:bg-white/4 transition-colors group"
       onMouseLeave={() => setConfirmDelete(false)}
     >
-      <span className="w-6 text-right text-xs text-white/25 font-mono shrink-0">
+      <span className="w-8 text-right text-sm text-white/25 font-mono shrink-0">
         {track.sequence || '—'}
       </span>
 
       <span
-        className="w-2 h-2 rounded-full shrink-0"
+        className="w-2.5 h-2.5 rounded-full shrink-0"
         style={{ background: STATUS_DOT[track.status] ?? '#6b7280' }}
         title={track.status}
       />
 
-      <span className="flex-1 text-sm text-white/75 group-hover:text-white/90 transition-colors truncate">
+      <span className="flex-1 text-base text-white/75 group-hover:text-white/90 transition-colors truncate">
         {track.title}
       </span>
 
       {track.runtimeSeconds > 0 && (
-        <span className="text-xs text-white/30 shrink-0">{fmtRuntime(track.runtimeSeconds)}</span>
+        <span className="text-sm text-white/30 shrink-0">{fmtRuntime(track.runtimeSeconds)}</span>
       )}
 
       <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
         <button
           onClick={() => toggleMonitor.mutate()}
           title={track.monitored ? 'Unmonitor' : 'Monitor'}
-          className="p-1 rounded hover:bg-white/8 transition-colors"
+          className="p-1.5 rounded hover:bg-white/8 transition-colors"
           style={{ color: track.monitored ? ACCENT : 'rgba(255,255,255,0.25)' }}
         >
-          {track.monitored ? <Eye size={13} /> : <EyeOff size={13} />}
+          {track.monitored ? <Eye size={15} /> : <EyeOff size={15} />}
         </button>
         {canSetWanted && (
           <button
             onClick={() => setStatus.mutate('wanted')}
             title="Mark wanted"
-            className="p-1 rounded hover:bg-white/8 transition-colors text-white/30 hover:text-amber-400"
+            className="p-1.5 rounded hover:bg-white/8 transition-colors text-white/30 hover:text-amber-400"
           >
-            <BookmarkCheck size={13} />
+            <BookmarkCheck size={15} />
           </button>
         )}
         {canSetSkipped && (
           <button
             onClick={() => setStatus.mutate('skipped')}
             title="Skip"
-            className="p-1 rounded hover:bg-white/8 transition-colors text-white/30 hover:text-white/60"
+            className="p-1.5 rounded hover:bg-white/8 transition-colors text-white/30 hover:text-white/60"
           >
-            <SkipForward size={13} />
+            <SkipForward size={15} />
           </button>
         )}
         <button
           onClick={onEdit}
           title="Edit track"
-          className="p-1 rounded hover:bg-white/8 transition-colors text-white/30 hover:text-white/70"
+          className="p-1.5 rounded hover:bg-white/8 transition-colors text-white/30 hover:text-white/70"
         >
-          <Pencil size={13} />
+          <Pencil size={15} />
         </button>
         {confirmDelete ? (
           <button
             onClick={() => { doDelete.mutate(); setConfirmDelete(false) }}
             title="Click to confirm delete"
-            className="p-1 rounded transition-colors text-red-400 hover:text-red-300"
+            className="p-1.5 rounded transition-colors text-red-400 hover:text-red-300"
           >
-            <Trash2 size={13} />
+            <Trash2 size={15} />
           </button>
         ) : (
           <button
             onClick={() => setConfirmDelete(true)}
             title="Delete track"
-            className="p-1 rounded hover:bg-white/8 transition-colors text-white/30 hover:text-red-400"
+            className="p-1.5 rounded hover:bg-white/8 transition-colors text-white/30 hover:text-red-400"
           >
-            <Trash2 size={13} />
+            <Trash2 size={15} />
           </button>
         )}
       </div>
@@ -169,8 +169,8 @@ export function AlbumDetail() {
         <EditButton onClick={() => setEditOpen(true)} />
       </div>
 
-      <div className="flex gap-6 items-start mb-8">
-        <div className="shrink-0 w-40 h-40 rounded-xl overflow-hidden bg-white/5 border border-white/8 flex items-center justify-center shadow-2xl">
+      <div className="flex gap-8 items-start mb-8">
+        <div className="shrink-0 w-56 h-56 rounded-xl overflow-hidden bg-white/5 border border-white/8 flex items-center justify-center shadow-2xl">
           {showCover ? (
             <button
               className="block w-full h-full cursor-zoom-in"
@@ -188,11 +188,11 @@ export function AlbumDetail() {
             <Music2 size={48} className="text-white/10" strokeWidth={1} />
           )}
         </div>
-        <div>
+        <div className="flex-1 min-w-0">
           <p className="text-xs font-medium uppercase tracking-widest mb-1" style={{ color: ACCENT }}>Album</p>
-          <h1 className="text-2xl font-bold text-white mb-1">{album.title}</h1>
-          {artist && <p className="text-white/50 text-sm">{artist.name}</p>}
-          <div className="flex items-center gap-3 mt-2 text-xs text-white/35">
+          <h1 className="text-3xl font-bold text-white mb-1">{album.title}</h1>
+          {artist && <p className="text-white/50 text-base">{artist.name}</p>}
+          <div className="flex items-center gap-3 mt-2 text-sm text-white/35">
             {album.year > 0 && <span>{album.year}</span>}
             {tracks.length > 0 && <span>{tracks.length} track{tracks.length !== 1 ? 's' : ''}</span>}
             {totalRuntime > 0 && <span>{fmtRuntime(totalRuntime)}</span>}
@@ -205,10 +205,10 @@ export function AlbumDetail() {
           </div>
           <button
             onClick={() => toggleAlbumMonitor.mutate()}
-            className="mt-3 flex items-center gap-1.5 text-xs transition-colors"
+            className="mt-3 flex items-center gap-1.5 text-sm transition-colors"
             style={{ color: album.monitored ? ACCENT : 'rgba(255,255,255,0.25)' }}
           >
-            {album.monitored ? <Eye size={12} /> : <EyeOff size={12} />}
+            {album.monitored ? <Eye size={14} /> : <EyeOff size={14} />}
             {album.monitored ? 'Monitored' : 'Unmonitored'}
           </button>
         </div>

@@ -33,7 +33,7 @@ export function MoviesPage() {
           <EmptyState icon={Film} title="No movies yet" description="Add movies to your library to see them here." accent={ACCENT} />
         ) : (
           <>
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-8 gap-4">
               {data.data.map(entry => (
                 <EntryCard key={entry.id} entry={entry} href={`/movies/${entry.id}`} aspect="2/3" accent={ACCENT} />
               ))}

@@ -76,7 +76,7 @@ export function NetworkDetail() {
               <Building2 size={13} style={{ color: ACCENT }} />
               Studios
             </h2>
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-4">
               {studios.map(s => (
                 <EntryCard key={s.id} entry={s} href={`/afterdark/studios/${s.id}`} aspect="16/9" accent={ACCENT} />
               ))}

@@ -23,7 +23,7 @@ export function PageHeader({ title, subtitle, accent, search, onSearch, total, s
       className="sticky top-0 z-30 border-b border-white/5 backdrop-blur-xl"
       style={{ background: 'rgba(8,8,14,0.85)' }}
     >
-      <div className="px-8 py-5 flex items-center gap-4">
+      <div className="px-6 py-4 flex items-center gap-3 flex-wrap">
         <div className="flex-1 min-w-0">
           <div className="flex items-baseline gap-3">
             <h1
@@ -38,7 +38,7 @@ export function PageHeader({ title, subtitle, accent, search, onSearch, total, s
           </div>
           {subtitle && <p className="text-xs text-white/35 mt-0.5">{subtitle}</p>}
         </div>
-        <div className="w-64 shrink-0">
+        <div className="w-40 sm:w-52 md:w-64 shrink-0">
           <SearchBar value={search} onChange={onSearch} accent={accent} />
         </div>
         {statusOverlay && (

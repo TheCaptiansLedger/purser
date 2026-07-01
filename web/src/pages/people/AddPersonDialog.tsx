@@ -89,7 +89,7 @@ export function AddPersonDialog({ open, onClose, accent, onAdd }: AddPersonDialo
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.7)' }}>
-      <div className="w-full max-w-lg rounded-xl border border-white/10 shadow-2xl flex flex-col" style={{ background: '#0f0f17', maxHeight: '85vh' }}>
+      <div className="w-full max-w-lg xl:max-w-xl 2xl:max-w-2xl rounded-xl border border-white/10 shadow-2xl flex flex-col" style={{ background: '#0f0f17', maxHeight: '85vh' }}>
 
         <div className="flex items-center justify-between px-5 py-4 border-b border-white/8">
           <h2 className="text-sm font-semibold text-white">Add Person</h2>
