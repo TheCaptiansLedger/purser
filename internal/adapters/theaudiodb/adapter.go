@@ -9,8 +9,10 @@ import (
 	"purser/internal/config"
 	"purser/internal/domain"
 	"purser/internal/ports"
+	"purser/pkg/cache"
 	"purser/pkg/httpclient"
 	"strings"
+	"time"
 )
 
 // Compile-time interface assertions.
@@ -31,11 +33,12 @@ const publicBaseURL = "https://www.theaudiodb.com/api/v1/json/"
 type Adapter struct {
 	baseURL string
 	apiKey  string
+	cache   *cache.Cache
 	client  *http.Client
 }
 
-// New constructs a TheAudioDB adapter from cfg.
-func New(cfg config.MetadataSourceConfig) *Adapter {
+// New constructs a TheAudioDB adapter from cfg. c may be nil to disable caching.
+func New(cfg config.MetadataSourceConfig, c *cache.Cache) *Adapter {
 	base := cfg.URL
 	if base == "" {
 		base = publicBaseURL
@@ -46,6 +49,7 @@ func New(cfg config.MetadataSourceConfig) *Adapter {
 	return &Adapter{
 		baseURL: base,
 		apiKey:  cfg.APIKey,
+		cache:   c,
 		client:  httpclient.New(),
 	}
 }
@@ -61,9 +65,18 @@ func (a *Adapter) ContentTypes() []domain.ContentType {
 // ImagePriority returns 100 — TheAudioDB is the preferred image source for music.
 func (a *Adapter) ImagePriority() int { return 100 }
 
+const cacheTTL = 24 * time.Hour
+
 // get issues a GET to {baseURL}{apiKey}/{path} and decodes the JSON response into out.
+// Responses are cached for 24 hours when a cache is configured.
 func (a *Adapter) get(ctx context.Context, path string, out any) error {
 	u := a.baseURL + a.apiKey + "/" + path
+
+	if a.cache != nil {
+		if v, ok := a.cache.Get(u); ok {
+			return json.Unmarshal(v, out)
+		}
+	}
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u, nil)
 	if err != nil {
@@ -83,8 +96,17 @@ func (a *Adapter) get(ctx context.Context, path string, out any) error {
 		b, _ := io.ReadAll(resp.Body)
 		return fmt.Errorf("theaudiodb: HTTP %d: %s", resp.StatusCode, string(b))
 	}
-	if err := json.NewDecoder(resp.Body).Decode(out); err != nil {
+
+	b, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return fmt.Errorf("theaudiodb: read: %w", err)
+	}
+	if err := json.Unmarshal(b, out); err != nil {
 		return fmt.Errorf("theaudiodb: decode: %w", err)
+	}
+
+	if a.cache != nil {
+		a.cache.Set(u, b, cacheTTL)
 	}
 	return nil
 }

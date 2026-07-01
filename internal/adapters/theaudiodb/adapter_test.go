@@ -14,18 +14,18 @@ import (
 )
 
 func newTestAdapter(srv *httptest.Server) *theaudiodb.Adapter {
-	return theaudiodb.New(config.MetadataSourceConfig{URL: srv.URL, APIKey: "123"})
+	return theaudiodb.New(config.MetadataSourceConfig{URL: srv.URL, APIKey: "123"}, nil)
 }
 
 func TestAdapter_Name(t *testing.T) {
-	a := theaudiodb.New(config.MetadataSourceConfig{})
+	a := theaudiodb.New(config.MetadataSourceConfig{}, nil)
 	if got := a.Name(); got != string(domain.SourceTheAudioDB) {
 		t.Errorf("Name() = %q, want %q", got, domain.SourceTheAudioDB)
 	}
 }
 
 func TestAdapter_ContentTypes(t *testing.T) {
-	a := theaudiodb.New(config.MetadataSourceConfig{})
+	a := theaudiodb.New(config.MetadataSourceConfig{}, nil)
 	types := a.ContentTypes()
 	if len(types) != 1 || types[0] != domain.ContentTypeMusic {
 		t.Errorf("ContentTypes() = %v, want [music]", types)
@@ -61,7 +61,7 @@ func TestAdapter_InvalidJSON(t *testing.T) {
 }
 
 func TestAdapter_FindByExternalID_UnknownContentType(t *testing.T) {
-	a := theaudiodb.New(config.MetadataSourceConfig{})
+	a := theaudiodb.New(config.MetadataSourceConfig{}, nil)
 	_, err := a.FindByExternalID(context.Background(), domain.ContentTypeAdult, "any-id")
 	if !errors.Is(err, ports.ErrNotSupported) {
 		t.Errorf("expected ErrNotSupported, got: %v", err)
@@ -69,7 +69,7 @@ func TestAdapter_FindByExternalID_UnknownContentType(t *testing.T) {
 }
 
 func TestAdapter_FetchGroupContent_NonMusicNotSupported(t *testing.T) {
-	a := theaudiodb.New(config.MetadataSourceConfig{})
+	a := theaudiodb.New(config.MetadataSourceConfig{}, nil)
 	_, _, err := a.FetchGroupContent(context.Background(), domain.ContentTypeAdult, "any-id", 1, 10)
 	if !errors.Is(err, ports.ErrNotSupported) {
 		t.Errorf("expected ErrNotSupported, got: %v", err)

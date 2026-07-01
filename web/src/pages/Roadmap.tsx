@@ -21,7 +21,7 @@ import {
 } from 'lucide-react'
 
 const GITHUB_REPO = 'TheCaptiansLedger/purser'
-const GITHUB_API = `https://api.github.com/repos/${GITHUB_REPO}`
+const ROADMAP_API = '/api/v1/roadmap'
 
 export interface GHLabel { id: number; name: string; color: string }
 export interface GHUser  { login: string; avatar_url: string }
@@ -49,13 +49,20 @@ export interface GHRelease {
   body: string
 }
 
+async function proxyError(res: Response): Promise<string> {
+  try {
+    const body = await res.json()
+    if (typeof body.error === 'string') {
+      if (body.error.includes('rate limited')) return 'GitHub API rate limited — try again in a minute.'
+      return body.error
+    }
+  } catch { /* ignore parse errors */ }
+  return `Request failed (HTTP ${res.status})`
+}
+
 async function fetchIssues(state: 'open' | 'closed'): Promise<GHIssue[]> {
-  const url = state === 'closed'
-    ? `${GITHUB_API}/issues?state=closed&per_page=100`
-    : `${GITHUB_API}/issues?state=open&per_page=100`
-  const res = await fetch(url, { headers: { Accept: 'application/vnd.github.v3+json' } })
-  if (res.status === 403) throw new Error('GitHub API rate limited — try again in a minute.')
-  if (!res.ok) throw new Error('Failed to fetch issues from GitHub.')
+  const res = await fetch(`${ROADMAP_API}/issues?state=${state}`)
+  if (!res.ok) throw new Error(await proxyError(res))
   return res.json()
 }
 
@@ -77,21 +84,14 @@ export function issuesInWindow(
 }
 
 async function fetchClosedByLabel(label: string): Promise<GHIssue[]> {
-  const res = await fetch(
-    `${GITHUB_API}/issues?state=closed&labels=${encodeURIComponent(label)}&per_page=100`,
-    { headers: { Accept: 'application/vnd.github.v3+json' } }
-  )
-  if (res.status === 403) throw new Error('GitHub API rate limited — try again in a minute.')
-  if (!res.ok) throw new Error('Failed to fetch issues from GitHub.')
+  const res = await fetch(`${ROADMAP_API}/issues?state=closed&labels=${encodeURIComponent(label)}`)
+  if (!res.ok) throw new Error(await proxyError(res))
   return res.json()
 }
 
 async function fetchReleases(): Promise<GHRelease[]> {
-  const res = await fetch(`${GITHUB_API}/releases`, {
-    headers: { Accept: 'application/vnd.github.v3+json' },
-  })
-  if (res.status === 403) throw new Error('GitHub API rate limited — try again in a minute.')
-  if (!res.ok) throw new Error('Failed to fetch releases from GitHub.')
+  const res = await fetch(`${ROADMAP_API}/releases`)
+  if (!res.ok) throw new Error(await proxyError(res))
   return res.json()
 }
 
@@ -110,14 +110,12 @@ export function uniqueContributors(
 }
 
 async function fetchReleaseContributors(prevTag: string | null, currentTag: string): Promise<GHUser[]> {
-  const url = prevTag
-    ? `${GITHUB_API}/compare/${prevTag}...${currentTag}`
-    : `${GITHUB_API}/commits?sha=${currentTag}&per_page=100`
-  const res = await fetch(url, { headers: { Accept: 'application/vnd.github.v3+json' } })
-  if (res.status === 403) throw new Error('GitHub API rate limited — try again in a minute.')
-  if (!res.ok) throw new Error('Failed to fetch release contributors.')
-  const data = await res.json()
-  return uniqueContributors(prevTag ? data.commits : data)
+  const params = new URLSearchParams({ head: currentTag })
+  if (prevTag) params.set('base', prevTag)
+  const res = await fetch(`${ROADMAP_API}/contributors?${params}`)
+  if (!res.ok) throw new Error(await proxyError(res))
+  const commits: Array<{ author: { login: string; avatar_url: string } | null }> = await res.json()
+  return uniqueContributors(commits)
 }
 
 const COLUMNS = [

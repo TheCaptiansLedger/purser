@@ -11,6 +11,7 @@ import (
 	"purser/internal/app/people"
 	"purser/internal/config"
 	"purser/internal/ports"
+	"purser/pkg/cache"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -38,12 +39,14 @@ func New(
 	sources []ports.MetadataSource,
 	uiFS fs.FS,
 	imgDownloader ports.ImageDownloader,
+	gh ports.GitHubProxy,
+	appCache *cache.Cache,
 	shutdownFn func(),
 ) *Server {
 	s := &Server{
 		router: chi.NewRouter(),
 	}
-	s.mount(mediaPath, cfg, db, libSvc, peopleSvc, metaSvc, tagRepo, jobQueue, cfgSvc, sources, uiFS, imgDownloader, shutdownFn)
+	s.mount(mediaPath, cfg, db, libSvc, peopleSvc, metaSvc, tagRepo, jobQueue, cfgSvc, sources, uiFS, imgDownloader, gh, appCache, shutdownFn)
 	s.httpServer = &http.Server{
 		Addr:         fmt.Sprintf(":%d", port),
 		Handler:      s.router,
@@ -67,6 +70,8 @@ func (s *Server) mount(
 	sources []ports.MetadataSource,
 	uiFS fs.FS,
 	imgDownloader ports.ImageDownloader,
+	gh ports.GitHubProxy,
+	appCache *cache.Cache,
 	shutdownFn func(),
 ) {
 	r := s.router
@@ -148,6 +153,12 @@ func (s *Server) mount(
 		r.Route("/verify", func(r chi.Router) {
 			r.Post("/source", verifyH.source)
 		})
+
+		roadmapH := &roadmapHandler{gh: gh}
+		r.Route("/roadmap", roadmapH.routes)
+
+		cacheH := &cacheHandler{c: appCache}
+		r.Get("/cache/stats", cacheH.stats)
 	})
 
 	// Serve the embedded web UI for all non-API paths.

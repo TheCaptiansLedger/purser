@@ -16,7 +16,18 @@ type Config struct {
 	Media    MediaConfig           `mapstructure:"media"`
 	Modules  ModulesConfig         `mapstructure:"modules"`
 	Sources  MetadataSourcesConfig `mapstructure:"sources"`
+	GitHub   GitHubConfig          `mapstructure:"github"`
 	Log      LogConfig             `mapstructure:"log"`
+}
+
+// GitHubConfig holds settings for the GitHub API proxy.
+type GitHubConfig struct {
+	// Repo is the GitHub repository slug (owner/repo) served by the roadmap proxy.
+	Repo string `mapstructure:"repo"`
+	// Token is an optional personal access token. When set, the proxy uses
+	// authenticated requests (5000 req/hr) instead of unauthenticated (60 req/hr).
+	// Env var: PURSER_GITHUB_TOKEN
+	Token string `mapstructure:"token"`
 }
 
 // ServerConfig controls the HTTP server.
@@ -223,6 +234,8 @@ func LoadFull(path string) (*Config, *viper.Viper, map[string]struct{}, error) {
 	v.SetDefault("sources.openlibrary.url", "")
 	v.SetDefault("sources.openlibrary.api_key", "")
 	v.SetDefault("sources.openlibrary.user_agent", "")
+	v.SetDefault("github.repo", "TheCaptiansLedger/purser")
+	v.SetDefault("github.token", "")
 	v.SetDefault("log.level", "info")
 	v.SetDefault("log.format", "text")
 

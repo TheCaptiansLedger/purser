@@ -11,6 +11,7 @@ import (
 	"os/signal"
 	"purser/internal/adapters/db"
 	"purser/internal/adapters/fanart"
+	githubadapter "purser/internal/adapters/github"
 	"purser/internal/adapters/mbz"
 	"purser/internal/adapters/stashdb"
 	"purser/internal/adapters/theaudiodb"
@@ -22,6 +23,7 @@ import (
 	"purser/internal/config"
 	"purser/internal/ports"
 	"purser/internal/version"
+	"purser/pkg/cache"
 	"purser/web"
 	"syscall"
 	"time"
@@ -87,11 +89,20 @@ func run(cfgPath string) error {
 	jobQueue := jobsadapter.New(cfg.Server.Workers)
 	defer jobQueue.Close()
 
+	appCache, err := cache.New(512)
+	if err != nil {
+		return fmt.Errorf("create cache: %w", err)
+	}
+
 	libSvc := library.New(entryRepo, groupRepo, itemRepo, personRepo, tagRepo)
 	peopleSvc := people.New(personRepo)
-	sources := buildSources(cfg)
+	sources := buildSources(cfg, appCache)
 	imgDownloader := fsadapter.NewImageDownloader(cfg.Media.Path)
 	metaSvc := metadata.New(sources, jobQueue, entryRepo, groupRepo, itemRepo, personRepo, tagRepo, extIDRepo, imgDownloader)
+	ghAdapter := githubadapter.New(githubadapter.Config{
+		Repo:  cfg.GitHub.Repo,
+		Token: cfg.GitHub.Token,
+	}, appCache)
 
 	uiFS, err := fs.Sub(web.Dist, "dist")
 	if err != nil {
@@ -106,7 +117,7 @@ func run(cfgPath string) error {
 		shutdown()
 	}()
 
-	srv := api.New(cfg.Server.Port, cfg.Media.Path, cfg, database, libSvc, peopleSvc, metaSvc, tagRepo, jobQueue, cfgSvc, sources, uiFS, imgDownloader, shutdown)
+	srv := api.New(cfg.Server.Port, cfg.Media.Path, cfg, database, libSvc, peopleSvc, metaSvc, tagRepo, jobQueue, cfgSvc, sources, uiFS, imgDownloader, ghAdapter, appCache, shutdown)
 
 	go func() {
 		slog.Info("listening", "port", cfg.Server.Port)
@@ -127,7 +138,7 @@ func run(cfgPath string) error {
 }
 
 // buildSources constructs and returns all enabled MetadataSource adapters.
-func buildSources(cfg *config.Config) []ports.MetadataSource {
+func buildSources(cfg *config.Config, c *cache.Cache) []ports.MetadataSource {
 	var sources []ports.MetadataSource
 	if cfg.Sources.StashDB.Enabled {
 		sources = append(sources, stashdb.New(cfg.Sources.StashDB))
@@ -141,7 +152,7 @@ func buildSources(cfg *config.Config) []ports.MetadataSource {
 	}
 	if cfg.Sources.TheAudioDB.Enabled {
 		slog.Info("source enabled", "name", "audiodb")
-		sources = append(sources, theaudiodb.New(cfg.Sources.TheAudioDB))
+		sources = append(sources, theaudiodb.New(cfg.Sources.TheAudioDB, c))
 	}
 	return sources
 }

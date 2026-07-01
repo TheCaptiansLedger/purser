@@ -5,6 +5,7 @@ go 1.26.4
 require (
 	github.com/go-chi/chi/v5 v5.3.0
 	github.com/google/uuid v1.6.0
+	github.com/hashicorp/golang-lru/v2 v2.0.7
 	github.com/spf13/cobra v1.10.2
 	github.com/spf13/viper v1.21.0
 	modernc.org/sqlite v1.53.0
