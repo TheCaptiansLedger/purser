@@ -455,7 +455,7 @@ export function Roadmap() {
   }
 
   return (
-    <div className="px-8 py-10 max-w-screen-2xl">
+    <div className="px-8 py-10">
       {/* Header */}
       <div className="flex items-center justify-between mb-8">
         <div>
@@ -527,10 +527,10 @@ export function Roadmap() {
       )}
 
       {/* Board + Shipped flex row */}
-      <div className="flex gap-6 items-start">
+      <div className="flex flex-col xl:flex-row gap-6 items-start">
         <div className="flex-[3] min-w-0">
           {isLoading && openIssues.length === 0 ? (
-            <div className="grid grid-cols-4 gap-6">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-6">
               {COLUMNS.map(col => (
                 <div key={col.status} className="flex flex-col gap-3">
                   <div className="h-6 w-28 rounded-lg bg-white/5 animate-pulse" />
@@ -547,7 +547,7 @@ export function Roadmap() {
           ) : viewMode === 'swimlanes' ? (
             <div className="flex flex-col gap-8">
               {/* Global Column Headers for Swimlanes */}
-              <div className="grid grid-cols-4 gap-6 mb-2 px-1">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-6 mb-2 px-1">
                 {COLUMNS.map(col => {
                   const Icon = col.icon
                   const count = openIssues.filter(i => hasStatus(i, col.status)).length
@@ -590,7 +590,7 @@ export function Roadmap() {
                       </div>
 
                       {/* 4 Columns under this Swimlane */}
-                      <div className="grid grid-cols-4 gap-6">
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-6">
                         {COLUMNS.map(col => {
                           const colIssues = areaIssues.filter(i => hasStatus(i, col.status))
                           return (
@@ -613,7 +613,7 @@ export function Roadmap() {
             </div>
           ) : (
             /* Standard Kanban Board */
-            <div className="grid grid-cols-4 gap-6">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-6">
               {COLUMNS.map(col => (
                 <KanbanColumn
                   key={col.status}
