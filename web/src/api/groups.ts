@@ -1,6 +1,20 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { del, get, getPage, patch, post } from './client'
-import type { Group, ContentType } from '../types'
+import type { Group, ContentType, MonitorMode } from '../types'
+
+export interface CreateGroupRequest {
+  libraryEntryId: string
+  title: string
+  year?: number
+  overview?: string
+  monitored: boolean
+  monitorMode: MonitorMode
+  metadata?: Record<string, unknown>
+}
+
+export function createGroup(req: CreateGroupRequest): Promise<Group> {
+  return post<Group>('/groups', req)
+}
 
 export type YearSortDir = 'asc' | 'desc'
 

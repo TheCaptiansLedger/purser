@@ -181,13 +181,15 @@ func (h *metadataHandler) importPerson(w http.ResponseWriter, r *http.Request) {
 // ── Import album ──────────────────────────────────────────────────────────────
 
 type importAlbumRequest struct {
-	Source         string `json:"source"`
-	ExternalID     string `json:"externalId"`
-	LibraryEntryID string `json:"libraryEntryId"`
-	Title          string `json:"title"`
-	Year           int    `json:"year"`
-	Monitored      bool   `json:"monitored"`
-	MonitorMode    string `json:"monitorMode"`
+	Source         string   `json:"source"`
+	ExternalID     string   `json:"externalId"`
+	LibraryEntryID string   `json:"libraryEntryId"`
+	Title          string   `json:"title"`
+	Year           int      `json:"year"`
+	Monitored      bool     `json:"monitored"`
+	MonitorMode    string   `json:"monitorMode"`
+	PrimaryType    string   `json:"primaryType,omitempty"`
+	SecondaryTypes []string `json:"secondaryTypes,omitempty"`
 }
 
 // POST /api/v1/metadata/albums/import
@@ -210,6 +212,8 @@ func (h *metadataHandler) importAlbum(w http.ResponseWriter, r *http.Request) {
 		Year:           req.Year,
 		Monitored:      req.Monitored,
 		MonitorMode:    domain.MonitorMode(req.MonitorMode),
+		PrimaryType:    req.PrimaryType,
+		SecondaryTypes: req.SecondaryTypes,
 	}
 
 	group, err := h.svc.ImportAlbum(r.Context(), svcReq)
@@ -268,10 +272,12 @@ func (h *metadataHandler) discography(w http.ResponseWriter, r *http.Request) {
 // ── Response shapes ───────────────────────────────────────────────────────────
 
 type externalGroupResponse struct {
-	Source     string `json:"source"`
-	ExternalID string `json:"externalId"`
-	Title      string `json:"title"`
-	Year       int    `json:"year,omitempty"`
+	Source         string   `json:"source"`
+	ExternalID     string   `json:"externalId"`
+	Title          string   `json:"title"`
+	Year           int      `json:"year,omitempty"`
+	PrimaryType    string   `json:"primaryType,omitempty"`
+	SecondaryTypes []string `json:"secondaryTypes,omitempty"`
 }
 
 type externalStudioResponse struct {
@@ -302,10 +308,12 @@ func toExternalGroupResponses(groups []*domain.ExternalGroup) []externalGroupRes
 	out := make([]externalGroupResponse, len(groups))
 	for i, g := range groups {
 		out[i] = externalGroupResponse{
-			Source:     string(g.Source),
-			ExternalID: g.ExternalID,
-			Title:      g.Title,
-			Year:       g.Year,
+			Source:         string(g.Source),
+			ExternalID:     g.ExternalID,
+			Title:          g.Title,
+			Year:           g.Year,
+			PrimaryType:    g.PrimaryType,
+			SecondaryTypes: g.SecondaryTypes,
 		}
 	}
 	return out

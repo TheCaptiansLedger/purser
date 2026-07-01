@@ -75,6 +75,8 @@ export interface ExternalGroup {
   externalId: string
   title: string
   year?: number
+  primaryType?: string
+  secondaryTypes?: string[]
 }
 
 export interface ExternalPerson {
@@ -180,6 +182,7 @@ export interface Group {
   monitored: boolean
   monitorMode: MonitorMode
   coverUrl?: string
+  externalIds: ExternalID[]
   tags: Tag[]
   metadata?: Record<string, unknown>
   lockedFields?: string[]

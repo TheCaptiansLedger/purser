@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
-import { ArrowLeft, ImageIcon, ChevronLeft, ChevronRight, Disc3, Users, ArrowUpNarrowWide, ArrowDownNarrowWide, RefreshCw } from 'lucide-react'
+import { ArrowLeft, ImageIcon, ChevronLeft, ChevronRight, Disc3, Users, ArrowUpNarrowWide, ArrowDownNarrowWide, RefreshCw, Plus } from 'lucide-react'
 import { ChipTabs } from '../../components/ui/ChipTabs'
 import type { ChipTab } from '../../components/ui/ChipTabs'
 import { useLibraryEntry } from '../../api/library'
@@ -12,6 +12,7 @@ import { refreshArtist } from '../../api/commands'
 import { AlbumCard } from '../../components/AlbumCard'
 import { EditButton } from '../../components/EditButton'
 import { LibraryEntryEditor } from '../../components/edit/editors/LibraryEntryEditor'
+import { AddAlbumDialog } from './AddAlbumDialog'
 import { EntryHero } from '../../components/layout/EntryHero'
 import { PersonCard } from '../../components/media/PersonCard'
 import { Lightbox } from '../../components/ui/Lightbox'
@@ -122,6 +123,7 @@ export function ArtistDetail() {
   const [submitting, setSubmitting] = useState(false)
   const [editOpen, setEditOpen] = useState(false)
   const [lightboxOpen, setLightboxOpen] = useState(false)
+  const [addAlbumOpen, setAddAlbumOpen] = useState(false)
 
   const activeJob   = useActiveJobForEntry(id!, 'RefreshArtist')
   const isImporting = activeJob !== null
@@ -147,6 +149,17 @@ export function ArtistDetail() {
     ),
     [albums]
   )
+
+  const artistMbid = entry?.externalIds.find(e => e.source === 'mbz')?.value
+
+  const importedMbids = useMemo(() => {
+    const s = new Set<string>()
+    for (const album of albums) {
+      const mbid = album.externalIds?.find(e => e.source === 'mbz')?.value
+      if (mbid) s.add(mbid)
+    }
+    return s
+  }, [albums])
 
   if (isLoading) return <div className="px-8 py-10"><Skeleton className="h-64 w-full" /></div>
   if (!entry) return null
@@ -215,16 +228,27 @@ export function ArtistDetail() {
           onChange={setTab}
           accent={ACCENT}
           rightControls={tab === 'discography' ? (
-            <button
-              type="button"
-              onClick={() => setSortDir(d => d === 'asc' ? 'desc' : 'asc')}
-              title={sortDir === 'asc' ? 'Oldest first — click for newest first' : 'Newest first — click for oldest first'}
-              className="inline-flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-lg border transition-colors"
-              style={{ borderColor: 'rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.4)' }}
-            >
-              {sortDir === 'asc' ? <ArrowUpNarrowWide size={13} /> : <ArrowDownNarrowWide size={13} />}
-              {sortDir === 'asc' ? 'Oldest first' : 'Newest first'}
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setAddAlbumOpen(true)}
+                className="inline-flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-lg font-medium text-white transition-colors"
+                style={{ background: ACCENT }}
+              >
+                <Plus size={13} />
+                Add Album
+              </button>
+              <button
+                type="button"
+                onClick={() => setSortDir(d => d === 'asc' ? 'desc' : 'asc')}
+                title={sortDir === 'asc' ? 'Oldest first — click for newest first' : 'Newest first — click for oldest first'}
+                className="inline-flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-lg border transition-colors"
+                style={{ borderColor: 'rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.4)' }}
+              >
+                {sortDir === 'asc' ? <ArrowUpNarrowWide size={13} /> : <ArrowDownNarrowWide size={13} />}
+                {sortDir === 'asc' ? 'Oldest first' : 'Newest first'}
+              </button>
+            </div>
           ) : undefined}
         />
 
@@ -271,6 +295,15 @@ export function ArtistDetail() {
           onImageSet={bumpImageVersion}
         />
       )}
+
+      <AddAlbumDialog
+        open={addAlbumOpen}
+        onClose={() => setAddAlbumOpen(false)}
+        artistLibraryEntryId={entry.id}
+        artistMbid={artistMbid}
+        importedMbids={importedMbids}
+        accent={ACCENT}
+      />
 
       {lightboxOpen && entry.imageUrl && (
         <Lightbox src={entry.imageUrl} alt={entry.name} onClose={() => setLightboxOpen(false)} />

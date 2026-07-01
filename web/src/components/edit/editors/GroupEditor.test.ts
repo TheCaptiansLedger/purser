@@ -12,6 +12,7 @@ const baseGroup: Group = {
   overview: 'An overview',
   monitored: true,
   monitorMode: 'all',
+  externalIds: [],
   tags: [],
   lockedFields: [],
 }

@@ -114,7 +114,9 @@ type ImportAlbumRequest struct {
 	Year           int
 	Monitored      bool
 	MonitorMode    domain.MonitorMode
-	LabelName      string // if non-empty, attached as a label tag on the created group
+	LabelName      string   // if non-empty, attached as a label tag on the created group
+	PrimaryType    string   // e.g. "Album", "EP", "Single" — stored in group metadata
+	SecondaryTypes []string // e.g. ["Live"], ["Compilation"] — stored in group metadata
 }
 
 // ImportAlbum adds a single album (and its tracks) to an existing artist entry.
@@ -149,6 +151,7 @@ func (s *Service) ImportAlbum(ctx context.Context, req *ImportAlbumRequest) (*do
 		Monitored:      req.Monitored,
 		MonitorMode:    monitorMode,
 		ExternalIDs:    []domain.ExternalID{{Source: req.Source, Value: req.ExternalID}},
+		Metadata:       albumTypeMetadata(req.PrimaryType, req.SecondaryTypes),
 	}
 	if err := s.groups.Save(ctx, g); err != nil {
 		return nil, fmt.Errorf("import album: save group: %w", err)
@@ -1369,4 +1372,18 @@ func (s *Service) collectImages(ctx context.Context, contentType domain.ContentT
 
 func servesContentType(src ports.MetadataSource, contentType domain.ContentType) bool {
 	return slices.Contains(src.ContentTypes(), contentType)
+}
+
+func albumTypeMetadata(primaryType string, secondaryTypes []string) map[string]any {
+	if primaryType == "" {
+		return nil
+	}
+	st := secondaryTypes
+	if st == nil {
+		st = []string{}
+	}
+	return map[string]any{
+		"primary_type":    primaryType,
+		"secondary_types": st,
+	}
 }

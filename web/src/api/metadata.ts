@@ -69,8 +69,8 @@ export interface DiscographyResult {
   pageSize: number
 }
 
-export function fetchArtistDiscography(source: string, externalId: string, page = 1, pageSize = 50) {
-  return get<DiscographyResult>('/metadata/discography', { source, externalId, page, pageSize })
+export function fetchArtistDiscography(source: string, contentType: string, externalId: string, page = 1, pageSize = 50) {
+  return get<DiscographyResult>('/metadata/discography', { source, contentType, externalId, page, pageSize })
 }
 
 // ── Import album ──────────────────────────────────────────────────────────────
@@ -83,6 +83,8 @@ export interface ImportAlbumRequest {
   year?: number
   monitored: boolean
   monitorMode: MonitorMode
+  primaryType?: string
+  secondaryTypes?: string[]
 }
 
 export function importAlbum(req: ImportAlbumRequest) {
