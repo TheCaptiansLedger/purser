@@ -110,6 +110,7 @@ func toItemResponse(item *domain.Item) *itemResponse {
 			Path:       mf.Path,
 			Size:       mf.Size,
 			OSHash:     mf.OSHash,
+			MD5:        mf.MD5,
 			Quality:    string(mf.Quality),
 			Resolution: mf.Resolution,
 			Codec:      mf.Codec,

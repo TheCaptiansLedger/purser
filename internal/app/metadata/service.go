@@ -105,6 +105,103 @@ func (s *Service) FetchArtistDiscography(
 	return groups, total, nil
 }
 
+// SearchTracksRequest carries the parameters for a metadata-backed track lookup.
+type SearchTracksRequest struct {
+	Source      domain.ExternalIDSource
+	ContentType domain.ContentType
+	GroupExtID  string // external release-group or album ID
+	Query       string // optional title filter applied after fetch
+	Limit       int
+}
+
+// SearchTracks fetches all tracks for a release from the named source and applies
+// an optional case-insensitive title filter. Returns a ValidationError when the
+// source is unknown or does not implement GroupContentSource.
+func (s *Service) SearchTracks(ctx context.Context, req *SearchTracksRequest) ([]*domain.ExternalItem, error) {
+	src := s.sourceByName(string(req.Source))
+	if src == nil {
+		return nil, errs.Validation(fmt.Sprintf("unknown metadata source %q", req.Source))
+	}
+	gc, ok := src.(ports.GroupContentSource)
+	if !ok {
+		return nil, errs.Validation(fmt.Sprintf("source %q does not support group content", req.Source))
+	}
+	limit := req.Limit
+	if limit <= 0 {
+		limit = 200
+	}
+	tracks, _, err := gc.FetchGroupContent(ctx, req.ContentType, req.GroupExtID, 1, limit)
+	if err != nil {
+		return nil, fmt.Errorf("search tracks: %w", err)
+	}
+	if req.Query == "" {
+		return tracks, nil
+	}
+	q := strings.ToLower(req.Query)
+	out := make([]*domain.ExternalItem, 0, len(tracks))
+	for _, t := range tracks {
+		if strings.Contains(strings.ToLower(t.Title), q) {
+			out = append(out, t)
+		}
+	}
+	return out, nil
+}
+
+// ImportTrackRequest carries the user-confirmed track to persist.
+type ImportTrackRequest struct {
+	Source         domain.ExternalIDSource
+	ExternalID     string // recording MBID; empty for manual entry
+	GroupID        string // internal album group ID
+	LibraryEntryID string
+	ContentType    domain.ContentType
+	Title          string
+	Sequence       string
+	RuntimeSeconds int
+	Monitored      bool
+}
+
+// ImportTrack adds a single track to an existing album group. When ExternalID is
+// non-empty the operation is idempotent: an existing track is returned unchanged.
+// If the external ID record exists but the item was subsequently deleted, the track
+// is re-created (the orphaned external ID row is overwritten on save).
+func (s *Service) ImportTrack(ctx context.Context, req *ImportTrackRequest) (*domain.Item, error) {
+	if req.ExternalID != "" {
+		if id, err := s.externalIDs.FindEntity(ctx, "item", string(req.Source), req.ExternalID); err == nil {
+			if existing, err := s.items.Get(ctx, id); err == nil {
+				return existing, nil
+			}
+			// External ID points to a deleted item — fall through to re-create.
+		}
+	}
+
+	status := domain.StatusWanted
+	if !req.Monitored {
+		status = domain.StatusMissing
+	}
+
+	item := &domain.Item{
+		ID:             uuid.New().String(),
+		ContentType:    req.ContentType,
+		LibraryEntryID: req.LibraryEntryID,
+		GroupID:        req.GroupID,
+		Title:          req.Title,
+		Sequence:       req.Sequence,
+		RuntimeSeconds: req.RuntimeSeconds,
+		Monitored:      req.Monitored,
+		Status:         status,
+		AddedAt:        time.Now().UTC(),
+	}
+	if req.ExternalID != "" {
+		item.ExternalIDs = []domain.ExternalID{{Source: req.Source, Value: req.ExternalID}}
+	}
+
+	if err := s.items.Save(ctx, item); err != nil {
+		return nil, fmt.Errorf("import track: %w", err)
+	}
+	slog.Info("track.imported", "group_id", req.GroupID, "item_id", item.ID, "title", item.Title)
+	return item, nil
+}
+
 // ImportAlbumRequest carries the user-selected album to persist.
 type ImportAlbumRequest struct {
 	Source         domain.ExternalIDSource
@@ -241,6 +338,7 @@ func (s *Service) saveGroupTracks(ctx context.Context, contentType domain.Conten
 			GroupID:        groupID,
 			Title:          ei.Title,
 			Overview:       ei.Overview,
+			Sequence:       ei.Sequence,
 			Date:           ei.Date,
 			RuntimeSeconds: ei.RuntimeSecs,
 			Monitored:      monitored,
@@ -715,6 +813,7 @@ func (s *Service) RefreshArtist(ctx context.Context, entryID string, p ports.Pro
 			GroupID:        tr.groupID,
 			Title:          tr.extItem.Title,
 			Overview:       tr.extItem.Overview,
+			Sequence:       tr.extItem.Sequence,
 			Date:           tr.extItem.Date,
 			RuntimeSeconds: tr.extItem.RuntimeSecs,
 			Monitored:      monitored,

@@ -196,6 +196,14 @@ func saveExternalIDs(ctx context.Context, tx *sql.Tx, entityType, entityID strin
 		return err
 	}
 	for _, id := range ids {
+		// Remove any orphaned row with the same (entity_type, source, value) pointing
+		// to a different entity — happens when an entity is deleted without cascading
+		// the external_ids table (no FK exists there).
+		if _, err := tx.ExecContext(ctx,
+			`DELETE FROM external_ids WHERE entity_type = ? AND source = ? AND value = ? AND entity_id != ?`,
+			entityType, string(id.Source), id.Value, entityID); err != nil {
+			return err
+		}
 		if _, err := tx.ExecContext(ctx,
 			`INSERT INTO external_ids(entity_type, entity_id, source, value) VALUES(?, ?, ?, ?)`,
 			entityType, entityID, string(id.Source), id.Value); err != nil {

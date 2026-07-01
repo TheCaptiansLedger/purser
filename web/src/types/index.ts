@@ -123,11 +123,20 @@ export interface MediaFile {
   path: string
   size: number
   osHash: string
+  md5?: string
   quality: string
   resolution: string
   codec: string
   container: string
   addedAt: string
+}
+
+export interface ExternalTrack {
+  source: string
+  externalId: string
+  title: string
+  sequence?: string
+  runtimeSeconds?: number
 }
 
 export interface Person {

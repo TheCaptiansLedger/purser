@@ -10,6 +10,7 @@ type ExternalItem struct {
 	ContentType ContentType
 	Title       string
 	Overview    string
+	Sequence    string // track number, episode number, or other position indicator
 	Year        int
 	Date        time.Time
 	RuntimeSecs int

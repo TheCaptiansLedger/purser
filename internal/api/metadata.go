@@ -20,28 +20,32 @@ func (h *metadataHandler) routes(r chi.Router) {
 	r.Post("/studios/import", h.importStudio)
 	r.Post("/people/import", h.importPerson)
 	r.Post("/albums/import", h.importAlbum)
+	r.Post("/tracks/import", h.importTrack)
 }
 
 // ── Search ────────────────────────────────────────────────────────────────────
 
-// GET /api/v1/metadata/search?kind=studio&q=bratty&contentType=adult&limit=20
+func parseLimit(s string, dflt int) int {
+	if l, err := strconv.Atoi(s); err == nil && l > 0 {
+		return l
+	}
+	return dflt
+}
+
+// GET /api/v1/metadata/search?kind=studio|person|track&q=...&contentType=...&limit=...
 func (h *metadataHandler) search(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query()
 	kind := q.Get("kind")
 	query := q.Get("q")
 	contentType := domain.ContentType(q.Get("contentType"))
-	limit := 25
-	if l, err := strconv.Atoi(q.Get("limit")); err == nil && l > 0 {
-		limit = l
-	}
-
-	if query == "" {
-		writeError(w, http.StatusBadRequest, "MISSING_QUERY", "q is required")
-		return
-	}
+	limit := parseLimit(q.Get("limit"), 25)
 
 	switch kind {
 	case "studio":
+		if query == "" {
+			writeError(w, http.StatusBadRequest, "MISSING_QUERY", "q is required")
+			return
+		}
 		studios, err := h.svc.SearchStudios(r.Context(), query, contentType, limit)
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, "SEARCH_ERROR", "search failed")
@@ -50,6 +54,10 @@ func (h *metadataHandler) search(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusOK, map[string]any{"results": toExternalStudioResponses(studios)})
 
 	case "person":
+		if query == "" {
+			writeError(w, http.StatusBadRequest, "MISSING_QUERY", "q is required")
+			return
+		}
 		role := domain.PersonRole(q.Get("role"))
 		people, err := h.svc.SearchPeople(r.Context(), query, role, limit)
 		if err != nil {
@@ -58,8 +66,33 @@ func (h *metadataHandler) search(w http.ResponseWriter, r *http.Request) {
 		}
 		writeJSON(w, http.StatusOK, map[string]any{"results": toExternalPersonResponses(people)})
 
+	case "track":
+		source := domain.ExternalIDSource(q.Get("source"))
+		groupExtID := q.Get("groupExternalId")
+		if source == "" || contentType == "" || groupExtID == "" {
+			writeError(w, http.StatusBadRequest, "MISSING_PARAMS", "source, contentType, and groupExternalId are required")
+			return
+		}
+		req := &metadata.SearchTracksRequest{
+			Source:      source,
+			ContentType: contentType,
+			GroupExtID:  groupExtID,
+			Query:       query,
+			Limit:       limit,
+		}
+		tracks, err := h.svc.SearchTracks(r.Context(), req)
+		if err != nil {
+			if errs.IsValidation(err) {
+				writeError(w, http.StatusBadRequest, "SEARCH_ERROR", err.Error())
+				return
+			}
+			writeError(w, http.StatusInternalServerError, "SEARCH_ERROR", "search failed")
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"results": toExternalTrackResponses(tracks)})
+
 	default:
-		writeError(w, http.StatusBadRequest, "INVALID_KIND", "kind must be studio or person")
+		writeError(w, http.StatusBadRequest, "INVALID_KIND", "kind must be studio, person, or track")
 	}
 }
 
@@ -228,6 +261,56 @@ func (h *metadataHandler) importAlbum(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusCreated, toGroupResponse(group))
 }
 
+// ── Import track ──────────────────────────────────────────────────────────────
+
+type importTrackRequest struct {
+	Source         string `json:"source"`
+	ExternalID     string `json:"externalId"`
+	GroupID        string `json:"groupId"`
+	LibraryEntryID string `json:"libraryEntryId"`
+	ContentType    string `json:"contentType"`
+	Title          string `json:"title"`
+	Sequence       string `json:"sequence"`
+	RuntimeSeconds int    `json:"runtimeSeconds"`
+	Monitored      bool   `json:"monitored"`
+}
+
+// POST /api/v1/metadata/tracks/import
+func (h *metadataHandler) importTrack(w http.ResponseWriter, r *http.Request) {
+	var req importTrackRequest
+	if err := decode(r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, "INVALID_BODY", "invalid request body")
+		return
+	}
+	if req.GroupID == "" || req.LibraryEntryID == "" || req.ContentType == "" || req.Title == "" {
+		writeError(w, http.StatusBadRequest, "MISSING_FIELDS", "groupId, libraryEntryId, contentType, and title are required")
+		return
+	}
+
+	svcReq := &metadata.ImportTrackRequest{
+		Source:         domain.ExternalIDSource(req.Source),
+		ExternalID:     req.ExternalID,
+		GroupID:        req.GroupID,
+		LibraryEntryID: req.LibraryEntryID,
+		ContentType:    domain.ContentType(req.ContentType),
+		Title:          req.Title,
+		Sequence:       req.Sequence,
+		RuntimeSeconds: req.RuntimeSeconds,
+		Monitored:      req.Monitored,
+	}
+
+	item, err := h.svc.ImportTrack(r.Context(), svcReq)
+	if err != nil {
+		if errs.IsValidation(err) {
+			writeError(w, http.StatusBadRequest, "IMPORT_ERROR", err.Error())
+			return
+		}
+		writeError(w, http.StatusInternalServerError, "IMPORT_ERROR", "import failed")
+		return
+	}
+	writeJSON(w, http.StatusCreated, toItemResponse(item))
+}
+
 // ── Discography ───────────────────────────────────────────────────────────────
 
 // GET /api/v1/metadata/discography?source=mbz&contentType=music&externalId={mbid}&page=1&pageSize=50
@@ -302,6 +385,28 @@ type externalPersonResponse struct {
 	ImageURL   string         `json:"imageUrl,omitempty"`
 	Role       string         `json:"role,omitempty"`
 	Metadata   map[string]any `json:"metadata,omitempty"`
+}
+
+type externalTrackResponse struct {
+	Source         string `json:"source"`
+	ExternalID     string `json:"externalId"`
+	Title          string `json:"title"`
+	Sequence       string `json:"sequence,omitempty"`
+	RuntimeSeconds int    `json:"runtimeSeconds,omitempty"`
+}
+
+func toExternalTrackResponses(tracks []*domain.ExternalItem) []externalTrackResponse {
+	out := make([]externalTrackResponse, len(tracks))
+	for i, t := range tracks {
+		out[i] = externalTrackResponse{
+			Source:         string(t.Source),
+			ExternalID:     t.ExternalID,
+			Title:          t.Title,
+			Sequence:       t.Sequence,
+			RuntimeSeconds: t.RuntimeSecs,
+		}
+	}
+	return out
 }
 
 func toExternalGroupResponses(groups []*domain.ExternalGroup) []externalGroupResponse {

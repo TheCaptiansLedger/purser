@@ -42,6 +42,7 @@ type mediaFileResponse struct {
 	Path       string    `json:"path"`
 	Size       int64     `json:"size"`
 	OSHash     string    `json:"osHash"`
+	MD5        string    `json:"md5,omitempty"`
 	Quality    string    `json:"quality"`
 	Resolution string    `json:"resolution"`
 	Codec      string    `json:"codec"`

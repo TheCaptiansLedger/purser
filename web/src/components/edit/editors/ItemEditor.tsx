@@ -11,6 +11,7 @@ import { DateInput } from '../fields/DateInput'
 import { RuntimeInput } from '../fields/RuntimeInput'
 import { TagPicker } from '../fields/TagPicker'
 import { Toggle } from '../fields/Toggle'
+import { fmtBytes } from '../../ui/Runtime'
 import type { Item } from '../../../types'
 
 type FormValues = {
@@ -110,6 +111,44 @@ export function ItemEditor({ item, onClose, hideTagKeys = [] }: ItemEditorProps)
           roles={roles}
           people={item.people}
         />
+
+        {currentItem.mediaFile && (
+          <div className="space-y-3">
+            <h3 className="text-xs font-semibold text-white/40 uppercase tracking-widest">Media File</h3>
+            <div className="space-y-2 text-xs">
+              <div>
+                <span className="block text-white/30 mb-0.5">Path</span>
+                <span className="text-white/70 font-mono break-all">{currentItem.mediaFile.path}</span>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                {currentItem.mediaFile.size > 0 && (
+                  <div>
+                    <span className="block text-white/30 mb-0.5">Size</span>
+                    <span className="text-white/60">{fmtBytes(currentItem.mediaFile.size)}</span>
+                  </div>
+                )}
+                {currentItem.mediaFile.codec && (
+                  <div>
+                    <span className="block text-white/30 mb-0.5">Codec</span>
+                    <span className="text-white/60">{currentItem.mediaFile.codec}</span>
+                  </div>
+                )}
+                {currentItem.mediaFile.osHash && (
+                  <div className="col-span-2">
+                    <span className="block text-white/30 mb-0.5">OSHash</span>
+                    <span className="text-white/60 font-mono break-all">{currentItem.mediaFile.osHash}</span>
+                  </div>
+                )}
+                {currentItem.mediaFile.md5 && (
+                  <div className="col-span-2">
+                    <span className="block text-white/30 mb-0.5">MD5</span>
+                    <span className="text-white/60 font-mono break-all">{currentItem.mediaFile.md5}</span>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </EditDrawer>
   )

@@ -1,5 +1,5 @@
 import { get, post } from './client'
-import type { ContentType, ExternalGroup, ExternalStudio, ExternalPerson, Group, LibraryEntry, MonitorMode, Person, PersonRole } from '../types'
+import type { ContentType, ExternalGroup, ExternalStudio, ExternalPerson, ExternalTrack, Group, Item, LibraryEntry, MonitorMode, Person, PersonRole } from '../types'
 
 // ── Search ────────────────────────────────────────────────────────────────────
 
@@ -89,4 +89,35 @@ export interface ImportAlbumRequest {
 
 export function importAlbum(req: ImportAlbumRequest) {
   return post<Group>('/metadata/albums/import', req)
+}
+
+// ── Track search ──────────────────────────────────────────────────────────────
+
+export function searchTracks(source: string, contentType: ContentType, groupExternalId: string, q?: string, limit = 200) {
+  return get<{ results: ExternalTrack[] }>('/metadata/search', {
+    kind: 'track',
+    source,
+    contentType,
+    groupExternalId,
+    ...(q ? { q } : {}),
+    limit,
+  })
+}
+
+// ── Import track ──────────────────────────────────────────────────────────────
+
+export interface ImportTrackRequest {
+  source?: string
+  externalId?: string
+  groupId: string
+  libraryEntryId: string
+  contentType: ContentType
+  title: string
+  sequence?: string
+  runtimeSeconds?: number
+  monitored: boolean
+}
+
+export function importTrack(req: ImportTrackRequest) {
+  return post<Item>('/metadata/tracks/import', req)
 }

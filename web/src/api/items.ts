@@ -56,6 +56,10 @@ export function useItem(id: string) {
   })
 }
 
+export function deleteItem(id: string) {
+  return del(`/items/${id}`)
+}
+
 export function useAddItemTag(itemId: string) {
   const qc = useQueryClient()
   return useMutation({

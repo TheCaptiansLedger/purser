@@ -27,6 +27,7 @@ type mbzMedium struct {
 }
 
 type mbzTrack struct {
+	Number    string `json:"number"` // track position as string, e.g. "1" or "A1" for vinyl
 	Title     string `json:"title"`
 	Recording struct {
 		ID     string `json:"id"`
@@ -108,6 +109,7 @@ func trackToExternalItem(t *mbzTrack) *domain.ExternalItem {
 		ExternalID:  t.Recording.ID,
 		ContentType: domain.ContentTypeMusic,
 		Title:       title,
+		Sequence:    t.Number,
 		RuntimeSecs: t.Recording.Length / 1000,
 	}
 }

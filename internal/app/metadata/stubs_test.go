@@ -325,6 +325,32 @@ func (d *stubImageDownloader) Download(_ context.Context, url, _, _ string) stri
 	return d.ext
 }
 
+// seededItemExternalIDRepo implements both ExternalIDRepository and ItemRepository.
+// FindEntity always returns the seeded ID; Get returns the seeded item when asked
+// for that ID. Used to verify idempotent ImportTrack behaviour.
+type seededItemExternalIDRepo struct {
+	id   string
+	item *domain.Item
+}
+
+func (r *seededItemExternalIDRepo) FindEntity(_ context.Context, _, _, _ string) (string, error) {
+	return r.id, nil
+}
+
+func (r *seededItemExternalIDRepo) Get(_ context.Context, id string) (*domain.Item, error) {
+	if id == r.id && r.item != nil {
+		return r.item, nil
+	}
+	return nil, fmt.Errorf("not found: %w", errs.ErrNotFound)
+}
+
+func (r *seededItemExternalIDRepo) List(_ context.Context, _ ports.ItemFilter) ([]*domain.Item, int, error) {
+	return nil, 0, nil
+}
+
+func (r *seededItemExternalIDRepo) Save(_ context.Context, _ *domain.Item) error { return nil }
+func (r *seededItemExternalIDRepo) Delete(_ context.Context, _ string) error     { return nil }
+
 // ── Image-only source stub ────────────────────────────────────────────────────
 
 // stubImageSource is a configurable MetadataSource + ExternalIDSource + PersonImageSource

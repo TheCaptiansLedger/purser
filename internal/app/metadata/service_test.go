@@ -1272,6 +1272,199 @@ func TestImportStudio_MovieStudio_SetsMovieParent(t *testing.T) {
 	}
 }
 
+// ── SearchTracks ──────────────────────────────────────────────────────────────
+
+func tracksForAlbum() *stubMusicSource {
+	return &stubMusicSource{
+		albums: nil,
+		tracks: map[string][]*domain.ExternalItem{
+			"album-mbid-1": {
+				{Source: domain.SourceMusicBrainz, ExternalID: "rec-1", Title: "Starman", Sequence: "1", RuntimeSecs: 254},
+				{Source: domain.SourceMusicBrainz, ExternalID: "rec-2", Title: "Suffragette City", Sequence: "2", RuntimeSecs: 213},
+				{Source: domain.SourceMusicBrainz, ExternalID: "rec-3", Title: "Ziggy Stardust", Sequence: "3", RuntimeSecs: 193},
+			},
+		},
+	}
+}
+
+func TestSearchTracks_ReturnsAll(t *testing.T) {
+	svc := metadata.New([]ports.MetadataSource{tracksForAlbum()}, nil, newStubEntryRepo(), nil, &stubItemRepo{}, &stubPersonRepo{}, &stubTagRepo{}, &stubExternalIDRepo{}, nil)
+	tracks, err := svc.SearchTracks(context.Background(), &metadata.SearchTracksRequest{
+		Source:      domain.SourceMusicBrainz,
+		ContentType: domain.ContentTypeMusic,
+		GroupExtID:  "album-mbid-1",
+	})
+	if err != nil {
+		t.Fatalf("SearchTracks: %v", err)
+	}
+	if len(tracks) != 3 {
+		t.Errorf("track count = %d, want 3", len(tracks))
+	}
+}
+
+func TestSearchTracks_FilterByQuery(t *testing.T) {
+	svc := metadata.New([]ports.MetadataSource{tracksForAlbum()}, nil, newStubEntryRepo(), nil, &stubItemRepo{}, &stubPersonRepo{}, &stubTagRepo{}, &stubExternalIDRepo{}, nil)
+	tracks, err := svc.SearchTracks(context.Background(), &metadata.SearchTracksRequest{
+		Source:      domain.SourceMusicBrainz,
+		ContentType: domain.ContentTypeMusic,
+		GroupExtID:  "album-mbid-1",
+		Query:       "ziggy",
+	})
+	if err != nil {
+		t.Fatalf("SearchTracks: %v", err)
+	}
+	if len(tracks) != 1 {
+		t.Fatalf("filtered track count = %d, want 1", len(tracks))
+	}
+	if tracks[0].Title != "Ziggy Stardust" {
+		t.Errorf("track title = %q, want %q", tracks[0].Title, "Ziggy Stardust")
+	}
+}
+
+func TestSearchTracks_UnknownSource(t *testing.T) {
+	svc := metadata.New(nil, nil, newStubEntryRepo(), nil, &stubItemRepo{}, &stubPersonRepo{}, &stubTagRepo{}, &stubExternalIDRepo{}, nil)
+	_, err := svc.SearchTracks(context.Background(), &metadata.SearchTracksRequest{
+		Source:      "nonexistent",
+		ContentType: domain.ContentTypeMusic,
+		GroupExtID:  "album-mbid-1",
+	})
+	if err == nil {
+		t.Fatal("expected error for unknown source, got nil")
+	}
+	if !errs.IsValidation(err) {
+		t.Errorf("expected ValidationError, got %v", err)
+	}
+}
+
+func TestSearchTracks_PreservesSequence(t *testing.T) {
+	svc := metadata.New([]ports.MetadataSource{tracksForAlbum()}, nil, newStubEntryRepo(), nil, &stubItemRepo{}, &stubPersonRepo{}, &stubTagRepo{}, &stubExternalIDRepo{}, nil)
+	tracks, err := svc.SearchTracks(context.Background(), &metadata.SearchTracksRequest{
+		Source:      domain.SourceMusicBrainz,
+		ContentType: domain.ContentTypeMusic,
+		GroupExtID:  "album-mbid-1",
+	})
+	if err != nil {
+		t.Fatalf("SearchTracks: %v", err)
+	}
+	if tracks[0].Sequence != "1" {
+		t.Errorf("first track Sequence = %q, want %q", tracks[0].Sequence, "1")
+	}
+}
+
+// ── ImportTrack ───────────────────────────────────────────────────────────────
+
+func TestImportTrack_CreatesItem(t *testing.T) {
+	itemRepo := &stubItemRepo{}
+	svc := metadata.New(nil, nil, newStubEntryRepo(), nil, itemRepo, &stubPersonRepo{}, &stubTagRepo{}, &stubExternalIDRepo{}, nil)
+
+	item, err := svc.ImportTrack(context.Background(), &metadata.ImportTrackRequest{
+		Source:         domain.SourceMusicBrainz,
+		ExternalID:     "rec-mbid-1",
+		GroupID:        "group-uuid-1",
+		LibraryEntryID: "entry-uuid-1",
+		ContentType:    domain.ContentTypeMusic,
+		Title:          "Heroes",
+		Sequence:       "3",
+		RuntimeSeconds: 369,
+		Monitored:      true,
+	})
+	if err != nil {
+		t.Fatalf("ImportTrack: %v", err)
+	}
+	if item.Title != "Heroes" {
+		t.Errorf("title = %q, want %q", item.Title, "Heroes")
+	}
+	if item.Sequence != "3" {
+		t.Errorf("sequence = %q, want %q", item.Sequence, "3")
+	}
+	if item.Status != domain.StatusWanted {
+		t.Errorf("status = %q, want %q", item.Status, domain.StatusWanted)
+	}
+	if len(item.ExternalIDs) != 1 || item.ExternalIDs[0].Value != "rec-mbid-1" {
+		t.Errorf("externalIDs = %v, want one entry with value rec-mbid-1", item.ExternalIDs)
+	}
+	if len(itemRepo.items) != 1 {
+		t.Errorf("saved item count = %d, want 1", len(itemRepo.items))
+	}
+}
+
+func TestImportTrack_UnmonitoredIsStatusMissing(t *testing.T) {
+	itemRepo := &stubItemRepo{}
+	svc := metadata.New(nil, nil, newStubEntryRepo(), nil, itemRepo, &stubPersonRepo{}, &stubTagRepo{}, &stubExternalIDRepo{}, nil)
+
+	item, err := svc.ImportTrack(context.Background(), &metadata.ImportTrackRequest{
+		GroupID:        "group-uuid-2",
+		LibraryEntryID: "entry-uuid-1",
+		ContentType:    domain.ContentTypeMusic,
+		Title:          "Hidden Track",
+		Monitored:      false,
+	})
+	if err != nil {
+		t.Fatalf("ImportTrack: %v", err)
+	}
+	if item.Status != domain.StatusMissing {
+		t.Errorf("unmonitored status = %q, want %q", item.Status, domain.StatusMissing)
+	}
+}
+
+func TestImportTrack_ManualEntry_NoExternalIDs(t *testing.T) {
+	itemRepo := &stubItemRepo{}
+	svc := metadata.New(nil, nil, newStubEntryRepo(), nil, itemRepo, &stubPersonRepo{}, &stubTagRepo{}, &stubExternalIDRepo{}, nil)
+
+	item, err := svc.ImportTrack(context.Background(), &metadata.ImportTrackRequest{
+		GroupID:        "group-uuid-3",
+		LibraryEntryID: "entry-uuid-1",
+		ContentType:    domain.ContentTypeMusic,
+		Title:          "Unlisted Track",
+		Monitored:      true,
+	})
+	if err != nil {
+		t.Fatalf("ImportTrack (manual): %v", err)
+	}
+	if len(item.ExternalIDs) != 0 {
+		t.Errorf("manual entry should have no ExternalIDs, got %v", item.ExternalIDs)
+	}
+}
+
+func TestImportTrack_Idempotent(t *testing.T) {
+	itemRepo := &stubItemRepo{}
+	svc := metadata.New(nil, nil, newStubEntryRepo(), nil, itemRepo, &stubPersonRepo{}, &stubTagRepo{}, &stubExternalIDRepo{}, nil)
+
+	item1, err := svc.ImportTrack(context.Background(), &metadata.ImportTrackRequest{
+		Source:         domain.SourceMusicBrainz,
+		ExternalID:     "rec-idem-1",
+		GroupID:        "group-uuid-4",
+		LibraryEntryID: "entry-uuid-1",
+		ContentType:    domain.ContentTypeMusic,
+		Title:          "Once Only",
+		Monitored:      true,
+	})
+	if err != nil {
+		t.Fatalf("first ImportTrack: %v", err)
+	}
+
+	seeded := &seededItemExternalIDRepo{id: item1.ID, item: item1}
+	svc2 := metadata.New(nil, nil, newStubEntryRepo(), nil, seeded, &stubPersonRepo{}, &stubTagRepo{}, seeded, nil)
+	item2, err := svc2.ImportTrack(context.Background(), &metadata.ImportTrackRequest{
+		Source:         domain.SourceMusicBrainz,
+		ExternalID:     "rec-idem-1",
+		GroupID:        "group-uuid-4",
+		LibraryEntryID: "entry-uuid-1",
+		ContentType:    domain.ContentTypeMusic,
+		Title:          "Once Only",
+		Monitored:      true,
+	})
+	if err != nil {
+		t.Fatalf("second ImportTrack: %v", err)
+	}
+	if item2.ID != item1.ID {
+		t.Errorf("idempotent call returned different ID: %q vs %q", item2.ID, item1.ID)
+	}
+	if len(itemRepo.items) != 1 {
+		t.Errorf("item count = %d, want 1 (no duplicate)", len(itemRepo.items))
+	}
+}
+
 // ── SubmitRefreshJob ──────────────────────────────────────────────────────────
 
 func TestSubmitRefreshJob_EmptyEntityID(t *testing.T) {

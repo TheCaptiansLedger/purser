@@ -1,17 +1,19 @@
 import { useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
-import { ArrowLeft, Music2, Eye, EyeOff, SkipForward, BookmarkCheck } from 'lucide-react'
+import { ArrowLeft, Music2, Eye, EyeOff, SkipForward, BookmarkCheck, Plus, Pencil, Trash2 } from 'lucide-react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useLibraryEntry } from '../../api/library'
 import { useGroup, patchGroup } from '../../api/groups'
-import { useItems, patchItem } from '../../api/items'
+import { useItems, patchItem, deleteItem } from '../../api/items'
 import { EditButton } from '../../components/EditButton'
 import { GroupEditor } from '../../components/edit/editors/GroupEditor'
+import { ItemEditor } from '../../components/edit/editors/ItemEditor'
 import { StatusFilterChips } from '../../components/media/StatusFilterChips'
 import { Lightbox } from '../../components/ui/Lightbox'
 import { fmtRuntime } from '../../components/ui/Runtime'
 import { Skeleton } from '../../components/ui/Skeleton'
 import { filterTagsForModule } from '../../utils/filterTagsForModule'
+import { AddTrackDialog } from './AddTrackDialog'
 import type { Item, ItemStatus } from '../../types'
 
 const ACCENT = '#10b981'
@@ -25,8 +27,9 @@ const STATUS_DOT: Record<ItemStatus, string> = {
   skipped:     '#374151',
 }
 
-function TrackRow({ track }: { track: Item }) {
+function TrackRow({ track, onEdit }: { track: Item; onEdit: () => void }) {
   const queryClient = useQueryClient()
+  const [confirmDelete, setConfirmDelete] = useState(false)
 
   const toggleMonitor = useMutation({
     mutationFn: () => patchItem(track.id, { monitored: !track.monitored }),
@@ -38,11 +41,19 @@ function TrackRow({ track }: { track: Item }) {
     onSuccess: () => void queryClient.invalidateQueries({ queryKey: ['items'] }),
   })
 
+  const doDelete = useMutation({
+    mutationFn: () => deleteItem(track.id),
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ['items'] }),
+  })
+
   const canSetWanted  = track.status === 'skipped' || track.status === 'missing'
   const canSetSkipped = track.status === 'wanted'
 
   return (
-    <div className="flex items-center gap-4 px-3 py-2.5 rounded-lg hover:bg-white/4 transition-colors group">
+    <div
+      className="flex items-center gap-4 px-3 py-2.5 rounded-lg hover:bg-white/4 transition-colors group"
+      onMouseLeave={() => setConfirmDelete(false)}
+    >
       <span className="w-6 text-right text-xs text-white/25 font-mono shrink-0">
         {track.sequence || '—'}
       </span>
@@ -88,6 +99,30 @@ function TrackRow({ track }: { track: Item }) {
             <SkipForward size={13} />
           </button>
         )}
+        <button
+          onClick={onEdit}
+          title="Edit track"
+          className="p-1 rounded hover:bg-white/8 transition-colors text-white/30 hover:text-white/70"
+        >
+          <Pencil size={13} />
+        </button>
+        {confirmDelete ? (
+          <button
+            onClick={() => { doDelete.mutate(); setConfirmDelete(false) }}
+            title="Click to confirm delete"
+            className="p-1 rounded transition-colors text-red-400 hover:text-red-300"
+          >
+            <Trash2 size={13} />
+          </button>
+        ) : (
+          <button
+            onClick={() => setConfirmDelete(true)}
+            title="Delete track"
+            className="p-1 rounded hover:bg-white/8 transition-colors text-white/30 hover:text-red-400"
+          >
+            <Trash2 size={13} />
+          </button>
+        )}
       </div>
     </div>
   )
@@ -98,6 +133,8 @@ export function AlbumDetail() {
   const queryClient = useQueryClient()
   const [editOpen, setEditOpen] = useState(false)
   const [lightboxOpen, setLightboxOpen] = useState(false)
+  const [addTrackOpen, setAddTrackOpen] = useState(false)
+  const [editingTrack, setEditingTrack] = useState<Item | null>(null)
   const [statusFilter, setStatusFilter] = useState<ItemStatus | undefined>(undefined)
   const { data: artist } = useLibraryEntry(id!)
   const { data: album, isLoading } = useGroup(albumId!)
@@ -206,12 +243,18 @@ export function AlbumDetail() {
         </div>
       )}
 
-      <div className="mb-3">
+      <div className="mb-3 flex items-center justify-between">
         <StatusFilterChips value={statusFilter} onChange={setStatusFilter} accent={ACCENT} />
+        <button
+          onClick={() => setAddTrackOpen(true)}
+          className="flex items-center gap-1 text-xs text-white/40 hover:text-white/80 transition-colors"
+        >
+          <Plus size={12} /> Add Track
+        </button>
       </div>
       <div className="space-y-0.5">
         {tracks.map(track => (
-          <TrackRow key={track.id} track={track} />
+          <TrackRow key={track.id} track={track} onEdit={() => setEditingTrack(track)} />
         ))}
       </div>
 
@@ -219,6 +262,28 @@ export function AlbumDetail() {
         <GroupEditor
           group={album}
           onClose={() => setEditOpen(false)}
+        />
+      )}
+
+      {addTrackOpen && artist && (
+        <AddTrackDialog
+          open={addTrackOpen}
+          onClose={() => setAddTrackOpen(false)}
+          albumId={albumId!}
+          albumExternalIds={album.externalIds}
+          libraryEntryId={album.libraryEntryId}
+          contentType={artist.contentType}
+          accent={ACCENT}
+        />
+      )}
+
+      {editingTrack && (
+        <ItemEditor
+          item={editingTrack}
+          onClose={() => {
+            setEditingTrack(null)
+            void queryClient.invalidateQueries({ queryKey: ['items'] })
+          }}
         />
       )}
 
