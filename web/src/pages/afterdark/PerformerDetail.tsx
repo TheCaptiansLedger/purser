@@ -1,6 +1,5 @@
 import { useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
-import type { ReactNode } from 'react'
 import { ArrowLeft, User, Film } from 'lucide-react'
 import { usePerson } from '../../api/people'
 import { useItems } from '../../api/items'
@@ -9,23 +8,12 @@ import { StatusFilterChips } from '../../components/media/StatusFilterChips'
 import { EditButton } from '../../components/EditButton'
 import { PersonEditor } from '../../components/edit/editors/PersonEditor'
 import { Badge } from '../../components/ui/Badge'
-import { CountryChip } from '../../components/ui/CountryChip'
 import { ItemCard } from '../../components/media/ItemCard'
+import { PersonMetaGroups } from '../../components/media/PersonMetaGroups'
 import { Skeleton } from '../../components/ui/Skeleton'
-import { fmtDate } from '../../components/ui/Runtime'
 import type { ItemStatus } from '../../types'
 
 const ACCENT = '#f43f5e'
-
-function MetaRow({ label, value }: { label: string; value?: ReactNode }) {
-  if (value === undefined || value === null || value === '') return null
-  return (
-    <div className="py-3 border-b border-white/5">
-      <p className="text-xs text-white/35 mb-0.5">{label}</p>
-      <p className="text-sm text-white/75">{value}</p>
-    </div>
-  )
-}
 
 export function PerformerDetail() {
   const { id } = useParams<{ id: string }>()
@@ -48,8 +36,6 @@ export function PerformerDetail() {
   )
 
   if (!person) return null
-
-  const meta = (person.metadata ?? {}) as Record<string, string | number | boolean | null>
 
   return (
     <div className="flex min-h-screen">
@@ -84,23 +70,7 @@ export function PerformerDetail() {
             </div>
           )}
 
-          {/* Type-specific metadata */}
-          {meta.birthdate && <MetaRow label="Born" value={fmtDate(String(meta.birthdate))} />}
-          {meta.birthplace && <MetaRow label="Birthplace" value={String(meta.birthplace)} />}
-          {meta.nationality && (
-            <MetaRow label="Nationality" value={<CountryChip value={String(meta.nationality)} />} />
-          )}
-          {meta.ethnicity && <MetaRow label="Ethnicity" value={String(meta.ethnicity)} />}
-          {meta.hair_color && <MetaRow label="Hair" value={String(meta.hair_color)} />}
-          {meta.eye_color && <MetaRow label="Eyes" value={String(meta.eye_color)} />}
-          {meta.measurements && <MetaRow label="Measurements" value={String(meta.measurements)} />}
-          {meta.height && <MetaRow label="Height" value={String(meta.height)} />}
-          {meta.weight && <MetaRow label="Weight" value={String(meta.weight)} />}
-          {meta.cup_size && <MetaRow label="Cup Size" value={String(meta.cup_size)} />}
-          {meta.breast_type && <MetaRow label="Breast Type" value={String(meta.breast_type)} />}
-          {meta.tattoos && <MetaRow label="Tattoos" value={String(meta.tattoos)} />}
-          {meta.piercings && <MetaRow label="Piercings" value={String(meta.piercings)} />}
-          {meta.career_start && <MetaRow label="Career start" value={String(meta.career_start)} />}
+          <PersonMetaGroups metadata={person.metadata} />
 
           {/* External IDs */}
           {person.externalIds.length > 0 && (
