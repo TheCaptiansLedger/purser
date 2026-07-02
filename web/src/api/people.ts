@@ -7,6 +7,7 @@ interface PeopleFilter {
   contentType?: string
   role?: PersonRole
   monitored?: boolean
+  unlinked?: boolean
   limit?: number
   offset?: number
 }

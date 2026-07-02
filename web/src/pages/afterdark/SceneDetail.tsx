@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useParams, Link } from 'react-router-dom'
+import { useParams, Link, useNavigate } from 'react-router-dom'
 import { Calendar, Clock, ImageIcon, User } from 'lucide-react'
 import { useItem } from '../../api/items'
 import { useLibraryEntry } from '../../api/library'
@@ -12,12 +12,15 @@ import { PersonCard } from '../../components/media/PersonCard'
 import { fmtRuntime, fmtDate, fmtBytes } from '../../components/ui/Runtime'
 import { Skeleton } from '../../components/ui/Skeleton'
 import { ExpandableText } from '../../components/ui/ExpandableText'
+import DeleteDialog from '../../components/DeleteDialog'
 
 const ACCENT = '#f43f5e'
 
 export function SceneDetail() {
   const { id } = useParams<{ id: string }>()
+  const navigate = useNavigate()
   const [editOpen, setEditOpen] = useState(false)
+  const [deleteOpen, setDeleteOpen] = useState(false)
   const [lightboxOpen, setLightboxOpen] = useState(false)
 
   const { data: item, isLoading } = useItem(id!)
@@ -43,7 +46,16 @@ export function SceneDetail() {
           <span className="text-white/20">›</span>
           <span className="text-white/60 truncate max-w-xs">{item.title}</span>
         </nav>
-        <EditButton onClick={() => setEditOpen(true)} className="shrink-0" />
+        <div className="flex items-center gap-2 shrink-0">
+          <EditButton onClick={() => setEditOpen(true)} />
+          <button
+            type="button"
+            onClick={() => setDeleteOpen(true)}
+            className="inline-flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg border border-red-900/40 text-red-400/70 hover:text-red-400 hover:border-red-700/60 transition-colors"
+          >
+            Delete
+          </button>
+        </div>
       </div>
 
       {/* Hero — big thumbnail left, title + tags right */}
@@ -212,6 +224,15 @@ export function SceneDetail() {
       {lightboxOpen && item.coverUrl && (
         <Lightbox src={item.coverUrl} alt={item.title} onClose={() => setLightboxOpen(false)} />
       )}
+
+      <DeleteDialog
+        open={deleteOpen}
+        entityName={item.title}
+        resource="items"
+        entityId={item.id}
+        onClose={() => setDeleteOpen(false)}
+        onDeleted={() => navigate(entry ? `/afterdark/studios/${entry.id}` : '/afterdark')}
+      />
     </div>
   )
 }

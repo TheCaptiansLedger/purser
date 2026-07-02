@@ -276,11 +276,71 @@ func (r *libraryEntryRepo) Save(ctx context.Context, e *domain.LibraryEntry) err
 }
 
 func (r *libraryEntryRepo) Delete(ctx context.Context, id string) error {
-	_, err := r.db.ExecContext(ctx, `DELETE FROM library_entries WHERE id = ?`, id)
+	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
 		return fmt.Errorf("delete library entry %s: %w", id, err)
 	}
-	return nil
+	defer func() { _ = tx.Rollback() }()
+
+	// Orphan any child entries rather than deleting them.
+	stmts := []string{
+		`UPDATE library_entries SET parent_id = NULL WHERE parent_id = ?`,
+		`DELETE FROM entry_people  WHERE library_entry_id = ?`,
+		`DELETE FROM entry_tags    WHERE library_entry_id = ?`,
+		`DELETE FROM external_ids  WHERE entity_type = 'library_entry' AND entity_id = ?`,
+		`DELETE FROM library_entries WHERE id = ?`,
+	}
+	for _, s := range stmts {
+		if _, err := tx.ExecContext(ctx, s, id); err != nil {
+			return fmt.Errorf("delete library entry %s: %w", id, err)
+		}
+	}
+	return tx.Commit()
+}
+
+func (r *libraryEntryRepo) DeletionImpact(ctx context.Context, id string) (*domain.DeletionImpact, error) {
+	var name, ct string
+	if err := r.db.QueryRowContext(ctx,
+		`SELECT name, content_type FROM library_entries WHERE id = ?`, id,
+	).Scan(&name, &ct); err != nil {
+		return nil, fmt.Errorf("deletion impact for entry %s: %w", id, err)
+	}
+	contentType := domain.ContentType(ct)
+
+	var groupCount, itemCount int
+	_ = r.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM groups WHERE library_entry_id = ?`, id).Scan(&groupCount)
+	_ = r.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM items WHERE library_entry_id = ?`, id).Scan(&itemCount)
+
+	impact := &domain.DeletionImpact{Mode: domain.DeletionModeDestroy, Impacts: []domain.DeletionImpactRow{}}
+	if groupCount > 0 {
+		impact.Impacts = append(impact.Impacts, domain.DeletionImpactRow{
+			Kind: "group", Count: groupCount, Label: contentType.GroupLabel(),
+		})
+	}
+	if itemCount > 0 {
+		impact.Impacts = append(impact.Impacts, domain.DeletionImpactRow{
+			Kind: "item", Count: itemCount, Label: contentType.ItemLabel(),
+		})
+	}
+	impact.Summary = buildEntrySummary(name, groupCount, itemCount, contentType)
+	return impact, nil
+}
+
+func buildEntrySummary(name string, groupCount, itemCount int, ct domain.ContentType) string {
+	if groupCount == 0 && itemCount == 0 {
+		return "Deleting " + name + " will permanently remove it from the library."
+	}
+	parts := ""
+	if groupCount > 0 {
+		parts += fmt.Sprintf("%d %s", groupCount, ct.GroupLabel())
+	}
+	if itemCount > 0 {
+		if parts != "" {
+			parts += " and "
+		}
+		parts += fmt.Sprintf("%d %s", itemCount, ct.ItemLabel())
+	}
+	return fmt.Sprintf("Deleting %s will permanently remove %s.", name, parts)
 }
 
 // ensure interface is satisfied at compile time

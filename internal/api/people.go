@@ -19,6 +19,7 @@ func (h *peopleHandler) routes(r chi.Router) {
 	r.Post("/", h.create)
 	r.Get("/roles", h.listRoles)
 	r.Get("/{id}", h.get)
+	r.Get("/{id}/deletion-preview", h.deletionPreview)
 	r.Patch("/{id}", h.update)
 	r.Delete("/{id}", h.delete)
 }
@@ -103,6 +104,7 @@ func (h *peopleHandler) list(w http.ResponseWriter, r *http.Request) {
 		Monitored:    boolPtr(r, "monitored"),
 		Role:         domain.PersonRole(q.Get("role")),
 		Search:       q.Get("search"),
+		Unlinked:     q.Get("unlinked") == "true",
 		Limit:        limit,
 		Offset:       offset,
 	})
@@ -253,7 +255,19 @@ func (h *peopleHandler) update(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, toPersonResponse(p))
 }
 
+func (h *peopleHandler) deletionPreview(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	impact, err := h.svc.DeletionImpactOfPerson(r.Context(), id)
+	if handleErr(w, err) {
+		return
+	}
+	writeJSON(w, http.StatusOK, impact)
+}
+
 func (h *peopleHandler) delete(w http.ResponseWriter, r *http.Request) {
+	if !requireDeleteConfirm(w, r) {
+		return
+	}
 	id := chi.URLParam(r, "id")
 	if err := h.svc.DeletePerson(r.Context(), id); handleErr(w, err) {
 		return

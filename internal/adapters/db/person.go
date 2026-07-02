@@ -119,6 +119,10 @@ func (r *personRepo) List(ctx context.Context, f ports.PersonFilter) ([]*domain.
 		w.add(`id IN (SELECT person_id FROM person_roles WHERE role = ?)`, string(f.Role))
 	}
 	addPersonContentTypes(w, f.ContentTypes)
+	if f.Unlinked {
+		w.add(`NOT EXISTS (SELECT 1 FROM item_people ip WHERE ip.person_id = people.id)` +
+			` AND NOT EXISTS (SELECT 1 FROM entry_people ep WHERE ep.person_id = people.id)`)
+	}
 	if f.Search != "" {
 		w.add(`(name LIKE ? OR id IN (
 			SELECT person_id FROM people_aliases WHERE alias LIKE ?
@@ -156,20 +160,19 @@ func (r *personRepo) List(ctx context.Context, f ports.PersonFilter) ([]*domain.
 		if err != nil {
 			return nil, 0, err
 		}
-		p.Aliases, err = loadAliases(ctx, r.db, p.ID)
-		if err != nil {
-			return nil, 0, fmt.Errorf("load aliases for %s: %w", p.ID, err)
-		}
-		p.Roles, err = loadPersonRoles(ctx, r.db, p.ID)
-		if err != nil {
-			return nil, 0, fmt.Errorf("load roles for %s: %w", p.ID, err)
-		}
 		people = append(people, p)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, 0, err
 	}
-
+	// rows is now exhausted and the connection is released back to the pool.
+	// Batch-load secondary data — no nested queries while a cursor is open.
+	if err := attachAliasesBatch(ctx, r.db, people); err != nil {
+		return nil, 0, fmt.Errorf("load aliases for people: %w", err)
+	}
+	if err := attachPersonRolesBatch(ctx, r.db, people); err != nil {
+		return nil, 0, fmt.Errorf("load roles for people: %w", err)
+	}
 	if err := attachExternalIDsBatch(ctx, r.db, "person", people,
 		func(p *domain.Person) string { return p.ID },
 		func(p *domain.Person, ids []domain.ExternalID) { p.ExternalIDs = ids },
@@ -249,11 +252,96 @@ func (r *personRepo) Save(ctx context.Context, p *domain.Person) error {
 }
 
 func (r *personRepo) Delete(ctx context.Context, id string) error {
-	_, err := r.db.ExecContext(ctx, `DELETE FROM people WHERE id = ?`, id)
+	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
 		return fmt.Errorf("delete person %s: %w", id, err)
 	}
-	return nil
+	defer func() { _ = tx.Rollback() }()
+
+	stmts := []string{
+		`DELETE FROM item_people   WHERE person_id = ?`,
+		`DELETE FROM entry_people  WHERE person_id = ?`,
+		`DELETE FROM people_aliases WHERE person_id = ?`,
+		`DELETE FROM person_roles  WHERE person_id = ?`,
+		`DELETE FROM external_ids  WHERE entity_type = 'person' AND entity_id = ?`,
+		`DELETE FROM people        WHERE id = ?`,
+	}
+	for _, s := range stmts {
+		if _, err := tx.ExecContext(ctx, s, id); err != nil {
+			return fmt.Errorf("delete person %s: %w", id, err)
+		}
+	}
+	return tx.Commit()
+}
+
+func (r *personRepo) DeletionImpact(ctx context.Context, id string) (*domain.DeletionImpact, error) {
+	var name string
+	if err := r.db.QueryRowContext(ctx,
+		`SELECT name FROM people WHERE id = ?`, id,
+	).Scan(&name); err != nil {
+		return nil, fmt.Errorf("deletion impact for person %s: %w", id, err)
+	}
+
+	impact := &domain.DeletionImpact{Mode: domain.DeletionModeUnlink, Impacts: []domain.DeletionImpactRow{}}
+	total := 0
+
+	// Item credits — group by content type so "Scenes: 3, Tracks: 1" is possible.
+	itemRows, err := r.db.QueryContext(ctx, `
+		SELECT le.content_type, COUNT(*)
+		FROM item_people ip
+		JOIN items i ON i.id = ip.item_id
+		JOIN library_entries le ON le.id = i.library_entry_id
+		WHERE ip.person_id = ?
+		GROUP BY le.content_type`, id)
+	if err != nil {
+		return nil, fmt.Errorf("deletion impact items for person %s: %w", id, err)
+	}
+	defer func() { _ = itemRows.Close() }()
+	for itemRows.Next() {
+		var ct string
+		var count int
+		if err := itemRows.Scan(&ct, &count); err != nil {
+			return nil, err
+		}
+		impact.Impacts = append(impact.Impacts, domain.DeletionImpactRow{
+			Kind:  "item_" + ct,
+			Count: count,
+			Label: domain.ContentType(ct).ItemLabel(),
+		})
+		total += count
+	}
+
+	// Entry credits — group by kind so "Artists: 1, Studios: 2" is possible.
+	entryRows, err := r.db.QueryContext(ctx, `
+		SELECT le.kind, COUNT(*)
+		FROM entry_people ep
+		JOIN library_entries le ON le.id = ep.library_entry_id
+		WHERE ep.person_id = ?
+		GROUP BY le.kind`, id)
+	if err != nil {
+		return nil, fmt.Errorf("deletion impact entries for person %s: %w", id, err)
+	}
+	defer func() { _ = entryRows.Close() }()
+	for entryRows.Next() {
+		var kind string
+		var count int
+		if err := entryRows.Scan(&kind, &count); err != nil {
+			return nil, err
+		}
+		impact.Impacts = append(impact.Impacts, domain.DeletionImpactRow{
+			Kind:  "entry_" + kind,
+			Count: count,
+			Label: domain.Kind(kind).EntryLabel(),
+		})
+		total += count
+	}
+
+	if total == 0 {
+		impact.Summary = fmt.Sprintf("%s will be permanently deleted.", name)
+	} else {
+		impact.Summary = fmt.Sprintf("%s will be removed from %d credit(s) across the library.", name, total)
+	}
+	return impact, nil
 }
 
 var _ ports.PersonRepository = (*personRepo)(nil)

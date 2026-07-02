@@ -1,3 +1,7 @@
+// Package db implements the SQLite storage adapter. All SQLite-specific
+// configuration (driver registration, PRAGMAs, single-connection pool) lives
+// here. A future adapters/db/postgres.go would provide the same Open signature
+// wired to a Postgres driver instead.
 package db
 
 import (
@@ -15,13 +19,21 @@ import (
 //go:embed migrations/*.sql
 var migrationFiles embed.FS
 
-// Open opens (or creates) a SQLite database at dsn, applies WAL mode and foreign
-// key enforcement, then runs any pending schema migrations.
+// Open opens (or creates) a SQLite database at dsn, applies WAL mode and
+// foreign key enforcement, and runs any pending schema migrations.
+//
+// SetMaxOpenConns(1) is intentional: SQLite PRAGMAs are per-connection, so
+// restricting the pool to one connection ensures the PRAGMA settings applied
+// below hold for every query. All repository implementations avoid holding a
+// cursor open while issuing secondary queries (batch-load pattern) so the
+// single connection is never a bottleneck.
 func Open(dsn string) (*sql.DB, error) {
 	database, err := sql.Open("sqlite", dsn)
 	if err != nil {
 		return nil, fmt.Errorf("open sqlite: %w", err)
 	}
+
+	database.SetMaxOpenConns(1)
 
 	if _, err := database.Exec(`PRAGMA journal_mode=WAL; PRAGMA foreign_keys=ON;`); err != nil {
 		_ = database.Close()

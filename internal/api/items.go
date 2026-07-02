@@ -19,6 +19,7 @@ func (h *itemHandler) routes(r chi.Router) {
 	r.Get("/", h.list)
 	r.Post("/", h.create)
 	r.Get("/{id}", h.get)
+	r.Get("/{id}/deletion-preview", h.deletionPreview)
 	r.Patch("/{id}", h.update)
 	r.Delete("/{id}", h.delete)
 	r.Put("/{id}/people", h.addPerson)
@@ -303,7 +304,19 @@ func (h *itemHandler) update(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, toItemResponse(item))
 }
 
+func (h *itemHandler) deletionPreview(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	impact, err := h.svc.DeletionImpactOfItem(r.Context(), id)
+	if handleErr(w, err) {
+		return
+	}
+	writeJSON(w, http.StatusOK, impact)
+}
+
 func (h *itemHandler) delete(w http.ResponseWriter, r *http.Request) {
+	if !requireDeleteConfirm(w, r) {
+		return
+	}
 	id := chi.URLParam(r, "id")
 	if err := h.svc.DeleteItem(r.Context(), id); handleErr(w, err) {
 		return

@@ -86,6 +86,25 @@ export async function del(path: string): Promise<void> {
   }
 }
 
+export async function delConfirmed(path: string): Promise<void> {
+  const res = await fetch(BASE + path, {
+    method: 'DELETE',
+    headers: { 'Purser-Confirm-Delete': 'yes' },
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: res.statusText }))
+    throw new Error(err.error ?? res.statusText)
+  }
+}
+
+export function getDeletionPreview(resource: string, id: string) {
+  return req<import('../types').DeletionImpact>(`/${resource}/${id}/deletion-preview`)
+}
+
+export function delEntityConfirmed(resource: string, id: string): Promise<void> {
+  return delConfirmed(`/${resource}/${id}`)
+}
+
 export async function patchEmpty(path: string, body: unknown): Promise<void> {
   const res = await fetch(BASE + path, {
     method: 'PATCH',

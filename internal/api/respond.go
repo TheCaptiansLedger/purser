@@ -60,3 +60,14 @@ func boolPtr(r *http.Request, key string) *bool {
 func decode(r *http.Request, v any) error {
 	return json.NewDecoder(r.Body).Decode(v)
 }
+
+// requireDeleteConfirm checks for the Purser-Confirm-Delete header.
+// Returns true if the header is present and correct; writes a 400 and returns false otherwise.
+func requireDeleteConfirm(w http.ResponseWriter, r *http.Request) bool {
+	if r.Header.Get("Purser-Confirm-Delete") != "yes" {
+		writeError(w, http.StatusBadRequest, "CONFIRM_HEADER_REQUIRED",
+			"include header 'Purser-Confirm-Delete: yes' to confirm deletion")
+		return false
+	}
+	return true
+}

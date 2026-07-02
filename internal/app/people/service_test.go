@@ -62,6 +62,10 @@ func (m *mockPersonRepo) Delete(_ context.Context, id string) error {
 	return nil
 }
 
+func (m *mockPersonRepo) DeletionImpact(_ context.Context, _ string) (*domain.DeletionImpact, error) {
+	return &domain.DeletionImpact{Mode: domain.DeletionModeUnlink}, nil
+}
+
 func TestCreatePerson_Valid(t *testing.T) {
 	repo := newMockPersonRepo()
 	svc := people.New(repo)

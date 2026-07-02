@@ -66,6 +66,10 @@ func (m *mockEntryRepo) Delete(_ context.Context, id string) error {
 	return nil
 }
 
+func (m *mockEntryRepo) DeletionImpact(_ context.Context, _ string) (*domain.DeletionImpact, error) {
+	return &domain.DeletionImpact{Mode: domain.DeletionModeDestroy}, nil
+}
+
 func (m *mockEntryRepo) GetPeople(_ context.Context, entryID string) ([]domain.EntryPerson, error) {
 	return m.people[entryID], nil
 }
@@ -135,6 +139,10 @@ func (m *mockPersonRepo) Delete(_ context.Context, id string) error {
 	return nil
 }
 
+func (m *mockPersonRepo) DeletionImpact(_ context.Context, _ string) (*domain.DeletionImpact, error) {
+	return &domain.DeletionImpact{Mode: domain.DeletionModeUnlink}, nil
+}
+
 type mockGroupRepo struct {
 	data map[string]*domain.Group
 }
@@ -170,6 +178,19 @@ func (m *mockGroupRepo) Save(_ context.Context, g *domain.Group) error {
 func (m *mockGroupRepo) Delete(_ context.Context, id string) error {
 	delete(m.data, id)
 	return nil
+}
+
+func (m *mockGroupRepo) DeleteByLibraryEntry(_ context.Context, entryID string) error {
+	for id, g := range m.data {
+		if g.LibraryEntryID == entryID {
+			delete(m.data, id)
+		}
+	}
+	return nil
+}
+
+func (m *mockGroupRepo) DeletionImpact(_ context.Context, _ string) (*domain.DeletionImpact, error) {
+	return &domain.DeletionImpact{Mode: domain.DeletionModeDestroy}, nil
 }
 
 type mockItemRepo struct {
@@ -211,6 +232,28 @@ func (m *mockItemRepo) Save(_ context.Context, item *domain.Item) error {
 func (m *mockItemRepo) Delete(_ context.Context, id string) error {
 	delete(m.data, id)
 	return nil
+}
+
+func (m *mockItemRepo) DeleteByGroup(_ context.Context, groupID string) error {
+	for id, item := range m.data {
+		if item.GroupID == groupID {
+			delete(m.data, id)
+		}
+	}
+	return nil
+}
+
+func (m *mockItemRepo) DeleteByLibraryEntry(_ context.Context, entryID string) error {
+	for id, item := range m.data {
+		if item.LibraryEntryID == entryID {
+			delete(m.data, id)
+		}
+	}
+	return nil
+}
+
+func (m *mockItemRepo) DeletionImpact(_ context.Context, _ string) (*domain.DeletionImpact, error) {
+	return &domain.DeletionImpact{Mode: domain.DeletionModeDestroy}, nil
 }
 
 func newSvc(entries *mockEntryRepo, groups *mockGroupRepo, items *mockItemRepo) *library.Service {
@@ -352,6 +395,77 @@ func TestDeleteEntry_NotFound(t *testing.T) {
 	err := svc.DeleteEntry(context.Background(), "nonexistent")
 	if !errs.IsNotFound(err) {
 		t.Errorf("expected ErrNotFound, got %v", err)
+	}
+}
+
+func TestDeleteEntry_CascadesToGroupsAndItems(t *testing.T) {
+	entries := newMockEntryRepo()
+	groups := newMockGroupRepo()
+	items := newMockItemRepo()
+	svc := newSvc(entries, groups, items)
+	ctx := context.Background()
+
+	entry := &domain.LibraryEntry{ContentType: domain.ContentTypeMusic, Kind: domain.KindArtist, Name: "Radiohead"}
+	if err := svc.CreateEntry(ctx, entry); err != nil {
+		t.Fatal(err)
+	}
+	album := &domain.Group{LibraryEntryID: entry.ID, Title: "OK Computer"}
+	if err := svc.CreateGroup(ctx, album); err != nil {
+		t.Fatal(err)
+	}
+	track := &domain.Item{LibraryEntryID: entry.ID, GroupID: album.ID, Title: "Karma Police"}
+	if err := svc.CreateItem(ctx, track); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := svc.DeleteEntry(ctx, entry.ID); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := svc.GetEntry(ctx, entry.ID); !errs.IsNotFound(err) {
+		t.Error("entry should be deleted")
+	}
+	if _, err := svc.GetGroup(ctx, album.ID); !errs.IsNotFound(err) {
+		t.Error("group should be deleted when entry is deleted")
+	}
+	if _, err := svc.GetItem(ctx, track.ID); !errs.IsNotFound(err) {
+		t.Error("item should be deleted when entry is deleted")
+	}
+}
+
+func TestDeleteGroup_CascadesToItems(t *testing.T) {
+	entries := newMockEntryRepo()
+	groups := newMockGroupRepo()
+	items := newMockItemRepo()
+	svc := newSvc(entries, groups, items)
+	ctx := context.Background()
+
+	entry := &domain.LibraryEntry{ContentType: domain.ContentTypeMusic, Kind: domain.KindArtist, Name: "Radiohead"}
+	if err := svc.CreateEntry(ctx, entry); err != nil {
+		t.Fatal(err)
+	}
+	album := &domain.Group{LibraryEntryID: entry.ID, Title: "OK Computer"}
+	if err := svc.CreateGroup(ctx, album); err != nil {
+		t.Fatal(err)
+	}
+	track := &domain.Item{LibraryEntryID: entry.ID, GroupID: album.ID, Title: "Karma Police"}
+	if err := svc.CreateItem(ctx, track); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := svc.DeleteGroup(ctx, album.ID); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := svc.GetGroup(ctx, album.ID); !errs.IsNotFound(err) {
+		t.Error("group should be deleted")
+	}
+	if _, err := svc.GetItem(ctx, track.ID); !errs.IsNotFound(err) {
+		t.Error("item should be deleted when its group is deleted")
+	}
+	// entry itself must survive
+	if _, err := svc.GetEntry(ctx, entry.ID); err != nil {
+		t.Errorf("entry should survive group deletion: %v", err)
 	}
 }
 

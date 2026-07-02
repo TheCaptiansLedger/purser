@@ -25,6 +25,7 @@ type LibraryEntryRepository interface {
 	List(ctx context.Context, f LibraryFilter) ([]*domain.LibraryEntry, int, error)
 	Save(ctx context.Context, e *domain.LibraryEntry) error
 	Delete(ctx context.Context, id string) error
+	DeletionImpact(ctx context.Context, id string) (*domain.DeletionImpact, error)
 	GetPeople(ctx context.Context, entryID string) ([]domain.EntryPerson, error)
 	SavePerson(ctx context.Context, entryID string, ep domain.EntryPerson) error
 	RemovePerson(ctx context.Context, entryID, personID, role string) error
@@ -44,6 +45,8 @@ type GroupRepository interface {
 	List(ctx context.Context, f GroupFilter) ([]*domain.Group, error)
 	Save(ctx context.Context, g *domain.Group) error
 	Delete(ctx context.Context, id string) error
+	DeleteByLibraryEntry(ctx context.Context, entryID string) error
+	DeletionImpact(ctx context.Context, id string) (*domain.DeletionImpact, error)
 }
 
 // ItemFilter specifies criteria for listing Items.
@@ -70,6 +73,9 @@ type ItemRepository interface {
 	List(ctx context.Context, f ItemFilter) ([]*domain.Item, int, error)
 	Save(ctx context.Context, item *domain.Item) error
 	Delete(ctx context.Context, id string) error
+	DeleteByGroup(ctx context.Context, groupID string) error
+	DeleteByLibraryEntry(ctx context.Context, entryID string) error
+	DeletionImpact(ctx context.Context, id string) (*domain.DeletionImpact, error)
 }
 
 // PersonFilter specifies criteria for listing People.
@@ -78,6 +84,7 @@ type PersonFilter struct {
 	Monitored    *bool
 	Role         domain.PersonRole
 	Search       string
+	Unlinked     bool // only people with no item_people or entry_people credits
 	Limit        int
 	Offset       int
 }
@@ -89,6 +96,7 @@ type PersonRepository interface {
 	ListRoles(ctx context.Context) ([]domain.PersonRoleCount, error)
 	Save(ctx context.Context, p *domain.Person) error
 	Delete(ctx context.Context, id string) error
+	DeletionImpact(ctx context.Context, id string) (*domain.DeletionImpact, error)
 }
 
 // TagFilter specifies criteria for listing tags.
@@ -106,6 +114,7 @@ type TagRepository interface {
 	List(ctx context.Context, f TagFilter) ([]*domain.Tag, error)
 	Save(ctx context.Context, t *domain.Tag) error
 	Delete(ctx context.Context, id string) error
+	DeletionImpact(ctx context.Context, id string) (*domain.DeletionImpact, error)
 	AddGroupTag(ctx context.Context, groupID, tagID string) error
 	RemoveGroupTag(ctx context.Context, groupID, tagID string) error
 }

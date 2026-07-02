@@ -71,6 +71,10 @@ func (m *mockTagRepo) Delete(_ context.Context, id string) error {
 	return nil
 }
 
+func (m *mockTagRepo) DeletionImpact(_ context.Context, _ string) (*domain.DeletionImpact, error) {
+	return &domain.DeletionImpact{Mode: domain.DeletionModeUnlink}, nil
+}
+
 func (m *mockTagRepo) AddGroupTag(_ context.Context, groupID, tagID string) error {
 	m.addGroupCalls++
 	for _, existing := range m.groupTags[groupID] {

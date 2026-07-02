@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useParams, Link } from 'react-router-dom'
+import { useParams, Link, useNavigate } from 'react-router-dom'
 import { ArrowLeft, Music2, Eye, EyeOff, SkipForward, BookmarkCheck, Plus, Pencil, Trash2 } from 'lucide-react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useLibraryEntry } from '../../api/library'
@@ -14,6 +14,7 @@ import { fmtRuntime } from '../../components/ui/Runtime'
 import { Skeleton } from '../../components/ui/Skeleton'
 import { filterTagsForModule } from '../../utils/filterTagsForModule'
 import { AddTrackDialog } from './AddTrackDialog'
+import DeleteDialog from '../../components/DeleteDialog'
 import type { Item, ItemStatus } from '../../types'
 
 const ACCENT = '#10b981'
@@ -130,8 +131,10 @@ function TrackRow({ track, onEdit }: { track: Item; onEdit: () => void }) {
 
 export function AlbumDetail() {
   const { id, albumId } = useParams<{ id: string; albumId: string }>()
+  const navigate = useNavigate()
   const queryClient = useQueryClient()
   const [editOpen, setEditOpen] = useState(false)
+  const [deleteOpen, setDeleteOpen] = useState(false)
   const [lightboxOpen, setLightboxOpen] = useState(false)
   const [addTrackOpen, setAddTrackOpen] = useState(false)
   const [editingTrack, setEditingTrack] = useState<Item | null>(null)
@@ -166,7 +169,16 @@ export function AlbumDetail() {
         <Link to={`/music/${id}`} className="inline-flex items-center gap-1.5 text-sm text-white/40 hover:text-white/70 transition-colors">
           <ArrowLeft size={14} /> {artist?.name ?? 'Artist'}
         </Link>
-        <EditButton onClick={() => setEditOpen(true)} />
+        <div className="flex items-center gap-2">
+          <EditButton onClick={() => setEditOpen(true)} />
+          <button
+            type="button"
+            onClick={() => setDeleteOpen(true)}
+            className="inline-flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg border border-red-900/40 text-red-400/70 hover:text-red-400 hover:border-red-700/60 transition-colors"
+          >
+            Delete
+          </button>
+        </div>
       </div>
 
       <div className="flex gap-8 items-start mb-8">
@@ -290,6 +302,15 @@ export function AlbumDetail() {
       {lightboxOpen && album.coverUrl && (
         <Lightbox src={album.coverUrl} alt={album.title} onClose={() => setLightboxOpen(false)} />
       )}
+
+      <DeleteDialog
+        open={deleteOpen}
+        entityName={album.title}
+        resource="groups"
+        entityId={album.id}
+        onClose={() => setDeleteOpen(false)}
+        onDeleted={() => navigate(`/music/${id}`)}
+      />
     </div>
   )
 }

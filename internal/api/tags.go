@@ -16,6 +16,7 @@ type tagHandler struct {
 func (h *tagHandler) routes(r chi.Router) {
 	r.Get("/", h.list)
 	r.Post("/", h.create)
+	r.Get("/{id}/deletion-preview", h.deletionPreview)
 	r.Delete("/{id}", h.delete)
 }
 
@@ -71,7 +72,19 @@ func (h *tagHandler) create(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusCreated, tagResponse{ID: t.ID, Key: string(t.Key), Value: t.Value, Scope: string(t.Scope)})
 }
 
+func (h *tagHandler) deletionPreview(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	impact, err := h.repo.DeletionImpact(r.Context(), id)
+	if handleErr(w, err) {
+		return
+	}
+	writeJSON(w, http.StatusOK, impact)
+}
+
 func (h *tagHandler) delete(w http.ResponseWriter, r *http.Request) {
+	if !requireDeleteConfirm(w, r) {
+		return
+	}
 	id := chi.URLParam(r, "id")
 	if err := h.repo.Delete(r.Context(), id); handleErr(w, err) {
 		return

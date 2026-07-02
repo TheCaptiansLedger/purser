@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { del, get, getPage, patch, post } from './client'
+import { del, delConfirmed, get, getPage, patch, post } from './client'
 import type { Item, ItemStatus } from '../types'
 
 export function updateItem(id: string, body: Record<string, unknown>) {
@@ -57,7 +57,7 @@ export function useItem(id: string) {
 }
 
 export function deleteItem(id: string) {
-  return del(`/items/${id}`)
+  return delConfirmed(`/items/${id}`)
 }
 
 export function useAddItemTag(itemId: string) {

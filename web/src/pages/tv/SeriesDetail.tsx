@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useParams, Link } from 'react-router-dom'
+import { useParams, Link, useNavigate } from 'react-router-dom'
 import { ArrowLeft, ImageIcon, ChevronRight } from 'lucide-react'
 import { useLibraryEntry } from '../../api/library'
 import { useGroups } from '../../api/groups'
@@ -10,12 +10,15 @@ import { EntryHero } from '../../components/layout/EntryHero'
 import { Badge } from '../../components/ui/Badge'
 import { Skeleton } from '../../components/ui/Skeleton'
 import { filterTagsForModule } from '../../utils/filterTagsForModule'
+import DeleteDialog from '../../components/DeleteDialog'
 
 const ACCENT = '#8b5cf6'
 
 export function SeriesDetail() {
   const { id } = useParams<{ id: string }>()
+  const navigate = useNavigate()
   const [editOpen, setEditOpen] = useState(false)
+  const [deleteOpen, setDeleteOpen] = useState(false)
 
   const { data: entry, isLoading } = useLibraryEntry(id!)
   const { data: groupsPage } = useGroups(id!)
@@ -35,7 +38,16 @@ export function SeriesDetail() {
         <Link to="/tv" className="inline-flex items-center gap-1.5 text-sm text-white/40 hover:text-white/70 transition-colors">
           <ArrowLeft size={14} /> TV Shows
         </Link>
-        <EditButton onClick={() => setEditOpen(true)} />
+        <div className="flex items-center gap-2">
+          <EditButton onClick={() => setEditOpen(true)} />
+          <button
+            type="button"
+            onClick={() => setDeleteOpen(true)}
+            className="inline-flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg border border-red-900/40 text-red-400/70 hover:text-red-400 hover:border-red-700/60 transition-colors"
+          >
+            Delete
+          </button>
+        </div>
       </div>
 
       <EntryHero entry={entry} backdropFallbackUrl={versionedImageUrl} accent={ACCENT}>
@@ -133,6 +145,15 @@ export function SeriesDetail() {
           onImageSet={bumpImageVersion}
         />
       )}
+
+      <DeleteDialog
+        open={deleteOpen}
+        entityName={entry.name}
+        resource="library-entries"
+        entityId={entry.id}
+        onClose={() => setDeleteOpen(false)}
+        onDeleted={() => navigate('/tv')}
+      />
     </div>
   )
 }

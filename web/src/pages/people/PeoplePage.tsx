@@ -17,7 +17,7 @@ import type { PersonRole } from '../../types'
 const ACCENT = '#6366f1'
 const LIMIT = 48
 
-type RoleTab = PersonRole | 'all'
+type RoleTab = PersonRole | 'all' | 'unlinked'
 
 const ROLE_LABELS: Record<PersonRole, string> = {
   performer: 'Performers',
@@ -38,11 +38,10 @@ export function PeoplePage() {
 
   const { data: rolesData } = usePeopleRoles()
 
-  const roleFilter = activeTab === 'all' ? undefined : activeTab
-
   const { data, isLoading } = usePeople({
     search: search || undefined,
-    role: roleFilter,
+    role: activeTab === 'all' || activeTab === 'unlinked' ? undefined : activeTab,
+    unlinked: activeTab === 'unlinked' || undefined,
     limit: LIMIT,
     offset,
   })
@@ -63,6 +62,7 @@ export function PeoplePage() {
       id: rc.role as RoleTab,
       label: ROLE_LABELS[rc.role] ?? rc.role,
     })),
+    { id: 'unlinked', label: 'Unlinked' },
   ]
 
   return (
@@ -78,9 +78,7 @@ export function PeoplePage() {
         </button>
       </PageHeader>
       <div className="px-8 py-6">
-        {tabs.length > 1 && (
-          <ChipTabs tabs={tabs} value={activeTab} onChange={handleTabChange} accent={ACCENT} />
-        )}
+        <ChipTabs tabs={tabs} value={activeTab} onChange={handleTabChange} accent={ACCENT} />
         {isLoading ? (
           <SkeletonGrid count={24} aspect="2/3" />
         ) : !data?.data.length ? (

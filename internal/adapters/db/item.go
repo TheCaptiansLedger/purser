@@ -205,17 +205,16 @@ func (r *itemRepo) List(ctx context.Context, f ports.ItemFilter) ([]*domain.Item
 		if err != nil {
 			return nil, 0, err
 		}
-		// Load performers for list view (needed for browse display).
-		item.People, err = loadItemPeople(ctx, r.db, item.ID)
-		if err != nil {
-			return nil, 0, fmt.Errorf("load people for item %s: %w", item.ID, err)
-		}
 		items = append(items, item)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, 0, err
 	}
-
+	// rows is now exhausted and the connection is released back to the pool.
+	// Batch-load secondary data — no nested queries while a cursor is open.
+	if err := attachItemPeopleBatch(ctx, r.db, items); err != nil {
+		return nil, 0, fmt.Errorf("load people for items: %w", err)
+	}
 	if err := attachExternalIDsBatch(ctx, r.db, "item", items,
 		func(item *domain.Item) string { return item.ID },
 		func(item *domain.Item, ids []domain.ExternalID) { item.ExternalIDs = ids },
@@ -297,11 +296,100 @@ func (r *itemRepo) Save(ctx context.Context, item *domain.Item) error {
 }
 
 func (r *itemRepo) Delete(ctx context.Context, id string) error {
-	_, err := r.db.ExecContext(ctx, `DELETE FROM items WHERE id = ?`, id)
+	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
 		return fmt.Errorf("delete item %s: %w", id, err)
 	}
-	return nil
+	defer func() { _ = tx.Rollback() }()
+
+	stmts := []string{
+		`DELETE FROM item_people  WHERE item_id = ?`,
+		`DELETE FROM item_tags    WHERE item_id = ?`,
+		`DELETE FROM downloads    WHERE item_id = ?`,
+		`DELETE FROM media_files  WHERE item_id = ?`,
+		`UPDATE releases SET item_id = NULL WHERE item_id = ?`,
+		`DELETE FROM external_ids WHERE entity_type = 'item' AND entity_id = ?`,
+		`DELETE FROM items        WHERE id = ?`,
+	}
+	for _, s := range stmts {
+		if _, err := tx.ExecContext(ctx, s, id); err != nil {
+			return fmt.Errorf("delete item %s: %w", id, err)
+		}
+	}
+	return tx.Commit()
+}
+
+func (r *itemRepo) DeleteByGroup(ctx context.Context, groupID string) error {
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("delete items for group %s: %w", groupID, err)
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	sub := `(SELECT id FROM items WHERE group_id = ?)`
+	stmts := []string{
+		`DELETE FROM item_people  WHERE item_id IN ` + sub,
+		`DELETE FROM item_tags    WHERE item_id IN ` + sub,
+		`DELETE FROM downloads    WHERE item_id IN ` + sub,
+		`DELETE FROM media_files  WHERE item_id IN ` + sub,
+		`UPDATE releases SET item_id = NULL WHERE item_id IN ` + sub,
+		`DELETE FROM external_ids WHERE entity_type = 'item' AND entity_id IN ` + sub,
+		`DELETE FROM items        WHERE group_id = ?`,
+	}
+	for _, s := range stmts {
+		if _, err := tx.ExecContext(ctx, s, groupID); err != nil {
+			return fmt.Errorf("delete items for group %s: %w", groupID, err)
+		}
+	}
+	return tx.Commit()
+}
+
+func (r *itemRepo) DeleteByLibraryEntry(ctx context.Context, entryID string) error {
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("delete items for entry %s: %w", entryID, err)
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	sub := `(SELECT id FROM items WHERE library_entry_id = ?)`
+	stmts := []string{
+		`DELETE FROM item_people  WHERE item_id IN ` + sub,
+		`DELETE FROM item_tags    WHERE item_id IN ` + sub,
+		`DELETE FROM downloads    WHERE item_id IN ` + sub,
+		`DELETE FROM media_files  WHERE item_id IN ` + sub,
+		`UPDATE releases SET item_id = NULL WHERE item_id IN ` + sub,
+		`DELETE FROM external_ids WHERE entity_type = 'item' AND entity_id IN ` + sub,
+		`DELETE FROM items        WHERE library_entry_id = ?`,
+	}
+	for _, s := range stmts {
+		if _, err := tx.ExecContext(ctx, s, entryID); err != nil {
+			return fmt.Errorf("delete items for entry %s: %w", entryID, err)
+		}
+	}
+	return tx.Commit()
+}
+
+func (r *itemRepo) DeletionImpact(ctx context.Context, id string) (*domain.DeletionImpact, error) {
+	var title string
+	if err := r.db.QueryRowContext(ctx,
+		`SELECT title FROM items WHERE id = ?`, id,
+	).Scan(&title); err != nil {
+		return nil, fmt.Errorf("deletion impact for item %s: %w", id, err)
+	}
+
+	var fileCount int
+	_ = r.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM media_files WHERE item_id = ?`, id).Scan(&fileCount)
+
+	impact := &domain.DeletionImpact{Mode: domain.DeletionModeDestroy, Impacts: []domain.DeletionImpactRow{}}
+	if fileCount > 0 {
+		impact.Impacts = append(impact.Impacts, domain.DeletionImpactRow{
+			Kind: "media_file", Count: fileCount, Label: "Files",
+		})
+		impact.Summary = fmt.Sprintf("Deleting %s will permanently remove it and its associated file.", title)
+	} else {
+		impact.Summary = fmt.Sprintf("Deleting %s will permanently remove it from the library.", title)
+	}
+	return impact, nil
 }
 
 var _ ports.ItemRepository = (*itemRepo)(nil)

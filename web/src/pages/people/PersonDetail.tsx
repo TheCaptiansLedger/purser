@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useParams, Link } from 'react-router-dom'
+import { useParams, Link, useNavigate } from 'react-router-dom'
 import { ArrowLeft, User } from 'lucide-react'
 import { usePerson } from '../../api/people'
 import { useItems } from '../../api/items'
@@ -17,6 +17,7 @@ import { contentTypeConfig } from '../../config/contentTypes'
 import type { ContentType, ItemStatus } from '../../types'
 import { StatusFilterChips } from '../../components/media/StatusFilterChips'
 import { ExpandableText } from '../../components/ui/ExpandableText'
+import DeleteDialog from '../../components/DeleteDialog'
 
 const ACCENT = '#6366f1'
 
@@ -31,7 +32,9 @@ function groupBy<T>(items: T[], key: (item: T) => string): Record<string, T[]> {
 
 export function PersonDetail() {
   const { id } = useParams<{ id: string }>()
+  const navigate = useNavigate()
   const [editOpen, setEditOpen] = useState(false)
+  const [deleteOpen, setDeleteOpen] = useState(false)
   const [lightboxOpen, setLightboxOpen] = useState(false)
   const [statusFilter, setStatusFilter] = useState<ItemStatus | undefined>(undefined)
   const { data: person, isLoading } = usePerson(id!)
@@ -104,7 +107,16 @@ export function PersonDetail() {
           <Link to="/people" className="inline-flex items-center gap-1.5 text-sm text-white/40 hover:text-white/70 transition-colors">
             <ArrowLeft size={14} /> People
           </Link>
-          <EditButton onClick={() => setEditOpen(true)} />
+          <div className="flex items-center gap-2">
+            <EditButton onClick={() => setEditOpen(true)} />
+            <button
+              type="button"
+              onClick={() => setDeleteOpen(true)}
+              className="inline-flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg border border-red-900/40 text-red-400/70 hover:text-red-400 hover:border-red-700/60 transition-colors"
+            >
+              Delete
+            </button>
+          </div>
         </div>
 
         <div className="px-8 py-6 space-y-8">
@@ -181,6 +193,15 @@ export function PersonDetail() {
       {lightboxOpen && versionedImageUrl && (
         <Lightbox src={versionedImageUrl} alt={person.name} onClose={() => setLightboxOpen(false)} />
       )}
+
+      <DeleteDialog
+        open={deleteOpen}
+        entityName={person.name}
+        resource="people"
+        entityId={person.id}
+        onClose={() => setDeleteOpen(false)}
+        onDeleted={() => navigate('/people')}
+      />
     </div>
   )
 }

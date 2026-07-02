@@ -251,20 +251,22 @@ func (h *databaseHandler) dumpTableData(ctx context.Context, bw *bufio.Writer, t
 // ── helpers ───────────────────────────────────────────────────────────────────
 
 func scanTableStats(ctx context.Context, nameRows *sql.Rows, db *sql.DB) ([]tableStats, int64) {
-	var tables []tableStats
-	var total int64
+	var names []string
 	for nameRows.Next() {
 		var name string
 		if err := nameRows.Scan(&name); err != nil {
 			continue
 		}
+		names = append(names, name)
+	}
+	// nameRows exhausted → connection released before issuing per-table COUNT queries.
+	tables := make([]tableStats, 0, len(names))
+	var total int64
+	for _, name := range names {
 		var count int64
-		_ = db.QueryRowContext(ctx, fmt.Sprintf("SELECT COUNT(*) FROM %q", name)).Scan(&count)
+		_ = db.QueryRowContext(ctx, fmt.Sprintf("SELECT COUNT(*) FROM %q", name)).Scan(&count) //nolint:gosec // name comes from sqlite_master, not user input
 		tables = append(tables, tableStats{Name: name, Rows: count})
 		total += count
-	}
-	if tables == nil {
-		tables = []tableStats{}
 	}
 	return tables, total
 }

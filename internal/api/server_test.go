@@ -240,6 +240,16 @@ func do(t *testing.T, h http.Handler, method, path string, body any) *httptest.R
 	return w
 }
 
+// doDelete sends a DELETE request with the required Purser-Confirm-Delete header.
+func doDelete(t *testing.T, h http.Handler, path string) *httptest.ResponseRecorder {
+	t.Helper()
+	req := httptest.NewRequest(http.MethodDelete, path, nil)
+	req.Header.Set("Purser-Confirm-Delete", "yes")
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, req)
+	return w
+}
+
 func decodeJSON(t *testing.T, w *httptest.ResponseRecorder, v any) {
 	t.Helper()
 	if err := json.NewDecoder(w.Body).Decode(v); err != nil {
@@ -924,7 +934,7 @@ func TestLibraryEntries_Delete(t *testing.T) {
 	}
 	decodeJSON(t, w, &created)
 
-	w = do(t, h, http.MethodDelete, "/api/v1/library-entries/"+created.ID, nil)
+	w = doDelete(t, h, "/api/v1/library-entries/"+created.ID)
 	if w.Code != http.StatusNoContent {
 		t.Fatalf("delete status = %d, want 204", w.Code)
 	}
@@ -932,6 +942,87 @@ func TestLibraryEntries_Delete(t *testing.T) {
 	w = do(t, h, http.MethodGet, "/api/v1/library-entries/"+created.ID, nil)
 	if w.Code != http.StatusNotFound {
 		t.Fatalf("get after delete = %d, want 404", w.Code)
+	}
+}
+
+func TestDeletionPreview_ImpactsNeverNull(t *testing.T) {
+	// Regression: Go nil slices serialize to JSON null, which crashes the
+	// TypeScript component when it reads impact.impacts.length.
+	// All deletion-preview endpoints must return impacts as [] not null.
+	h := newHandler(t)
+
+	// library entry with no children
+	w := do(t, h, http.MethodPost, "/api/v1/library-entries", map[string]any{
+		"contentType": "adult", "kind": "studio", "name": "Empty Studio",
+	})
+	var entry struct {
+		ID string `json:"id"`
+	}
+	decodeJSON(t, w, &entry)
+
+	w = do(t, h, http.MethodGet, "/api/v1/library-entries/"+entry.ID+"/deletion-preview", nil)
+	if w.Code != http.StatusOK {
+		t.Fatalf("library-entries preview status = %d, want 200", w.Code)
+	}
+	assertImpactsNotNull(t, w.Body.Bytes(), "library-entries")
+
+	// item with no media files
+	w = do(t, h, http.MethodPost, "/api/v1/items", map[string]any{
+		"libraryEntryId": entry.ID, "title": "Empty Scene",
+	})
+	var item struct {
+		ID string `json:"id"`
+	}
+	decodeJSON(t, w, &item)
+
+	w = do(t, h, http.MethodGet, "/api/v1/items/"+item.ID+"/deletion-preview", nil)
+	if w.Code != http.StatusOK {
+		t.Fatalf("items preview status = %d, want 200", w.Code)
+	}
+	assertImpactsNotNull(t, w.Body.Bytes(), "items")
+
+	// person with no credits
+	w = do(t, h, http.MethodPost, "/api/v1/people", map[string]any{"name": "Nobody"})
+	var person struct {
+		ID string `json:"id"`
+	}
+	decodeJSON(t, w, &person)
+
+	w = do(t, h, http.MethodGet, "/api/v1/people/"+person.ID+"/deletion-preview", nil)
+	if w.Code != http.StatusOK {
+		t.Fatalf("people preview status = %d, want 200", w.Code)
+	}
+	assertImpactsNotNull(t, w.Body.Bytes(), "people")
+
+	// tag with no uses
+	w = do(t, h, http.MethodPost, "/api/v1/tags", map[string]any{"key": "genre", "value": "unused", "scope": "adult"})
+	var tag struct {
+		ID string `json:"id"`
+	}
+	decodeJSON(t, w, &tag)
+
+	w = do(t, h, http.MethodGet, "/api/v1/tags/"+tag.ID+"/deletion-preview", nil)
+	if w.Code != http.StatusOK {
+		t.Fatalf("tags preview status = %d, want 200", w.Code)
+	}
+	assertImpactsNotNull(t, w.Body.Bytes(), "tags")
+}
+
+func assertImpactsNotNull(t *testing.T, body []byte, resource string) {
+	t.Helper()
+	// Check the raw JSON: "impacts":null is the bug; "impacts":[] is correct.
+	raw := string(body)
+	if strings.Contains(raw, `"impacts":null`) {
+		t.Errorf("%s deletion-preview returned impacts:null — must be an empty array", resource)
+	}
+	var resp struct {
+		Impacts *json.RawMessage `json:"impacts"`
+	}
+	if err := json.Unmarshal(body, &resp); err != nil {
+		t.Fatalf("%s deletion-preview: unmarshal: %v", resource, err)
+	}
+	if resp.Impacts == nil {
+		t.Errorf("%s deletion-preview: impacts field is missing from response", resource)
 	}
 }
 
@@ -1366,7 +1457,7 @@ func TestGroups_GetAndPatchAndDelete(t *testing.T) {
 	}
 
 	// DELETE
-	w = do(t, h, http.MethodDelete, "/api/v1/groups/"+group.ID, nil)
+	w = doDelete(t, h, "/api/v1/groups/"+group.ID)
 	if w.Code != http.StatusNoContent {
 		t.Fatalf("delete group status = %d, want 204", w.Code)
 	}
@@ -1667,7 +1758,7 @@ func TestItems_GetAndDelete(t *testing.T) {
 	}
 
 	// DELETE
-	w = do(t, h, http.MethodDelete, "/api/v1/items/"+item.ID, nil)
+	w = doDelete(t, h, "/api/v1/items/"+item.ID)
 	if w.Code != http.StatusNoContent {
 		t.Fatalf("delete item = %d, want 204", w.Code)
 	}
@@ -1693,7 +1784,7 @@ func TestPeople_GetAndDelete(t *testing.T) {
 	}
 
 	// DELETE
-	w = do(t, h, http.MethodDelete, "/api/v1/people/"+person.ID, nil)
+	w = doDelete(t, h, "/api/v1/people/"+person.ID)
 	if w.Code != http.StatusNoContent {
 		t.Fatalf("delete person = %d, want 204", w.Code)
 	}
@@ -1712,7 +1803,7 @@ func TestTags_Delete(t *testing.T) {
 	}
 	decodeJSON(t, w, &tag)
 
-	w = do(t, h, http.MethodDelete, "/api/v1/tags/"+tag.ID, nil)
+	w = doDelete(t, h, "/api/v1/tags/"+tag.ID)
 	if w.Code != http.StatusNoContent {
 		t.Fatalf("delete tag = %d, want 204", w.Code)
 	}
@@ -2136,7 +2227,7 @@ func TestPeople_Update_NotFound(t *testing.T) {
 
 func TestGroups_Delete_NotFound(t *testing.T) {
 	h := newHandler(t)
-	w := do(t, h, http.MethodDelete, "/api/v1/groups/no-such-id", nil)
+	w := doDelete(t, h, "/api/v1/groups/no-such-id")
 	// Delete of non-existent is idempotent — service returns no error for missing rows
 	if w.Code != http.StatusNoContent && w.Code != http.StatusNotFound {
 		t.Fatalf("status = %d, want 204 or 404", w.Code)

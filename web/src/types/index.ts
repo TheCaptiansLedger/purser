@@ -219,3 +219,16 @@ export interface Item {
   addedAt: string
   updatedAt: string
 }
+
+
+export interface DeletionImpactRow {
+  kind: string
+  count: number
+  label: string
+}
+
+export interface DeletionImpact {
+  mode: 'destroy' | 'unlink'
+  summary: string
+  impacts: DeletionImpactRow[]
+}

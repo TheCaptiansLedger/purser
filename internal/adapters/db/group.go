@@ -167,11 +167,71 @@ func (r *groupRepo) Save(ctx context.Context, g *domain.Group) error {
 }
 
 func (r *groupRepo) Delete(ctx context.Context, id string) error {
-	_, err := r.db.ExecContext(ctx, `DELETE FROM groups WHERE id = ?`, id)
+	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
 		return fmt.Errorf("delete group %s: %w", id, err)
 	}
-	return nil
+	defer func() { _ = tx.Rollback() }()
+
+	stmts := []string{
+		`DELETE FROM group_tags   WHERE group_id = ?`,
+		`DELETE FROM external_ids WHERE entity_type = 'group' AND entity_id = ?`,
+		`DELETE FROM groups       WHERE id = ?`,
+	}
+	for _, s := range stmts {
+		if _, err := tx.ExecContext(ctx, s, id); err != nil {
+			return fmt.Errorf("delete group %s: %w", id, err)
+		}
+	}
+	return tx.Commit()
+}
+
+func (r *groupRepo) DeleteByLibraryEntry(ctx context.Context, entryID string) error {
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("delete groups for entry %s: %w", entryID, err)
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	sub := `(SELECT id FROM groups WHERE library_entry_id = ?)`
+	stmts := []string{
+		`DELETE FROM group_tags   WHERE group_id IN ` + sub,
+		`DELETE FROM external_ids WHERE entity_type = 'group' AND entity_id IN ` + sub,
+		`DELETE FROM groups       WHERE library_entry_id = ?`,
+	}
+	for _, s := range stmts {
+		if _, err := tx.ExecContext(ctx, s, entryID); err != nil {
+			return fmt.Errorf("delete groups for entry %s: %w", entryID, err)
+		}
+	}
+	return tx.Commit()
+}
+
+func (r *groupRepo) DeletionImpact(ctx context.Context, id string) (*domain.DeletionImpact, error) {
+	var title, ct string
+	if err := r.db.QueryRowContext(ctx, `
+		SELECT g.title, le.content_type
+		FROM groups g
+		JOIN library_entries le ON le.id = g.library_entry_id
+		WHERE g.id = ?`, id,
+	).Scan(&title, &ct); err != nil {
+		return nil, fmt.Errorf("deletion impact for group %s: %w", id, err)
+	}
+	contentType := domain.ContentType(ct)
+
+	var itemCount int
+	_ = r.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM items WHERE group_id = ?`, id).Scan(&itemCount)
+
+	impact := &domain.DeletionImpact{Mode: domain.DeletionModeDestroy, Impacts: []domain.DeletionImpactRow{}}
+	if itemCount > 0 {
+		impact.Impacts = append(impact.Impacts, domain.DeletionImpactRow{
+			Kind: "item", Count: itemCount, Label: contentType.ItemLabel(),
+		})
+		impact.Summary = fmt.Sprintf("Deleting %s will permanently remove %d %s.", title, itemCount, contentType.ItemLabel())
+	} else {
+		impact.Summary = fmt.Sprintf("Deleting %s will permanently remove it from the library.", title)
+	}
+	return impact, nil
 }
 
 var _ ports.GroupRepository = (*groupRepo)(nil)

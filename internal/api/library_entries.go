@@ -23,6 +23,7 @@ func (h *libraryEntryHandler) routes(r chi.Router) {
 	r.Post("/", h.create)
 	r.Get("/{id}", h.get)
 	r.Get("/{id}/children", h.children)
+	r.Get("/{id}/deletion-preview", h.deletionPreview)
 	r.Patch("/{id}", h.update)
 	r.Delete("/{id}", h.delete)
 	r.Put("/{id}/people", h.addPerson)
@@ -313,7 +314,19 @@ func (h *libraryEntryHandler) update(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, toEntryResponse(e))
 }
 
+func (h *libraryEntryHandler) deletionPreview(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	impact, err := h.svc.DeletionImpactOfEntry(r.Context(), id)
+	if handleErr(w, err) {
+		return
+	}
+	writeJSON(w, http.StatusOK, impact)
+}
+
 func (h *libraryEntryHandler) delete(w http.ResponseWriter, r *http.Request) {
+	if !requireDeleteConfirm(w, r) {
+		return
+	}
 	id := chi.URLParam(r, "id")
 	if err := h.svc.DeleteEntry(r.Context(), id); handleErr(w, err) {
 		return

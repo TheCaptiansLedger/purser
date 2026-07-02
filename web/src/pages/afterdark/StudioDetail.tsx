@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { useParams, Link } from 'react-router-dom'
+import { useParams, Link, useNavigate } from 'react-router-dom'
 import { ArrowLeft, Film, Users, ImageIcon, RefreshCw } from 'lucide-react'
 import { useLibraryEntry } from '../../api/library'
 import { useItems } from '../../api/items'
@@ -13,6 +13,7 @@ import { ChipTabs } from '../../components/ui/ChipTabs'
 import type { ChipTab } from '../../components/ui/ChipTabs'
 import { EditButton } from '../../components/EditButton'
 import { LibraryEntryEditor } from '../../components/edit/editors/LibraryEntryEditor'
+import DeleteDialog from '../../components/DeleteDialog'
 import { EntryHero } from '../../components/layout/EntryHero'
 import { ItemCard } from '../../components/media/ItemCard'
 import { PersonCard } from '../../components/media/PersonCard'
@@ -66,7 +67,9 @@ export function StudioDetail() {
   )
   const scenes = scenesPage?.data ?? []
 
+  const navigate = useNavigate()
   const [editOpen, setEditOpen] = useState(false)
+  const [deleteOpen, setDeleteOpen] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [versionedImageUrl, bumpImageVersion] = useImageVersion(entry?.imageUrl)
 
@@ -145,6 +148,13 @@ export function StudioDetail() {
 
         <div className="flex items-center gap-2">
           <EditButton onClick={() => setEditOpen(true)} />
+          <button
+            type="button"
+            onClick={() => setDeleteOpen(true)}
+            className="inline-flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg border border-red-900/40 text-red-400/70 hover:text-red-400 hover:border-red-700/60 transition-colors"
+          >
+            Delete
+          </button>
           <button
             onClick={handleRefresh}
             disabled={submitting || isRefreshing}
@@ -265,6 +275,15 @@ export function StudioDetail() {
           onImageSet={bumpImageVersion}
         />
       )}
+
+      <DeleteDialog
+        open={deleteOpen}
+        entityName={entry.name}
+        resource="library-entries"
+        entityId={entry.id}
+        onClose={() => setDeleteOpen(false)}
+        onDeleted={() => navigate('/afterdark')}
+      />
     </div>
   )
 }

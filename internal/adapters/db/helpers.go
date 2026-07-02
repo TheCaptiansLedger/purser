@@ -386,6 +386,114 @@ func loadEntryPeople(ctx context.Context, db *sql.DB, entryID string) ([]domain.
 	return members, rows.Err()
 }
 
+// ── Batch loaders (used by List methods to avoid nested queries) ──────────────
+
+// attachAliasesBatch loads aliases for a slice of people in one query.
+func attachAliasesBatch(ctx context.Context, db *sql.DB, people []*domain.Person) error {
+	if len(people) == 0 {
+		return nil
+	}
+	ids := make([]any, len(people))
+	for i, p := range people {
+		ids[i] = p.ID
+	}
+	rows, err := db.QueryContext(ctx,
+		`SELECT person_id, alias FROM people_aliases WHERE person_id IN (`+listPlaceholders(len(ids))+`) ORDER BY person_id, alias`, //nolint:gosec // listPlaceholders returns only "?" markers, not user input
+		ids...)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = rows.Close() }()
+	m := make(map[string][]string)
+	for rows.Next() {
+		var pid, alias string
+		if err := rows.Scan(&pid, &alias); err != nil {
+			return err
+		}
+		m[pid] = append(m[pid], alias)
+	}
+	if err := rows.Err(); err != nil {
+		return err
+	}
+	for _, p := range people {
+		p.Aliases = m[p.ID]
+	}
+	return nil
+}
+
+// attachPersonRolesBatch loads roles for a slice of people in one query.
+func attachPersonRolesBatch(ctx context.Context, db *sql.DB, people []*domain.Person) error {
+	if len(people) == 0 {
+		return nil
+	}
+	ids := make([]any, len(people))
+	for i, p := range people {
+		ids[i] = p.ID
+	}
+	rows, err := db.QueryContext(ctx,
+		`SELECT person_id, role FROM person_roles WHERE person_id IN (`+listPlaceholders(len(ids))+`) ORDER BY person_id, role`, //nolint:gosec // listPlaceholders returns only "?" markers, not user input
+		ids...)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = rows.Close() }()
+	m := make(map[string][]domain.PersonRole)
+	for rows.Next() {
+		var pid, role string
+		if err := rows.Scan(&pid, &role); err != nil {
+			return err
+		}
+		m[pid] = append(m[pid], domain.PersonRole(role))
+	}
+	if err := rows.Err(); err != nil {
+		return err
+	}
+	for _, p := range people {
+		p.Roles = m[p.ID]
+	}
+	return nil
+}
+
+// attachItemPeopleBatch loads item_people for a slice of items in one query.
+func attachItemPeopleBatch(ctx context.Context, db *sql.DB, items []*domain.Item) error {
+	if len(items) == 0 {
+		return nil
+	}
+	ids := make([]any, len(items))
+	for i, item := range items {
+		ids[i] = item.ID
+	}
+	q := `SELECT ip.item_id, ip.person_id, ip.role, p.name, p.sort_name, p.image_path FROM item_people ip JOIN people p ON p.id = ip.person_id WHERE ip.item_id IN (` + listPlaceholders(len(ids)) + `) ORDER BY ip.item_id, p.sort_name, p.name` //nolint:gosec // listPlaceholders returns only "?" markers, not user input
+	rows, err := db.QueryContext(ctx, q, ids...)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = rows.Close() }()
+	m := make(map[string][]domain.ItemPerson)
+	for rows.Next() {
+		var (
+			itemID string
+			ip     domain.ItemPerson
+			role   string
+			p      domain.Person
+		)
+		if err := rows.Scan(&itemID, &ip.PersonID, &role, &p.Name, &p.SortName, &p.ImagePath); err != nil {
+			return err
+		}
+		ip.Role = domain.PersonRole(role)
+		p.ID = ip.PersonID
+		ip.Person = &p
+		m[itemID] = append(m[itemID], ip)
+	}
+	if err := rows.Err(); err != nil {
+		return err
+	}
+	for _, item := range items {
+		item.People = m[item.ID]
+	}
+	return nil
+}
+
 // ── People aliases ────────────────────────────────────────────────────────────
 
 func loadAliases(ctx context.Context, db *sql.DB, personID string) ([]string, error) {

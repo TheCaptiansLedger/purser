@@ -67,3 +67,11 @@ func (s *Service) DeletePerson(ctx context.Context, id string) error {
 	}
 	return s.people.Delete(ctx, id)
 }
+
+// DeletionImpactOfPerson returns a preview of what deleting the person would affect.
+func (s *Service) DeletionImpactOfPerson(ctx context.Context, id string) (*domain.DeletionImpact, error) {
+	if _, err := s.GetPerson(ctx, id); err != nil {
+		return nil, err
+	}
+	return s.people.DeletionImpact(ctx, id)
+}

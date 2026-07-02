@@ -30,8 +30,8 @@ func TestOpen_CreatesSchema(t *testing.T) {
 	if err := database.QueryRow(`SELECT COUNT(*) FROM schema_migrations`).Scan(&count); err != nil {
 		t.Fatalf("schema_migrations missing: %v", err)
 	}
-	if count != 14 {
-		t.Errorf("migration count = %d, want 14", count)
+	if count != 1 {
+		t.Errorf("migration count = %d, want 1", count)
 	}
 
 	tables := []string{

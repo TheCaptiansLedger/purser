@@ -142,11 +142,64 @@ func (r *tagRepo) Save(ctx context.Context, t *domain.Tag) error {
 }
 
 func (r *tagRepo) Delete(ctx context.Context, id string) error {
-	_, err := r.db.ExecContext(ctx, `DELETE FROM tags WHERE id = ?`, id)
+	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
 		return fmt.Errorf("delete tag %s: %w", id, err)
 	}
-	return nil
+	defer func() { _ = tx.Rollback() }()
+
+	stmts := []string{
+		`DELETE FROM item_tags  WHERE tag_id = ?`,
+		`DELETE FROM entry_tags WHERE tag_id = ?`,
+		`DELETE FROM group_tags WHERE tag_id = ?`,
+		`DELETE FROM tags       WHERE id = ?`,
+	}
+	for _, s := range stmts {
+		if _, err := tx.ExecContext(ctx, s, id); err != nil {
+			return fmt.Errorf("delete tag %s: %w", id, err)
+		}
+	}
+	return tx.Commit()
+}
+
+func (r *tagRepo) DeletionImpact(ctx context.Context, id string) (*domain.DeletionImpact, error) {
+	var key, value string
+	if err := r.db.QueryRowContext(ctx,
+		`SELECT key, value FROM tags WHERE id = ?`, id,
+	).Scan(&key, &value); err != nil {
+		return nil, fmt.Errorf("deletion impact for tag %s: %w", id, err)
+	}
+
+	var itemCount, entryCount, groupCount int
+	_ = r.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM item_tags WHERE tag_id = ?`, id).Scan(&itemCount)
+	_ = r.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM entry_tags WHERE tag_id = ?`, id).Scan(&entryCount)
+	_ = r.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM group_tags WHERE tag_id = ?`, id).Scan(&groupCount)
+
+	impact := &domain.DeletionImpact{Mode: domain.DeletionModeUnlink, Impacts: []domain.DeletionImpactRow{}}
+	if itemCount > 0 {
+		impact.Impacts = append(impact.Impacts, domain.DeletionImpactRow{
+			Kind: "item", Count: itemCount, Label: "Items",
+		})
+	}
+	if entryCount > 0 {
+		impact.Impacts = append(impact.Impacts, domain.DeletionImpactRow{
+			Kind: "library_entry", Count: entryCount, Label: "Library Entries",
+		})
+	}
+	if groupCount > 0 {
+		impact.Impacts = append(impact.Impacts, domain.DeletionImpactRow{
+			Kind: "group", Count: groupCount, Label: "Groups",
+		})
+	}
+
+	total := itemCount + entryCount + groupCount
+	label := fmt.Sprintf("%q", value)
+	if total == 0 {
+		impact.Summary = fmt.Sprintf("Tag %s will be permanently deleted.", label)
+	} else {
+		impact.Summary = fmt.Sprintf("Tag %s will be removed from %d place(s) in the library.", label, total)
+	}
+	return impact, nil
 }
 
 var _ ports.TagRepository = (*tagRepo)(nil)

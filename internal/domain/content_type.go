@@ -116,6 +116,62 @@ func (k Kind) EntryPersonRoles() []string {
 	}
 }
 
+// EntryLabel returns the human-readable plural name for library entries of this kind.
+func (k Kind) EntryLabel() string {
+	switch k {
+	case KindArtist:
+		return "Artists"
+	case KindStudio:
+		return "Studios"
+	case KindSeries:
+		return "Series"
+	case KindNetwork:
+		return "Networks"
+	case KindMovie:
+		return "Movies"
+	case KindBook:
+		return "Books"
+	case KindAuthor:
+		return "Authors"
+	case KindPublisher:
+		return "Publishers"
+	default:
+		return "Library Entries"
+	}
+}
+
+// GroupLabel returns the human-readable name for groups belonging to this content type.
+func (c ContentType) GroupLabel() string {
+	switch c {
+	case ContentTypeMusic:
+		return "Albums"
+	case ContentTypeTV:
+		return "Seasons"
+	case ContentTypeAdult, ContentTypeJAV:
+		return "Series"
+	default:
+		return "Groups"
+	}
+}
+
+// ItemLabel returns the human-readable name for items belonging to this content type.
+func (c ContentType) ItemLabel() string {
+	switch c {
+	case ContentTypeMusic:
+		return "Tracks"
+	case ContentTypeTV:
+		return "Episodes"
+	case ContentTypeAdult, ContentTypeJAV:
+		return "Scenes"
+	case ContentTypeMovie:
+		return "Movies"
+	case ContentTypeBook:
+		return "Chapters"
+	default:
+		return "Items"
+	}
+}
+
 // MonitorMode controls how newly discovered children of an entry are handled.
 type MonitorMode string
 

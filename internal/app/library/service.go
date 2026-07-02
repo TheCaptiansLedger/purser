@@ -87,12 +87,26 @@ func (s *Service) SaveEntry(ctx context.Context, e *domain.LibraryEntry) error {
 	return s.entries.Save(ctx, e)
 }
 
-// DeleteEntry removes a library entry by ID, returning an error if not found.
+// DeleteEntry removes a library entry and all its groups and items.
 func (s *Service) DeleteEntry(ctx context.Context, id string) error {
 	if _, err := s.GetEntry(ctx, id); err != nil {
 		return err
 	}
+	if err := s.items.DeleteByLibraryEntry(ctx, id); err != nil {
+		return fmt.Errorf("delete entry %s items: %w", id, err)
+	}
+	if err := s.groups.DeleteByLibraryEntry(ctx, id); err != nil {
+		return fmt.Errorf("delete entry %s groups: %w", id, err)
+	}
 	return s.entries.Delete(ctx, id)
+}
+
+// DeletionImpactOfEntry returns a preview of what deleting the entry would affect.
+func (s *Service) DeletionImpactOfEntry(ctx context.Context, id string) (*domain.DeletionImpact, error) {
+	if _, err := s.GetEntry(ctx, id); err != nil {
+		return nil, err
+	}
+	return s.entries.DeletionImpact(ctx, id)
 }
 
 // ── Groups ────────────────────────────────────────────────────────────────────
@@ -127,12 +141,23 @@ func (s *Service) SaveGroup(ctx context.Context, g *domain.Group) error {
 	return s.groups.Save(ctx, g)
 }
 
-// DeleteGroup removes a group by ID, returning an error if not found.
+// DeleteGroup removes a group and all its items.
 func (s *Service) DeleteGroup(ctx context.Context, id string) error {
 	if _, err := s.GetGroup(ctx, id); err != nil {
 		return err
 	}
+	if err := s.items.DeleteByGroup(ctx, id); err != nil {
+		return fmt.Errorf("delete group %s items: %w", id, err)
+	}
 	return s.groups.Delete(ctx, id)
+}
+
+// DeletionImpactOfGroup returns a preview of what deleting the group would affect.
+func (s *Service) DeletionImpactOfGroup(ctx context.Context, id string) (*domain.DeletionImpact, error) {
+	if _, err := s.GetGroup(ctx, id); err != nil {
+		return nil, err
+	}
+	return s.groups.DeletionImpact(ctx, id)
 }
 
 // AddGroupTag links an existing tag to a group.
@@ -214,6 +239,14 @@ func (s *Service) DeleteItem(ctx context.Context, id string) error {
 		return err
 	}
 	return s.items.Delete(ctx, id)
+}
+
+// DeletionImpactOfItem returns a preview of what deleting the item would affect.
+func (s *Service) DeletionImpactOfItem(ctx context.Context, id string) (*domain.DeletionImpact, error) {
+	if _, err := s.GetItem(ctx, id); err != nil {
+		return nil, err
+	}
+	return s.items.DeletionImpact(ctx, id)
 }
 
 // ── Entry people (artist members) ────────────────────────────────────────────

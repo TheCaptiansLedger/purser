@@ -40,6 +40,10 @@ func (r *stubEntryRepo) Delete(_ context.Context, id string) error {
 	return nil
 }
 
+func (r *stubEntryRepo) DeletionImpact(_ context.Context, _ string) (*domain.DeletionImpact, error) {
+	return &domain.DeletionImpact{Mode: domain.DeletionModeDestroy}, nil
+}
+
 func (r *stubEntryRepo) GetPeople(_ context.Context, _ string) ([]domain.EntryPerson, error) {
 	return nil, nil
 }
@@ -69,7 +73,12 @@ func (r *stubItemRepo) Save(_ context.Context, item *domain.Item) error {
 	return nil
 }
 
-func (r *stubItemRepo) Delete(_ context.Context, _ string) error { return nil }
+func (r *stubItemRepo) Delete(_ context.Context, _ string) error               { return nil }
+func (r *stubItemRepo) DeleteByGroup(_ context.Context, _ string) error        { return nil }
+func (r *stubItemRepo) DeleteByLibraryEntry(_ context.Context, _ string) error { return nil }
+func (r *stubItemRepo) DeletionImpact(_ context.Context, _ string) (*domain.DeletionImpact, error) {
+	return &domain.DeletionImpact{Mode: domain.DeletionModeDestroy}, nil
+}
 
 // ── Group repo stub ───────────────────────────────────────────────────────────
 
@@ -95,7 +104,11 @@ func (r *stubGroupRepo) Save(_ context.Context, g *domain.Group) error {
 	return nil
 }
 
-func (r *stubGroupRepo) Delete(_ context.Context, _ string) error { return nil }
+func (r *stubGroupRepo) Delete(_ context.Context, _ string) error               { return nil }
+func (r *stubGroupRepo) DeleteByLibraryEntry(_ context.Context, _ string) error { return nil }
+func (r *stubGroupRepo) DeletionImpact(_ context.Context, _ string) (*domain.DeletionImpact, error) {
+	return &domain.DeletionImpact{Mode: domain.DeletionModeDestroy}, nil
+}
 
 // ── Person repo stub ──────────────────────────────────────────────────────────
 
@@ -126,6 +139,9 @@ func (r *stubPersonRepo) ListRoles(_ context.Context) ([]domain.PersonRoleCount,
 }
 
 func (r *stubPersonRepo) Delete(_ context.Context, _ string) error { return nil }
+func (r *stubPersonRepo) DeletionImpact(_ context.Context, _ string) (*domain.DeletionImpact, error) {
+	return &domain.DeletionImpact{Mode: domain.DeletionModeUnlink}, nil
+}
 
 // ── Tag repo stub ─────────────────────────────────────────────────────────────
 
@@ -161,6 +177,10 @@ func (r *stubTagRepo) Save(_ context.Context, t *domain.Tag) error {
 }
 
 func (r *stubTagRepo) Delete(_ context.Context, _ string) error { return nil }
+func (r *stubTagRepo) DeletionImpact(_ context.Context, _ string) (*domain.DeletionImpact, error) {
+	return &domain.DeletionImpact{Mode: domain.DeletionModeUnlink}, nil
+}
+
 func (r *stubTagRepo) AddGroupTag(_ context.Context, groupID, tagID string) error {
 	r.groupTagCalls = append(r.groupTagCalls, groupID+":"+tagID)
 	return nil
@@ -348,8 +368,16 @@ func (r *seededItemExternalIDRepo) List(_ context.Context, _ ports.ItemFilter) (
 	return nil, 0, nil
 }
 
-func (r *seededItemExternalIDRepo) Save(_ context.Context, _ *domain.Item) error { return nil }
-func (r *seededItemExternalIDRepo) Delete(_ context.Context, _ string) error     { return nil }
+func (r *seededItemExternalIDRepo) Save(_ context.Context, _ *domain.Item) error    { return nil }
+func (r *seededItemExternalIDRepo) Delete(_ context.Context, _ string) error        { return nil }
+func (r *seededItemExternalIDRepo) DeleteByGroup(_ context.Context, _ string) error { return nil }
+func (r *seededItemExternalIDRepo) DeleteByLibraryEntry(_ context.Context, _ string) error {
+	return nil
+}
+
+func (r *seededItemExternalIDRepo) DeletionImpact(_ context.Context, _ string) (*domain.DeletionImpact, error) {
+	return &domain.DeletionImpact{Mode: domain.DeletionModeDestroy}, nil
+}
 
 // ── Image-only source stub ────────────────────────────────────────────────────
 

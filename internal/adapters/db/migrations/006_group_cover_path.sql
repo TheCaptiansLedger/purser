@@ -1,1 +1,0 @@
-ALTER TABLE groups ADD COLUMN cover_path TEXT NOT NULL DEFAULT '';
