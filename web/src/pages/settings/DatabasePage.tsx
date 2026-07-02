@@ -24,7 +24,7 @@ function ProgressBar({ pct, accent }: { pct: number; accent: string }) {
 }
 
 function RestoreStats({ result }: { result: RestoreResult }) {
-  const max = Math.max(...result.tables.map(t => t.rows), 1)
+  const max = Math.max(...result.collections.map(c => c.count), 1)
   return (
     <div className="mt-4 rounded-xl border border-emerald-500/20 bg-emerald-500/5 overflow-hidden">
       <div className="flex items-center gap-2 px-4 py-3 border-b border-emerald-500/10">
@@ -34,17 +34,17 @@ function RestoreStats({ result }: { result: RestoreResult }) {
         </span>
       </div>
       <div className="px-4 py-3 space-y-2">
-        {result.tables.map(t => (
-          <div key={t.name} className="flex items-center gap-3">
-            <span className="text-xs text-white/40 font-mono w-44 truncate shrink-0">{t.name}</span>
+        {result.collections.map(c => (
+          <div key={c.name} className="flex items-center gap-3">
+            <span className="text-xs text-white/40 font-mono w-44 truncate shrink-0">{c.name}</span>
             <div className="flex-1 h-1 rounded-full bg-white/5 overflow-hidden">
               <div
                 className="h-full rounded-full"
-                style={{ width: `${(t.rows / max) * 100}%`, background: 'rgba(52,211,153,0.4)' }}
+                style={{ width: `${(c.count / max) * 100}%`, background: 'rgba(52,211,153,0.4)' }}
               />
             </div>
             <span className="text-xs text-white/50 font-mono w-10 text-right shrink-0">
-              {t.rows.toLocaleString()}
+              {c.count.toLocaleString()}
             </span>
           </div>
         ))}
@@ -98,14 +98,17 @@ export function DatabasePage() {
       })
       setResult(result)
       setPhase('restarting')
-    } catch (err: any) {
+    } catch (err: unknown) {
       setPhase('error')
-      setErrorMsg(err.message ?? 'Restore failed')
+      setErrorMsg(err instanceof Error ? err.message : 'Restore failed')
     }
   }
 
   const busy = phase === 'uploading' || phase === 'processing' || phase === 'restarting'
-  const maxRows = Math.max(...(stats?.tables.map(t => t.rows) ?? []), 1)
+  const maxCount = Math.max(...(stats?.collections.map(c => c.count) ?? []), 1)
+  const migrationCount = typeof stats?.extra?.['migration_count'] === 'number'
+    ? stats.extra['migration_count']
+    : undefined
 
   return (
     <div className="px-8 py-10 max-w-2xl">
@@ -215,9 +218,9 @@ export function DatabasePage() {
         <h2 className="text-xs font-semibold uppercase tracking-widest text-white/30 mb-3">Info</h2>
         <div className="rounded-xl border border-white/5 bg-white/2 px-4">
           {[
-            { label: 'sqlite_version', value: stats?.sqlite_version },
-            { label: 'file_size',      value: stats ? formatBytes(stats.file_size_bytes) : undefined },
-            { label: 'migrations',     value: stats?.migration_count },
+            { label: 'driver_version', value: stats?.driver_version },
+            { label: 'file_size',      value: stats ? formatBytes(stats.size_bytes) : undefined },
+            { label: 'migrations',     value: migrationCount },
           ].map(({ label, value }) => (
             <div key={label} className="flex items-center justify-between py-2.5 border-b border-white/5 last:border-0">
               <span className="text-sm text-white/40 font-mono">{label}</span>
@@ -245,21 +248,21 @@ export function DatabasePage() {
             </div>
           ) : (
             <div className="space-y-2.5">
-              {stats?.tables.map(t => (
-                <div key={t.name} className="flex items-center gap-3">
-                  <span className="text-xs text-white/40 font-mono w-44 truncate shrink-0">{t.name}</span>
+              {stats?.collections.map(c => (
+                <div key={c.name} className="flex items-center gap-3">
+                  <span className="text-xs text-white/40 font-mono w-44 truncate shrink-0">{c.name}</span>
                   <div className="flex-1 h-1.5 rounded-full bg-white/5 overflow-hidden">
                     <div
                       className="h-full rounded-full transition-all duration-500"
-                      style={{ width: `${(t.rows / maxRows) * 100}%`, background: 'rgba(99,102,241,0.5)' }}
+                      style={{ width: `${(c.count / maxCount) * 100}%`, background: 'rgba(99,102,241,0.5)' }}
                     />
                   </div>
                   <span className="text-xs text-white/50 font-mono w-10 text-right shrink-0">
-                    {t.rows.toLocaleString()}
+                    {c.count.toLocaleString()}
                   </span>
                 </div>
               ))}
-              {stats?.tables.length === 0 && (
+              {stats?.collections.length === 0 && (
                 <p className="text-xs text-white/20 font-mono text-center py-4">no tables found</p>
               )}
             </div>

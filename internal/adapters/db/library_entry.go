@@ -322,25 +322,7 @@ func (r *libraryEntryRepo) DeletionImpact(ctx context.Context, id string) (*doma
 			Kind: "item", Count: itemCount, Label: contentType.ItemLabel(),
 		})
 	}
-	impact.Summary = buildEntrySummary(name, groupCount, itemCount, contentType)
 	return impact, nil
-}
-
-func buildEntrySummary(name string, groupCount, itemCount int, ct domain.ContentType) string {
-	if groupCount == 0 && itemCount == 0 {
-		return "Deleting " + name + " will permanently remove it from the library."
-	}
-	parts := ""
-	if groupCount > 0 {
-		parts += fmt.Sprintf("%d %s", groupCount, ct.GroupLabel())
-	}
-	if itemCount > 0 {
-		if parts != "" {
-			parts += " and "
-		}
-		parts += fmt.Sprintf("%d %s", itemCount, ct.ItemLabel())
-	}
-	return fmt.Sprintf("Deleting %s will permanently remove %s.", name, parts)
 }
 
 // ensure interface is satisfied at compile time

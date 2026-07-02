@@ -1,20 +1,21 @@
 import { useQuery } from '@tanstack/react-query'
 
-export interface TableStat {
+export interface CollectionStat {
   name: string
-  rows: number
+  count: number
 }
 
 export interface DBStats {
-  tables: TableStat[]
-  file_size_bytes: number
-  sqlite_version: string
-  migration_count: number
+  driver: string
+  driver_version: string
+  size_bytes: number
+  collections: CollectionStat[]
+  extra?: Record<string, unknown>
 }
 
 export interface RestoreResult {
   message: string
-  tables: TableStat[]
+  collections: CollectionStat[]
   total_rows: number
 }
 
@@ -45,12 +46,13 @@ export function uploadWithProgress(
     }
 
     xhr.onload = () => {
-      let body: any
+      let body: unknown
       try { body = JSON.parse(xhr.responseText) } catch { body = {} }
       if (xhr.status >= 200 && xhr.status < 300) {
         resolve(body as RestoreResult)
       } else {
-        reject(new Error(body.error ?? xhr.statusText))
+        const err = (body as Record<string, string>).error ?? xhr.statusText
+        reject(new Error(err))
       }
     }
 

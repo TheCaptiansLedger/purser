@@ -103,10 +103,16 @@ func (s *Service) DeleteEntry(ctx context.Context, id string) error {
 
 // DeletionImpactOfEntry returns a preview of what deleting the entry would affect.
 func (s *Service) DeletionImpactOfEntry(ctx context.Context, id string) (*domain.DeletionImpact, error) {
-	if _, err := s.GetEntry(ctx, id); err != nil {
+	entry, err := s.GetEntry(ctx, id)
+	if err != nil {
 		return nil, err
 	}
-	return s.entries.DeletionImpact(ctx, id)
+	impact, err := s.entries.DeletionImpact(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	impact.Summary = impact.Summarize(entry.Name)
+	return impact, nil
 }
 
 // ── Groups ────────────────────────────────────────────────────────────────────

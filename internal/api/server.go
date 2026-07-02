@@ -2,7 +2,6 @@ package api
 
 import (
 	"context"
-	"database/sql"
 	"fmt"
 	"io/fs"
 	"net/http"
@@ -29,7 +28,7 @@ func New(
 	port int,
 	mediaPath string,
 	cfg *config.Config,
-	db *sql.DB,
+	store ports.StorageAdminPort,
 	libSvc *library.Service,
 	peopleSvc *people.Service,
 	metaSvc *metadata.Service,
@@ -46,7 +45,7 @@ func New(
 	s := &Server{
 		router: chi.NewRouter(),
 	}
-	s.mount(mediaPath, cfg, db, libSvc, peopleSvc, metaSvc, tagRepo, jobQueue, cfgSvc, sources, uiFS, imgDownloader, gh, caches, shutdownFn)
+	s.mount(mediaPath, cfg, store, libSvc, peopleSvc, metaSvc, tagRepo, jobQueue, cfgSvc, sources, uiFS, imgDownloader, gh, caches, shutdownFn)
 	s.httpServer = &http.Server{
 		Addr:         fmt.Sprintf(":%d", port),
 		Handler:      s.router,
@@ -60,7 +59,7 @@ func New(
 func (s *Server) mount(
 	mediaPath string,
 	cfg *config.Config,
-	db *sql.DB,
+	store ports.StorageAdminPort,
 	libSvc *library.Service,
 	peopleSvc *people.Service,
 	metaSvc *metadata.Service,
@@ -131,8 +130,8 @@ func (s *Server) mount(
 		imgH := &imageHandler{basePath: mediaPath}
 		r.Route("/images", imgH.routes)
 
-		dbH := &databaseHandler{db: db, dsn: cfg.Database.DSN, shutdownFn: shutdownFn}
-		r.Route("/database", dbH.routes)
+		dbH := &databaseHandler{store: store}
+		r.Route("/database", func(r chi.Router) { dbH.routes(r, shutdownFn) })
 
 		metaH := &metadataHandler{svc: metaSvc}
 		r.Route("/metadata", metaH.routes)
