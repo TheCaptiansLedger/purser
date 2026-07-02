@@ -10,9 +10,13 @@ import (
 	"purser/internal/config"
 	"purser/internal/domain"
 	"purser/internal/ports"
+	"purser/pkg/cache"
 	"purser/pkg/httpclient"
 	"strings"
+	"time"
 )
+
+const cacheTTL = 24 * time.Hour
 
 // Compile-time interface assertions.
 var (
@@ -30,11 +34,12 @@ const publicBaseURL = "https://webservice.fanart.tv/v3/"
 type Adapter struct {
 	baseURL string
 	apiKey  string
+	cache   *cache.Cache
 	client  *http.Client
 }
 
-// New constructs a fanart.tv adapter from cfg.
-func New(cfg config.MetadataSourceConfig) *Adapter {
+// New constructs a fanart.tv adapter from cfg. c may be nil to disable caching.
+func New(cfg config.MetadataSourceConfig, c *cache.Cache) *Adapter {
 	base := cfg.URL
 	if base == "" {
 		base = publicBaseURL
@@ -45,6 +50,7 @@ func New(cfg config.MetadataSourceConfig) *Adapter {
 	return &Adapter{
 		baseURL: base,
 		apiKey:  cfg.APIKey,
+		cache:   c,
 		client:  httpclient.New(),
 	}
 }
@@ -61,7 +67,14 @@ func (a *Adapter) ContentTypes() []domain.ContentType {
 func (a *Adapter) ImagePriority() int { return 50 }
 
 // get issues an authenticated GET to path (relative to baseURL) and decodes the JSON response into out.
+// path is used as the cache key; the api_key is not included in the key since it is fixed per instance.
 func (a *Adapter) get(ctx context.Context, path string, out any) error {
+	if a.cache != nil {
+		if v, ok := a.cache.Get(path); ok {
+			return json.Unmarshal(v, out)
+		}
+	}
+
 	u, err := url.Parse(a.baseURL + path)
 	if err != nil {
 		return fmt.Errorf("fanart: parse url: %w", err)
@@ -88,8 +101,17 @@ func (a *Adapter) get(ctx context.Context, path string, out any) error {
 		b, _ := io.ReadAll(resp.Body)
 		return fmt.Errorf("fanart: HTTP %d: %s", resp.StatusCode, string(b))
 	}
-	if err := json.NewDecoder(resp.Body).Decode(out); err != nil {
+
+	b, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return fmt.Errorf("fanart: read: %w", err)
+	}
+	if err := json.Unmarshal(b, out); err != nil {
 		return fmt.Errorf("fanart: decode: %w", err)
+	}
+
+	if a.cache != nil {
+		a.cache.Set(path, b, cacheTTL)
 	}
 	return nil
 }

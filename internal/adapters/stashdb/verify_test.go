@@ -17,7 +17,7 @@ func TestVerify_OK(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	a := stashdb.New(config.MetadataSourceConfig{URL: srv.URL, APIKey: "valid"})
+	a := stashdb.New(config.MetadataSourceConfig{URL: srv.URL, APIKey: "valid"}, nil)
 	if err := a.Verify(context.Background()); err != nil {
 		t.Errorf("Verify() error = %v, want nil", err)
 	}
@@ -30,7 +30,7 @@ func TestVerify_AuthError(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	a := stashdb.New(config.MetadataSourceConfig{URL: srv.URL, APIKey: "bad"})
+	a := stashdb.New(config.MetadataSourceConfig{URL: srv.URL, APIKey: "bad"}, nil)
 	err := a.Verify(context.Background())
 	if err == nil {
 		t.Fatal("Verify() = nil, want error for 401")

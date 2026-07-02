@@ -45,7 +45,7 @@ const fetchStudioFixture = `{
 }`
 
 func newTestAdapter(srv *httptest.Server) *stashdb.Adapter {
-	return stashdb.New(config.MetadataSourceConfig{URL: srv.URL, APIKey: "test-key"})
+	return stashdb.New(config.MetadataSourceConfig{URL: srv.URL, APIKey: "test-key"}, nil)
 }
 
 func TestFetchEntryContent_ReturnsItemsFlat(t *testing.T) {

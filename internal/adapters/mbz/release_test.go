@@ -47,7 +47,7 @@ func TestFetchGroupContent_Success(t *testing.T) {
 	srv := newGroupContentServer(twoDiscRelease)
 	defer srv.Close()
 
-	a := mbz.New(config.MetadataSourceConfig{URL: srv.URL})
+	a := mbz.New(config.MetadataSourceConfig{URL: srv.URL}, nil)
 	items, total, err := a.FetchGroupContent(context.Background(), domain.ContentTypeMusic, "rg-001", 1, 10)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -74,7 +74,7 @@ func TestFetchGroupContent_Pagination(t *testing.T) {
 	srv := newGroupContentServer(twoDiscRelease)
 	defer srv.Close()
 
-	a := mbz.New(config.MetadataSourceConfig{URL: srv.URL})
+	a := mbz.New(config.MetadataSourceConfig{URL: srv.URL}, nil)
 	items, total, err := a.FetchGroupContent(context.Background(), domain.ContentTypeMusic, "rg-001", 2, 1)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -94,7 +94,7 @@ func TestFetchGroupContent_Empty(t *testing.T) {
 	srv := newGroupContentServer(`{"media":[]}`)
 	defer srv.Close()
 
-	a := mbz.New(config.MetadataSourceConfig{URL: srv.URL})
+	a := mbz.New(config.MetadataSourceConfig{URL: srv.URL}, nil)
 	items, total, err := a.FetchGroupContent(context.Background(), domain.ContentTypeMusic, "rg-empty", 1, 10)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -126,7 +126,7 @@ func TestFetchGroupContent_RoundTrip(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	a := mbz.New(config.MetadataSourceConfig{URL: srv.URL})
+	a := mbz.New(config.MetadataSourceConfig{URL: srv.URL}, nil)
 
 	groups, _, _, err := a.FetchEntryContent(context.Background(), domain.ContentTypeMusic, "artist-mbid", 1, 10)
 	if err != nil {

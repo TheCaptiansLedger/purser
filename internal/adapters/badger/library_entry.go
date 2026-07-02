@@ -145,6 +145,12 @@ func (r *libraryEntryRepo) List(_ context.Context, f ports.LibraryFilter) ([]*do
 			})
 		}
 
+		// For TagKey/TagValue filter, collect qualifying entry IDs via tge: reverse index.
+		var tagEntryIDs map[string]struct{}
+		if f.TagKey != "" || f.TagValue != "" {
+			tagEntryIDs = collectIDsForTagFilter(txn, string(f.TagKey), f.TagValue, pfxTGE)
+		}
+
 		opts := badgerdb.DefaultIteratorOptions
 		opts.Prefix = pfxLE()
 		it := txn.NewIterator(opts)
@@ -158,7 +164,7 @@ func (r *libraryEntryRepo) List(_ context.Context, f ports.LibraryFilter) ([]*do
 				continue
 			}
 
-			if !matchesEntryFilter(rec, f, personEntryIDs) {
+			if !matchesEntryFilter(rec, f, personEntryIDs, tagEntryIDs) {
 				continue
 			}
 
@@ -190,7 +196,7 @@ func (r *libraryEntryRepo) List(_ context.Context, f ports.LibraryFilter) ([]*do
 	return results[start:end], total, nil
 }
 
-func matchesEntryFilter(rec libEntryRecord, f ports.LibraryFilter, personEntryIDs map[string]struct{}) bool {
+func matchesEntryFilter(rec libEntryRecord, f ports.LibraryFilter, personEntryIDs, tagEntryIDs map[string]struct{}) bool {
 	if f.ContentType != "" && rec.ContentType != string(f.ContentType) {
 		return false
 	}
@@ -208,6 +214,11 @@ func matchesEntryFilter(rec libEntryRecord, f ports.LibraryFilter, personEntryID
 	}
 	if personEntryIDs != nil {
 		if _, ok := personEntryIDs[rec.ID]; !ok {
+			return false
+		}
+	}
+	if tagEntryIDs != nil {
+		if _, ok := tagEntryIDs[rec.ID]; !ok {
 			return false
 		}
 	}

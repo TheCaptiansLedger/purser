@@ -10,8 +10,12 @@ import (
 	"purser/internal/config"
 	"purser/internal/domain"
 	"purser/internal/ports"
+	"purser/pkg/cache"
 	"purser/pkg/httpclient"
+	"time"
 )
+
+const cacheTTL = 24 * time.Hour
 
 // Compile-time interface assertions.
 var (
@@ -36,12 +40,13 @@ type Adapter struct {
 	apiKey    string
 	baseURL   string
 	userAgent string
+	cache     *cache.Cache
 	client    *http.Client
 }
 
-// New constructs a StashDB adapter from cfg.
+// New constructs a StashDB adapter from cfg. c may be nil to disable caching.
 // If cfg.URL is empty the public StashDB endpoint is used.
-func New(cfg config.MetadataSourceConfig) *Adapter {
+func New(cfg config.MetadataSourceConfig, c *cache.Cache) *Adapter {
 	base := cfg.URL
 	if base == "" {
 		base = publicURL
@@ -54,6 +59,7 @@ func New(cfg config.MetadataSourceConfig) *Adapter {
 		apiKey:    cfg.APIKey,
 		baseURL:   base,
 		userAgent: ua,
+		cache:     c,
 		client:    httpclient.New(),
 	}
 }
@@ -87,6 +93,15 @@ type gqlRequest struct {
 }
 
 func (a *Adapter) gql(ctx context.Context, query string, vars map[string]any, out any) error {
+	var cacheKey string
+	if a.cache != nil {
+		varBytes, _ := json.Marshal(vars)
+		cacheKey = query + "|" + string(varBytes)
+		if v, ok := a.cache.Get(cacheKey); ok {
+			return json.Unmarshal(v, out)
+		}
+	}
+
 	body, err := json.Marshal(gqlRequest{Query: query, Variables: vars})
 	if err != nil {
 		return err
@@ -124,6 +139,10 @@ func (a *Adapter) gql(ctx context.Context, query string, vars map[string]any, ou
 	}
 	if len(envelope.Errors) > 0 {
 		return fmt.Errorf("stashdb: %s", envelope.Errors[0].Message)
+	}
+
+	if a.cache != nil && cacheKey != "" {
+		a.cache.Set(cacheKey, []byte(envelope.Data), cacheTTL)
 	}
 	return json.Unmarshal(envelope.Data, out)
 }

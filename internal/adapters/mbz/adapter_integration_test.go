@@ -18,7 +18,7 @@ import (
 const beatlesMBID = "b10bbbfc-cf9e-42e0-be17-e2c3e1d2600d"
 
 func newIntegrationAdapter() *mbz.Adapter {
-	return mbz.New(config.MetadataSourceConfig{})
+	return mbz.New(config.MetadataSourceConfig{}, nil)
 }
 
 func integrationCtx(t *testing.T) (context.Context, context.CancelFunc) {

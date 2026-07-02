@@ -12,21 +12,21 @@ import (
 )
 
 func TestNew_UsesPublicURLDefault(t *testing.T) {
-	a := stashdb.New(config.MetadataSourceConfig{APIKey: "key"})
+	a := stashdb.New(config.MetadataSourceConfig{APIKey: "key"}, nil)
 	if a.Name() != "stashdb" {
 		t.Errorf("Name() = %q, want stashdb", a.Name())
 	}
 }
 
 func TestAdapter_Name(t *testing.T) {
-	a := stashdb.New(config.MetadataSourceConfig{APIKey: "key"})
+	a := stashdb.New(config.MetadataSourceConfig{APIKey: "key"}, nil)
 	if got := a.Name(); got != "stashdb" {
 		t.Errorf("Name() = %q, want stashdb", got)
 	}
 }
 
 func TestAdapter_ContentTypes(t *testing.T) {
-	a := stashdb.New(config.MetadataSourceConfig{APIKey: "key"})
+	a := stashdb.New(config.MetadataSourceConfig{APIKey: "key"}, nil)
 	types := a.ContentTypes()
 	if len(types) != 2 {
 		t.Fatalf("ContentTypes() len = %d, want 2", len(types))
@@ -49,7 +49,7 @@ func TestAdapter_gql_HTTPError(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	a := stashdb.New(config.MetadataSourceConfig{URL: srv.URL, APIKey: "key"})
+	a := stashdb.New(config.MetadataSourceConfig{URL: srv.URL, APIKey: "key"}, nil)
 	_, err := a.SearchItems(context.Background(), domain.ContentTypeAdult, "query", 10)
 	if err == nil {
 		t.Fatal("expected error for non-200 HTTP response, got nil")
@@ -66,7 +66,7 @@ func TestAdapter_gql_GraphQLError(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	a := stashdb.New(config.MetadataSourceConfig{URL: srv.URL, APIKey: "key"})
+	a := stashdb.New(config.MetadataSourceConfig{URL: srv.URL, APIKey: "key"}, nil)
 	_, err := a.SearchItems(context.Background(), domain.ContentTypeAdult, "query", 10)
 	if err == nil {
 		t.Fatal("expected error for GraphQL errors response, got nil")
@@ -83,7 +83,7 @@ func TestAdapter_gql_InvalidJSON(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	a := stashdb.New(config.MetadataSourceConfig{URL: srv.URL, APIKey: "key"})
+	a := stashdb.New(config.MetadataSourceConfig{URL: srv.URL, APIKey: "key"}, nil)
 	_, err := a.SearchItems(context.Background(), domain.ContentTypeAdult, "query", 10)
 	if err == nil {
 		t.Fatal("expected error for invalid JSON body, got nil")

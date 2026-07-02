@@ -207,10 +207,33 @@ func matchesItemFilter(rec itemRecord, f ports.ItemFilter, personItemIDs map[str
 			return false
 		}
 	}
-	if len(f.TagIDs) > 0 && !itemTagIDsMatch(rec, f.TagIDs) {
+	if !matchesItemTagFilter(rec, f) {
 		return false
 	}
 	return true
+}
+
+func matchesItemTagFilter(rec itemRecord, f ports.ItemFilter) bool {
+	if len(f.TagIDs) > 0 && !itemTagIDsMatch(rec, f.TagIDs) {
+		return false
+	}
+	if f.TagKey != "" || f.TagValue != "" {
+		if !itemTagKeyValueMatch(rec, string(f.TagKey), f.TagValue) {
+			return false
+		}
+	}
+	return true
+}
+
+func itemTagKeyValueMatch(rec itemRecord, key, value string) bool {
+	for _, t := range rec.Tags {
+		keyOK := key == "" || t.Key == key
+		valOK := value == "" || t.Value == value
+		if keyOK && valOK {
+			return true
+		}
+	}
+	return false
 }
 
 func sortItems(items []*domain.Item, f ports.ItemFilter) {

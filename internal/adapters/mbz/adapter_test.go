@@ -12,14 +12,14 @@ import (
 )
 
 func TestAdapter_Name(t *testing.T) {
-	a := mbz.New(config.MetadataSourceConfig{})
+	a := mbz.New(config.MetadataSourceConfig{}, nil)
 	if got := a.Name(); got != string(domain.SourceMusicBrainz) {
 		t.Errorf("Name() = %q, want %q", got, domain.SourceMusicBrainz)
 	}
 }
 
 func TestAdapter_ContentTypes(t *testing.T) {
-	a := mbz.New(config.MetadataSourceConfig{})
+	a := mbz.New(config.MetadataSourceConfig{}, nil)
 	types := a.ContentTypes()
 	if len(types) != 1 || types[0] != domain.ContentTypeMusic {
 		t.Errorf("ContentTypes() = %v, want [music]", types)
@@ -33,7 +33,7 @@ func TestAdapter_HTTPError(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	a := mbz.New(config.MetadataSourceConfig{URL: srv.URL})
+	a := mbz.New(config.MetadataSourceConfig{URL: srv.URL}, nil)
 	_, err := a.SearchStudios(context.Background(), "test", 5)
 	if err == nil {
 		t.Fatal("expected error for non-200 response, got nil")
@@ -50,7 +50,7 @@ func TestAdapter_InvalidJSON(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	a := mbz.New(config.MetadataSourceConfig{URL: srv.URL})
+	a := mbz.New(config.MetadataSourceConfig{URL: srv.URL}, nil)
 	_, err := a.SearchStudios(context.Background(), "test", 5)
 	if err == nil {
 		t.Fatal("expected error for invalid JSON, got nil")
@@ -71,7 +71,7 @@ func TestAdapter_RateLimit_429_Retry(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	a := mbz.New(config.MetadataSourceConfig{URL: srv.URL})
+	a := mbz.New(config.MetadataSourceConfig{URL: srv.URL}, nil)
 	_, err := a.SearchStudios(context.Background(), "test", 5)
 	if err != nil {
 		t.Fatalf("expected success after retry, got: %v", err)

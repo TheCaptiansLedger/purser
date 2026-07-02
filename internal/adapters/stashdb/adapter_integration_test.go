@@ -21,7 +21,7 @@ func newIntegrationAdapter(t *testing.T) *stashdb.Adapter {
 	if apiKey == "" {
 		t.Skip("PURSER_SOURCES_STASHDB_API_KEY not set")
 	}
-	return stashdb.New(config.MetadataSourceConfig{APIKey: apiKey})
+	return stashdb.New(config.MetadataSourceConfig{APIKey: apiKey}, nil)
 }
 
 func integrationCtx(t *testing.T) (context.Context, context.CancelFunc) {

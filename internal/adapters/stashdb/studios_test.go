@@ -53,7 +53,7 @@ const searchStudiosWithParentFixture = `{
 }`
 
 func newStudioTestAdapter(srv *httptest.Server) *stashdb.Adapter {
-	return stashdb.New(config.MetadataSourceConfig{URL: srv.URL, APIKey: "test-key"})
+	return stashdb.New(config.MetadataSourceConfig{URL: srv.URL, APIKey: "test-key"}, nil)
 }
 
 func TestSearchStudios_Basic(t *testing.T) {

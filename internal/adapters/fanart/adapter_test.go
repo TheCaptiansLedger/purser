@@ -14,18 +14,18 @@ import (
 )
 
 func newTestAdapter(srv *httptest.Server) *fanart.Adapter {
-	return fanart.New(config.MetadataSourceConfig{URL: srv.URL})
+	return fanart.New(config.MetadataSourceConfig{URL: srv.URL}, nil)
 }
 
 func TestAdapter_Name(t *testing.T) {
-	a := fanart.New(config.MetadataSourceConfig{})
+	a := fanart.New(config.MetadataSourceConfig{}, nil)
 	if got := a.Name(); got != string(domain.SourceFanart) {
 		t.Errorf("Name() = %q, want %q", got, domain.SourceFanart)
 	}
 }
 
 func TestAdapter_ContentTypes(t *testing.T) {
-	a := fanart.New(config.MetadataSourceConfig{})
+	a := fanart.New(config.MetadataSourceConfig{}, nil)
 	types := a.ContentTypes()
 	if len(types) != 1 || types[0] != domain.ContentTypeMusic {
 		t.Errorf("ContentTypes() = %v, want [music]", types)
@@ -64,7 +64,7 @@ func TestAdapter_InvalidJSON(t *testing.T) {
 }
 
 func TestAdapter_FindByExternalID_UnknownContentType(t *testing.T) {
-	a := fanart.New(config.MetadataSourceConfig{})
+	a := fanart.New(config.MetadataSourceConfig{}, nil)
 	_, err := a.FindByExternalID(context.Background(), domain.ContentTypeAdult, "any-id")
 	if !errors.Is(err, ports.ErrNotSupported) {
 		t.Errorf("expected ErrNotSupported for unsupported content type, got: %v", err)
@@ -72,7 +72,7 @@ func TestAdapter_FindByExternalID_UnknownContentType(t *testing.T) {
 }
 
 func TestAdapter_FetchEntryContent_UnknownContentType(t *testing.T) {
-	a := fanart.New(config.MetadataSourceConfig{})
+	a := fanart.New(config.MetadataSourceConfig{}, nil)
 	_, _, _, err := a.FetchEntryContent(context.Background(), domain.ContentTypeAdult, "any-id", 1, 10)
 	if !errors.Is(err, ports.ErrNotSupported) {
 		t.Errorf("expected ErrNotSupported for unsupported content type, got: %v", err)

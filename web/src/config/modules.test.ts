@@ -14,7 +14,7 @@ describe('MODULE_REGISTRY', () => {
   })
 
   it('has an entry for every EnabledModules key', () => {
-    const allKeys: (keyof EnabledModules)[] = ['movies', 'tv', 'music', 'books', 'afterdark', 'jav']
+    const allKeys: (keyof EnabledModules)[] = ['movies', 'tv', 'music', 'books', 'afterdark']
     const registryKeys = MODULE_REGISTRY.map(m => m.key)
     for (const key of allKeys) {
       expect(registryKeys).toContain(key)
@@ -28,9 +28,5 @@ describe('MODULE_REGISTRY', () => {
       expect(entry.icon).toBeDefined()
       expect(entry.accent.startsWith('#')).toBe(true)
     }
-  })
-
-  it('includes jav entry', () => {
-    expect(MODULE_REGISTRY.find(m => m.key === 'jav')).toBeDefined()
   })
 })

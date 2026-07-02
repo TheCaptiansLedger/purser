@@ -8,11 +8,10 @@ export interface EnabledModules {
   music:     boolean
   books:     boolean
   afterdark: boolean
-  jav:       boolean
 }
 
 const ALL_ENABLED: EnabledModules = {
-  movies: true, tv: true, music: true, books: true, afterdark: true, jav: true,
+  movies: true, tv: true, music: true, books: true, afterdark: true,
 }
 
 const ModulesContext = createContext<EnabledModules>(ALL_ENABLED)
@@ -26,7 +25,6 @@ export function ModulesProvider({ children }: { children: ReactNode }) {
         music:     data.modules.music.enabled,
         books:     data.modules.books.enabled,
         afterdark: data.modules.afterdark.enabled,
-        jav:       data.modules.jav.enabled,
       }
     : ALL_ENABLED
 

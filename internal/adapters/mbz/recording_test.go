@@ -17,7 +17,7 @@ func TestSearchItems_Success(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	a := mbz.New(config.MetadataSourceConfig{URL: srv.URL})
+	a := mbz.New(config.MetadataSourceConfig{URL: srv.URL}, nil)
 	items, err := a.SearchItems(context.Background(), domain.ContentTypeMusic, "Smells Like Teen Spirit", 5)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -47,7 +47,7 @@ func TestSearchItems_Empty(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	a := mbz.New(config.MetadataSourceConfig{URL: srv.URL})
+	a := mbz.New(config.MetadataSourceConfig{URL: srv.URL}, nil)
 	items, err := a.SearchItems(context.Background(), domain.ContentTypeMusic, "nothing", 5)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)

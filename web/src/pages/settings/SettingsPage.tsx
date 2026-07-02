@@ -1,4 +1,4 @@
-import { Film, Tv2, Music2, BookOpen, Sparkles, Video, FolderOpen } from 'lucide-react'
+import { Film, Tv2, Music2, BookOpen, Sparkles, FolderOpen } from 'lucide-react'
 import { useAppConfig } from '../../api/config'
 import type { EnabledModules } from '../../context/ModulesContext'
 
@@ -14,7 +14,6 @@ const MODULE_META: Array<{
   { key: 'music',     label: 'Music',     description: 'Artists, albums, and tracks',               icon: Music2,   accent: '#10b981' },
   { key: 'books',     label: 'Books',     description: 'Books, series, and authors',                icon: BookOpen, accent: '#f59e0b' },
   { key: 'afterdark', label: 'AfterDark', description: 'Adult content — networks, studios, scenes', icon: Sparkles, accent: '#f43f5e' },
-  { key: 'jav',       label: 'JAV',       description: 'Japanese adult video — studios and titles', icon: Video,    accent: '#ec4899' },
 ]
 
 function Row({ label, value }: { label: string; value: string | number }) {

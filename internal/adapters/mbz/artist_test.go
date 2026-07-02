@@ -19,7 +19,7 @@ func TestFindByExternalID_Success(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	a := mbz.New(config.MetadataSourceConfig{URL: srv.URL})
+	a := mbz.New(config.MetadataSourceConfig{URL: srv.URL}, nil)
 	item, err := a.FindByExternalID(context.Background(), domain.ContentTypeMusic, "abc-123")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -41,7 +41,7 @@ func TestFindByExternalID_NotFound(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	a := mbz.New(config.MetadataSourceConfig{URL: srv.URL})
+	a := mbz.New(config.MetadataSourceConfig{URL: srv.URL}, nil)
 	_, err := a.FindByExternalID(context.Background(), domain.ContentTypeMusic, "does-not-exist")
 	if !errors.Is(err, ports.ErrNotFound) {
 		t.Errorf("expected ports.ErrNotFound, got: %v", err)
@@ -64,7 +64,7 @@ func TestFetchEntryPeople_Success(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	a := mbz.New(config.MetadataSourceConfig{URL: srv.URL})
+	a := mbz.New(config.MetadataSourceConfig{URL: srv.URL}, nil)
 	members, err := a.FetchEntryPeople(context.Background(), "group-mbid")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -89,7 +89,7 @@ func TestFetchEntryPeople_NotFound(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	a := mbz.New(config.MetadataSourceConfig{URL: srv.URL})
+	a := mbz.New(config.MetadataSourceConfig{URL: srv.URL}, nil)
 	_, err := a.FetchEntryPeople(context.Background(), "does-not-exist")
 	if !errors.Is(err, ports.ErrNotFound) {
 		t.Errorf("expected ports.ErrNotFound, got: %v", err)
@@ -103,7 +103,7 @@ func TestFetchEntryPeople_EmptyRelations(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	a := mbz.New(config.MetadataSourceConfig{URL: srv.URL})
+	a := mbz.New(config.MetadataSourceConfig{URL: srv.URL}, nil)
 	members, err := a.FetchEntryPeople(context.Background(), "solo-mbid")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)

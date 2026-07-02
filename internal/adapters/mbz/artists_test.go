@@ -33,7 +33,7 @@ func TestSearchStudios_HappyPath(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	a := mbz.New(config.MetadataSourceConfig{URL: srv.URL})
+	a := mbz.New(config.MetadataSourceConfig{URL: srv.URL}, nil)
 	results, err := a.SearchStudios(context.Background(), "Fleetwood Mac", 25)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -71,7 +71,7 @@ func TestSearchStudios_TypeNotSeparateParam(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	a := mbz.New(config.MetadataSourceConfig{URL: srv.URL})
+	a := mbz.New(config.MetadataSourceConfig{URL: srv.URL}, nil)
 	_, _ = a.SearchStudios(context.Background(), "test", 5)
 
 	if capturedURL == nil {
@@ -91,7 +91,7 @@ func TestSearchPeople_HappyPath(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	a := mbz.New(config.MetadataSourceConfig{URL: srv.URL})
+	a := mbz.New(config.MetadataSourceConfig{URL: srv.URL}, nil)
 	results, err := a.SearchPeople(context.Background(), "Stevie Nicks", 10)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)

@@ -968,3 +968,339 @@ func TestBadger_SettingsRepo_Set_Upsert(t *testing.T) {
 		t.Errorf("upsert value = %q, want v2", val)
 	}
 }
+
+// ── Tag-filter regression tests ───────────────────────────────────────────────
+//
+// These tests guard against the bug where TagKey/TagValue filters were silently
+// ignored by all three Badger repos, causing tag browse pages to return every
+// record in the database regardless of tag assignment.
+
+func TestBadger_ItemRepo_List_TagKeyValueFilter(t *testing.T) {
+	db := setupTestDB(t)
+	entryRepo := badger.NewLibraryEntryRepo(db)
+	itemRepo := badger.NewItemRepo(db)
+	tagRepo := badger.NewTagRepo(db)
+	ctx := context.Background()
+
+	entry := &domain.LibraryEntry{ContentType: domain.ContentTypeAdult, Kind: domain.KindStudio, Name: "Studio", MonitorMode: domain.MonitorAll, Status: domain.EntryStatusActive}
+	entryRepo.Save(ctx, entry) //nolint:errcheck
+
+	tagYoga := &domain.Tag{Key: "adult", Value: "Yoga", Scope: "metadata"}
+	tagFitness := &domain.Tag{Key: "adult", Value: "Fitness", Scope: "metadata"}
+	tagRepo.Save(ctx, tagYoga)    //nolint:errcheck
+	tagRepo.Save(ctx, tagFitness) //nolint:errcheck
+
+	// itemWithYoga has the Yoga tag.
+	itemWithYoga := &domain.Item{
+		ContentType: domain.ContentTypeAdult, LibraryEntryID: entry.ID,
+		Title: "Yoga Scene", Status: domain.StatusWanted,
+		Tags: []domain.Tag{*tagYoga},
+	}
+	// itemWithFitness has a different tag — must NOT appear in Yoga results.
+	itemWithFitness := &domain.Item{
+		ContentType: domain.ContentTypeAdult, LibraryEntryID: entry.ID,
+		Title: "Fitness Scene", Status: domain.StatusWanted,
+		Tags: []domain.Tag{*tagFitness},
+	}
+	// itemNoTags has no tags — must NOT appear in any tag-filtered result.
+	itemNoTags := &domain.Item{
+		ContentType: domain.ContentTypeAdult, LibraryEntryID: entry.ID,
+		Title: "Untagged Scene", Status: domain.StatusWanted,
+	}
+	itemRepo.Save(ctx, itemWithYoga)    //nolint:errcheck
+	itemRepo.Save(ctx, itemWithFitness) //nolint:errcheck
+	itemRepo.Save(ctx, itemNoTags)      //nolint:errcheck
+
+	tests := []struct {
+		name       string
+		filter     ports.ItemFilter
+		wantTitles []string
+	}{
+		{
+			name:       "key+value matches only Yoga item",
+			filter:     ports.ItemFilter{TagKey: "adult", TagValue: "Yoga", Limit: 50},
+			wantTitles: []string{"Yoga Scene"},
+		},
+		{
+			name:       "key only matches items with that key regardless of value",
+			filter:     ports.ItemFilter{TagKey: "adult", Limit: 50},
+			wantTitles: []string{"Yoga Scene", "Fitness Scene"},
+		},
+		{
+			name:       "non-existent value returns empty",
+			filter:     ports.ItemFilter{TagKey: "adult", TagValue: "Pilates", Limit: 50},
+			wantTitles: []string{},
+		},
+		{
+			name:       "untagged item is excluded by any tag filter",
+			filter:     ports.ItemFilter{TagKey: "adult", TagValue: "Yoga", Limit: 50},
+			wantTitles: []string{"Yoga Scene"},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			res, _, err := itemRepo.List(ctx, tc.filter)
+			if err != nil {
+				t.Fatalf("List: %v", err)
+			}
+			got := titlesOf(res)
+			if len(got) != len(tc.wantTitles) {
+				t.Fatalf("got %d results %v, want %d %v", len(got), got, len(tc.wantTitles), tc.wantTitles)
+			}
+			wantSet := make(map[string]struct{}, len(tc.wantTitles))
+			for _, w := range tc.wantTitles {
+				wantSet[w] = struct{}{}
+			}
+			for _, g := range got {
+				if _, ok := wantSet[g]; !ok {
+					t.Errorf("unexpected result %q", g)
+				}
+			}
+		})
+	}
+}
+
+func TestBadger_LibraryEntryRepo_List_TagKeyValueFilter(t *testing.T) {
+	db := setupTestDB(t)
+	entryRepo := badger.NewLibraryEntryRepo(db)
+	tagRepo := badger.NewTagRepo(db)
+	ctx := context.Background()
+
+	tagYoga := &domain.Tag{Key: "adult", Value: "Yoga", Scope: "metadata"}
+	tagFitness := &domain.Tag{Key: "adult", Value: "Fitness", Scope: "metadata"}
+	tagRepo.Save(ctx, tagYoga)    //nolint:errcheck
+	tagRepo.Save(ctx, tagFitness) //nolint:errcheck
+
+	entryWithYoga := &domain.LibraryEntry{
+		ContentType: domain.ContentTypeAdult, Kind: domain.KindStudio,
+		Name: "Yoga Studio", MonitorMode: domain.MonitorAll, Status: domain.EntryStatusActive,
+		Tags: []domain.Tag{*tagYoga},
+	}
+	entryWithFitness := &domain.LibraryEntry{
+		ContentType: domain.ContentTypeAdult, Kind: domain.KindStudio,
+		Name: "Fitness Studio", MonitorMode: domain.MonitorAll, Status: domain.EntryStatusActive,
+		Tags: []domain.Tag{*tagFitness},
+	}
+	// entryNoTags must NOT appear in any tag-filtered result.
+	entryNoTags := &domain.LibraryEntry{
+		ContentType: domain.ContentTypeMusic, Kind: domain.KindArtist,
+		Name: "Dana Fuchs", MonitorMode: domain.MonitorAll, Status: domain.EntryStatusActive,
+	}
+	entryRepo.Save(ctx, entryWithYoga)    //nolint:errcheck
+	entryRepo.Save(ctx, entryWithFitness) //nolint:errcheck
+	entryRepo.Save(ctx, entryNoTags)      //nolint:errcheck
+
+	tests := []struct {
+		name      string
+		filter    ports.LibraryFilter
+		wantNames []string
+	}{
+		{
+			name:      "key+value returns only matching entry",
+			filter:    ports.LibraryFilter{TagKey: "adult", TagValue: "Yoga", Limit: 50},
+			wantNames: []string{"Yoga Studio"},
+		},
+		{
+			name:      "key only returns all entries with that key",
+			filter:    ports.LibraryFilter{TagKey: "adult", Limit: 50},
+			wantNames: []string{"Yoga Studio", "Fitness Studio"},
+		},
+		{
+			name:      "non-existent value returns empty",
+			filter:    ports.LibraryFilter{TagKey: "adult", TagValue: "Pilates", Limit: 50},
+			wantNames: []string{},
+		},
+		{
+			name:      "untagged entry (Dana Fuchs) is excluded",
+			filter:    ports.LibraryFilter{TagKey: "adult", TagValue: "Yoga", Limit: 50},
+			wantNames: []string{"Yoga Studio"},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			res, _, err := entryRepo.List(ctx, tc.filter)
+			if err != nil {
+				t.Fatalf("List: %v", err)
+			}
+			if len(res) != len(tc.wantNames) {
+				names := make([]string, len(res))
+				for i, e := range res {
+					names[i] = e.Name
+				}
+				t.Fatalf("got %d results %v, want %d %v", len(res), names, len(tc.wantNames), tc.wantNames)
+			}
+			wantSet := make(map[string]struct{}, len(tc.wantNames))
+			for _, w := range tc.wantNames {
+				wantSet[w] = struct{}{}
+			}
+			for _, e := range res {
+				if _, ok := wantSet[e.Name]; !ok {
+					t.Errorf("unexpected entry %q", e.Name)
+				}
+			}
+		})
+	}
+}
+
+func TestBadger_GroupRepo_List_TagKeyValueFilter(t *testing.T) {
+	db := setupTestDB(t)
+	entryRepo := badger.NewLibraryEntryRepo(db)
+	groupRepo := badger.NewGroupRepo(db)
+	tagRepo := badger.NewTagRepo(db)
+	ctx := context.Background()
+
+	musicEntry := &domain.LibraryEntry{ContentType: domain.ContentTypeMusic, Kind: domain.KindArtist, Name: "Artist", MonitorMode: domain.MonitorAll, Status: domain.EntryStatusActive}
+	entryRepo.Save(ctx, musicEntry) //nolint:errcheck
+
+	tagJazz := &domain.Tag{Key: "genre", Value: "Jazz", Scope: "music"}
+	tagRock := &domain.Tag{Key: "genre", Value: "Rock", Scope: "music"}
+	tagRepo.Save(ctx, tagJazz) //nolint:errcheck
+	tagRepo.Save(ctx, tagRock) //nolint:errcheck
+
+	albumJazz := &domain.Group{LibraryEntryID: musicEntry.ID, Title: "Jazz Album", Number: 1}
+	albumRock := &domain.Group{LibraryEntryID: musicEntry.ID, Title: "Rock Album", Number: 2}
+	albumNone := &domain.Group{LibraryEntryID: musicEntry.ID, Title: "Untagged Album", Number: 3}
+	groupRepo.Save(ctx, albumJazz) //nolint:errcheck
+	groupRepo.Save(ctx, albumRock) //nolint:errcheck
+	groupRepo.Save(ctx, albumNone) //nolint:errcheck
+
+	tagRepo.AddGroupTag(ctx, albumJazz.ID, tagJazz.ID) //nolint:errcheck
+	tagRepo.AddGroupTag(ctx, albumRock.ID, tagRock.ID) //nolint:errcheck
+
+	tests := []struct {
+		name       string
+		filter     ports.GroupFilter
+		wantTitles []string
+	}{
+		{
+			name:       "key+value returns only Jazz album",
+			filter:     ports.GroupFilter{TagKey: "genre", TagValue: "Jazz"},
+			wantTitles: []string{"Jazz Album"},
+		},
+		{
+			name:       "key only returns all genre-tagged albums",
+			filter:     ports.GroupFilter{TagKey: "genre"},
+			wantTitles: []string{"Jazz Album", "Rock Album"},
+		},
+		{
+			name:       "non-existent value returns empty",
+			filter:     ports.GroupFilter{TagKey: "genre", TagValue: "Blues"},
+			wantTitles: []string{},
+		},
+		{
+			name:       "untagged album is excluded",
+			filter:     ports.GroupFilter{TagKey: "genre", TagValue: "Jazz"},
+			wantTitles: []string{"Jazz Album"},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			res, err := groupRepo.List(ctx, tc.filter)
+			if err != nil {
+				t.Fatalf("List: %v", err)
+			}
+			if len(res) != len(tc.wantTitles) {
+				got := make([]string, len(res))
+				for i, g := range res {
+					got[i] = g.Title
+				}
+				t.Fatalf("got %d results %v, want %d %v", len(res), got, len(tc.wantTitles), tc.wantTitles)
+			}
+			wantSet := make(map[string]struct{}, len(tc.wantTitles))
+			for _, w := range tc.wantTitles {
+				wantSet[w] = struct{}{}
+			}
+			for _, g := range res {
+				if _, ok := wantSet[g.Title]; !ok {
+					t.Errorf("unexpected group %q", g.Title)
+				}
+			}
+		})
+	}
+}
+
+// TestBadger_TagBrowse_UntaggedEntitiesNeverLeakThrough is the direct regression
+// test for the bug where `/tags/adult/Yoga` returned Dana Fuchs and her tracks
+// despite having no tags — tag filters were silently ignored by all three repos.
+func TestBadger_TagBrowse_UntaggedEntitiesNeverLeakThrough(t *testing.T) {
+	db := setupTestDB(t)
+	entryRepo := badger.NewLibraryEntryRepo(db)
+	groupRepo := badger.NewGroupRepo(db)
+	itemRepo := badger.NewItemRepo(db)
+	tagRepo := badger.NewTagRepo(db)
+	ctx := context.Background()
+
+	// Dana Fuchs — music artist, no tags whatsoever.
+	dana := &domain.LibraryEntry{
+		ContentType: domain.ContentTypeMusic, Kind: domain.KindArtist,
+		Name: "Dana Fuchs", MonitorMode: domain.MonitorAll, Status: domain.EntryStatusActive,
+	}
+	entryRepo.Save(ctx, dana) //nolint:errcheck
+
+	danaAlbum := &domain.Group{LibraryEntryID: dana.ID, Title: "Love Lives On", Number: 1}
+	groupRepo.Save(ctx, danaAlbum) //nolint:errcheck
+
+	danaTrack := &domain.Item{
+		ContentType: domain.ContentTypeMusic, LibraryEntryID: dana.ID, GroupID: danaAlbum.ID,
+		Title: "Naked In the Morning", Status: domain.StatusWanted,
+	}
+	itemRepo.Save(ctx, danaTrack) //nolint:errcheck
+
+	// The Yoga tag only lives on an adult entry — not on any music entity.
+	yogaTag := &domain.Tag{Key: "adult", Value: "Yoga", Scope: "metadata"}
+	tagRepo.Save(ctx, yogaTag) //nolint:errcheck
+
+	yogaEntry := &domain.LibraryEntry{
+		ContentType: domain.ContentTypeAdult, Kind: domain.KindStudio,
+		Name: "Yoga Studio", MonitorMode: domain.MonitorAll, Status: domain.EntryStatusActive,
+		Tags: []domain.Tag{*yogaTag},
+	}
+	entryRepo.Save(ctx, yogaEntry) //nolint:errcheck
+
+	// Filter by adult/Yoga — music entities must be completely absent.
+	entries, _, err := entryRepo.List(ctx, ports.LibraryFilter{TagKey: "adult", TagValue: "Yoga", Limit: 50})
+	if err != nil {
+		t.Fatalf("entries List: %v", err)
+	}
+	for _, e := range entries {
+		if e.Name == "Dana Fuchs" {
+			t.Error("Dana Fuchs (untagged music entry) leaked through the adult/Yoga entry filter")
+		}
+	}
+	if len(entries) != 1 || entries[0].Name != "Yoga Studio" {
+		names := make([]string, len(entries))
+		for i, e := range entries {
+			names[i] = e.Name
+		}
+		t.Errorf("entries = %v, want [Yoga Studio]", names)
+	}
+
+	groups, err := groupRepo.List(ctx, ports.GroupFilter{TagKey: "adult", TagValue: "Yoga"})
+	if err != nil {
+		t.Fatalf("groups List: %v", err)
+	}
+	for _, g := range groups {
+		if g.Title == "Love Lives On" {
+			t.Error("Dana Fuchs album (untagged) leaked through the adult/Yoga group filter")
+		}
+	}
+	if len(groups) != 0 {
+		t.Errorf("groups = %d, want 0 (no groups have the Yoga tag)", len(groups))
+	}
+
+	items, _, err := itemRepo.List(ctx, ports.ItemFilter{TagKey: "adult", TagValue: "Yoga", Limit: 50})
+	if err != nil {
+		t.Fatalf("items List: %v", err)
+	}
+	for _, i := range items {
+		if i.Title == "Naked In the Morning" {
+			t.Error("Dana Fuchs track (untagged) leaked through the adult/Yoga item filter")
+		}
+	}
+	if len(items) != 0 {
+		t.Errorf("items = %d, want 0 (no items have the Yoga tag)", len(items))
+	}
+}

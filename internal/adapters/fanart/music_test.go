@@ -317,7 +317,7 @@ func TestFindGroupImages_Music_NotFound(t *testing.T) {
 }
 
 func TestFindGroupImages_UnsupportedContentType(t *testing.T) {
-	a := fanart.New(config.MetadataSourceConfig{})
+	a := fanart.New(config.MetadataSourceConfig{}, nil)
 	_, err := a.FindGroupImages(context.Background(), domain.ContentTypeAdult, "parent-id", "group-id")
 	if !errors.Is(err, ports.ErrNotSupported) {
 		t.Errorf("expected ErrNotSupported, got: %v", err)

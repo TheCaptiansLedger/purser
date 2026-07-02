@@ -91,10 +91,22 @@ func run(cfgPath string) error {
 	if err != nil {
 		return fmt.Errorf("create audiodb cache: %w", err)
 	}
+	mbzCache, err := cache.New("mbz", 512)
+	if err != nil {
+		return fmt.Errorf("create mbz cache: %w", err)
+	}
+	fanartCache, err := cache.New("fanart", 256)
+	if err != nil {
+		return fmt.Errorf("create fanart cache: %w", err)
+	}
+	stashdbCache, err := cache.New("stashdb", 256)
+	if err != nil {
+		return fmt.Errorf("create stashdb cache: %w", err)
+	}
 
 	libSvc := library.New(entryRepo, groupRepo, itemRepo, personRepo, tagRepo)
 	peopleSvc := people.New(personRepo)
-	sources := buildSources(cfg, audiodbCache)
+	sources := buildSources(cfg, audiodbCache, mbzCache, fanartCache, stashdbCache)
 	imgDownloader := fsadapter.NewImageDownloader(cfg.Media.Path)
 	metaSvc := metadata.New(sources, jobQueue, entryRepo, groupRepo, itemRepo, personRepo, tagRepo, extIDRepo, imgDownloader)
 	ghAdapter := githubadapter.New(githubadapter.Config{
@@ -115,7 +127,7 @@ func run(cfgPath string) error {
 		shutdown()
 	}()
 
-	srv := api.New(cfg.Server.Port, cfg.Media.Path, cfg, storageAdmin, libSvc, peopleSvc, metaSvc, tagRepo, jobQueue, cfgSvc, sources, uiFS, imgDownloader, ghAdapter, []*cache.Cache{githubCache, audiodbCache}, shutdown)
+	srv := api.New(cfg.Server.Port, cfg.Media.Path, cfg, storageAdmin, libSvc, peopleSvc, metaSvc, tagRepo, jobQueue, cfgSvc, sources, uiFS, imgDownloader, ghAdapter, []*cache.Cache{githubCache, audiodbCache, mbzCache, fanartCache, stashdbCache}, shutdown)
 
 	go func() {
 		slog.Info("listening", "port", cfg.Server.Port)
@@ -182,21 +194,21 @@ func openStorage(cfg *config.Config) (
 }
 
 // buildSources constructs and returns all enabled MetadataSource adapters.
-func buildSources(cfg *config.Config, c *cache.Cache) []ports.MetadataSource {
+func buildSources(cfg *config.Config, audiodbCache, mbzCache, fanartCache, stashdbCache *cache.Cache) []ports.MetadataSource {
 	var sources []ports.MetadataSource
 	if cfg.Sources.StashDB.Enabled {
-		sources = append(sources, stashdb.New(cfg.Sources.StashDB))
+		sources = append(sources, stashdb.New(cfg.Sources.StashDB, stashdbCache))
 	}
 	if cfg.Sources.MusicBrainz.Enabled {
-		sources = append(sources, mbz.New(cfg.Sources.MusicBrainz))
+		sources = append(sources, mbz.New(cfg.Sources.MusicBrainz, mbzCache))
 	}
 	if cfg.Sources.Fanart.Enabled {
 		slog.Info("source enabled", "name", "fanart")
-		sources = append(sources, fanart.New(cfg.Sources.Fanart))
+		sources = append(sources, fanart.New(cfg.Sources.Fanart, fanartCache))
 	}
 	if cfg.Sources.TheAudioDB.Enabled {
 		slog.Info("source enabled", "name", "audiodb")
-		sources = append(sources, theaudiodb.New(cfg.Sources.TheAudioDB, c))
+		sources = append(sources, theaudiodb.New(cfg.Sources.TheAudioDB, audiodbCache))
 	}
 	return sources
 }

@@ -10,12 +10,15 @@ import (
 	"purser/internal/config"
 	"purser/internal/domain"
 	"purser/internal/ports"
+	"purser/pkg/cache"
 	"purser/pkg/httpclient"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
 )
+
+const cacheTTL = 24 * time.Hour
 
 // Compile-time interface assertions.
 var (
@@ -45,13 +48,13 @@ const (
 type Adapter struct {
 	baseURL   string
 	userAgent string
+	cache     *cache.Cache
 	client    *http.Client
 	limiter   *rateLimiter
 }
 
-// New constructs a MusicBrainz adapter from cfg.
-// If cfg.URL is empty the public MusicBrainz endpoint is used.
-func New(cfg config.MetadataSourceConfig) *Adapter {
+// New constructs a MusicBrainz adapter from cfg. c may be nil to disable caching.
+func New(cfg config.MetadataSourceConfig, c *cache.Cache) *Adapter {
 	base := cfg.URL
 	if base == "" {
 		base = publicBaseURL
@@ -66,6 +69,7 @@ func New(cfg config.MetadataSourceConfig) *Adapter {
 	return &Adapter{
 		baseURL:   base,
 		userAgent: ua,
+		cache:     c,
 		client:    httpclient.New(),
 		limiter:   newRateLimiter(time.Second),
 	}
@@ -122,72 +126,92 @@ func (rl *rateLimiter) Wait(ctx context.Context) error {
 // ── HTTP transport ────────────────────────────────────────────────────────────
 
 func (a *Adapter) get(ctx context.Context, url string, out any) error {
+	if a.cache != nil {
+		if v, ok := a.cache.Get(url); ok {
+			return json.Unmarshal(v, out)
+		}
+	}
+
 	if err := a.limiter.Wait(ctx); err != nil {
 		return err
 	}
-	return a.doGet(ctx, url, out)
-}
 
-func (a *Adapter) doGet(ctx context.Context, rawURL string, out any) error {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, rawURL, nil)
+	b, err := a.getRaw(ctx, url, out)
 	if err != nil {
 		return err
+	}
+
+	if a.cache != nil {
+		a.cache.Set(url, b, cacheTTL)
+	}
+	return nil
+}
+
+// getRaw fetches url, decodes into out, and returns the raw response bytes for caching.
+//
+//nolint:cyclop // MBZ rate-limit retry handling requires branching on multiple HTTP status codes.
+func (a *Adapter) getRaw(ctx context.Context, rawURL string, out any) ([]byte, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, rawURL, nil)
+	if err != nil {
+		return nil, err
 	}
 	req.Header.Set("User-Agent", a.userAgent)
 
 	resp, err := a.client.Do(req)
 	if err != nil {
-		return fmt.Errorf("musicbrainz: request: %w", err)
+		return nil, fmt.Errorf("musicbrainz: request: %w", err)
 	}
 	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode == http.StatusNotFound {
-		return errNotFound
+		return nil, errNotFound
 	}
 
 	if resp.StatusCode == http.StatusBadRequest {
 		b, _ := io.ReadAll(resp.Body)
 		if strings.Contains(string(b), "Invalid mbid") {
-			return errNotFound
+			return nil, errNotFound
 		}
-		return fmt.Errorf("musicbrainz: HTTP %d: %s", resp.StatusCode, string(b))
+		return nil, fmt.Errorf("musicbrainz: HTTP %d: %s", resp.StatusCode, string(b))
 	}
 
 	if resp.StatusCode == http.StatusTooManyRequests {
 		wait := retryAfterDuration(resp.Header.Get("Retry-After"))
 		select {
 		case <-ctx.Done():
-			return ctx.Err()
+			return nil, ctx.Err()
 		case <-time.After(wait):
 		}
-		return a.doGet(ctx, rawURL, out)
+		return a.getRaw(ctx, rawURL, out)
 	}
 
 	if resp.StatusCode == http.StatusServiceUnavailable {
 		b, _ := io.ReadAll(resp.Body)
 		if strings.Contains(string(b), "rate limit") {
-			// MBZ uses 503 (not 429) when sustained traffic exceeds their limit.
-			// Back off longer than the per-request gap before retrying.
 			wait := 5 * time.Second
 			select {
 			case <-ctx.Done():
-				return ctx.Err()
+				return nil, ctx.Err()
 			case <-time.After(wait):
 			}
-			return a.doGet(ctx, rawURL, out)
+			return a.getRaw(ctx, rawURL, out)
 		}
-		return fmt.Errorf("musicbrainz: HTTP %d: %s", resp.StatusCode, string(b))
+		return nil, fmt.Errorf("musicbrainz: HTTP %d: %s", resp.StatusCode, string(b))
 	}
 
 	if resp.StatusCode != http.StatusOK {
 		b, _ := io.ReadAll(resp.Body)
-		return fmt.Errorf("musicbrainz: HTTP %d: %s", resp.StatusCode, string(b))
+		return nil, fmt.Errorf("musicbrainz: HTTP %d: %s", resp.StatusCode, string(b))
 	}
 
-	if err := json.NewDecoder(resp.Body).Decode(out); err != nil {
-		return fmt.Errorf("musicbrainz: decode: %w", err)
+	b, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("musicbrainz: read: %w", err)
 	}
-	return nil
+	if err := json.Unmarshal(b, out); err != nil {
+		return nil, fmt.Errorf("musicbrainz: decode: %w", err)
+	}
+	return b, nil
 }
 
 func retryAfterDuration(header string) time.Duration {

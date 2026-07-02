@@ -54,7 +54,7 @@ const searchPeopleNoMetaFixture = `{
 }`
 
 func newPeopleTestAdapter(srv *httptest.Server) *stashdb.Adapter {
-	return stashdb.New(config.MetadataSourceConfig{URL: srv.URL, APIKey: "test-key"})
+	return stashdb.New(config.MetadataSourceConfig{URL: srv.URL, APIKey: "test-key"}, nil)
 }
 
 func TestSearchPeople_AllFields(t *testing.T) {

@@ -429,6 +429,34 @@ func loadTagsForPrefix(txn *badgerdb.Txn, prefix []byte) ([]domain.Tag, error) {
 	return tags, nil
 }
 
+// collectIDsForTagFilter returns the set of entity IDs that carry a tag matching
+// key and/or value, using the reverse-index prefix builder supplied by the caller
+// (pfxTGE for library entries, pfxTGG for groups).
+func collectIDsForTagFilter(txn *badgerdb.Txn, key, value string, pfxFn func(string) []byte) map[string]struct{} {
+	var matchTagIDs []string
+	iterPrefixValues(txn, pfxTAG(), func(_, val []byte) bool {
+		var rec tagRecord
+		if json.Unmarshal(val, &rec) == nil {
+			keyOK := key == "" || rec.Key == key
+			valOK := value == "" || rec.Value == value
+			if keyOK && valOK {
+				matchTagIDs = append(matchTagIDs, rec.ID)
+			}
+		}
+		return true
+	})
+
+	ids := make(map[string]struct{})
+	for _, tagID := range matchTagIDs {
+		prefix := pfxFn(tagID)
+		iterPrefix(txn, prefix, func(k []byte) bool {
+			ids[suffixAfter(k, prefix)] = struct{}{}
+			return true
+		})
+	}
+	return ids
+}
+
 // ── Person stub loader ────────────────────────────────────────────────────────
 
 // loadPersonStub loads the minimal Person fields (Name, SortName, ImagePath)

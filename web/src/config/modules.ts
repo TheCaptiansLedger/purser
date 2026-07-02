@@ -1,4 +1,4 @@
-import { Film, Tv2, Music2, BookOpen, Sparkles, Video } from 'lucide-react'
+import { Film, Tv2, Music2, BookOpen, Sparkles } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import type { EnabledModules } from '../context/ModulesContext'
 
@@ -16,5 +16,4 @@ export const MODULE_REGISTRY: ModuleRegistryEntry[] = [
   { key: 'music',     label: 'Music',     path: '/music',     icon: Music2,   accent: '#10b981' },
   { key: 'books',     label: 'Books',     path: '/books',     icon: BookOpen, accent: '#f59e0b' },
   { key: 'afterdark', label: 'AfterDark', path: '/afterdark', icon: Sparkles, accent: '#f43f5e' },
-  { key: 'jav',       label: 'JAV',       path: '/jav',       icon: Video,    accent: '#ec4899' },
 ]

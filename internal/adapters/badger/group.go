@@ -78,6 +78,12 @@ func (r *groupRepo) List(_ context.Context, f ports.GroupFilter) ([]*domain.Grou
 	var results []*domain.Group
 
 	err := r.db.View(func(txn *badgerdb.Txn) error {
+		// For TagKey/TagValue filter, collect qualifying group IDs via tgg: reverse index.
+		var tagGroupIDs map[string]struct{}
+		if f.TagKey != "" || f.TagValue != "" {
+			tagGroupIDs = collectIDsForTagFilter(txn, string(f.TagKey), f.TagValue, pfxTGG)
+		}
+
 		opts := badgerdb.DefaultIteratorOptions
 		opts.Prefix = pfxGRP()
 		it := txn.NewIterator(opts)
@@ -91,7 +97,7 @@ func (r *groupRepo) List(_ context.Context, f ports.GroupFilter) ([]*domain.Grou
 				continue
 			}
 
-			if !matchesGroupFilter(rec, f) {
+			if !matchesGroupFilter(rec, f, tagGroupIDs) {
 				continue
 			}
 
@@ -110,12 +116,17 @@ func (r *groupRepo) List(_ context.Context, f ports.GroupFilter) ([]*domain.Grou
 	return results, nil
 }
 
-func matchesGroupFilter(rec groupRecord, f ports.GroupFilter) bool {
+func matchesGroupFilter(rec groupRecord, f ports.GroupFilter, tagGroupIDs map[string]struct{}) bool {
 	if f.LibraryEntryID != "" && rec.LibraryEntryID != f.LibraryEntryID {
 		return false
 	}
 	if f.Monitored != nil && rec.Monitored != *f.Monitored {
 		return false
+	}
+	if tagGroupIDs != nil {
+		if _, ok := tagGroupIDs[rec.ID]; !ok {
+			return false
+		}
 	}
 	return true
 }
