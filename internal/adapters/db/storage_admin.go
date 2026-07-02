@@ -28,6 +28,11 @@ func NewStorageAdmin(db *sql.DB, dsn string) *StorageAdmin {
 // DriverName returns "sqlite".
 func (a *StorageAdmin) DriverName() string { return "sqlite" }
 
+// BackupMeta returns the content-type and suggested filename for a SQLite backup.
+func (a *StorageAdmin) BackupMeta() (string, string) {
+	return "text/plain; charset=utf-8", "purser.sql"
+}
+
 // Stats returns current size, version, table row counts, and migration count.
 func (a *StorageAdmin) Stats(ctx context.Context) (*ports.StorageStats, error) {
 	var version string

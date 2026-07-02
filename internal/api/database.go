@@ -35,8 +35,9 @@ func (h *databaseHandler) stats(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *databaseHandler) backup(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
-	w.Header().Set("Content-Disposition", `attachment; filename="purser.sql"`)
+	ct, filename := h.store.BackupMeta()
+	w.Header().Set("Content-Type", ct)
+	w.Header().Set("Content-Disposition", `attachment; filename="`+filename+`"`)
 
 	if err := h.store.Backup(r.Context(), w); err != nil {
 		// Headers already sent; we can only log at this point.

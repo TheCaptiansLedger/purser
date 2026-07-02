@@ -8,6 +8,7 @@ import (
 // StorageAdminPort provides administrative operations over the storage backend.
 type StorageAdminPort interface {
 	DriverName() string
+	BackupMeta() (contentType, filename string)
 	Stats(ctx context.Context) (*StorageStats, error)
 	Backup(ctx context.Context, w io.Writer) error
 	Restore(ctx context.Context, r io.Reader, shutdownFn func()) (*StorageStats, error)

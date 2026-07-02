@@ -21,6 +21,9 @@ func Open(cfg config.BadgerConfig) (*badger.DB, error) {
 		opts = opts.WithValueDir(cfg.ValueLogDir)
 	}
 	opts = opts.WithSyncWrites(cfg.SyncWrites)
+	// 64 MiB cap prevents the default 1 GiB pre-allocation from inflating
+	// on-disk size reports for small databases.
+	opts = opts.WithValueLogFileSize(64 << 20)
 	// Silence BadgerDB's internal logger; Purser uses slog.
 	opts = opts.WithLogger(nil)
 

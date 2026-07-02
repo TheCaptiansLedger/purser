@@ -30,7 +30,7 @@ function RestoreStats({ result }: { result: RestoreResult }) {
       <div className="flex items-center gap-2 px-4 py-3 border-b border-emerald-500/10">
         <CheckCircle2 size={15} className="text-emerald-400 shrink-0" />
         <span className="text-sm font-medium text-emerald-300">
-          Restore complete — {result.total_rows.toLocaleString()} rows restored
+          Restore complete — {result.total_rows.toLocaleString()} records restored
         </span>
       </div>
       <div className="px-4 py-3 space-y-2">
@@ -106,9 +106,6 @@ export function DatabasePage() {
 
   const busy = phase === 'uploading' || phase === 'processing' || phase === 'restarting'
   const maxCount = Math.max(...(stats?.collections.map(c => c.count) ?? []), 1)
-  const migrationCount = typeof stats?.extra?.['migration_count'] === 'number'
-    ? stats.extra['migration_count']
-    : undefined
 
   return (
     <div className="px-8 py-10 max-w-2xl">
@@ -133,7 +130,7 @@ export function DatabasePage() {
             </div>
             <div>
               <div className="text-sm font-medium text-white/80 group-hover:text-white transition-colors">Backup</div>
-              <div className="text-xs text-white/35 mt-0.5">Download database as SQL</div>
+              <div className="text-xs text-white/35 mt-0.5">Download database backup</div>
             </div>
           </button>
 
@@ -152,12 +149,12 @@ export function DatabasePage() {
             </div>
             <div>
               <div className="text-sm font-medium text-white/80 group-hover:text-white transition-colors">Restore</div>
-              <div className="text-xs text-white/35 mt-0.5">Import a SQL backup file</div>
+              <div className="text-xs text-white/35 mt-0.5">Import a database backup</div>
             </div>
           </button>
         </div>
 
-        <input ref={fileRef} type="file" accept=".sql" className="hidden" onChange={handleFileChange} />
+        <input ref={fileRef} type="file" accept=".sql,.badger" className="hidden" onChange={handleFileChange} />
 
         {/* Progress / status feedback */}
         {phase === 'uploading' && (
@@ -173,7 +170,7 @@ export function DatabasePage() {
         {phase === 'processing' && (
           <div className="mt-3 rounded-xl border border-white/5 bg-white/2 px-4 py-3 space-y-2">
             <div className="flex justify-between text-xs text-white/50 font-mono">
-              <span>Processing SQL…</span>
+              <span>Processing backup…</span>
               <span>100%</span>
             </div>
             <ProgressBar pct={100} accent="rgba(52,211,153,0.7)" />
@@ -218,9 +215,9 @@ export function DatabasePage() {
         <h2 className="text-xs font-semibold uppercase tracking-widest text-white/30 mb-3">Info</h2>
         <div className="rounded-xl border border-white/5 bg-white/2 px-4">
           {[
+            { label: 'driver',         value: stats?.driver },
             { label: 'driver_version', value: stats?.driver_version },
-            { label: 'file_size',      value: stats ? formatBytes(stats.size_bytes) : undefined },
-            { label: 'migrations',     value: migrationCount },
+            { label: 'storage_size',   value: stats ? formatBytes(stats.size_bytes) : undefined },
           ].map(({ label, value }) => (
             <div key={label} className="flex items-center justify-between py-2.5 border-b border-white/5 last:border-0">
               <span className="text-sm text-white/40 font-mono">{label}</span>
@@ -232,9 +229,24 @@ export function DatabasePage() {
         </div>
       </section>
 
-      {/* Tables */}
+      {/* Backend Details */}
+      {stats?.extra && Object.keys(stats.extra).length > 0 && (
+        <section className="mb-8">
+          <h2 className="text-xs font-semibold uppercase tracking-widest text-white/30 mb-3">Backend Details</h2>
+          <div className="rounded-xl border border-white/5 bg-white/2 px-4">
+            {Object.entries(stats.extra).map(([k, v]) => (
+              <div key={k} className="flex items-center justify-between py-2.5 border-b border-white/5 last:border-0">
+                <span className="text-sm text-white/40 font-mono">{k}</span>
+                <span className="text-sm text-white/75 font-mono">{String(v)}</span>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {/* Collections */}
       <section className="mb-8">
-        <h2 className="text-xs font-semibold uppercase tracking-widest text-white/30 mb-3">Tables</h2>
+        <h2 className="text-xs font-semibold uppercase tracking-widest text-white/30 mb-3">Collections</h2>
         <div className="rounded-xl border border-white/5 bg-white/2 px-4 py-4">
           {isLoading ? (
             <div className="space-y-3">
@@ -263,7 +275,7 @@ export function DatabasePage() {
                 </div>
               ))}
               {stats?.collections.length === 0 && (
-                <p className="text-xs text-white/20 font-mono text-center py-4">no tables found</p>
+                <p className="text-xs text-white/20 font-mono text-center py-4">no collections found</p>
               )}
             </div>
           )}

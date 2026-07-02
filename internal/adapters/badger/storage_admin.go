@@ -29,6 +29,12 @@ var _ ports.StorageAdminPort = (*StorageAdmin)(nil)
 // DriverName returns "badger".
 func (a *StorageAdmin) DriverName() string { return "badger" }
 
+// BackupMeta returns the content-type and suggested filename for a BadgerDB backup.
+// The backup format is a binary protobuf stream (not SQL).
+func (a *StorageAdmin) BackupMeta() (string, string) {
+	return "application/octet-stream", "purser.badger"
+}
+
 // Stats counts primary records by key prefix, measures disk usage, and reports LSM/vlog sizes.
 func (a *StorageAdmin) Stats(_ context.Context) (*ports.StorageStats, error) {
 	type prefixDef struct {
@@ -82,8 +88,8 @@ func (a *StorageAdmin) Stats(_ context.Context) (*ports.StorageStats, error) {
 		SizeBytes:     sizeBytes,
 		Collections:   collections,
 		Extra: map[string]any{
-			"lsm_size":  lsmSize,
-			"vlog_size": vlogSize,
+			"lsm_size_bytes":  lsmSize,
+			"vlog_size_bytes": vlogSize,
 		},
 	}, nil
 }

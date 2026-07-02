@@ -106,11 +106,11 @@ func TestBadger_StorageAdmin_Stats_WithData(t *testing.T) {
 	if stats.Extra == nil {
 		t.Error("Extra should not be nil")
 	}
-	if _, ok := stats.Extra["lsm_size"]; !ok {
-		t.Error("Extra should contain lsm_size")
+	if _, ok := stats.Extra["lsm_size_bytes"]; !ok {
+		t.Error("Extra should contain lsm_size_bytes")
 	}
-	if _, ok := stats.Extra["vlog_size"]; !ok {
-		t.Error("Extra should contain vlog_size")
+	if _, ok := stats.Extra["vlog_size_bytes"]; !ok {
+		t.Error("Extra should contain vlog_size_bytes")
 	}
 }
 
