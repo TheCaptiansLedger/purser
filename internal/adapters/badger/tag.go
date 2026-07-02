@@ -164,11 +164,7 @@ func (r *tagRepo) List(_ context.Context, f ports.TagFilter) ([]*domain.Tag, err
 	}
 
 	sort.Slice(results, func(i, j int) bool {
-		ki, kj := string(results[i].Key), string(results[j].Key)
-		if ki != kj {
-			return ki < kj
-		}
-		return results[i].Value < results[j].Value
+		return results[i].SortKey < results[j].SortKey
 	})
 	return results, nil
 }
@@ -200,11 +196,13 @@ func (r *tagRepo) Save(_ context.Context, t *domain.Tag) error {
 	if t.ID == "" {
 		t.ID = newID()
 	}
+	t.ApplyDefaults()
 	rec := tagRecord{
-		ID:    t.ID,
-		Key:   string(t.Key),
-		Value: t.Value,
-		Scope: string(t.Scope),
+		ID:      t.ID,
+		Key:     string(t.Key),
+		Value:   t.Value,
+		Scope:   string(t.Scope),
+		SortKey: t.SortKey,
 	}
 	return r.db.Update(func(txn *badgerdb.Txn) error {
 		return setJSON(txn, kTAG(t.ID), rec)

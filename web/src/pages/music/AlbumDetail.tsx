@@ -141,7 +141,7 @@ export function AlbumDetail() {
   const [statusFilter, setStatusFilter] = useState<ItemStatus | undefined>(undefined)
   const { data: artist } = useLibraryEntry(id!)
   const { data: album, isLoading } = useGroup(albumId!)
-  const { data: tracksPage } = useItems({ groupId: albumId!, status: statusFilter, limit: 500 })
+  const { data: tracksPage } = useItems({ groupId: albumId!, status: statusFilter, sort: 'date', sortDir: 'asc', limit: 500 })
   const tracks = tracksPage?.data ?? []
 
   const toggleAlbumMonitor = useMutation({

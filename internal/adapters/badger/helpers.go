@@ -160,6 +160,7 @@ type libEntryRecord struct {
 	Kind              string         `json:"kind"`
 	Name              string         `json:"name"`
 	SortName          string         `json:"sort_name"`
+	SortKey           string         `json:"sort_key,omitempty"`
 	Overview          string         `json:"overview,omitempty"`
 	ParentID          string         `json:"parent_id,omitempty"`
 	Monitored         bool           `json:"monitored"`
@@ -183,6 +184,7 @@ type groupRecord struct {
 	ContentType    string         `json:"content_type"` // denormalized from parent entry
 	Title          string         `json:"title"`
 	SortName       string         `json:"sort_name,omitempty"`
+	SortKey        string         `json:"sort_key,omitempty"`
 	Number         int            `json:"number"`
 	Year           int            `json:"year,omitempty"`
 	Overview       string         `json:"overview,omitempty"`
@@ -215,6 +217,7 @@ type itemRecord struct {
 	Overview       string             `json:"overview,omitempty"`
 	Date           string             `json:"date,omitempty"`
 	Sequence       string             `json:"sequence,omitempty"`
+	SortKey        string             `json:"sort_key,omitempty"`
 	RuntimeSeconds int                `json:"runtime_seconds,omitempty"`
 	Monitored      bool               `json:"monitored"`
 	Status         string             `json:"status"`
@@ -232,6 +235,7 @@ type personRecord struct {
 	ID           string         `json:"id"`
 	Name         string         `json:"name"`
 	SortName     string         `json:"sort_name,omitempty"`
+	SortKey      string         `json:"sort_key,omitempty"`
 	Overview     string         `json:"overview,omitempty"`
 	Monitored    bool           `json:"monitored"`
 	MonitorMode  string         `json:"monitor_mode"`
@@ -245,10 +249,11 @@ type personRecord struct {
 }
 
 type tagRecord struct {
-	ID    string `json:"id"`
-	Key   string `json:"key"`
-	Value string `json:"value"`
-	Scope string `json:"scope"`
+	ID      string `json:"id"`
+	Key     string `json:"key"`
+	Value   string `json:"value"`
+	Scope   string `json:"scope"`
+	SortKey string `json:"sort_key,omitempty"`
 }
 
 type mediaFileRecord struct {
@@ -391,11 +396,16 @@ func loadTagByID(txn *badgerdb.Txn, tagID string) (*domain.Tag, error) {
 }
 
 func tagFromRecord(r *tagRecord) *domain.Tag {
+	sortKey := r.SortKey
+	if sortKey == "" {
+		sortKey = domain.TagSortKey(r.Key, r.Value)
+	}
 	return &domain.Tag{
-		ID:    r.ID,
-		Key:   domain.TagKey(r.Key),
-		Value: r.Value,
-		Scope: domain.TagScope(r.Scope),
+		ID:      r.ID,
+		Key:     domain.TagKey(r.Key),
+		Value:   r.Value,
+		Scope:   domain.TagScope(r.Scope),
+		SortKey: sortKey,
 	}
 }
 

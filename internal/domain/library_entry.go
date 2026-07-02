@@ -29,8 +29,14 @@ type LibraryEntry struct {
 	People            []EntryPerson
 	Metadata          map[string]any
 	LockedFields      []string
+	SortKey           string
 	AddedAt           time.Time
 	UpdatedAt         time.Time
+}
+
+// ApplyDefaults computes the SortKey before persistence.
+func (e *LibraryEntry) ApplyDefaults() {
+	e.SortKey = NameSortKey(e.SortName, e.Name)
 }
 
 // IsRoot reports whether this entry has no parent in the hierarchy.

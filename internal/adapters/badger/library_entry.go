@@ -59,12 +59,17 @@ func loadLibraryEntry(txn *badgerdb.Txn, id string) (*domain.LibraryEntry, error
 }
 
 func entryFromRecord(rec *libEntryRecord) *domain.LibraryEntry {
+	sortKey := rec.SortKey
+	if sortKey == "" {
+		sortKey = domain.NameSortKey(rec.SortName, rec.Name)
+	}
 	return &domain.LibraryEntry{
 		ID:                rec.ID,
 		ContentType:       domain.ContentType(rec.ContentType),
 		Kind:              domain.Kind(rec.Kind),
 		Name:              rec.Name,
 		SortName:          rec.SortName,
+		SortKey:           sortKey,
 		Overview:          rec.Overview,
 		ParentID:          rec.ParentID,
 		Monitored:         rec.Monitored,
@@ -117,10 +122,10 @@ func personSortKey(p *domain.Person) string {
 	if p == nil {
 		return ""
 	}
-	if p.SortName != "" {
-		return p.SortName
+	if p.SortKey != "" {
+		return p.SortKey
 	}
-	return p.Name
+	return domain.NameSortKey(p.SortName, p.Name)
 }
 
 func (r *libraryEntryRepo) List(_ context.Context, f ports.LibraryFilter) ([]*domain.LibraryEntry, int, error) {
@@ -166,8 +171,7 @@ func (r *libraryEntryRepo) List(_ context.Context, f ports.LibraryFilter) ([]*do
 	}
 
 	sort.Slice(results, func(i, j int) bool {
-		si, sj := entrySortKey(results[i]), entrySortKey(results[j])
-		return si < sj
+		return results[i].SortKey < results[j].SortKey
 	})
 
 	total := len(results)
@@ -184,13 +188,6 @@ func (r *libraryEntryRepo) List(_ context.Context, f ports.LibraryFilter) ([]*do
 		end = total
 	}
 	return results[start:end], total, nil
-}
-
-func entrySortKey(e *domain.LibraryEntry) string {
-	if e.SortName != "" {
-		return e.SortName
-	}
-	return e.Name
 }
 
 func matchesEntryFilter(rec libEntryRecord, f ports.LibraryFilter, personEntryIDs map[string]struct{}) bool {
@@ -221,6 +218,7 @@ func (r *libraryEntryRepo) Save(_ context.Context, e *domain.LibraryEntry) error
 	if e.ID == "" {
 		e.ID = newID()
 	}
+	e.ApplyDefaults()
 	now := nowStr()
 	if e.AddedAt.IsZero() {
 		e.AddedAt = strToTime(now)
@@ -246,6 +244,7 @@ func (r *libraryEntryRepo) Save(_ context.Context, e *domain.LibraryEntry) error
 			Kind:              string(e.Kind),
 			Name:              e.Name,
 			SortName:          e.SortName,
+			SortKey:           e.SortKey,
 			Overview:          e.Overview,
 			ParentID:          e.ParentID,
 			Monitored:         e.Monitored,

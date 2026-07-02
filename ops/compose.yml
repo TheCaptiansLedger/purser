@@ -1,7 +1,7 @@
 name: purser
 
 volumes:
-  purser-data:      # SQLite database — wipe to reset all library data
+  purser-data:      # BadgerDB data directory — wipe to reset all library data
   purser-media:     # Cover art, logos, headshots downloaded by Purser
   purser-content:   # Your actual media files (movies, scenes, music, etc.)
 

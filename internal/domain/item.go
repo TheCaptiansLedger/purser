@@ -2,6 +2,10 @@ package domain
 
 import "time"
 
+// DefaultItemDate is the sentinel date used when no release date is known.
+// Stored as a real date so ordering is consistent across storage backends.
+var DefaultItemDate = time.Date(1970, time.April, 10, 0, 0, 0, 0, time.UTC)
+
 // Item is the leaf content unit: Episode, Scene, Track, JAV Title, or Movie.
 //
 // For LibraryEntries with Kind=KindMovie, one Item is auto-created when the entry
@@ -20,6 +24,7 @@ type Item struct {
 	Monitored      bool
 	Status         ItemStatus
 	CoverPath      string
+	SortKey        string
 	People         []ItemPerson
 	Tags           []Tag
 	ExternalIDs    []ExternalID
@@ -28,6 +33,15 @@ type Item struct {
 	LockedFields   []string
 	AddedAt        time.Time
 	UpdatedAt      time.Time
+}
+
+// ApplyDefaults ensures required fields have non-zero values and computes the SortKey
+// before persistence. Must be called before every save.
+func (i *Item) ApplyDefaults() {
+	if i.Date.IsZero() {
+		i.Date = DefaultItemDate
+	}
+	i.SortKey = ItemSortKey(i.Date, i.Sequence, i.Title)
 }
 
 // HasFile reports whether this item has a media file on disk.

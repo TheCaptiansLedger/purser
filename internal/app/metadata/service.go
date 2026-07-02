@@ -194,7 +194,7 @@ func (s *Service) ImportTrack(ctx context.Context, req *ImportTrackRequest) (*do
 	if req.ExternalID != "" {
 		item.ExternalIDs = []domain.ExternalID{{Source: req.Source, Value: req.ExternalID}}
 	}
-
+	item.ApplyDefaults()
 	if err := s.items.Save(ctx, item); err != nil {
 		return nil, fmt.Errorf("import track: %w", err)
 	}
@@ -315,7 +315,7 @@ func (s *Service) collectNewGroupTracks(ctx context.Context, src ports.MetadataS
 func (s *Service) saveGroupTracks(ctx context.Context, contentType domain.ContentType, libraryEntryID, groupID string, monitorMode domain.MonitorMode, tracks []*domain.ExternalItem) error {
 	latestIdx := 0
 	for i, ei := range tracks {
-		if ei.Date.After(tracks[latestIdx].Date) {
+		if isLaterExtItem(ei, tracks[latestIdx]) {
 			latestIdx = i
 		}
 	}
@@ -347,6 +347,7 @@ func (s *Service) saveGroupTracks(ctx context.Context, contentType domain.Conten
 			ExternalIDs:    []domain.ExternalID{{Source: ei.Source, Value: ei.ExternalID}},
 			AddedAt:        now,
 		}
+		item.ApplyDefaults()
 		if err := s.items.Save(ctx, item); err != nil {
 			return fmt.Errorf("save track %q: %w", item.Title, err)
 		}
@@ -676,7 +677,7 @@ func (s *Service) RefreshStudio(ctx context.Context, entryID string, p ports.Pro
 	// This is a cheap metadata-only pass — no images or DB ops.
 	latestIdx := 0
 	for i, ei := range newExtItems {
-		if ei.Date.After(newExtItems[latestIdx].Date) {
+		if isLaterExtItem(ei, newExtItems[latestIdx]) {
 			latestIdx = i
 		}
 	}
@@ -720,7 +721,7 @@ func (s *Service) RefreshStudio(ctx context.Context, entryID string, p ports.Pro
 			ExternalIDs:    []domain.ExternalID{{Source: ei.Source, Value: ei.ExternalID}},
 			AddedAt:        now,
 		}
-
+		item.ApplyDefaults()
 		if err := s.items.Save(ctx, item); err != nil {
 			return fmt.Errorf("refresh studio %q: save item %q: %w", entry.Name, item.Title, err)
 		}
@@ -784,7 +785,7 @@ func (s *Service) RefreshArtist(ctx context.Context, entryID string, p ports.Pro
 
 	latestIdx := 0
 	for i, tr := range newTracks {
-		if tr.extItem.Date.After(newTracks[latestIdx].extItem.Date) {
+		if isLaterExtItem(tr.extItem, newTracks[latestIdx].extItem) {
 			latestIdx = i
 		}
 	}
@@ -822,6 +823,7 @@ func (s *Service) RefreshArtist(ctx context.Context, entryID string, p ports.Pro
 			ExternalIDs:    []domain.ExternalID{{Source: tr.extItem.Source, Value: tr.extItem.ExternalID}},
 			AddedAt:        now,
 		}
+		item.ApplyDefaults()
 		if err := s.items.Save(ctx, item); err != nil {
 			return fmt.Errorf("refresh artist %q: save track %q: %w", entry.Name, item.Title, err)
 		}
@@ -1352,6 +1354,12 @@ func (s *Service) sourceForEntry(entry *domain.LibraryEntry) (ports.MetadataSour
 		}
 	}
 	return nil, ""
+}
+
+// isLaterExtItem reports whether a sorts after b under the canonical item sort order,
+// using the same key as the stored sort_key field (domain.ItemSortKey).
+func isLaterExtItem(a, b *domain.ExternalItem) bool {
+	return domain.ItemSortKey(a.Date, a.Sequence, a.Title) > domain.ItemSortKey(b.Date, b.Sequence, b.Title)
 }
 
 // monitoredForMode returns whether a new item should be monitored on import

@@ -52,11 +52,16 @@ func loadGroup(txn *badgerdb.Txn, id string) (*domain.Group, error) {
 }
 
 func groupFromRecord(rec *groupRecord) *domain.Group {
+	sortKey := rec.SortKey
+	if sortKey == "" {
+		sortKey = domain.GroupSortKey(rec.Number, rec.Title)
+	}
 	return &domain.Group{
 		ID:             rec.ID,
 		LibraryEntryID: rec.LibraryEntryID,
 		Title:          rec.Title,
 		SortName:       rec.SortName,
+		SortKey:        sortKey,
 		Number:         rec.Number,
 		Year:           rec.Year,
 		Overview:       rec.Overview,
@@ -99,10 +104,7 @@ func (r *groupRepo) List(_ context.Context, f ports.GroupFilter) ([]*domain.Grou
 	}
 
 	sort.Slice(results, func(i, j int) bool {
-		if results[i].Number != results[j].Number {
-			return results[i].Number < results[j].Number
-		}
-		return results[i].Title < results[j].Title
+		return results[i].SortKey < results[j].SortKey
 	})
 
 	return results, nil
@@ -122,6 +124,7 @@ func (r *groupRepo) Save(_ context.Context, g *domain.Group) error {
 	if g.ID == "" {
 		g.ID = newID()
 	}
+	g.ApplyDefaults()
 
 	return r.db.Update(func(txn *badgerdb.Txn) error {
 		// Denormalize content_type from parent entry.
@@ -143,6 +146,7 @@ func (r *groupRepo) Save(_ context.Context, g *domain.Group) error {
 			ContentType:    contentType,
 			Title:          g.Title,
 			SortName:       g.SortName,
+			SortKey:        g.SortKey,
 			Number:         g.Number,
 			Year:           g.Year,
 			Overview:       g.Overview,

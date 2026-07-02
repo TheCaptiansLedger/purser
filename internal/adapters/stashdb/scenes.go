@@ -231,6 +231,9 @@ func toExternalItem(s *gqlScene, contentType domain.ContentType) *domain.Externa
 	if s.Date != "" {
 		if t, err := time.Parse("2006-01-02", s.Date); err == nil {
 			e.Date = t
+		} else if t, err := time.Parse("2006", s.Date); err == nil {
+			// Year-only date (e.g. "2015") — default to Jan 1 of that year.
+			e.Date = t
 		}
 	}
 	if len(s.Images) > 0 {

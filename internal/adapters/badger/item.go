@@ -45,6 +45,11 @@ func loadItem(txn *badgerdb.Txn, id string) (*domain.Item, error) {
 }
 
 func itemFromRecord(txn *badgerdb.Txn, rec *itemRecord) *domain.Item {
+	date := strToDate(rec.Date)
+	sortKey := rec.SortKey
+	if sortKey == "" {
+		sortKey = domain.ItemSortKey(date, rec.Sequence, rec.Title)
+	}
 	item := &domain.Item{
 		ID:             rec.ID,
 		ContentType:    domain.ContentType(rec.ContentType),
@@ -52,8 +57,9 @@ func itemFromRecord(txn *badgerdb.Txn, rec *itemRecord) *domain.Item {
 		GroupID:        rec.GroupID,
 		Title:          rec.Title,
 		Overview:       rec.Overview,
-		Date:           strToDate(rec.Date),
+		Date:           date,
 		Sequence:       rec.Sequence,
+		SortKey:        sortKey,
 		RuntimeSeconds: rec.RuntimeSeconds,
 		Monitored:      rec.Monitored,
 		Status:         domain.ItemStatus(rec.Status),
@@ -208,37 +214,19 @@ func matchesItemFilter(rec itemRecord, f ports.ItemFilter, personItemIDs map[str
 }
 
 func sortItems(items []*domain.Item, f ports.ItemFilter) {
-	col := "date"
-	if f.Sort == "title" {
-		col = "title"
-	}
 	asc := strings.ToUpper(f.SortDir) == "ASC"
-
 	sort.Slice(items, func(i, j int) bool {
-		switch col {
+		switch f.Sort {
 		case "title":
 			if asc {
 				return items[i].Title < items[j].Title
 			}
 			return items[i].Title > items[j].Title
-		default: // date
-			ti, tj := items[i].Date, items[j].Date
-			if ti.Equal(tj) {
-				if items[i].Sequence != items[j].Sequence {
-					if asc {
-						return items[i].Sequence < items[j].Sequence
-					}
-					return items[i].Sequence > items[j].Sequence
-				}
-				if asc {
-					return items[i].Title < items[j].Title
-				}
-				return items[i].Title > items[j].Title
-			}
+		default: // date — SortKey encodes (date|sequence|title) ascending
 			if asc {
-				return ti.Before(tj)
+				return items[i].SortKey < items[j].SortKey
 			}
-			return ti.After(tj)
+			return items[i].SortKey > items[j].SortKey
 		}
 	})
 }
@@ -247,6 +235,7 @@ func (r *itemRepo) Save(_ context.Context, item *domain.Item) error {
 	if item.ID == "" {
 		item.ID = newID()
 	}
+	item.ApplyDefaults()
 	now := nowStr()
 	if item.AddedAt.IsZero() {
 		item.AddedAt = strToTime(now)
@@ -278,6 +267,7 @@ func (r *itemRepo) Save(_ context.Context, item *domain.Item) error {
 			Overview:       item.Overview,
 			Date:           dateToStr(item.Date),
 			Sequence:       item.Sequence,
+			SortKey:        item.SortKey,
 			RuntimeSeconds: item.RuntimeSeconds,
 			Monitored:      item.Monitored,
 			Status:         string(item.Status),

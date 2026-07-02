@@ -244,6 +244,45 @@ func TestFindByExternalID_Found(t *testing.T) {
 	}
 }
 
+const findByIDYearOnlyDateFixture = `{
+  "data": {
+    "findScene": {
+      "id": "scene-year-only",
+      "title": "Year Only Date Scene",
+      "details": "",
+      "date": "2015",
+      "duration": 1677,
+      "images": [],
+      "tags": [],
+      "studio": null,
+      "performers": []
+    }
+  }
+}`
+
+func TestFindByExternalID_YearOnlyDate(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(findByIDYearOnlyDateFixture)) //nolint:errcheck
+	}))
+	defer srv.Close()
+
+	a := newTestAdapter(srv)
+	item, err := a.FindByExternalID(context.Background(), domain.ContentTypeAdult, "scene-year-only")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if item.Date.IsZero() {
+		t.Fatal("Date should not be zero for a year-only date string")
+	}
+	if item.Date.Year() != 2015 {
+		t.Errorf("Date.Year() = %d, want 2015", item.Date.Year())
+	}
+	if item.Date.Month() != 1 || item.Date.Day() != 1 {
+		t.Errorf("Date = %s, want 2015-01-01", item.Date.Format("2006-01-02"))
+	}
+}
+
 func TestFindByExternalID_NotFound(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")

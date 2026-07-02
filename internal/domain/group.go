@@ -16,5 +16,11 @@ type Group struct {
 	Metadata       map[string]any
 	LockedFields   []string
 	CoverPath      string
+	SortKey        string
 	Tags           []Tag
+}
+
+// ApplyDefaults computes the SortKey before persistence.
+func (g *Group) ApplyDefaults() {
+	g.SortKey = GroupSortKey(g.Number, g.Title)
 }

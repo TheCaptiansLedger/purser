@@ -153,22 +153,16 @@ func buildItemWhere(f ports.ItemFilter) *whereClause {
 }
 
 func itemOrderBy(f ports.ItemFilter) string {
-	col := "date"
-	switch f.Sort {
-	case "title":
-		col = "title"
-	}
-
 	dir := "DESC"
-	switch strings.ToUpper(f.SortDir) {
-	case "ASC":
+	if strings.ToUpper(f.SortDir) == "ASC" {
 		dir = "ASC"
 	}
-
-	if col == "date" {
-		return col + " " + dir + ", sequence, title"
+	switch f.Sort {
+	case "title":
+		return "title " + dir
+	default: // date — sort_key encodes (date|sequence|title) ascending
+		return "sort_key " + dir
 	}
-	return col + " " + dir
 }
 
 func (r *itemRepo) List(ctx context.Context, f ports.ItemFilter) ([]*domain.Item, int, error) {
@@ -229,6 +223,7 @@ func (r *itemRepo) Save(ctx context.Context, item *domain.Item) error {
 	if item.ID == "" {
 		item.ID = newID()
 	}
+	item.ApplyDefaults()
 	now := nowStr()
 	if item.AddedAt.IsZero() {
 		item.AddedAt = strToTime(now)
@@ -256,9 +251,9 @@ func (r *itemRepo) Save(ctx context.Context, item *domain.Item) error {
 		ctx, `
 		INSERT INTO items(
 			id, content_type, library_entry_id, group_id,
-			title, overview, date, sequence, runtime_seconds,
+			title, overview, date, sequence, sort_key, runtime_seconds,
 			monitored, status, cover_path, metadata, locked_fields, added_at, updated_at
-		) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+		) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
 		ON CONFLICT(id) DO UPDATE SET
 			content_type     = excluded.content_type,
 			library_entry_id = excluded.library_entry_id,
@@ -267,6 +262,7 @@ func (r *itemRepo) Save(ctx context.Context, item *domain.Item) error {
 			overview         = excluded.overview,
 			date             = excluded.date,
 			sequence         = excluded.sequence,
+			sort_key         = excluded.sort_key,
 			runtime_seconds  = excluded.runtime_seconds,
 			monitored        = excluded.monitored,
 			status           = excluded.status,
@@ -275,7 +271,7 @@ func (r *itemRepo) Save(ctx context.Context, item *domain.Item) error {
 			locked_fields    = excluded.locked_fields,
 			updated_at       = excluded.updated_at`,
 		item.ID, string(item.ContentType), item.LibraryEntryID, groupID,
-		item.Title, item.Overview, date, item.Sequence, item.RuntimeSeconds,
+		item.Title, item.Overview, date, item.Sequence, item.SortKey, item.RuntimeSeconds,
 		boolToInt(item.Monitored), string(item.Status), item.CoverPath,
 		marshalMeta(item.Metadata), marshalLockedFields(item.LockedFields), timeToStr(item.AddedAt), now,
 	); err != nil {

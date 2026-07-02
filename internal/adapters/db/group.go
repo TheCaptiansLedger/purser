@@ -94,7 +94,7 @@ func (r *groupRepo) List(ctx context.Context, f ports.GroupFilter) ([]*domain.Gr
 	where, args := w.build()
 
 	rows, err := r.db.QueryContext(ctx,
-		`SELECT`+groupSelectCols+`FROM groups WHERE `+where+` ORDER BY number, title`,
+		`SELECT`+groupSelectCols+`FROM groups WHERE `+where+` ORDER BY sort_key`,
 		args...)
 	if err != nil {
 		return nil, fmt.Errorf("list groups: %w", err)
@@ -127,6 +127,7 @@ func (r *groupRepo) Save(ctx context.Context, g *domain.Group) error {
 	if g.ID == "" {
 		g.ID = newID()
 	}
+	g.ApplyDefaults()
 
 	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
@@ -137,13 +138,14 @@ func (r *groupRepo) Save(ctx context.Context, g *domain.Group) error {
 	if _, err := tx.ExecContext(
 		ctx, `
 		INSERT INTO groups(
-			id, library_entry_id, title, sort_name, number, year, overview,
+			id, library_entry_id, title, sort_name, sort_key, number, year, overview,
 			monitored, monitor_mode, metadata, locked_fields, cover_path
-		) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)
+		) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)
 		ON CONFLICT(id) DO UPDATE SET
 			library_entry_id = excluded.library_entry_id,
 			title            = excluded.title,
 			sort_name        = excluded.sort_name,
+			sort_key         = excluded.sort_key,
 			number           = excluded.number,
 			year             = excluded.year,
 			overview         = excluded.overview,
@@ -152,7 +154,7 @@ func (r *groupRepo) Save(ctx context.Context, g *domain.Group) error {
 			metadata         = excluded.metadata,
 			locked_fields    = excluded.locked_fields,
 			cover_path       = excluded.cover_path`,
-		g.ID, g.LibraryEntryID, g.Title, g.SortName, g.Number, g.Year, g.Overview,
+		g.ID, g.LibraryEntryID, g.Title, g.SortName, g.SortKey, g.Number, g.Year, g.Overview,
 		boolToInt(g.Monitored), string(g.MonitorMode), marshalMeta(g.Metadata),
 		marshalLockedFields(g.LockedFields), g.CoverPath,
 	); err != nil {

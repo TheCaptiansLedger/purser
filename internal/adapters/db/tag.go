@@ -79,7 +79,7 @@ func (r *tagRepo) List(ctx context.Context, f ports.TagFilter) ([]*domain.Tag, e
 	if len(conditions) > 0 {
 		q += ` WHERE ` + strings.Join(conditions, ` AND `) //nolint:gosec // conditions contain only parameterized placeholders, no user input
 	}
-	q += ` ORDER BY t.value`
+	q += ` ORDER BY t.sort_key`
 
 	rows, err := r.db.QueryContext(ctx, q, args...)
 	if err != nil {
@@ -131,10 +131,11 @@ func (r *tagRepo) Save(ctx context.Context, t *domain.Tag) error {
 	if t.Key == "" {
 		t.Key = domain.TagKeyGeneral
 	}
+	t.ApplyDefaults()
 	_, err := r.db.ExecContext(ctx, `
-		INSERT INTO tags(id, key, value, scope) VALUES(?, ?, ?, ?)
-		ON CONFLICT(id) DO UPDATE SET key = excluded.key, value = excluded.value, scope = excluded.scope`,
-		t.ID, string(t.Key), t.Value, string(t.Scope))
+		INSERT INTO tags(id, key, value, scope, sort_key) VALUES(?, ?, ?, ?, ?)
+		ON CONFLICT(id) DO UPDATE SET key = excluded.key, value = excluded.value, scope = excluded.scope, sort_key = excluded.sort_key`,
+		t.ID, string(t.Key), t.Value, string(t.Scope), t.SortKey)
 	if err != nil {
 		return fmt.Errorf("save tag: %w", err)
 	}

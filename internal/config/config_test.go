@@ -32,8 +32,8 @@ func TestLoad_Defaults(t *testing.T) {
 	if cfg.Server.Port != 7474 {
 		t.Errorf("default port = %d, want 7474", cfg.Server.Port)
 	}
-	if cfg.Database.Driver != "sqlite" {
-		t.Errorf("default driver = %q, want sqlite", cfg.Database.Driver)
+	if cfg.Database.Driver != "badger" {
+		t.Errorf("default driver = %q, want badger", cfg.Database.Driver)
 	}
 	if cfg.Database.DSN != "purser.db" {
 		t.Errorf("default dsn = %q, want purser.db", cfg.Database.DSN)

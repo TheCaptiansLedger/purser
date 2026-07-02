@@ -32,7 +32,13 @@ type Person struct {
 	ExternalIDs  []ExternalID
 	Metadata     map[string]any
 	LockedFields []string
+	SortKey      string
 	AddedAt      time.Time
+}
+
+// ApplyDefaults computes the SortKey before persistence.
+func (p *Person) ApplyDefaults() {
+	p.SortKey = NameSortKey(p.SortName, p.Name)
 }
 
 // PersonRoleCount is the count of distinct people carrying a given role.

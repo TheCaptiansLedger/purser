@@ -205,7 +205,7 @@ func LoadFull(path string) (*Config, *viper.Viper, map[string]struct{}, error) {
 
 	v.SetDefault("server.port", 7474)
 	v.SetDefault("server.workers", 4)
-	v.SetDefault("database.driver", "sqlite")
+	v.SetDefault("database.driver", "badger")
 	v.SetDefault("database.dsn", "purser.db")
 	v.SetDefault("database.badger.data_dir", "./purser-data")
 	v.SetDefault("database.badger.value_log_dir", "")

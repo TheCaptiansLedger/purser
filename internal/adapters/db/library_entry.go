@@ -152,7 +152,7 @@ func (r *libraryEntryRepo) List(ctx context.Context, f ports.LibraryFilter) ([]*
 	queryArgs := append(args, limit, f.Offset)
 	rows, err := r.db.QueryContext(ctx,
 		`SELECT`+entrySelectColsAliased+`FROM library_entries le`+join+` WHERE `+where+
-			` ORDER BY le.sort_name, le.name LIMIT ? OFFSET ?`,
+			` ORDER BY le.sort_key LIMIT ? OFFSET ?`,
 		queryArgs...)
 	if err != nil {
 		return nil, 0, fmt.Errorf("list library entries: %w", err)
@@ -215,6 +215,7 @@ func (r *libraryEntryRepo) Save(ctx context.Context, e *domain.LibraryEntry) err
 	if e.ID == "" {
 		e.ID = newID()
 	}
+	e.ApplyDefaults()
 	now := nowStr()
 	if e.AddedAt.IsZero() {
 		e.AddedAt = strToTime(now)
@@ -235,15 +236,16 @@ func (r *libraryEntryRepo) Save(ctx context.Context, e *domain.LibraryEntry) err
 	if _, err := tx.ExecContext(
 		ctx, `
 		INSERT INTO library_entries(
-			id, content_type, kind, name, sort_name, overview, parent_id,
+			id, content_type, kind, name, sort_name, sort_key, overview, parent_id,
 			monitored, monitor_mode, status, quality_profile_id, metadata_profile_id,
 			path, image_path, banner_url, metadata, locked_fields, added_at, updated_at
-		) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+		) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
 		ON CONFLICT(id) DO UPDATE SET
 			content_type        = excluded.content_type,
 			kind                = excluded.kind,
 			name                = excluded.name,
 			sort_name           = excluded.sort_name,
+			sort_key            = excluded.sort_key,
 			overview            = excluded.overview,
 			parent_id           = excluded.parent_id,
 			monitored           = excluded.monitored,
@@ -257,7 +259,7 @@ func (r *libraryEntryRepo) Save(ctx context.Context, e *domain.LibraryEntry) err
 			metadata            = excluded.metadata,
 			locked_fields       = excluded.locked_fields,
 			updated_at          = excluded.updated_at`,
-		e.ID, string(e.ContentType), string(e.Kind), e.Name, e.SortName, e.Overview, parentID,
+		e.ID, string(e.ContentType), string(e.Kind), e.Name, e.SortName, e.SortKey, e.Overview, parentID,
 		boolToInt(e.Monitored), string(e.MonitorMode), string(e.Status),
 		e.QualityProfileID, e.MetadataProfileID, e.Path, e.ImagePath, e.BannerURL,
 		marshalMeta(e.Metadata), marshalLockedFields(e.LockedFields), timeToStr(e.AddedAt), now,

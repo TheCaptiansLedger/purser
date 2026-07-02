@@ -27,8 +27,14 @@ const (
 
 // Tag is a label attached to items or library entries for filtering and organization.
 type Tag struct {
-	ID    string
-	Key   TagKey
-	Value string
-	Scope TagScope
+	ID      string
+	Key     TagKey
+	Value   string
+	Scope   TagScope
+	SortKey string
+}
+
+// ApplyDefaults computes the SortKey before persistence.
+func (t *Tag) ApplyDefaults() {
+	t.SortKey = TagSortKey(string(t.Key), t.Value)
 }

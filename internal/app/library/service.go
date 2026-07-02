@@ -53,6 +53,7 @@ func (s *Service) CreateEntry(ctx context.Context, e *domain.LibraryEntry) error
 			Status:         domain.StatusWanted,
 			ExternalIDs:    e.ExternalIDs,
 		}
+		item.ApplyDefaults()
 		if err := s.items.Save(ctx, item); err != nil {
 			return fmt.Errorf("auto-create movie item: %w", err)
 		}
@@ -196,6 +197,7 @@ func (s *Service) CreateItem(ctx context.Context, item *domain.Item) error {
 			item.ContentType = parent.ContentType
 		}
 	}
+	item.ApplyDefaults()
 	return s.items.Save(ctx, item)
 }
 
@@ -215,6 +217,7 @@ func (s *Service) ListItems(ctx context.Context, f ports.ItemFilter) ([]*domain.
 
 // SaveItem persists changes to an existing item.
 func (s *Service) SaveItem(ctx context.Context, item *domain.Item) error {
+	item.ApplyDefaults()
 	return s.items.Save(ctx, item)
 }
 
@@ -236,6 +239,7 @@ func (s *Service) UpdateItemStatus(ctx context.Context, id string, newStatus dom
 		return err
 	}
 	item.Status = newStatus
+	item.ApplyDefaults()
 	return s.items.Save(ctx, item)
 }
 

@@ -45,10 +45,15 @@ func loadPerson(txn *badgerdb.Txn, id string) (*domain.Person, error) {
 }
 
 func personFromRecord(rec *personRecord) *domain.Person {
+	sortKey := rec.SortKey
+	if sortKey == "" {
+		sortKey = domain.NameSortKey(rec.SortName, rec.Name)
+	}
 	p := &domain.Person{
 		ID:           rec.ID,
 		Name:         rec.Name,
 		SortName:     rec.SortName,
+		SortKey:      sortKey,
 		Overview:     rec.Overview,
 		Monitored:    rec.Monitored,
 		MonitorMode:  domain.MonitorMode(rec.MonitorMode),
@@ -184,15 +189,7 @@ func (r *personRepo) List(_ context.Context, f ports.PersonFilter) ([]*domain.Pe
 	}
 
 	sort.Slice(results, func(i, j int) bool {
-		si := results[i].SortName
-		if si == "" {
-			si = results[i].Name
-		}
-		sj := results[j].SortName
-		if sj == "" {
-			sj = results[j].Name
-		}
-		return si < sj
+		return results[i].SortKey < results[j].SortKey
 	})
 
 	total := len(results)
@@ -307,6 +304,7 @@ func (r *personRepo) Save(_ context.Context, p *domain.Person) error {
 	if p.ID == "" {
 		p.ID = newID()
 	}
+	p.ApplyDefaults()
 	if p.AddedAt.IsZero() {
 		p.AddedAt = strToTime(nowStr())
 	}
@@ -332,6 +330,7 @@ func (r *personRepo) Save(_ context.Context, p *domain.Person) error {
 			ID:           p.ID,
 			Name:         p.Name,
 			SortName:     p.SortName,
+			SortKey:      p.SortKey,
 			Overview:     p.Overview,
 			Monitored:    p.Monitored,
 			MonitorMode:  string(p.MonitorMode),

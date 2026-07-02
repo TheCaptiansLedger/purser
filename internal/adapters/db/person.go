@@ -147,7 +147,7 @@ func (r *personRepo) List(ctx context.Context, f ports.PersonFilter) ([]*domain.
 	queryArgs := append(args, limit, f.Offset)
 	rows, err := r.db.QueryContext(ctx,
 		`SELECT`+personSelectCols+`FROM people WHERE `+where+
-			` ORDER BY sort_name, name LIMIT ? OFFSET ?`,
+			` ORDER BY sort_key LIMIT ? OFFSET ?`,
 		queryArgs...)
 	if err != nil {
 		return nil, 0, fmt.Errorf("list people: %w", err)
@@ -208,6 +208,7 @@ func (r *personRepo) Save(ctx context.Context, p *domain.Person) error {
 	if p.ID == "" {
 		p.ID = newID()
 	}
+	p.ApplyDefaults()
 	if p.AddedAt.IsZero() {
 		p.AddedAt = strToTime(nowStr())
 	}
@@ -220,18 +221,19 @@ func (r *personRepo) Save(ctx context.Context, p *domain.Person) error {
 
 	if _, err := tx.ExecContext(
 		ctx, `
-		INSERT INTO people(id, name, sort_name, overview, monitored, monitor_mode, image_path, metadata, locked_fields, added_at)
-		VALUES(?,?,?,?,?,?,?,?,?,?)
+		INSERT INTO people(id, name, sort_name, sort_key, overview, monitored, monitor_mode, image_path, metadata, locked_fields, added_at)
+		VALUES(?,?,?,?,?,?,?,?,?,?,?)
 		ON CONFLICT(id) DO UPDATE SET
 			name          = excluded.name,
 			sort_name     = excluded.sort_name,
+			sort_key      = excluded.sort_key,
 			overview      = excluded.overview,
 			monitored     = excluded.monitored,
 			monitor_mode  = excluded.monitor_mode,
 			image_path    = excluded.image_path,
 			metadata      = excluded.metadata,
 			locked_fields = excluded.locked_fields`,
-		p.ID, p.Name, p.SortName, p.Overview,
+		p.ID, p.Name, p.SortName, p.SortKey, p.Overview,
 		boolToInt(p.Monitored), string(p.MonitorMode), p.ImagePath,
 		marshalMeta(p.Metadata), marshalLockedFields(p.LockedFields), timeToStr(p.AddedAt),
 	); err != nil {

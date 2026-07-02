@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	badgeradapter "purser/internal/adapters/badger"
 	"purser/internal/adapters/db"
 	"purser/internal/adapters/fanart"
 	githubadapter "purser/internal/adapters/github"
@@ -71,19 +72,12 @@ func run(cfgPath string) error {
 		return fmt.Errorf("ensure media dirs: %w", err)
 	}
 
-	database, err := db.Open(cfg.Database.DSN)
+	entryRepo, groupRepo, itemRepo, personRepo, tagRepo, extIDRepo, settingsRepo, storageAdmin, closeStorage, err := openStorage(cfg)
 	if err != nil {
-		return fmt.Errorf("open database: %w", err)
+		return fmt.Errorf("open storage: %w", err)
 	}
-	defer func() { _ = database.Close() }()
+	defer closeStorage()
 
-	entryRepo := db.NewLibraryEntryRepo(database)
-	groupRepo := db.NewGroupRepo(database)
-	itemRepo := db.NewItemRepo(database)
-	personRepo := db.NewPersonRepo(database)
-	tagRepo := db.NewTagRepo(database)
-	extIDRepo := db.NewExternalIDRepo(database)
-	settingsRepo := db.NewSettingsRepo(database)
 	cfgSvc := appconfig.New(v, locked, settingsRepo)
 
 	jobQueue := jobsadapter.New(cfg.Server.Workers)
@@ -121,7 +115,6 @@ func run(cfgPath string) error {
 		shutdown()
 	}()
 
-	storageAdmin := db.NewStorageAdmin(database, cfg.Database.DSN)
 	srv := api.New(cfg.Server.Port, cfg.Media.Path, cfg, storageAdmin, libSvc, peopleSvc, metaSvc, tagRepo, jobQueue, cfgSvc, sources, uiFS, imgDownloader, ghAdapter, []*cache.Cache{githubCache, audiodbCache}, shutdown)
 
 	go func() {
@@ -140,6 +133,52 @@ func run(cfgPath string) error {
 		slog.Error("shutdown error", "error", err)
 	}
 	return nil
+}
+
+func openStorage(cfg *config.Config) (
+	ports.LibraryEntryRepository,
+	ports.GroupRepository,
+	ports.ItemRepository,
+	ports.PersonRepository,
+	ports.TagRepository,
+	ports.ExternalIDRepository,
+	ports.SettingsRepository,
+	ports.StorageAdminPort,
+	func(),
+	error,
+) {
+	switch cfg.Database.Driver {
+	case "badger":
+		bdb, err := badgeradapter.Open(cfg.Database.Badger)
+		if err != nil {
+			return nil, nil, nil, nil, nil, nil, nil, nil, nil, fmt.Errorf("open badger: %w", err)
+		}
+		return badgeradapter.NewLibraryEntryRepo(bdb),
+			badgeradapter.NewGroupRepo(bdb),
+			badgeradapter.NewItemRepo(bdb),
+			badgeradapter.NewPersonRepo(bdb),
+			badgeradapter.NewTagRepo(bdb),
+			badgeradapter.NewExternalIDRepo(bdb),
+			badgeradapter.NewSettingsRepo(bdb),
+			badgeradapter.NewStorageAdmin(bdb, cfg.Database.Badger.DataDir),
+			func() { _ = bdb.Close() },
+			nil
+	default: // "sqlite"
+		sqldb, err := db.Open(cfg.Database.DSN)
+		if err != nil {
+			return nil, nil, nil, nil, nil, nil, nil, nil, nil, fmt.Errorf("open sqlite: %w", err)
+		}
+		return db.NewLibraryEntryRepo(sqldb),
+			db.NewGroupRepo(sqldb),
+			db.NewItemRepo(sqldb),
+			db.NewPersonRepo(sqldb),
+			db.NewTagRepo(sqldb),
+			db.NewExternalIDRepo(sqldb),
+			db.NewSettingsRepo(sqldb),
+			db.NewStorageAdmin(sqldb, cfg.Database.DSN),
+			func() { _ = sqldb.Close() },
+			nil
+	}
 }
 
 // buildSources constructs and returns all enabled MetadataSource adapters.
