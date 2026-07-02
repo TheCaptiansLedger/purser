@@ -281,6 +281,94 @@ func TestLoad_EnvOverride(t *testing.T) {
 	}
 }
 
+func TestLoad_Defaults_BadgerConfig(t *testing.T) {
+	clearPurserEnv(t)
+	cfg, err := Load("")
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if cfg.Database.Badger.DataDir != "./purser-data" {
+		t.Errorf("badger data_dir = %q, want ./purser-data", cfg.Database.Badger.DataDir)
+	}
+	if cfg.Database.Badger.ValueLogDir != "" {
+		t.Errorf("badger value_log_dir = %q, want empty", cfg.Database.Badger.ValueLogDir)
+	}
+	if cfg.Database.Badger.SyncWrites {
+		t.Error("badger sync_writes should default to false")
+	}
+}
+
+func TestLoad_BadgerFromYAML(t *testing.T) {
+	clearPurserEnv(t)
+	f := filepath.Join(t.TempDir(), "purser.yaml")
+	if err := os.WriteFile(f, []byte(`
+database:
+  driver: badger
+  badger:
+    data_dir: /var/lib/purser/badger
+    value_log_dir: /mnt/fast/badger-vlog
+    sync_writes: true
+`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	cfg, err := Load(f)
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if cfg.Database.Driver != "badger" {
+		t.Errorf("driver = %q, want badger", cfg.Database.Driver)
+	}
+	if cfg.Database.Badger.DataDir != "/var/lib/purser/badger" {
+		t.Errorf("badger data_dir = %q, want /var/lib/purser/badger", cfg.Database.Badger.DataDir)
+	}
+	if cfg.Database.Badger.ValueLogDir != "/mnt/fast/badger-vlog" {
+		t.Errorf("badger value_log_dir = %q, want /mnt/fast/badger-vlog", cfg.Database.Badger.ValueLogDir)
+	}
+	if !cfg.Database.Badger.SyncWrites {
+		t.Error("badger sync_writes should be true")
+	}
+}
+
+func TestLoad_BadgerEnvOverride(t *testing.T) {
+	t.Setenv("PURSER_DATABASE_DRIVER", "badger")
+	t.Setenv("PURSER_DATABASE_BADGER_DATA_DIR", "/data/purser")
+	t.Setenv("PURSER_DATABASE_BADGER_VALUE_LOG_DIR", "/fast/vlog")
+	t.Setenv("PURSER_DATABASE_BADGER_SYNC_WRITES", "true")
+
+	cfg, err := Load("")
+	if err != nil {
+		t.Fatalf("Load with env: %v", err)
+	}
+	if cfg.Database.Driver != "badger" {
+		t.Errorf("driver = %q, want badger", cfg.Database.Driver)
+	}
+	if cfg.Database.Badger.DataDir != "/data/purser" {
+		t.Errorf("badger data_dir = %q, want /data/purser", cfg.Database.Badger.DataDir)
+	}
+	if cfg.Database.Badger.ValueLogDir != "/fast/vlog" {
+		t.Errorf("badger value_log_dir = %q, want /fast/vlog", cfg.Database.Badger.ValueLogDir)
+	}
+	if !cfg.Database.Badger.SyncWrites {
+		t.Error("badger sync_writes should be true via env")
+	}
+}
+
+func TestLoad_UnknownDriver(t *testing.T) {
+	clearPurserEnv(t)
+	f := filepath.Join(t.TempDir(), "purser.yaml")
+	if err := os.WriteFile(f, []byte("database:\n  driver: mysql\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	_, err := Load(f)
+	if err == nil {
+		t.Fatal("Load with unknown driver should return an error")
+	}
+	if !strings.Contains(err.Error(), "mysql") {
+		t.Errorf("error should mention the bad driver name, got: %v", err)
+	}
+}
+
 func TestLoad_InvalidYAML(t *testing.T) {
 	clearPurserEnv(t)
 	f := filepath.Join(t.TempDir(), "purser.yaml")

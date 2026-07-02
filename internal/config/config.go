@@ -38,10 +38,30 @@ type ServerConfig struct {
 
 // DatabaseConfig controls the storage backend.
 type DatabaseConfig struct {
-	// Driver is "sqlite" (default) or "postgres".
+	// Driver is "sqlite" (default), "postgres", or "badger".
 	Driver string `mapstructure:"driver"`
 	// DSN is a file path for SQLite or a connection string for PostgreSQL.
 	DSN string `mapstructure:"dsn"`
+	// Badger holds BadgerDB-specific settings. Only used when Driver is "badger".
+	Badger BadgerConfig `mapstructure:"badger"`
+}
+
+// BadgerConfig holds settings for the BadgerDB embedded key-value store.
+type BadgerConfig struct {
+	// DataDir is the directory where BadgerDB stores LSM files and value logs.
+	// Defaults to "./purser-data".
+	// Env var: PURSER_DATABASE_BADGER_DATA_DIR
+	DataDir string `mapstructure:"data_dir"`
+
+	// ValueLogDir overrides the value-log directory. Defaults to DataDir when empty.
+	// Set to a separate high-throughput disk for write-heavy workloads.
+	// Env var: PURSER_DATABASE_BADGER_VALUE_LOG_DIR
+	ValueLogDir string `mapstructure:"value_log_dir"`
+
+	// SyncWrites ensures every write is flushed to disk before returning.
+	// Safer but slower. Defaults to false (BadgerDB default).
+	// Env var: PURSER_DATABASE_BADGER_SYNC_WRITES
+	SyncWrites bool `mapstructure:"sync_writes"`
 }
 
 // MediaConfig holds filesystem paths for assets managed by Purser.
@@ -187,6 +207,9 @@ func LoadFull(path string) (*Config, *viper.Viper, map[string]struct{}, error) {
 	v.SetDefault("server.workers", 4)
 	v.SetDefault("database.driver", "sqlite")
 	v.SetDefault("database.dsn", "purser.db")
+	v.SetDefault("database.badger.data_dir", "./purser-data")
+	v.SetDefault("database.badger.value_log_dir", "")
+	v.SetDefault("database.badger.sync_writes", false)
 	v.SetDefault("media.path", "./images")
 	v.SetDefault("modules.movies.enabled", true)
 	v.SetDefault("modules.tv.enabled", true)
@@ -253,6 +276,12 @@ func LoadFull(path string) (*Config, *viper.Viper, map[string]struct{}, error) {
 	var cfg Config
 	if err := v.Unmarshal(&cfg); err != nil {
 		return nil, nil, nil, fmt.Errorf("parse config: %w", err)
+	}
+
+	switch cfg.Database.Driver {
+	case "sqlite", "postgres", "badger":
+	default:
+		return nil, nil, nil, fmt.Errorf("unknown database driver %q: must be sqlite, postgres, or badger", cfg.Database.Driver)
 	}
 
 	locked := computeLockedKeys(path, v.AllKeys())
