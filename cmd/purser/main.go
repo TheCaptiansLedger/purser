@@ -12,8 +12,13 @@ import (
 	badgeradapter "purser/internal/adapters/badger"
 	"purser/internal/adapters/db"
 	"purser/internal/adapters/fanart"
+	"purser/internal/adapters/fingerprint"
+	fsadapter "purser/internal/adapters/fs"
 	githubadapter "purser/internal/adapters/github"
+	"purser/internal/adapters/identifier"
+	jobsadapter "purser/internal/adapters/jobs"
 	"purser/internal/adapters/mbz"
+	"purser/internal/adapters/notify"
 	"purser/internal/adapters/stashdb"
 	"purser/internal/adapters/theaudiodb"
 	"purser/internal/api"
@@ -21,6 +26,7 @@ import (
 	"purser/internal/app/library"
 	"purser/internal/app/metadata"
 	"purser/internal/app/people"
+	appscan "purser/internal/app/scan"
 	"purser/internal/config"
 	"purser/internal/ports"
 	"purser/internal/version"
@@ -29,11 +35,7 @@ import (
 	"syscall"
 	"time"
 
-	fsadapter "purser/internal/adapters/fs"
-
 	"github.com/spf13/cobra"
-
-	jobsadapter "purser/internal/adapters/jobs"
 )
 
 func main() {
@@ -72,7 +74,7 @@ func run(cfgPath string) error {
 		return fmt.Errorf("ensure media dirs: %w", err)
 	}
 
-	entryRepo, groupRepo, itemRepo, personRepo, tagRepo, extIDRepo, settingsRepo, storageAdmin, closeStorage, err := openStorage(cfg)
+	entryRepo, groupRepo, itemRepo, personRepo, tagRepo, extIDRepo, settingsRepo, storageAdmin, mediaFileRepo, unmatchedRepo, closeStorage, err := openStorage(cfg)
 	if err != nil {
 		return fmt.Errorf("open storage: %w", err)
 	}
@@ -108,6 +110,24 @@ func run(cfgPath string) error {
 	peopleSvc := people.New(personRepo)
 	sources := buildSources(cfg, audiodbCache, mbzCache, fanartCache, stashdbCache)
 	imgDownloader := fsadapter.NewImageDownloader(cfg.Media.Path)
+
+	osFS := fsadapter.NewFileSystem()
+	scanner := fsadapter.NewScanner(osFS, mediaFileRepo)
+	watcher := fsadapter.NewWatcher(2 * time.Second)
+	videoFP := fingerprint.NewVideoFingerprinter(osFS)
+	musicFP := fingerprint.NewMusicFingerprinter()
+	bookFP := fingerprint.NewBookFingerprinter()
+	adultID := identifier.NewAdultIdentifier(mediaFileRepo, itemRepo, sources)
+	musicID := identifier.NewMusicIdentifier(extIDRepo, itemRepo, sources, cfg.Sources.AcoustID.APIKey)
+	videoID := identifier.NewVideoIdentifier(mediaFileRepo, itemRepo, sources)
+	bookID := identifier.NewBookIdentifier(extIDRepo, itemRepo, sources)
+	noopNotifier := &notify.NoopDispatcher{}
+	scanSvc := appscan.New(
+		scanner, watcher,
+		[]ports.FileFingerprinter{videoFP, musicFP, bookFP},
+		[]ports.FileIdentifier{adultID, musicID, videoID, bookID},
+		itemRepo, mediaFileRepo, unmatchedRepo, noopNotifier, 0.85,
+	)
 	metaSvc := metadata.New(sources, jobQueue, entryRepo, groupRepo, itemRepo, personRepo, tagRepo, extIDRepo, imgDownloader)
 	ghAdapter := githubadapter.New(githubadapter.Config{
 		Repo:  cfg.GitHub.Repo,
@@ -128,6 +148,8 @@ func run(cfgPath string) error {
 	}()
 
 	srv := api.New(cfg.Server.Port, cfg.Media.Path, cfg, storageAdmin, libSvc, peopleSvc, metaSvc, tagRepo, jobQueue, cfgSvc, sources, uiFS, imgDownloader, ghAdapter, []*cache.Cache{githubCache, audiodbCache, mbzCache, fanartCache, stashdbCache}, shutdown)
+
+	go func() { _ = scanSvc.StartWatching(lifecycleCtx, enabledRoots(cfg)) }()
 
 	go func() {
 		slog.Info("listening", "port", cfg.Server.Port)
@@ -156,6 +178,8 @@ func openStorage(cfg *config.Config) (
 	ports.ExternalIDRepository,
 	ports.SettingsRepository,
 	ports.StorageAdminPort,
+	ports.MediaFileRepository,
+	ports.UnmatchedFileRepository,
 	func(),
 	error,
 ) {
@@ -163,7 +187,7 @@ func openStorage(cfg *config.Config) (
 	case "badger":
 		bdb, err := badgeradapter.Open(cfg.Database.Badger)
 		if err != nil {
-			return nil, nil, nil, nil, nil, nil, nil, nil, nil, fmt.Errorf("open badger: %w", err)
+			return nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, fmt.Errorf("open badger: %w", err)
 		}
 		return badgeradapter.NewLibraryEntryRepo(bdb),
 			badgeradapter.NewGroupRepo(bdb),
@@ -173,12 +197,14 @@ func openStorage(cfg *config.Config) (
 			badgeradapter.NewExternalIDRepo(bdb),
 			badgeradapter.NewSettingsRepo(bdb),
 			badgeradapter.NewStorageAdmin(bdb, cfg.Database.Badger.DataDir),
+			badgeradapter.NewMediaFileRepo(bdb),
+			badgeradapter.NewUnmatchedFileRepo(bdb),
 			func() { _ = bdb.Close() },
 			nil
 	default: // "sqlite"
 		sqldb, err := db.Open(cfg.Database.DSN)
 		if err != nil {
-			return nil, nil, nil, nil, nil, nil, nil, nil, nil, fmt.Errorf("open sqlite: %w", err)
+			return nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, fmt.Errorf("open sqlite: %w", err)
 		}
 		return db.NewLibraryEntryRepo(sqldb),
 			db.NewGroupRepo(sqldb),
@@ -188,9 +214,30 @@ func openStorage(cfg *config.Config) (
 			db.NewExternalIDRepo(sqldb),
 			db.NewSettingsRepo(sqldb),
 			db.NewStorageAdmin(sqldb, cfg.Database.DSN),
+			db.NewMediaFileRepo(sqldb),
+			db.NewUnmatchedFileRepo(sqldb),
 			func() { _ = sqldb.Close() },
 			nil
 	}
+}
+
+// enabledRoots collects media roots from all enabled modules.
+func enabledRoots(cfg *config.Config) []string {
+	modules := []config.ModuleConfig{
+		cfg.Modules.Movies,
+		cfg.Modules.TV,
+		cfg.Modules.Music,
+		cfg.Modules.Books,
+		cfg.Modules.AfterDark,
+		cfg.Modules.JAV,
+	}
+	var roots []string
+	for _, m := range modules {
+		if m.Enabled {
+			roots = append(roots, m.Roots...)
+		}
+	}
+	return roots
 }
 
 // buildSources constructs and returns all enabled MetadataSource adapters.
