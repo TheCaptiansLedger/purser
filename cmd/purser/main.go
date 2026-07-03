@@ -127,6 +127,7 @@ func run(cfgPath string) error {
 		[]ports.FileFingerprinter{videoFP, musicFP, bookFP},
 		[]ports.FileIdentifier{adultID, musicID, videoID, bookID},
 		itemRepo, mediaFileRepo, unmatchedRepo, noopNotifier, 0.85,
+		jobQueue, entryRepo, groupRepo,
 	)
 	metaSvc := metadata.New(sources, jobQueue, entryRepo, groupRepo, itemRepo, personRepo, tagRepo, extIDRepo, imgDownloader)
 	ghAdapter := githubadapter.New(githubadapter.Config{
@@ -147,7 +148,7 @@ func run(cfgPath string) error {
 		shutdown()
 	}()
 
-	srv := api.New(cfg.Server.Port, cfg.Media.Path, cfg, storageAdmin, libSvc, peopleSvc, metaSvc, tagRepo, jobQueue, cfgSvc, sources, uiFS, imgDownloader, ghAdapter, []*cache.Cache{githubCache, audiodbCache, mbzCache, fanartCache, stashdbCache}, shutdown)
+	srv := api.New(cfg.Server.Port, cfg.Media.Path, cfg, storageAdmin, libSvc, peopleSvc, metaSvc, scanSvc, tagRepo, jobQueue, cfgSvc, sources, uiFS, imgDownloader, ghAdapter, []*cache.Cache{githubCache, audiodbCache, mbzCache, fanartCache, stashdbCache}, shutdown)
 
 	go func() { _ = scanSvc.StartWatching(lifecycleCtx, enabledRoots(cfg)) }()
 

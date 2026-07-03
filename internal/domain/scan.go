@@ -62,3 +62,12 @@ const (
 	UnmatchedMatched   UnmatchedStatus = "matched"
 	UnmatchedDismissed UnmatchedStatus = "dismissed"
 )
+
+// UnmatchedFileGroup aggregates unmatched music files that share the same
+// candidate album (GroupID). Used by the groupBy=album list endpoint.
+type UnmatchedFileGroup struct {
+	GroupID                 string
+	GroupTitle              string
+	Files                   []*UnmatchedFile
+	BestCandidateConfidence float64
+}

@@ -30,6 +30,8 @@ import (
 	dbadapter "purser/internal/adapters/db"
 	fspkg "purser/internal/adapters/fs"
 	jobsadapter "purser/internal/adapters/jobs"
+	notifyadapter "purser/internal/adapters/notify"
+	appscan "purser/internal/app/scan"
 )
 
 // noopConfigSvc is a ConfigService stub that reports no locked keys.
@@ -119,7 +121,7 @@ func newHandlerWithConfigSvc(t *testing.T, cfgSvc ports.ConfigService) http.Hand
 		Database: config.DatabaseConfig{Driver: "sqlite", DSN: dbPath},
 		Log:      config.LogConfig{Level: "info", Format: "text"},
 	}
-	return api.New(0, "", cfg, dbadapter.NewStorageAdmin(database, dbPath), libSvc, peopleSvc, metaSvc, tagRepo, jobQueue,
+	return api.New(0, "", cfg, dbadapter.NewStorageAdmin(database, dbPath), libSvc, peopleSvc, metaSvc, nil, tagRepo, jobQueue,
 		cfgSvc, nil, uiFS, nil, nil, nil, func() {}).Handler()
 }
 
@@ -165,7 +167,7 @@ func newHandlerWithDB(t *testing.T) (http.Handler, *sql.DB) {
 		},
 		Log: config.LogConfig{Level: "info", Format: "text"},
 	}
-	return api.New(0, "", cfg, dbadapter.NewStorageAdmin(database, dbPath), libSvc, peopleSvc, metaSvc, tagRepo, jobQueue, noopConfigSvc{}, nil, uiFS, nil, nil, nil, func() {}).Handler(), database
+	return api.New(0, "", cfg, dbadapter.NewStorageAdmin(database, dbPath), libSvc, peopleSvc, metaSvc, nil, tagRepo, jobQueue, noopConfigSvc{}, nil, uiFS, nil, nil, nil, func() {}).Handler(), database
 }
 
 // newHandler builds a full server backed by a temp-file SQLite database.
@@ -222,7 +224,7 @@ func newHandlerWithMedia(t *testing.T, mediaPath string) http.Handler {
 		},
 		Log: config.LogConfig{Level: "info", Format: "text"},
 	}
-	return api.New(0, mediaPath, cfg, dbadapter.NewStorageAdmin(database, dbPath), libSvc, peopleSvc, metaSvc, tagRepo, jobQueue, noopConfigSvc{}, nil, uiFS, fspkg.NewImageDownloader(mediaPath), nil, nil, func() {}).Handler()
+	return api.New(0, mediaPath, cfg, dbadapter.NewStorageAdmin(database, dbPath), libSvc, peopleSvc, metaSvc, nil, tagRepo, jobQueue, noopConfigSvc{}, nil, uiFS, fspkg.NewImageDownloader(mediaPath), nil, nil, func() {}).Handler()
 }
 
 func do(t *testing.T, h http.Handler, method, path string, body any) *httptest.ResponseRecorder {
@@ -381,7 +383,7 @@ func TestConfig_Get_Sources_KeysMasked(t *testing.T) {
 		},
 		Log: config.LogConfig{Level: "info", Format: "text"},
 	}
-	h := api.New(0, "", cfg, dbadapter.NewStorageAdmin(database, dbPath), libSvc, peopleSvc, metaSvc, tagRepo, jobQueue, noopConfigSvc{}, nil, uiFS, nil, nil, nil, func() {}).Handler()
+	h := api.New(0, "", cfg, dbadapter.NewStorageAdmin(database, dbPath), libSvc, peopleSvc, metaSvc, nil, tagRepo, jobQueue, noopConfigSvc{}, nil, uiFS, nil, nil, nil, func() {}).Handler()
 
 	w := do(t, h, http.MethodGet, "/api/v1/config", nil)
 	if w.Code != http.StatusOK {
@@ -2456,7 +2458,7 @@ func TestJobs_Cancel_SetsStatus(t *testing.T) {
 		Database: config.DatabaseConfig{Driver: "sqlite", DSN: dbPath},
 		Log:      config.LogConfig{Level: "info", Format: "text"},
 	}
-	h := api.New(0, "", cfg, dbadapter.NewStorageAdmin(database, dbPath), libSvc, peopleSvc, metaSvc, tagRepo, jobQueue, noopConfigSvc{}, nil, uiFS, nil, nil, nil, func() {}).Handler()
+	h := api.New(0, "", cfg, dbadapter.NewStorageAdmin(database, dbPath), libSvc, peopleSvc, metaSvc, nil, tagRepo, jobQueue, noopConfigSvc{}, nil, uiFS, nil, nil, nil, func() {}).Handler()
 
 	// DELETE /api/v1/jobs/:id should cancel it.
 	w := do(t, h, http.MethodDelete, "/api/v1/jobs/"+submitted.ID, nil)
@@ -3120,7 +3122,7 @@ func newHandlerWithSources(t *testing.T, sources []ports.MetadataSource) http.Ha
 		Database: config.DatabaseConfig{Driver: "sqlite", DSN: dbPath},
 		Log:      config.LogConfig{Level: "info", Format: "text"},
 	}
-	return api.New(0, "", cfg, dbadapter.NewStorageAdmin(database, dbPath), libSvc, peopleSvc, metaSvc, tagRepo, jobQueue, noopConfigSvc{}, sources, uiFS, nil, nil, nil, func() {}).Handler()
+	return api.New(0, "", cfg, dbadapter.NewStorageAdmin(database, dbPath), libSvc, peopleSvc, metaSvc, nil, tagRepo, jobQueue, noopConfigSvc{}, sources, uiFS, nil, nil, nil, func() {}).Handler()
 }
 
 func TestVerify_BadJSON(t *testing.T) {
@@ -3257,7 +3259,7 @@ func TestDatabase_Restore_CallsShutdown(t *testing.T) {
 	}
 
 	shutdownCalled := make(chan struct{}, 1)
-	h := api.New(0, "", cfg, dbadapter.NewStorageAdmin(database, dbPath), libSvc, peopleSvc, metaSvc, tagRepo, jobQueue,
+	h := api.New(0, "", cfg, dbadapter.NewStorageAdmin(database, dbPath), libSvc, peopleSvc, metaSvc, nil, tagRepo, jobQueue,
 		noopConfigSvc{}, nil, uiFS, nil, nil, nil,
 		func() { shutdownCalled <- struct{}{} }).Handler()
 
@@ -3333,5 +3335,261 @@ func TestDatabase_Backup_OK(t *testing.T) {
 		if !strings.Contains(body, want) {
 			t.Errorf("backup body missing %q", want)
 		}
+	}
+}
+
+// ── Scan helpers ──────────────────────────────────────────────────────────────
+
+// noopScanner satisfies ports.FileScanner without doing any disk I/O.
+type noopScanner struct{}
+
+func (noopScanner) Scan(_ context.Context, _ []string, _ ports.ScanFilter) (<-chan domain.ScannedFile, error) {
+	ch := make(chan domain.ScannedFile)
+	close(ch)
+	return ch, nil
+}
+
+// newHandlerWithScan builds a server with a real scan service wired to an
+// in-memory SQLite database. Use for tests that exercise unmatched-files and
+// scan command endpoints.
+func newHandlerWithScan(t *testing.T) (http.Handler, *sql.DB) {
+	t.Helper()
+	dbPath := t.TempDir() + "/test.db"
+	database, err := dbadapter.Open(dbPath)
+	if err != nil {
+		t.Fatalf("open test db: %v", err)
+	}
+	t.Cleanup(func() { database.Close() })
+
+	personRepo := dbadapter.NewPersonRepo(database)
+	tagRepo := dbadapter.NewTagRepo(database)
+	entryRepo := dbadapter.NewLibraryEntryRepo(database)
+	groupRepo := dbadapter.NewGroupRepo(database)
+	itemRepo := dbadapter.NewItemRepo(database)
+	mfRepo := dbadapter.NewMediaFileRepo(database)
+	unmatchedRepo := dbadapter.NewUnmatchedFileRepo(database)
+
+	libSvc := library.New(entryRepo, groupRepo, itemRepo, personRepo, tagRepo)
+	peopleSvc := people.New(personRepo)
+
+	jobQueue := jobsadapter.New(1)
+	t.Cleanup(jobQueue.Close)
+
+	metaSvc := metadata.New(nil, jobQueue, entryRepo, groupRepo, itemRepo, personRepo, tagRepo, dbadapter.NewExternalIDRepo(database), nil)
+
+	scanSvc := appscan.New(
+		noopScanner{}, nil,
+		nil, nil,
+		itemRepo, mfRepo, unmatchedRepo, &notifyadapter.NoopDispatcher{}, 0.85,
+		jobQueue, entryRepo, groupRepo,
+	)
+
+	uiFS, _ := fs.Sub(web.Dist, "dist")
+	cfg := &config.Config{
+		Server:   config.ServerConfig{Port: 0, Workers: 1},
+		Database: config.DatabaseConfig{Driver: "sqlite", DSN: dbPath},
+		Log:      config.LogConfig{Level: "info", Format: "text"},
+	}
+	return api.New(0, "", cfg, dbadapter.NewStorageAdmin(database, dbPath), libSvc, peopleSvc, metaSvc, scanSvc, tagRepo, jobQueue,
+		noopConfigSvc{}, nil, uiFS, nil, nil, nil, func() {}).Handler(), database
+}
+
+// ── Unmatched-files handler tests ─────────────────────────────────────────────
+
+func TestUnmatched_List_Empty(t *testing.T) {
+	h, _ := newHandlerWithScan(t)
+	w := do(t, h, http.MethodGet, "/api/v1/unmatched-files", nil)
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200 — body: %s", w.Code, w.Body.String())
+	}
+	var resp struct {
+		Items []any `json:"items"`
+		Total int   `json:"total"`
+	}
+	decodeJSON(t, w, &resp)
+	if resp.Items == nil {
+		t.Error("items should be [] not null")
+	}
+	if resp.Total != 0 {
+		t.Errorf("total = %d, want 0", resp.Total)
+	}
+}
+
+func TestUnmatched_Get_NotFound(t *testing.T) {
+	h, _ := newHandlerWithScan(t)
+	w := do(t, h, http.MethodGet, "/api/v1/unmatched-files/no-such-id", nil)
+	if w.Code != http.StatusNotFound {
+		t.Fatalf("status = %d, want 404", w.Code)
+	}
+}
+
+func TestUnmatched_Dismiss_200(t *testing.T) {
+	h, database := newHandlerWithScan(t)
+
+	// Seed an unmatched file directly into the DB.
+	repo := dbadapter.NewUnmatchedFileRepo(database)
+	uf := &domain.UnmatchedFile{
+		ID:           "uf-dismiss-test",
+		Path:         "/media/unknown.flac",
+		Size:         1024,
+		ContentType:  domain.ContentTypeMusic,
+		Status:       domain.UnmatchedPending,
+		DiscoveredAt: time.Now().UTC(),
+	}
+	if err := repo.Save(context.Background(), uf); err != nil {
+		t.Fatalf("seed unmatched file: %v", err)
+	}
+
+	w := do(t, h, http.MethodPost, "/api/v1/unmatched-files/uf-dismiss-test/dismiss", nil)
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200 — body: %s", w.Code, w.Body.String())
+	}
+
+	// Verify status updated in DB.
+	got, err := repo.Get(context.Background(), "uf-dismiss-test")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Status != domain.UnmatchedDismissed {
+		t.Errorf("status = %q, want %q", got.Status, domain.UnmatchedDismissed)
+	}
+}
+
+func TestUnmatched_Dismiss_NotFound(t *testing.T) {
+	h, _ := newHandlerWithScan(t)
+	w := do(t, h, http.MethodPost, "/api/v1/unmatched-files/no-such-id/dismiss", nil)
+	if w.Code != http.StatusNotFound {
+		t.Fatalf("status = %d, want 404", w.Code)
+	}
+}
+
+func TestUnmatched_List_FiltersByStatus(t *testing.T) {
+	h, database := newHandlerWithScan(t)
+	repo := dbadapter.NewUnmatchedFileRepo(database)
+
+	pending := &domain.UnmatchedFile{ID: "uf-pending", Path: "/a.flac", ContentType: domain.ContentTypeMusic, Status: domain.UnmatchedPending, DiscoveredAt: time.Now().UTC()}
+	matched := &domain.UnmatchedFile{ID: "uf-matched", Path: "/b.flac", ContentType: domain.ContentTypeMusic, Status: domain.UnmatchedMatched, DiscoveredAt: time.Now().UTC()}
+	for _, uf := range []*domain.UnmatchedFile{pending, matched} {
+		if err := repo.Save(context.Background(), uf); err != nil {
+			t.Fatalf("seed: %v", err)
+		}
+	}
+
+	w := do(t, h, http.MethodGet, "/api/v1/unmatched-files?status=pending", nil)
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", w.Code)
+	}
+	var resp struct {
+		Total int `json:"total"`
+	}
+	decodeJSON(t, w, &resp)
+	if resp.Total != 1 {
+		t.Errorf("total = %d, want 1 (only pending)", resp.Total)
+	}
+}
+
+func TestUnmatched_ManualMatch_ItemRequired(t *testing.T) {
+	h, _ := newHandlerWithScan(t)
+	w := do(t, h, http.MethodPost, "/api/v1/unmatched-files/x/match", map[string]any{"item_id": ""})
+	if w.Code != http.StatusUnprocessableEntity {
+		t.Fatalf("status = %d, want 422", w.Code)
+	}
+}
+
+func TestUnmatched_Rescrape_NotFound(t *testing.T) {
+	h, _ := newHandlerWithScan(t)
+	w := do(t, h, http.MethodPost, "/api/v1/unmatched-files/no-such-id/scrape", nil)
+	if w.Code != http.StatusNotFound {
+		t.Fatalf("status = %d, want 404", w.Code)
+	}
+}
+
+func TestUnmatched_Rescrape_ReturnsCandidates(t *testing.T) {
+	h, database := newHandlerWithScan(t)
+	repo := dbadapter.NewUnmatchedFileRepo(database)
+
+	uf := &domain.UnmatchedFile{
+		ID:           "uf-rescrape",
+		Path:         "/media/track.flac",
+		ContentType:  domain.ContentTypeMusic,
+		Status:       domain.UnmatchedPending,
+		DiscoveredAt: time.Now().UTC(),
+	}
+	if err := repo.Save(context.Background(), uf); err != nil {
+		t.Fatalf("seed: %v", err)
+	}
+
+	// No real identifiers wired → candidates will be empty, but endpoint must return 200.
+	w := do(t, h, http.MethodPost, "/api/v1/unmatched-files/uf-rescrape/scrape", map[string]any{"query": "Bella Donna"})
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200 — body: %s", w.Code, w.Body.String())
+	}
+	var resp struct {
+		Candidates []any `json:"candidates"`
+	}
+	decodeJSON(t, w, &resp)
+	if resp.Candidates == nil {
+		t.Error("candidates should be [] not null")
+	}
+}
+
+// ── Scan command tests ────────────────────────────────────────────────────────
+
+func TestCommands_ScanAllRoots_202(t *testing.T) {
+	h, _ := newHandlerWithScan(t)
+	w := do(t, h, http.MethodPost, "/api/v1/commands", map[string]any{"name": "ScanAllRoots"})
+	if w.Code != http.StatusAccepted {
+		t.Fatalf("status = %d, want 202 — body: %s", w.Code, w.Body.String())
+	}
+	var resp struct {
+		ID   string `json:"id"`
+		Name string `json:"name"`
+	}
+	decodeJSON(t, w, &resp)
+	if resp.ID == "" {
+		t.Error("job ID should be set")
+	}
+	if resp.Name != "ScanAllRoots" {
+		t.Errorf("job name = %q, want ScanAllRoots", resp.Name)
+	}
+}
+
+func TestCommands_ScanLibrary_EntryNotFound_404(t *testing.T) {
+	h, _ := newHandlerWithScan(t)
+	w := do(t, h, http.MethodPost, "/api/v1/commands", map[string]any{"name": "ScanLibrary", "entryId": "no-such-id"})
+	if w.Code != http.StatusNotFound {
+		t.Fatalf("status = %d, want 404", w.Code)
+	}
+}
+
+func TestCommands_ScanLibrary_202(t *testing.T) {
+	h, database := newHandlerWithScan(t)
+
+	// Create a library entry with a path so the scan job can be submitted.
+	entryRepo := dbadapter.NewLibraryEntryRepo(database)
+	entry := &domain.LibraryEntry{
+		ID:          "entry-scan-test",
+		ContentType: domain.ContentTypeMusic,
+		Kind:        domain.KindArtist,
+		Name:        "Test Artist",
+		Path:        "/mnt/music",
+		AddedAt:     time.Now().UTC(),
+		UpdatedAt:   time.Now().UTC(),
+	}
+	if err := entryRepo.Save(context.Background(), entry); err != nil {
+		t.Fatalf("seed entry: %v", err)
+	}
+
+	w := do(t, h, http.MethodPost, "/api/v1/commands", map[string]any{"name": "ScanLibrary", "entryId": "entry-scan-test"})
+	if w.Code != http.StatusAccepted {
+		t.Fatalf("status = %d, want 202 — body: %s", w.Code, w.Body.String())
+	}
+	var resp struct {
+		ID   string `json:"id"`
+		Name string `json:"name"`
+	}
+	decodeJSON(t, w, &resp)
+	if resp.Name != "ScanLibrary" {
+		t.Errorf("job name = %q, want ScanLibrary", resp.Name)
 	}
 }

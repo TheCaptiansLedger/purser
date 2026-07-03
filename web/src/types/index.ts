@@ -232,3 +232,44 @@ export interface DeletionImpact {
   summary: string
   impacts: DeletionImpactRow[]
 }
+
+export interface Fingerprint {
+  oshash?: string
+  phash?: string
+  acoust_id?: string
+  embedded_tags?: Record<string, string>
+  isbn?: string
+}
+
+export interface MatchCandidate {
+  item_id: string
+  item_title?: string
+  confidence: number
+  source: string
+}
+
+export type UnmatchedStatus = 'pending' | 'matched' | 'dismissed'
+
+export interface UnmatchedFile {
+  id: string
+  path: string
+  size: number
+  content_type: string
+  discovered_at: string
+  status: UnmatchedStatus
+  fingerprint?: Fingerprint
+  candidates: MatchCandidate[]
+}
+
+export interface UnmatchedFileGroup {
+  group_id: string
+  group_title: string
+  files: UnmatchedFile[]
+  best_candidate_confidence: number
+}
+
+export interface UnmatchedListResponse<T = UnmatchedFile | UnmatchedFileGroup> {
+  items: T[]
+  total: number
+  grouped_by?: string
+}

@@ -180,8 +180,21 @@ func newUnmatchedRepo(files ...*domain.UnmatchedFile) *mockUnmatchedRepo {
 	return r
 }
 
-func (r *mockUnmatchedRepo) List(_ context.Context, _ ports.UnmatchedFilter) ([]*domain.UnmatchedFile, error) {
-	return nil, nil
+func (r *mockUnmatchedRepo) List(_ context.Context, f ports.UnmatchedFilter) ([]*domain.UnmatchedFile, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	var out []*domain.UnmatchedFile
+	for _, uf := range r.files {
+		if f.ContentType != "" && uf.ContentType != f.ContentType {
+			continue
+		}
+		if f.Status != "" && uf.Status != f.Status {
+			continue
+		}
+		cp := *uf
+		out = append(out, &cp)
+	}
+	return out, nil
 }
 
 func (r *mockUnmatchedRepo) Get(_ context.Context, id string) (*domain.UnmatchedFile, error) {
@@ -265,7 +278,7 @@ func TestService_AboveThreshold_AutoImports(t *testing.T) {
 
 	svc := scan.New(scanner, nil,
 		[]ports.FileFingerprinter{fp}, []ports.FileIdentifier{id},
-		itemRepo, mfRepo, unmatchedRepo, notifier, 0.85)
+		itemRepo, mfRepo, unmatchedRepo, notifier, 0.85, nil, nil, nil)
 
 	if err := svc.ScanRoots(context.Background(), []string{"/"}, ports.ScanFilter{}); err != nil {
 		t.Fatal(err)
@@ -304,7 +317,7 @@ func TestService_BelowThreshold_EnqueuesUnmatched(t *testing.T) {
 
 	svc := scan.New(scanner, nil,
 		[]ports.FileFingerprinter{fp}, []ports.FileIdentifier{id},
-		itemRepo, mfRepo, unmatchedRepo, notifier, 0.85)
+		itemRepo, mfRepo, unmatchedRepo, notifier, 0.85, nil, nil, nil)
 
 	if err := svc.ScanRoots(context.Background(), []string{"/"}, ports.ScanFilter{}); err != nil {
 		t.Fatal(err)
@@ -348,7 +361,7 @@ func TestService_DuplicateOSHash_Skips(t *testing.T) {
 
 	svc := scan.New(scanner, nil,
 		[]ports.FileFingerprinter{fp}, []ports.FileIdentifier{id},
-		itemRepo, mfRepo, unmatchedRepo, notifier, 0.85)
+		itemRepo, mfRepo, unmatchedRepo, notifier, 0.85, nil, nil, nil)
 
 	if err := svc.ScanRoots(context.Background(), []string{"/"}, ports.ScanFilter{}); err != nil {
 		t.Fatal(err)
@@ -382,7 +395,7 @@ func TestService_ManualMatch(t *testing.T) {
 	}
 	unmatchedRepo := newUnmatchedRepo(uf)
 
-	svc := scan.New(nil, nil, nil, nil, itemRepo, mfRepo, unmatchedRepo, notifier, 0.85)
+	svc := scan.New(nil, nil, nil, nil, itemRepo, mfRepo, unmatchedRepo, notifier, 0.85, nil, nil, nil)
 
 	if err := svc.ManualMatch(context.Background(), ufID, item.ID); err != nil {
 		t.Fatal(err)
@@ -425,7 +438,7 @@ func TestService_RemovedFile_NoStatusChange(t *testing.T) {
 		{Path: "/media/gone.mkv", ContentType: domain.ContentTypeMovie, Op: ports.WatchRemoved},
 	}}
 
-	svc := scan.New(nil, watcher, nil, nil, itemRepo, mfRepo, unmatchedRepo, notifier, 0.85)
+	svc := scan.New(nil, watcher, nil, nil, itemRepo, mfRepo, unmatchedRepo, notifier, 0.85, nil, nil, nil)
 
 	if err := svc.StartWatching(context.Background(), []string{"/media"}); err != nil {
 		t.Fatal(err)
@@ -436,5 +449,244 @@ func TestService_RemovedFile_NoStatusChange(t *testing.T) {
 	}
 	if got := itemRepo.status(item.ID); got != domain.StatusImported {
 		t.Errorf("item status changed to %q after removal, want it unchanged at %q", got, domain.StatusImported)
+	}
+}
+
+// ── additional mocks ──────────────────────────────────────────────────────────
+
+type mockJobQueue struct {
+	mu   sync.Mutex
+	jobs []*domain.Job
+}
+
+func (q *mockJobQueue) Submit(_ context.Context, name string, payload map[string]any, _ ports.JobFunc) (*domain.Job, error) {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	j := &domain.Job{ID: uuid.New().String(), Name: name, Payload: payload, Status: domain.JobStatusQueued}
+	q.jobs = append(q.jobs, j)
+	return j, nil
+}
+
+func (q *mockJobQueue) Get(_ context.Context, id string) (*domain.Job, error) {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	for _, j := range q.jobs {
+		if j.ID == id {
+			return j, nil
+		}
+	}
+	return nil, errs.ErrNotFound
+}
+
+func (q *mockJobQueue) List(_ context.Context) ([]*domain.Job, error) {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	return append([]*domain.Job{}, q.jobs...), nil
+}
+
+func (q *mockJobQueue) Cancel(_ context.Context, _ string) error { return nil }
+
+type mockEntryRepo struct {
+	entries map[string]*domain.LibraryEntry
+}
+
+func newEntryRepo(entries ...*domain.LibraryEntry) *mockEntryRepo {
+	r := &mockEntryRepo{entries: make(map[string]*domain.LibraryEntry)}
+	for _, e := range entries {
+		cp := *e
+		r.entries[e.ID] = &cp
+	}
+	return r
+}
+
+func (r *mockEntryRepo) Get(_ context.Context, id string) (*domain.LibraryEntry, error) {
+	if e, ok := r.entries[id]; ok {
+		cp := *e
+		return &cp, nil
+	}
+	return nil, errs.ErrNotFound
+}
+
+func (r *mockEntryRepo) List(_ context.Context, _ ports.LibraryFilter) ([]*domain.LibraryEntry, int, error) {
+	return nil, 0, nil //nolint:nilnil
+}
+func (r *mockEntryRepo) Save(_ context.Context, _ *domain.LibraryEntry) error { return nil }
+func (r *mockEntryRepo) Delete(_ context.Context, _ string) error             { return nil }
+func (r *mockEntryRepo) DeletionImpact(_ context.Context, _ string) (*domain.DeletionImpact, error) {
+	return nil, nil //nolint:nilnil
+}
+
+func (r *mockEntryRepo) GetPeople(_ context.Context, _ string) ([]domain.EntryPerson, error) {
+	return nil, nil //nolint:nilnil
+}
+
+func (r *mockEntryRepo) SavePerson(_ context.Context, _ string, _ domain.EntryPerson) error {
+	return nil
+}
+func (r *mockEntryRepo) RemovePerson(_ context.Context, _, _, _ string) error { return nil }
+
+// ── new tests ─────────────────────────────────────────────────────────────────
+
+func TestService_Dismiss(t *testing.T) {
+	uf := &domain.UnmatchedFile{
+		ID:     uuid.New().String(),
+		Path:   "/media/unknown.flac",
+		Status: domain.UnmatchedPending,
+	}
+	unmatchedRepo := newUnmatchedRepo(uf)
+
+	svc := scan.New(nil, nil, nil, nil, newItemRepo(), newMediaFileRepo(), unmatchedRepo, &mockNotifier{}, 0.85, nil, nil, nil)
+
+	if err := svc.Dismiss(context.Background(), uf.ID); err != nil {
+		t.Fatal(err)
+	}
+
+	got, err := unmatchedRepo.Get(context.Background(), uf.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Status != domain.UnmatchedDismissed {
+		t.Errorf("status = %q, want %q", got.Status, domain.UnmatchedDismissed)
+	}
+}
+
+func TestService_Dismiss_NotFound(t *testing.T) {
+	svc := scan.New(nil, nil, nil, nil, newItemRepo(), newMediaFileRepo(), newUnmatchedRepo(), &mockNotifier{}, 0.85, nil, nil, nil)
+	err := svc.Dismiss(context.Background(), "no-such-id")
+	if !errs.IsNotFound(err) {
+		t.Errorf("expected not-found error, got %v", err)
+	}
+}
+
+func TestService_Rescrape_ReturnsIdentifierCandidates(t *testing.T) {
+	item := newItem()
+	itemRepo := newItemRepo(item)
+
+	uf := &domain.UnmatchedFile{
+		ID:          uuid.New().String(),
+		Path:        "/media/unknown.flac",
+		Size:        1024,
+		ContentType: domain.ContentTypeMusic,
+		Fingerprint: &domain.Fingerprint{OSHash: "abc"},
+		Status:      domain.UnmatchedPending,
+	}
+	unmatchedRepo := newUnmatchedRepo(uf)
+
+	ider := &mockIdentifier{
+		contentTypes: []domain.ContentType{domain.ContentTypeMusic},
+		candidates:   []domain.MatchCandidate{{Item: item, Confidence: 0.80, Source: "tags"}},
+	}
+
+	svc := scan.New(nil, nil, nil, []ports.FileIdentifier{ider}, itemRepo, newMediaFileRepo(), unmatchedRepo, &mockNotifier{}, 0.85, nil, nil, nil)
+
+	candidates, err := svc.Rescrape(context.Background(), uf.ID, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(candidates) != 1 {
+		t.Fatalf("candidates = %d, want 1", len(candidates))
+	}
+	if candidates[0].Item.ID != item.ID {
+		t.Errorf("candidate item ID = %q, want %q", candidates[0].Item.ID, item.ID)
+	}
+
+	// original record must be unchanged
+	got, _ := unmatchedRepo.Get(context.Background(), uf.ID)
+	if got.Status != domain.UnmatchedPending {
+		t.Errorf("rescrape must not change status: got %q", got.Status)
+	}
+}
+
+func TestService_Rescrape_QueryOverridesPath(t *testing.T) {
+	var capturedPath string
+	ider := &capturePathIdentifier{contentTypes: []domain.ContentType{domain.ContentTypeMusic}}
+
+	uf := &domain.UnmatchedFile{
+		ID:          uuid.New().String(),
+		Path:        "/original/path.flac",
+		ContentType: domain.ContentTypeMusic,
+		Status:      domain.UnmatchedPending,
+	}
+
+	svc := scan.New(nil, nil, nil, []ports.FileIdentifier{ider}, newItemRepo(), newMediaFileRepo(), newUnmatchedRepo(uf), &mockNotifier{}, 0.85, nil, nil, nil)
+
+	_, _ = svc.Rescrape(context.Background(), uf.ID, "Bella Donna Stevie Nicks")
+	capturedPath = ider.lastPath
+	if capturedPath != "Bella Donna Stevie Nicks" {
+		t.Errorf("path passed to identifier = %q, want override query", capturedPath)
+	}
+}
+
+type capturePathIdentifier struct {
+	contentTypes []domain.ContentType
+	lastPath     string
+}
+
+func (c *capturePathIdentifier) ContentTypes() []domain.ContentType { return c.contentTypes }
+func (c *capturePathIdentifier) Identify(_ context.Context, f domain.ScannedFile) ([]domain.MatchCandidate, error) {
+	c.lastPath = f.Path
+	return nil, nil
+}
+
+func TestService_ListUnmatched_FiltersByStatus(t *testing.T) {
+	pending := &domain.UnmatchedFile{ID: uuid.New().String(), Status: domain.UnmatchedPending, ContentType: domain.ContentTypeMusic}
+	matched := &domain.UnmatchedFile{ID: uuid.New().String(), Status: domain.UnmatchedMatched, ContentType: domain.ContentTypeMusic}
+	repo := newUnmatchedRepo(pending, matched)
+
+	svc := scan.New(nil, nil, nil, nil, newItemRepo(), newMediaFileRepo(), repo, &mockNotifier{}, 0.85, nil, nil, nil)
+
+	got, err := svc.ListUnmatched(context.Background(), ports.UnmatchedFilter{Status: domain.UnmatchedPending})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 1 || got[0].ID != pending.ID {
+		t.Errorf("ListUnmatched(pending) returned %d items, want 1 with ID %q", len(got), pending.ID)
+	}
+}
+
+func TestService_SubmitScanLibraryJob_EnqueuesJob(t *testing.T) {
+	entryID := uuid.New().String()
+	entry := &domain.LibraryEntry{ID: entryID, Path: "/mnt/music", Name: "Test Entry"}
+	entryRepo := newEntryRepo(entry)
+	jobs := &mockJobQueue{}
+
+	svc := scan.New(nil, nil, nil, nil, newItemRepo(), newMediaFileRepo(), newUnmatchedRepo(), &mockNotifier{}, 0.85, jobs, entryRepo, nil)
+
+	job, err := svc.SubmitScanLibraryJob(context.Background(), entryID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if job.Name != "ScanLibrary" {
+		t.Errorf("job name = %q, want ScanLibrary", job.Name)
+	}
+	if job.Payload["entry_id"] != entryID {
+		t.Errorf("payload entry_id = %v, want %q", job.Payload["entry_id"], entryID)
+	}
+}
+
+func TestService_SubmitScanLibraryJob_NoPath_ReturnsValidationError(t *testing.T) {
+	entryID := uuid.New().String()
+	entry := &domain.LibraryEntry{ID: entryID, Path: ""}
+	entryRepo := newEntryRepo(entry)
+	jobs := &mockJobQueue{}
+
+	svc := scan.New(nil, nil, nil, nil, newItemRepo(), newMediaFileRepo(), newUnmatchedRepo(), &mockNotifier{}, 0.85, jobs, entryRepo, nil)
+
+	_, err := svc.SubmitScanLibraryJob(context.Background(), entryID)
+	if !errs.IsValidation(err) {
+		t.Errorf("expected validation error, got %v", err)
+	}
+}
+
+func TestService_SubmitScanAllRootsJob_EnqueuesJob(t *testing.T) {
+	jobs := &mockJobQueue{}
+	svc := scan.New(nil, nil, nil, nil, newItemRepo(), newMediaFileRepo(), newUnmatchedRepo(), &mockNotifier{}, 0.85, jobs, nil, nil)
+
+	job, err := svc.SubmitScanAllRootsJob(context.Background(), []string{"/mnt/movies", "/mnt/tv"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if job.Name != "ScanAllRoots" {
+		t.Errorf("job name = %q, want ScanAllRoots", job.Name)
 	}
 }

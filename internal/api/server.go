@@ -8,6 +8,7 @@ import (
 	"purser/internal/app/library"
 	"purser/internal/app/metadata"
 	"purser/internal/app/people"
+	"purser/internal/app/scan"
 	"purser/internal/config"
 	"purser/internal/ports"
 	"purser/pkg/cache"
@@ -32,6 +33,7 @@ func New(
 	libSvc *library.Service,
 	peopleSvc *people.Service,
 	metaSvc *metadata.Service,
+	scanSvc *scan.Service,
 	tagRepo ports.TagRepository,
 	jobQueue ports.JobQueue,
 	cfgSvc ports.ConfigService,
@@ -45,7 +47,7 @@ func New(
 	s := &Server{
 		router: chi.NewRouter(),
 	}
-	s.mount(mediaPath, cfg, store, libSvc, peopleSvc, metaSvc, tagRepo, jobQueue, cfgSvc, sources, uiFS, imgDownloader, gh, caches, shutdownFn)
+	s.mount(mediaPath, cfg, store, libSvc, peopleSvc, metaSvc, scanSvc, tagRepo, jobQueue, cfgSvc, sources, uiFS, imgDownloader, gh, caches, shutdownFn)
 	s.httpServer = &http.Server{
 		Addr:         fmt.Sprintf(":%d", port),
 		Handler:      s.router,
@@ -63,6 +65,7 @@ func (s *Server) mount(
 	libSvc *library.Service,
 	peopleSvc *people.Service,
 	metaSvc *metadata.Service,
+	scanSvc *scan.Service,
 	tagRepo ports.TagRepository,
 	jobQueue ports.JobQueue,
 	cfgSvc ports.ConfigService,
@@ -139,8 +142,11 @@ func (s *Server) mount(
 		jobH := &jobHandler{queue: jobQueue}
 		r.Route("/jobs", jobH.routes)
 
-		cmdH := &commandsHandler{metaSvc: metaSvc}
+		cmdH := &commandsHandler{metaSvc: metaSvc, scanSvc: scanSvc, cfg: cfg}
 		r.Route("/commands", cmdH.routes)
+
+		unmatchedH := &unmatchedHandler{scanSvc: scanSvc}
+		r.Route("/unmatched-files", unmatchedH.routes)
 
 		setupH := &setupHandler{config: cfgSvc}
 		r.Route("/setup", func(r chi.Router) {

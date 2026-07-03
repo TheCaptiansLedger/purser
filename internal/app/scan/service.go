@@ -2,6 +2,8 @@ package scan
 
 import (
 	"context"
+	"database/sql"
+	"errors"
 	"fmt"
 	"log/slog"
 	"purser/internal/app/errs"
@@ -26,6 +28,9 @@ type Service struct {
 	unmatched      ports.UnmatchedFileRepository
 	notifier       ports.NotificationDispatcher
 	threshold      float64
+	jobs           ports.JobQueue
+	entries        ports.LibraryEntryRepository
+	groups         ports.GroupRepository
 }
 
 // New constructs a scan Service wired to the given ports.
@@ -39,6 +44,9 @@ func New(
 	unmatched ports.UnmatchedFileRepository,
 	notifier ports.NotificationDispatcher,
 	threshold float64,
+	jobs ports.JobQueue,
+	entries ports.LibraryEntryRepository,
+	groups ports.GroupRepository,
 ) *Service {
 	return &Service{
 		scanner:        scanner,
@@ -50,6 +58,9 @@ func New(
 		unmatched:      unmatched,
 		notifier:       notifier,
 		threshold:      threshold,
+		jobs:           jobs,
+		entries:        entries,
+		groups:         groups,
 	}
 }
 
@@ -352,4 +363,163 @@ func confidenceFromSource(source string) domain.MatchConfidence {
 	default:
 		return domain.MatchNameMatched
 	}
+}
+
+// ── Queue-entry scan commands ─────────────────────────────────────────────────
+
+// SubmitScanLibraryJob enqueues a background scan for a single library entry's configured path.
+func (s *Service) SubmitScanLibraryJob(ctx context.Context, entryID string) (*domain.Job, error) {
+	if entryID == "" {
+		return nil, errs.Validation("entryId is required")
+	}
+	entry, err := s.entries.Get(ctx, entryID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, errs.ErrNotFound
+	}
+	if err != nil {
+		return nil, fmt.Errorf("get entry: %w", err)
+	}
+	if entry.Path == "" {
+		return nil, errs.Validation("library entry has no path configured")
+	}
+	roots := []string{entry.Path}
+	filter := ports.ScanFilter{EntryID: entryID}
+	return s.jobs.Submit(ctx, "ScanLibrary", map[string]any{"entry_id": entryID},
+		func(jobCtx context.Context, _ ports.ProgressReporter) error {
+			return s.ScanRoots(jobCtx, roots, filter)
+		})
+}
+
+// SubmitScanAllRootsJob enqueues a background scan across all provided roots.
+func (s *Service) SubmitScanAllRootsJob(ctx context.Context, roots []string) (*domain.Job, error) {
+	return s.jobs.Submit(ctx, "ScanAllRoots", nil,
+		func(jobCtx context.Context, _ ports.ProgressReporter) error {
+			return s.ScanRoots(jobCtx, roots, ports.ScanFilter{})
+		})
+}
+
+// ── Unmatched file queue ──────────────────────────────────────────────────────
+
+// ListUnmatched returns unmatched files matching the given filter.
+func (s *Service) ListUnmatched(ctx context.Context, f ports.UnmatchedFilter) ([]*domain.UnmatchedFile, error) {
+	return s.unmatched.List(ctx, f)
+}
+
+// GetUnmatched returns a single unmatched file by ID.
+func (s *Service) GetUnmatched(ctx context.Context, id string) (*domain.UnmatchedFile, error) {
+	uf, err := s.unmatched.Get(ctx, id)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, errs.ErrNotFound
+	}
+	return uf, err
+}
+
+// Dismiss marks an unmatched file as dismissed, removing it from the pending queue.
+func (s *Service) Dismiss(ctx context.Context, id string) error {
+	uf, err := s.unmatched.Get(ctx, id)
+	if errors.Is(err, sql.ErrNoRows) {
+		return errs.ErrNotFound
+	}
+	if err != nil {
+		return fmt.Errorf("get unmatched file: %w", err)
+	}
+	uf.Status = domain.UnmatchedDismissed
+	if err := s.unmatched.Save(ctx, uf); err != nil {
+		return fmt.Errorf("save dismissed file: %w", err)
+	}
+	return nil
+}
+
+// Rescrape re-runs the identifier chain against an unmatched file's stored fingerprint.
+// If query is non-empty it overrides the path used by filename-parser strategies.
+// The UnmatchedFile record is not modified.
+func (s *Service) Rescrape(ctx context.Context, id, query string) ([]domain.MatchCandidate, error) {
+	uf, err := s.unmatched.Get(ctx, id)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, errs.ErrNotFound
+	}
+	if err != nil {
+		return nil, fmt.Errorf("get unmatched file: %w", err)
+	}
+
+	path := uf.Path
+	if query != "" {
+		path = query
+	}
+
+	f := domain.ScannedFile{
+		Path:         path,
+		Size:         uf.Size,
+		ContentType:  uf.ContentType,
+		Fingerprint:  uf.Fingerprint,
+		DiscoveredAt: uf.DiscoveredAt,
+	}
+
+	var candidates []domain.MatchCandidate
+	for _, ider := range s.identifiers {
+		if !slices.Contains(ider.ContentTypes(), f.ContentType) {
+			continue
+		}
+		got, err := ider.Identify(ctx, f)
+		if err != nil {
+			slog.WarnContext(ctx, "identifier failed during rescrape", "path", f.Path, "err", err)
+			continue
+		}
+		candidates = append(candidates, got...)
+	}
+	return deduplicateCandidates(candidates), nil
+}
+
+// ListUnmatchedGrouped returns pending unmatched files grouped by the best candidate's album.
+// Files with no candidates are collected into a group with an empty GroupID.
+func (s *Service) ListUnmatchedGrouped(ctx context.Context, f ports.UnmatchedFilter) ([]*domain.UnmatchedFileGroup, error) {
+	files, err := s.unmatched.List(ctx, f)
+	if err != nil {
+		return nil, err
+	}
+
+	type key = string
+	byGroup := make(map[key]*domain.UnmatchedFileGroup)
+	var order []key
+
+	addToGroup := func(groupID, groupTitle string, uf *domain.UnmatchedFile, conf float64) {
+		if _, ok := byGroup[groupID]; !ok {
+			byGroup[groupID] = &domain.UnmatchedFileGroup{
+				GroupID:    groupID,
+				GroupTitle: groupTitle,
+			}
+			order = append(order, groupID)
+		}
+		g := byGroup[groupID]
+		g.Files = append(g.Files, uf)
+		if conf > g.BestCandidateConfidence {
+			g.BestCandidateConfidence = conf
+		}
+	}
+
+	for _, uf := range files {
+		if len(uf.Candidates) == 0 {
+			addToGroup("", "", uf, 0)
+			continue
+		}
+		best := uf.Candidates[0]
+		item, err := s.items.Get(ctx, best.Item.ID)
+		if err != nil {
+			addToGroup("", "", uf, best.Confidence)
+			continue
+		}
+		groupTitle := ""
+		if item.GroupID != "" && s.groups != nil {
+			if grp, err := s.groups.Get(ctx, item.GroupID); err == nil {
+				groupTitle = grp.Title
+			}
+		}
+		addToGroup(item.GroupID, groupTitle, uf, best.Confidence)
+	}
+
+	result := make([]*domain.UnmatchedFileGroup, 0, len(byGroup))
+	for _, k := range order {
+		result = append(result, byGroup[k])
+	}
+	return result, nil
 }
