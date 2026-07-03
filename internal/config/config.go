@@ -155,6 +155,11 @@ type MetadataSourcesConfig struct {
 
 	// OpenLibrary — books, authors, publishers. No API key required.
 	OpenLibrary MetadataSourceConfig `mapstructure:"openlibrary"`
+
+	// AcoustID — acoustic fingerprint lookup for music files.
+	// Register an application key at https://acoustid.org/new-application
+	// Env var: PURSER_SOURCES_ACOUSTID_API_KEY
+	AcoustID MetadataSourceConfig `mapstructure:"acoustid"`
 }
 
 // MetadataSourceConfig holds connection settings for a single external metadata source.
@@ -277,6 +282,10 @@ func LoadFull(path string) (*Config, *viper.Viper, map[string]struct{}, error) {
 	v.SetDefault("sources.openlibrary.url", "")
 	v.SetDefault("sources.openlibrary.api_key", "")
 	v.SetDefault("sources.openlibrary.user_agent", "")
+	v.SetDefault("sources.acoustid.enabled", false)
+	v.SetDefault("sources.acoustid.url", "")
+	v.SetDefault("sources.acoustid.api_key", "")
+	v.SetDefault("sources.acoustid.user_agent", "")
 	v.SetDefault("github.repo", "TheCaptiansLedger/purser")
 	v.SetDefault("github.token", "")
 	v.SetDefault("log.level", "info")
