@@ -16,8 +16,11 @@ Prefer `package name_test` (external test package) for unit tests. This forces t
 
 - Unit tests alongside code (`_test.go` files)
 - App service tests use hand-rolled mock port implementations — no mockgen
-- Adapter tests use real databases (SQLite in-memory; testcontainers for PostgreSQL) — never mock the database
-- HTTP handler tests use `httptest` with real app services + in-memory SQLite
+- Adapter tests use the real backend for that adapter — never mock the storage layer:
+  - BadgerDB adapter: open with `WithInMemory(true)`
+  - SQLite adapter: open an in-memory DSN (`:memory:`)
+  - PostgreSQL adapter: testcontainers
+- HTTP handler tests use `httptest` with real app services wired to an in-memory BadgerDB instance
 
 ## Adapter Tests — HTTP Metadata Sources
 

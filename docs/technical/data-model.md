@@ -1,5 +1,13 @@
 # Data Model
 
+> The schemas below are the **canonical reference** for the shape of every entity. They use SQL notation because it is the most readable way to list fields, types, and constraints.
+>
+> Purser supports two storage backends that both implement this model:
+> - **BadgerDB** (default): stores each entity as a JSON record keyed by a prefixed UUID (`le:{id}`, `itm:{id}`, etc.). Secondary indexes are maintained as additional key-value entries in the same transaction.
+> - **SQL** (SQLite or PostgreSQL): stores entities in the tables described below, exactly as written.
+>
+> When writing adapter code, implement for both backends. Never write storage logic that assumes SQL syntax (no `ON CONFLICT`, no `JOIN`, no `INSERT ... SELECT`). Business logic that would be a SQL query in the SQL adapter becomes an in-memory filter or an index scan in the BadgerDB adapter.
+
 ## `library_entries` — the content hierarchy
 
 Self-referential tree. Every node can be independently monitored.

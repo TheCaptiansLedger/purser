@@ -34,8 +34,10 @@ var legalUserTransitions = map[ItemStatus]map[ItemStatus]bool{
 	StatusSkipped:     {StatusWanted: true, StatusSkipped: true},
 }
 
-// ValidateTransition returns an error if transitioning from → to is not a legal
-// user-initiated status change.
+// ValidateTransition checks whether a user-initiated status change is legal.
+// It is NOT used by the scan pipeline. The scan service writes item status
+// directly because file presence on disk is ground truth: a matched file is
+// always imported regardless of the item's prior status.
 func ValidateTransition(from, to ItemStatus) error {
 	allowed, ok := legalUserTransitions[from]
 	if !ok || !allowed[to] {

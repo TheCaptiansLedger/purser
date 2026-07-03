@@ -14,7 +14,7 @@ Today the closest approximations are:
 - Link the person to every individual track via `item_people` (role=producer) — semantically correct but operationally tedious for a 12-track album
 - Link the person to the artist library entry via `entry_people` — semantically wrong (it says they are part of the artist, not that they worked on one album)
 
-**What is needed:** A `group_people` join table mirroring `item_people` at the group level:
+**What is needed:** A `group_people` relationship mirroring `item_people` at the group level. Schema shape (SQL notation; BadgerDB uses junction keys `gp:{groupID}:{personID}:{role}`):
 
 ```sql
 CREATE TABLE group_people (

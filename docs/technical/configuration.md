@@ -8,9 +8,14 @@ YAML file (default: `purser.yaml`, override with `$CONFIG_PATH`) + environment v
 server:
   port: 7474
 
-database:
-  driver: sqlite        # sqlite | postgres
-  dsn: purser.db        # file path for sqlite, connection string for postgres
+storage:
+  driver: badger        # badger | sqlite | postgres
+  # badger: set data_dir (and optionally value_log_dir)
+  data_dir: /data
+  value_log_dir: ""     # defaults to data_dir when empty
+  # sqlite: set dsn to a file path
+  # postgres: set dsn to a connection string
+  dsn: ""
 
 library:
   root: /media          # base path for organized media
@@ -25,8 +30,9 @@ log:
 All config keys map to `PURSER_<SECTION>_<KEY>` env vars (uppercase, underscores). For example:
 
 - `PURSER_SERVER_PORT`
-- `PURSER_DATABASE_DRIVER`
-- `PURSER_DATABASE_DSN`
+- `PURSER_STORAGE_DRIVER`
+- `PURSER_STORAGE_DATA_DIR`
+- `PURSER_STORAGE_DSN`
 - `PURSER_LOG_LEVEL`
 
 Source-specific API keys follow the same pattern:

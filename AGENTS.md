@@ -43,7 +43,7 @@ Do not read all project documentation. Determine what the task touches, then loa
 - [docs/architecture/feature-design.md](docs/architecture/feature-design.md)
 - [docs/architecture/principles.md](docs/architecture/principles.md)
 
-### Changing domain model or database schemas
+### Changing domain model or storage schemas (SQL or BadgerDB)
 - [docs/technical/data-model.md](docs/technical/data-model.md)
 - [docs/architecture/overview.md](docs/architecture/overview.md)
 

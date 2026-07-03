@@ -11,8 +11,9 @@ internal/
   ports/                 # Go interfaces only, no implementations
   app/                   # application services (use cases); depend only on ports
   adapters/
-    db/                  # SQLite adapter (default)
-    postgres/            # PostgreSQL adapter (optional)
+    badger/              # BadgerDB adapter (default)
+    db/                  # SQL adapter — SQLite
+    postgres/            # SQL adapter — PostgreSQL
     prowlarr/            # Prowlarr indexer adapter
     stashdb/             # StashDB metadata adapter
     tpdb/                # TPDB metadata adapter
@@ -40,10 +41,11 @@ Nothing in `domain` or `ports` imports from `app`, `adapters`, or `api`. Violati
 |---|---|---|
 | Language | Go 1.23+ | |
 | HTTP router | Chi | stdlib-compatible, no magic |
-| Database (default) | SQLite via `modernc.org/sqlite` | no CGo, works in distroless |
-| Database (optional) | PostgreSQL via `pgx` | configured via `DATABASE_URL` |
-| DB migrations | `golang-migrate/migrate` | embedded SQL files |
-| Query layer | `sqlc` | type-safe Go generated from SQL |
+| Storage (default) | BadgerDB v4 | embedded LSM key-value store; no CGo; works in distroless |
+| Storage (SQL option) | SQLite via `modernc.org/sqlite` | no CGo; single-file relational; same interface |
+| Storage (SQL option) | PostgreSQL via `pgx` | configured via `DATABASE_URL`; same interface |
+| SQL migrations | `golang-migrate/migrate` | embedded SQL files; applies to SQLite + PostgreSQL only |
+| SQL query layer | `sqlc` | type-safe Go generated from SQL; applies to SQLite + PostgreSQL only |
 | Config | struct + `envconfig` | 12-factor; YAML file + env overrides |
 | Logging | `log/slog` (stdlib) | JSON in prod, text in dev |
 | Frontend | React 18 + TypeScript + Vite | embedded via `go:embed` |
@@ -55,7 +57,8 @@ Nothing in `domain` or `ports` imports from `app`, `adapters`, or `api`. Violati
 
 - One file per type group in `domain/` — no god files
 - Each adapter implements exactly one port
-- SQL in `internal/adapters/db/queries/*.sql` (sqlc source)
-- Migrations in `internal/adapters/db/migrations/` as numbered `.sql` files
+- All storage adapters implement the same port interfaces — the app layer never knows which backend is active
+- BadgerDB adapter: `internal/adapters/badger/` — JSON records keyed by prefixed UUIDs; schema version tracked in `__schema` key
+- SQL adapter (shared SQLite + PostgreSQL): `internal/adapters/db/` — SQL in `queries/*.sql` (sqlc source); migrations in `migrations/` as numbered `.sql` files
 - API handlers grouped by resource in `internal/api/`
 - React source in `web/src/`, build output in `web/dist/` (git-ignored), embedded via `go:embed`

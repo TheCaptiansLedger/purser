@@ -3,7 +3,7 @@ name: purser
 volumes:
   purser-data:      # BadgerDB data directory — wipe to reset all library data
   purser-media:     # Cover art, logos, headshots downloaded by Purser
-  purser-content:   # Your actual media files (movies, scenes, music, etc.)
+  # purser-content replaced by bind mount below — drop files into test-data/ to exercise the scanner
 
 services:
   # ── Main application ─────────────────────────────────────────────────────────
@@ -18,7 +18,7 @@ services:
       - ./purser.yaml:/config/purser.yaml:ro
       - purser-data:/data
       - purser-media:/media/purser
-      - purser-content:/media/content
+      - ../test-data:/media/content
     env_file:
       - path: ../.env
         required: false

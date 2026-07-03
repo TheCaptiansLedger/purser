@@ -172,6 +172,22 @@ func (c ContentType) ItemLabel() string {
 	}
 }
 
+// MediaExtensions returns the file extensions (lowercased, with dot) that are
+// considered media files for this content type.
+// Example: ContentTypeMusic → [".flac", ".mp3", ".m4a", ".ogg", ".opus", ".wav", ".aiff"]
+func (ct ContentType) MediaExtensions() []string {
+	switch ct {
+	case ContentTypeMovie, ContentTypeTV, ContentTypeAdult, ContentTypeJAV:
+		return []string{".mkv", ".mp4", ".avi", ".mov", ".m4v", ".wmv"}
+	case ContentTypeMusic:
+		return []string{".flac", ".mp3", ".m4a", ".ogg", ".opus", ".wav", ".aiff"}
+	case ContentTypeBook:
+		return []string{".epub", ".pdf", ".mobi", ".azw3", ".cbz", ".cbr"}
+	default:
+		return nil
+	}
+}
+
 // MonitorMode controls how newly discovered children of an entry are handled.
 type MonitorMode string
 

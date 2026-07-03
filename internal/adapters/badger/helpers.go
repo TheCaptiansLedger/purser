@@ -107,6 +107,10 @@ func kPRI(role, personID string) []byte { return []byte("pri:" + role + ":" + pe
 func kMFH(hash string) []byte   { return []byte("mfh:" + hash) }
 func kMFI(itemID string) []byte { return []byte("mfi:" + itemID) }
 
+// Unmatched file records
+func kUMF(id string) []byte { return []byte("umf:" + id) }
+func pfxUMF() []byte        { return []byte("umf:") }
+
 // Prefixes for iterator scans
 func pfxLE() []byte             { return []byte("le:") }
 func pfxGRP() []byte            { return []byte("grp:") }
@@ -257,17 +261,45 @@ type tagRecord struct {
 }
 
 type mediaFileRecord struct {
-	ID         string `json:"id"`
-	ItemID     string `json:"item_id"`
-	Path       string `json:"path"`
-	Size       int64  `json:"size"`
-	OSHash     string `json:"oshash,omitempty"`
-	MD5        string `json:"md5,omitempty"`
-	Quality    string `json:"quality,omitempty"`
-	Resolution string `json:"resolution,omitempty"`
-	Codec      string `json:"codec,omitempty"`
-	Container  string `json:"container,omitempty"`
-	AddedAt    string `json:"added_at"`
+	ID              string `json:"id"`
+	ItemID          string `json:"item_id"`
+	Path            string `json:"path"`
+	Size            int64  `json:"size"`
+	OSHash          string `json:"oshash,omitempty"`
+	MD5             string `json:"md5,omitempty"`
+	Quality         string `json:"quality,omitempty"`
+	Resolution      string `json:"resolution,omitempty"`
+	Codec           string `json:"codec,omitempty"`
+	Container       string `json:"container,omitempty"`
+	MatchConfidence string `json:"match_confidence,omitempty"`
+	AddedAt         string `json:"added_at"`
+}
+
+type fingerprintRecord struct {
+	OSHash       string            `json:"oshash,omitempty"`
+	PHash        string            `json:"phash,omitempty"`
+	AcoustID     string            `json:"acoustid,omitempty"`
+	EmbeddedTags map[string]string `json:"embedded_tags,omitempty"`
+	ISBN         string            `json:"isbn,omitempty"`
+}
+
+// matchCandidateRecord stores only the item ID, not the full item.
+// Callers resolve the item via ItemRepository at read time.
+type matchCandidateRecord struct {
+	ItemID     string  `json:"item_id"`
+	Confidence float64 `json:"confidence"`
+	Source     string  `json:"source"`
+}
+
+type unmatchedFileRecord struct {
+	ID           string                 `json:"id"`
+	Path         string                 `json:"path"`
+	Size         int64                  `json:"size"`
+	ContentType  string                 `json:"content_type"`
+	Fingerprint  *fingerprintRecord     `json:"fingerprint,omitempty"`
+	Candidates   []matchCandidateRecord `json:"candidates,omitempty"`
+	Status       string                 `json:"status"`
+	DiscoveredAt string                 `json:"discovered_at"`
 }
 
 type entryPersonJunction struct {

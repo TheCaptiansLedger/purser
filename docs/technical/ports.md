@@ -25,7 +25,7 @@ type DownloadClient interface {
     Remove(ctx context.Context, jobID string, deleteFiles bool) error
 }
 
-// Repositories — one per aggregate root, swappable (SQLite ↔ PostgreSQL)
+// Repositories — one per aggregate root, swappable (BadgerDB | SQLite | PostgreSQL)
 type LibraryEntryRepository interface {
     Get(ctx context.Context, id string) (*domain.LibraryEntry, error)
     List(ctx context.Context, filter LibraryFilter) ([]*domain.LibraryEntry, error)

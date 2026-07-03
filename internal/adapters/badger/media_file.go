@@ -89,18 +89,23 @@ func (r *mediaFileRepo) GetByOSHash(_ context.Context, hash string) (*domain.Med
 }
 
 func mediaFileFromRecord(rec *mediaFileRecord) *domain.MediaFile {
+	mc := domain.MatchConfidence(rec.MatchConfidence)
+	if mc == "" {
+		mc = domain.MatchNameMatched
+	}
 	return &domain.MediaFile{
-		ID:         rec.ID,
-		ItemID:     rec.ItemID,
-		Path:       rec.Path,
-		Size:       rec.Size,
-		OSHash:     rec.OSHash,
-		MD5:        rec.MD5,
-		Quality:    domain.Quality(rec.Quality),
-		Resolution: rec.Resolution,
-		Codec:      rec.Codec,
-		Container:  rec.Container,
-		AddedAt:    strToTime(rec.AddedAt),
+		ID:              rec.ID,
+		ItemID:          rec.ItemID,
+		Path:            rec.Path,
+		Size:            rec.Size,
+		OSHash:          rec.OSHash,
+		MD5:             rec.MD5,
+		Quality:         domain.Quality(rec.Quality),
+		Resolution:      rec.Resolution,
+		Codec:           rec.Codec,
+		Container:       rec.Container,
+		MatchConfidence: mc,
+		AddedAt:         strToTime(rec.AddedAt),
 	}
 }
 
@@ -123,18 +128,23 @@ func (r *mediaFileRepo) Save(_ context.Context, mf *domain.MediaFile) error {
 			}
 		}
 
+		mc := mf.MatchConfidence
+		if mc == "" {
+			mc = domain.MatchNameMatched
+		}
 		rec := mediaFileRecord{
-			ID:         mf.ID,
-			ItemID:     mf.ItemID,
-			Path:       mf.Path,
-			Size:       mf.Size,
-			OSHash:     mf.OSHash,
-			MD5:        mf.MD5,
-			Quality:    string(mf.Quality),
-			Resolution: mf.Resolution,
-			Codec:      mf.Codec,
-			Container:  mf.Container,
-			AddedAt:    timeToStr(mf.AddedAt),
+			ID:              mf.ID,
+			ItemID:          mf.ItemID,
+			Path:            mf.Path,
+			Size:            mf.Size,
+			OSHash:          mf.OSHash,
+			MD5:             mf.MD5,
+			Quality:         string(mf.Quality),
+			Resolution:      mf.Resolution,
+			Codec:           mf.Codec,
+			Container:       mf.Container,
+			MatchConfidence: string(mc),
+			AddedAt:         timeToStr(mf.AddedAt),
 		}
 		if err := setJSON(txn, kMF(mf.ID), rec); err != nil {
 			return err

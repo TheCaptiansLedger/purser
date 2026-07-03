@@ -12,30 +12,36 @@ type mediaFileRepo struct {
 	db *sql.DB
 }
 
-// NewMediaFileRepo returns a MediaFileRepository backed by SQLite.
+// NewMediaFileRepo returns a MediaFileRepository backed by SQL (SQLite or PostgreSQL).
 func NewMediaFileRepo(db *sql.DB) ports.MediaFileRepository {
 	return &mediaFileRepo{db: db}
 }
 
 const mediaFileSelectCols = `
-	id, item_id, path, size, oshash, md5, quality, resolution, codec, container, added_at
+	id, item_id, path, size, oshash, md5, quality, resolution, codec, container, added_at, match_confidence
 `
 
 func scanMediaFile(row interface{ Scan(...any) error }) (*domain.MediaFile, error) {
 	var (
-		mf      domain.MediaFile
-		quality string
-		addedAt string
+		mf              domain.MediaFile
+		quality         string
+		addedAt         string
+		matchConfidence string
 	)
 	if err := row.Scan(
 		&mf.ID, &mf.ItemID, &mf.Path, &mf.Size,
 		&mf.OSHash, &mf.MD5, &quality, &mf.Resolution,
-		&mf.Codec, &mf.Container, &addedAt,
+		&mf.Codec, &mf.Container, &addedAt, &matchConfidence,
 	); err != nil {
 		return nil, err
 	}
 	mf.Quality = domain.Quality(quality)
 	mf.AddedAt = strToTime(addedAt)
+	mc := domain.MatchConfidence(matchConfidence)
+	if mc == "" {
+		mc = domain.MatchNameMatched
+	}
+	mf.MatchConfidence = mc
 	return &mf, nil
 }
 
@@ -67,25 +73,31 @@ func (r *mediaFileRepo) Save(ctx context.Context, mf *domain.MediaFile) error {
 		mf.AddedAt = strToTime(nowStr())
 	}
 
+	mc := mf.MatchConfidence
+	if mc == "" {
+		mc = domain.MatchNameMatched
+	}
+
 	_, err := r.db.ExecContext(
 		ctx, `
 		INSERT INTO media_files(
 			id, item_id, path, size, oshash, md5,
-			quality, resolution, codec, container, added_at
-		) VALUES(?,?,?,?,?,?,?,?,?,?,?)
+			quality, resolution, codec, container, added_at, match_confidence
+		) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)
 		ON CONFLICT(id) DO UPDATE SET
-			item_id    = excluded.item_id,
-			path       = excluded.path,
-			size       = excluded.size,
-			oshash     = excluded.oshash,
-			md5        = excluded.md5,
-			quality    = excluded.quality,
-			resolution = excluded.resolution,
-			codec      = excluded.codec,
-			container  = excluded.container`,
+			item_id          = excluded.item_id,
+			path             = excluded.path,
+			size             = excluded.size,
+			oshash           = excluded.oshash,
+			md5              = excluded.md5,
+			quality          = excluded.quality,
+			resolution       = excluded.resolution,
+			codec            = excluded.codec,
+			container        = excluded.container,
+			match_confidence = excluded.match_confidence`,
 		mf.ID, mf.ItemID, mf.Path, mf.Size,
 		mf.OSHash, mf.MD5, string(mf.Quality), mf.Resolution,
-		mf.Codec, mf.Container, timeToStr(mf.AddedAt),
+		mf.Codec, mf.Container, timeToStr(mf.AddedAt), string(mc),
 	)
 	if err != nil {
 		return fmt.Errorf("save media file: %w", err)
