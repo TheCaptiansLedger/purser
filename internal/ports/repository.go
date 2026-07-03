@@ -131,6 +131,8 @@ type ExternalIDRepository interface {
 type MediaFileRepository interface {
 	GetByItemID(ctx context.Context, itemID string) (*domain.MediaFile, error)
 	GetByOSHash(ctx context.Context, hash string) (*domain.MediaFile, error)
+	// GetByPath returns the MediaFile at the given path, or errs.ErrNotFound.
+	GetByPath(ctx context.Context, path string) (*domain.MediaFile, error)
 	Save(ctx context.Context, f *domain.MediaFile) error
 	Delete(ctx context.Context, id string) error
 }

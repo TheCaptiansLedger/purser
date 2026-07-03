@@ -90,6 +90,14 @@ type ModuleConfig struct {
 	// Multiple roots are supported for media spread across different drives or mounts.
 	// Env var: PURSER_MODULES_<TYPE>_ROOTS (comma-separated paths)
 	Roots []string `mapstructure:"roots"`
+	// WatchEnabled controls whether the filesystem watcher runs for this module.
+	// When true, Purser emits scan events as files appear or change under Roots.
+	// Env var: PURSER_MODULES_<TYPE>_WATCH_ENABLED
+	WatchEnabled bool `mapstructure:"watch_enabled"`
+	// WatchDebounce is a Go duration string (e.g. "2s") controlling how long the
+	// watcher waits after the last Write event before emitting a WatchEvent.
+	// Env var: PURSER_MODULES_<TYPE>_WATCH_DEBOUNCE
+	WatchDebounce string `mapstructure:"watch_debounce"`
 }
 
 // MetadataSourcesConfig holds connection settings for all external metadata sources.
@@ -212,11 +220,23 @@ func LoadFull(path string) (*Config, *viper.Viper, map[string]struct{}, error) {
 	v.SetDefault("database.badger.sync_writes", false)
 	v.SetDefault("media.path", "./images")
 	v.SetDefault("modules.movies.enabled", true)
+	v.SetDefault("modules.movies.watch_enabled", false)
+	v.SetDefault("modules.movies.watch_debounce", "2s")
 	v.SetDefault("modules.tv.enabled", true)
+	v.SetDefault("modules.tv.watch_enabled", false)
+	v.SetDefault("modules.tv.watch_debounce", "2s")
 	v.SetDefault("modules.music.enabled", true)
+	v.SetDefault("modules.music.watch_enabled", false)
+	v.SetDefault("modules.music.watch_debounce", "2s")
 	v.SetDefault("modules.books.enabled", true)
+	v.SetDefault("modules.books.watch_enabled", false)
+	v.SetDefault("modules.books.watch_debounce", "2s")
 	v.SetDefault("modules.afterdark.enabled", true)
+	v.SetDefault("modules.afterdark.watch_enabled", false)
+	v.SetDefault("modules.afterdark.watch_debounce", "2s")
 	v.SetDefault("modules.jav.enabled", true)
+	v.SetDefault("modules.jav.watch_enabled", false)
+	v.SetDefault("modules.jav.watch_debounce", "2s")
 	v.SetDefault("sources.stashdb.enabled", false)
 	v.SetDefault("sources.stashdb.url", "")
 	v.SetDefault("sources.stashdb.api_key", "")

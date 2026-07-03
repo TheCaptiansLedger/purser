@@ -3,7 +3,9 @@ package db
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
+	"purser/internal/app/errs"
 	"purser/internal/domain"
 	"purser/internal/ports"
 )
@@ -51,6 +53,19 @@ func (r *mediaFileRepo) GetByItemID(ctx context.Context, itemID string) (*domain
 	mf, err := scanMediaFile(row)
 	if err != nil {
 		return nil, fmt.Errorf("get media file for item %s: %w", itemID, err)
+	}
+	return mf, nil
+}
+
+func (r *mediaFileRepo) GetByPath(ctx context.Context, path string) (*domain.MediaFile, error) {
+	row := r.db.QueryRowContext(ctx,
+		`SELECT`+mediaFileSelectCols+`FROM media_files WHERE path = ?`, path)
+	mf, err := scanMediaFile(row)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, errs.ErrNotFound
+		}
+		return nil, fmt.Errorf("get media file by path %s: %w", path, err)
 	}
 	return mf, nil
 }

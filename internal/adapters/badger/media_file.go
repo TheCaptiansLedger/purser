@@ -55,6 +55,39 @@ func (r *mediaFileRepo) GetByItemID(_ context.Context, itemID string) (*domain.M
 	return mf, nil
 }
 
+func (r *mediaFileRepo) GetByPath(_ context.Context, path string) (*domain.MediaFile, error) {
+	var mf *domain.MediaFile
+	err := r.db.View(func(txn *badgerdb.Txn) error {
+		item, err := txn.Get(kMFP(path))
+		if err != nil {
+			if errors.Is(err, badgerdb.ErrKeyNotFound) {
+				return errs.ErrNotFound
+			}
+			return err
+		}
+		var mfID string
+		if err := item.Value(func(val []byte) error {
+			mfID = string(val)
+			return nil
+		}); err != nil {
+			return err
+		}
+		rec, err := getJSON[mediaFileRecord](txn, kMF(mfID))
+		if err != nil {
+			return err
+		}
+		mf = mediaFileFromRecord(rec)
+		return nil
+	})
+	if err != nil {
+		if errs.IsNotFound(err) {
+			return nil, errs.ErrNotFound
+		}
+		return nil, fmt.Errorf("get media file by path %s: %w", path, err)
+	}
+	return mf, nil
+}
+
 func (r *mediaFileRepo) GetByOSHash(_ context.Context, hash string) (*domain.MediaFile, error) {
 	var mf *domain.MediaFile
 	err := r.db.View(func(txn *badgerdb.Txn) error {
@@ -126,6 +159,9 @@ func (r *mediaFileRepo) Save(_ context.Context, mf *domain.MediaFile) error {
 			if old.OSHash != "" {
 				_ = txn.Delete(kMFH(old.OSHash))
 			}
+			if old.Path != "" {
+				_ = txn.Delete(kMFP(old.Path))
+			}
 		}
 
 		mc := mf.MatchConfidence
@@ -160,6 +196,11 @@ func (r *mediaFileRepo) Save(_ context.Context, mf *domain.MediaFile) error {
 				return err
 			}
 		}
+		if mf.Path != "" {
+			if err := txn.Set(kMFP(mf.Path), []byte(mf.ID)); err != nil {
+				return err
+			}
+		}
 
 		return nil
 	})
@@ -173,6 +214,9 @@ func (r *mediaFileRepo) Delete(_ context.Context, id string) error {
 			}
 			if old.OSHash != "" {
 				_ = txn.Delete(kMFH(old.OSHash))
+			}
+			if old.Path != "" {
+				_ = txn.Delete(kMFP(old.Path))
 			}
 		}
 		return txn.Delete(kMF(id))

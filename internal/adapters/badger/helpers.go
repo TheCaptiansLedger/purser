@@ -106,6 +106,7 @@ func kPRI(role, personID string) []byte { return []byte("pri:" + role + ":" + pe
 // Media file indexes
 func kMFH(hash string) []byte   { return []byte("mfh:" + hash) }
 func kMFI(itemID string) []byte { return []byte("mfi:" + itemID) }
+func kMFP(path string) []byte   { return []byte("mfp:" + path) }
 
 // Unmatched file records
 func kUMF(id string) []byte { return []byte("umf:" + id) }
