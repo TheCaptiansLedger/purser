@@ -3381,7 +3381,7 @@ func newHandlerWithScan(t *testing.T) (http.Handler, *sql.DB) {
 		noopScanner{}, nil,
 		nil, nil,
 		itemRepo, mfRepo, unmatchedRepo, &notifyadapter.NoopDispatcher{}, 0.85,
-		jobQueue, entryRepo, groupRepo,
+		jobQueue, entryRepo, groupRepo, nil, nil,
 	)
 
 	uiFS, _ := fs.Sub(web.Dist, "dist")

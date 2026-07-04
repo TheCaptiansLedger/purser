@@ -28,6 +28,7 @@ import (
 	"purser/internal/app/people"
 	appscan "purser/internal/app/scan"
 	"purser/internal/config"
+	"purser/internal/domain"
 	"purser/internal/ports"
 	"purser/internal/version"
 	"purser/pkg/cache"
@@ -122,12 +123,14 @@ func run(cfgPath string) error {
 	videoID := identifier.NewVideoIdentifier(mediaFileRepo, itemRepo, sources)
 	bookID := identifier.NewBookIdentifier(extIDRepo, itemRepo, sources)
 	noopNotifier := &notify.NoopDispatcher{}
+	thumbnailCache := fsadapter.NewThumbnailCache(cfg.Media.Path)
 	scanSvc := appscan.New(
 		scanner, watcher,
 		[]ports.FileFingerprinter{videoFP, musicFP, bookFP},
 		[]ports.FileIdentifier{adultID, musicID, videoID, bookID},
 		itemRepo, mediaFileRepo, unmatchedRepo, noopNotifier, 0.85,
 		jobQueue, entryRepo, groupRepo,
+		thumbnailCache, buildUpgradeMode(cfg),
 	)
 	metaSvc := metadata.New(sources, jobQueue, entryRepo, groupRepo, itemRepo, personRepo, tagRepo, extIDRepo, imgDownloader)
 	ghAdapter := githubadapter.New(githubadapter.Config{
@@ -150,7 +153,7 @@ func run(cfgPath string) error {
 
 	srv := api.New(cfg.Server.Port, cfg.Media.Path, cfg, storageAdmin, libSvc, peopleSvc, metaSvc, scanSvc, tagRepo, jobQueue, cfgSvc, sources, uiFS, imgDownloader, ghAdapter, []*cache.Cache{githubCache, audiodbCache, mbzCache, fanartCache, stashdbCache}, shutdown)
 
-	go func() { _ = scanSvc.StartWatching(lifecycleCtx, enabledRoots(cfg)) }()
+	go func() { _ = scanSvc.StartWatching(lifecycleCtx, modulesFromConfig(cfg)) }()
 
 	go func() {
 		slog.Info("listening", "port", cfg.Server.Port)
@@ -222,23 +225,50 @@ func openStorage(cfg *config.Config) (
 	}
 }
 
-// enabledRoots collects media roots from all enabled modules.
-func enabledRoots(cfg *config.Config) []string {
-	modules := []config.ModuleConfig{
-		cfg.Modules.Movies,
-		cfg.Modules.TV,
-		cfg.Modules.Music,
-		cfg.Modules.Books,
-		cfg.Modules.AfterDark,
-		cfg.Modules.JAV,
+// modulesFromConfig builds per-content-type scan modules from the enabled module configs.
+func modulesFromConfig(cfg *config.Config) []appscan.Module {
+	type entry struct {
+		mc config.ModuleConfig
+		ct domain.ContentType
 	}
-	var roots []string
-	for _, m := range modules {
-		if m.Enabled {
-			roots = append(roots, m.Roots...)
+	all := []entry{
+		{cfg.Modules.Movies, domain.ContentTypeMovie},
+		{cfg.Modules.TV, domain.ContentTypeTV},
+		{cfg.Modules.Music, domain.ContentTypeMusic},
+		{cfg.Modules.Books, domain.ContentTypeBook},
+		{cfg.Modules.AfterDark, domain.ContentTypeAdult},
+		{cfg.Modules.JAV, domain.ContentTypeJAV},
+	}
+	var modules []appscan.Module
+	for _, e := range all {
+		if e.mc.Enabled && len(e.mc.Roots) > 0 {
+			modules = append(modules, appscan.Module{ContentType: e.ct, Roots: e.mc.Roots})
 		}
 	}
-	return roots
+	return modules
+}
+
+// buildUpgradeMode maps each ContentType to its configured upgrade mode.
+func buildUpgradeMode(cfg *config.Config) map[domain.ContentType]string {
+	type entry struct {
+		mc config.ModuleConfig
+		ct domain.ContentType
+	}
+	all := []entry{
+		{cfg.Modules.Movies, domain.ContentTypeMovie},
+		{cfg.Modules.TV, domain.ContentTypeTV},
+		{cfg.Modules.Music, domain.ContentTypeMusic},
+		{cfg.Modules.Books, domain.ContentTypeBook},
+		{cfg.Modules.AfterDark, domain.ContentTypeAdult},
+		{cfg.Modules.JAV, domain.ContentTypeJAV},
+	}
+	m := make(map[domain.ContentType]string, len(all))
+	for _, e := range all {
+		if e.mc.UpgradeMode != "" {
+			m[e.ct] = e.mc.UpgradeMode
+		}
+	}
+	return m
 }
 
 // buildSources constructs and returns all enabled MetadataSource adapters.

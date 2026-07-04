@@ -25,7 +25,7 @@ func (r *tagRepo) Get(ctx context.Context, id string) (*domain.Tag, error) {
 		ctx,
 		`SELECT id, key, value, scope FROM tags WHERE id = ?`, id,
 	).Scan(&t.ID, &key, &t.Value, &scope); err != nil {
-		return nil, fmt.Errorf("get tag %s: %w", id, err)
+		return nil, fmt.Errorf("get tag %s: %w", id, mapNotFound(err))
 	}
 	t.Key = domain.TagKey(key)
 	t.Scope = domain.TagScope(scope)

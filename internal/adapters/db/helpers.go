@@ -4,12 +4,23 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
+	"purser/internal/app/errs"
 	"purser/internal/domain"
 	"strings"
 	"time"
 
 	"github.com/google/uuid"
 )
+
+// mapNotFound converts sql.ErrNoRows to errs.ErrNotFound so adapters return
+// the canonical not-found sentinel rather than a storage-specific error.
+func mapNotFound(err error) error {
+	if errors.Is(err, sql.ErrNoRows) {
+		return errs.ErrNotFound
+	}
+	return err
+}
 
 func newID() string {
 	return uuid.New().String()
@@ -296,6 +307,39 @@ func saveEntryTags(ctx context.Context, tx *sql.Tx, entryID string, tags []domai
 			entryID, t.ID); err != nil {
 			return err
 		}
+	}
+	return nil
+}
+
+// attachMediaFilesBatch loads media files for a slice of items in one query.
+func attachMediaFilesBatch(ctx context.Context, db *sql.DB, items []*domain.Item) error {
+	if len(items) == 0 {
+		return nil
+	}
+	ids := make([]any, len(items))
+	for i, item := range items {
+		ids[i] = item.ID
+	}
+	rows, err := db.QueryContext(ctx,
+		`SELECT`+mediaFileSelectCols+`FROM media_files WHERE item_id IN (`+listPlaceholders(len(ids))+`)`, //nolint:gosec // listPlaceholders returns only "?" markers, not user input
+		ids...)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = rows.Close() }()
+	m := make(map[string]*domain.MediaFile)
+	for rows.Next() {
+		mf, err := scanMediaFile(rows)
+		if err != nil {
+			return err
+		}
+		m[mf.ItemID] = mf
+	}
+	if err := rows.Err(); err != nil {
+		return err
+	}
+	for _, item := range items {
+		item.MediaFile = m[item.ID]
 	}
 	return nil
 }

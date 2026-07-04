@@ -11,10 +11,18 @@ import (
 	"purser/internal/ports"
 	"slices"
 	"sort"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
 )
+
+// Module describes a content-type module's roots for a scan-all job.
+type Module struct {
+	ContentType domain.ContentType
+	Roots       []string
+}
 
 // Service orchestrates fingerprinting, identification, and the auto-import decision.
 // It contains zero content-type switches and zero adapter name strings.
@@ -31,9 +39,12 @@ type Service struct {
 	jobs           ports.JobQueue
 	entries        ports.LibraryEntryRepository
 	groups         ports.GroupRepository
+	thumbnailCache ports.ThumbnailCache
+	upgradeMode    map[domain.ContentType]string
 }
 
 // New constructs a scan Service wired to the given ports.
+// upgradeMode maps each ContentType to "auto" or "queue" (default when empty).
 func New(
 	scanner ports.FileScanner,
 	watcher ports.FileWatcher,
@@ -47,6 +58,8 @@ func New(
 	jobs ports.JobQueue,
 	entries ports.LibraryEntryRepository,
 	groups ports.GroupRepository,
+	thumbnailCache ports.ThumbnailCache,
+	upgradeMode map[domain.ContentType]string,
 ) *Service {
 	return &Service{
 		scanner:        scanner,
@@ -61,12 +74,16 @@ func New(
 		jobs:           jobs,
 		entries:        entries,
 		groups:         groups,
+		thumbnailCache: thumbnailCache,
+		upgradeMode:    upgradeMode,
 	}
 }
 
 // ScanRoots walks roots through the scanner and runs the full pipeline on each discovered file.
 func (s *Service) ScanRoots(ctx context.Context, roots []string, filter ports.ScanFilter) error {
 	_ = s.notifier.Dispatch(ctx, domain.NotificationEvent{Type: domain.NotifyScanStarted})
+
+	s.pruneResolvedUnmatched(ctx)
 
 	ch, err := s.scanner.Scan(ctx, roots, filter)
 	if err != nil {
@@ -88,9 +105,17 @@ func (s *Service) ScanRoots(ctx context.Context, roots []string, filter ports.Sc
 	return nil
 }
 
-// StartWatching watches roots for filesystem events and runs the pipeline on each one.
+// StartWatching watches module roots for filesystem events and runs the pipeline
+// on each file. ContentType is resolved from the module root prefix, not from
+// the file extension, so adult and JAV files are never misclassified as movie/TV.
 // Blocks until ctx is cancelled or the watcher channel closes.
-func (s *Service) StartWatching(ctx context.Context, roots []string) error {
+func (s *Service) StartWatching(ctx context.Context, modules []Module) error {
+	rootTypes := buildRootContentTypes(modules)
+	roots := make([]string, 0, len(rootTypes))
+	for root := range rootTypes {
+		roots = append(roots, root)
+	}
+
 	ch, err := s.watcher.Watch(ctx, roots)
 	if err != nil {
 		return fmt.Errorf("start watcher: %w", err)
@@ -103,17 +128,50 @@ func (s *Service) StartWatching(ctx context.Context, roots []string) error {
 			if !ok {
 				return nil
 			}
-			s.handleWatchEvent(ctx, event)
+			s.handleWatchEvent(ctx, event, rootTypes)
 		}
 	}
 }
 
-func (s *Service) handleWatchEvent(ctx context.Context, event ports.WatchEvent) {
+// buildRootContentTypes returns a map of root path → ContentType built from the
+// module list. Each root is stored with a trailing slash so HasPrefix matching
+// never confuses /media/content/jav with /media/content/jav-extra.
+func buildRootContentTypes(modules []Module) map[string]domain.ContentType {
+	m := make(map[string]domain.ContentType)
+	for _, mod := range modules {
+		for _, root := range mod.Roots {
+			key := strings.TrimRight(root, "/") + "/"
+			m[key] = mod.ContentType
+		}
+	}
+	return m
+}
+
+// contentTypeForPath returns the ContentType for a file path by finding the
+// longest matching module root prefix. Returns "" if no module owns the path.
+func contentTypeForPath(path string, rootTypes map[string]domain.ContentType) domain.ContentType {
+	best := ""
+	var ct domain.ContentType
+	for root, t := range rootTypes {
+		if strings.HasPrefix(path, root) && len(root) > len(best) {
+			best = root
+			ct = t
+		}
+	}
+	return ct
+}
+
+func (s *Service) handleWatchEvent(ctx context.Context, event ports.WatchEvent, rootTypes map[string]domain.ContentType) {
 	switch event.Op {
 	case ports.WatchCreated, ports.WatchModified:
+		ct := contentTypeForPath(event.Path, rootTypes)
+		if ct == "" {
+			return // file is not under any known module root
+		}
 		f := domain.ScannedFile{
 			Path:         event.Path,
-			ContentType:  event.ContentType,
+			Size:         event.Size,
+			ContentType:  ct,
 			DiscoveredAt: time.Now().UTC(),
 		}
 		if err := s.processFile(ctx, f); err != nil {
@@ -126,7 +184,59 @@ func (s *Service) handleWatchEvent(ctx context.Context, event ports.WatchEvent) 
 
 // processFile is the single pipeline entry point for both ScanRoots and StartWatching.
 func (s *Service) processFile(ctx context.Context, f domain.ScannedFile) error {
-	// 1. Fingerprint: fan out to all fingerprinters that handle this content type.
+	// 1. Path idempotency: same path + same size means nothing changed.
+	if done, err := s.checkPathIdempotency(ctx, &f); err != nil || done {
+		return err
+	}
+	// 2. Fingerprint + identify.
+	f.Fingerprint = s.collectFingerprints(ctx, f)
+	candidates := s.collectCandidates(ctx, f)
+
+	_ = s.notifier.Dispatch(ctx, domain.NotificationEvent{
+		Type:    domain.NotifyFileDiscovered,
+		Payload: f.Path,
+	})
+
+	// 3. Hash-state resolution: skip or update path for known content.
+	if done, err := s.resolveHashState(ctx, f); err != nil || done {
+		return err
+	}
+	// 4. Upgrade / duplicate: item already has a file at this quality or better.
+	if done, err := s.handleExistingItemFile(ctx, f, candidates); err != nil || done {
+		return err
+	}
+	// 5. Association decision: auto-import when confidence meets threshold.
+	// Candidates are sorted by descending confidence; pick the first one that
+	// links to a library item. AcoustID can return multiple MBIDs for the same
+	// recording (different releases), only some of which are in the library.
+	for _, c := range candidates {
+		if c.Confidence >= s.threshold && c.Item != nil {
+			return s.autoImport(ctx, f, c)
+		}
+	}
+	return s.enqueueUnmatched(ctx, f, candidates, "")
+}
+
+func (s *Service) checkPathIdempotency(ctx context.Context, f *domain.ScannedFile) (bool, error) {
+	existing, err := s.mediaFiles.GetByPath(ctx, f.Path)
+	if errs.IsNotFound(err) {
+		return false, nil
+	}
+	if err != nil {
+		return false, fmt.Errorf("path lookup: %w", err)
+	}
+	if existing.Size == f.Size {
+		s.cleanUnmatchedAtPath(ctx, f.Path)
+		return true, nil // unchanged file
+	}
+	// Same path, different size: file replaced in-place. Drop the stale record.
+	if delErr := s.mediaFiles.Delete(ctx, existing.ID); delErr != nil {
+		return false, fmt.Errorf("delete replaced media file: %w", delErr)
+	}
+	return false, nil
+}
+
+func (s *Service) collectFingerprints(ctx context.Context, f domain.ScannedFile) *domain.Fingerprint {
 	fp := &domain.Fingerprint{}
 	for _, fpr := range s.fingerprinters {
 		if !slices.Contains(fpr.ContentTypes(), f.ContentType) {
@@ -141,46 +251,89 @@ func (s *Service) processFile(ctx context.Context, f domain.ScannedFile) error {
 			mergeFingerprint(fp, result)
 		}
 	}
-	f.Fingerprint = fp
+	return fp
+}
 
-	// 2. Identify: fan out to all identifiers that handle this content type.
-	var allCandidates []domain.MatchCandidate
-	for _, id := range s.identifiers {
-		if !slices.Contains(id.ContentTypes(), f.ContentType) {
+func (s *Service) collectCandidates(ctx context.Context, f domain.ScannedFile) []domain.MatchCandidate {
+	var all []domain.MatchCandidate
+	for _, ider := range s.identifiers {
+		if !slices.Contains(ider.ContentTypes(), f.ContentType) {
 			continue
 		}
-		candidates, err := id.Identify(ctx, f)
+		got, err := ider.Identify(ctx, f)
 		if err != nil {
 			slog.WarnContext(ctx, "identifier failed", "path", f.Path, "err", err)
 			continue
 		}
-		allCandidates = append(allCandidates, candidates...)
+		all = append(all, got...)
 	}
-	allCandidates = deduplicateCandidates(allCandidates)
+	return deduplicateCandidates(all)
+}
 
-	// 3. Dispatch file discovered.
+// resolveHashState handles the case where content with the same OSHash is already
+// tracked: skips (same path) or updates the path record (file moved/renamed).
+func (s *Service) resolveHashState(ctx context.Context, f domain.ScannedFile) (bool, error) {
+	if f.Fingerprint == nil || f.Fingerprint.OSHash == "" {
+		return false, nil
+	}
+	byHash, err := s.mediaFiles.GetByOSHash(ctx, f.Fingerprint.OSHash)
+	if errs.IsNotFound(err) {
+		return false, nil
+	}
+	if err != nil {
+		return false, fmt.Errorf("oshash lookup: %w", err)
+	}
+	if byHash.Path == f.Path {
+		return true, nil // same content, same path — already processed
+	}
+	// Different path — treat as a moved/renamed file: update the record in-place.
+	byHash.Path = f.Path
+	if saveErr := s.mediaFiles.Save(ctx, byHash); saveErr != nil {
+		return false, fmt.Errorf("update path for moved file: %w", saveErr)
+	}
+	return true, nil
+}
+
+// handleExistingItemFile checks whether the best candidate's item already owns a
+// media file. If it does, the new file is either an upgrade or a duplicate and is
+// handled accordingly. Returns (true, nil) when the file has been fully handled.
+func (s *Service) handleExistingItemFile(ctx context.Context, f domain.ScannedFile, candidates []domain.MatchCandidate) (bool, error) {
+	if len(candidates) == 0 || candidates[0].Item == nil {
+		return false, nil
+	}
+	existingMF, err := s.mediaFiles.GetByItemID(ctx, candidates[0].Item.ID)
+	if errs.IsNotFound(err) {
+		return false, nil
+	}
+	if err != nil {
+		return false, fmt.Errorf("item media file lookup: %w", err)
+	}
+	incoming := qualityFromResolution(embeddedTag(f.Fingerprint, "resolution"))
+	upgradeMode := s.upgradeMode[f.ContentType]
+	if upgradeMode == "" {
+		upgradeMode = "queue"
+	}
+	if incoming != "" && qualityRank(incoming) > qualityRank(existingMF.Quality) {
+		if upgradeMode == "auto" {
+			return true, s.applyUpgrade(ctx, f, candidates[0], existingMF.ID)
+		}
+		_ = s.notifier.Dispatch(ctx, domain.NotificationEvent{
+			Type:    domain.NotifyUpgradeQueued,
+			Payload: map[string]any{"path": f.Path, "item_id": candidates[0].Item.ID},
+		})
+	}
+	return true, s.enqueueUnmatched(ctx, f, candidates, existingMF.ID)
+}
+
+func (s *Service) applyUpgrade(ctx context.Context, f domain.ScannedFile, candidate domain.MatchCandidate, oldID string) error {
+	if delErr := s.mediaFiles.Delete(ctx, oldID); delErr != nil {
+		return fmt.Errorf("delete old media file for upgrade: %w", delErr)
+	}
 	_ = s.notifier.Dispatch(ctx, domain.NotificationEvent{
-		Type:    domain.NotifyFileDiscovered,
-		Payload: f.Path,
+		Type:    domain.NotifyUpgradeApplied,
+		Payload: map[string]any{"path": f.Path, "item_id": candidate.Item.ID},
 	})
-
-	// 4. Duplicate check: skip if OSHash is already linked to a live item.
-	if fp.OSHash != "" {
-		existing, err := s.mediaFiles.GetByOSHash(ctx, fp.OSHash)
-		if err == nil && existing.ItemID != "" {
-			slog.DebugContext(ctx, "file already imported", "path", f.Path, "oshash", fp.OSHash)
-			return nil
-		}
-		if err != nil && !errs.IsNotFound(err) {
-			return fmt.Errorf("oshash lookup: %w", err)
-		}
-	}
-
-	// 5. Decision: auto-import if best candidate meets the threshold.
-	if len(allCandidates) > 0 && allCandidates[0].Confidence >= s.threshold {
-		return s.autoImport(ctx, f, allCandidates[0])
-	}
-	return s.enqueueUnmatched(ctx, f, allCandidates)
+	return s.autoImport(ctx, f, candidate)
 }
 
 func (s *Service) autoImport(ctx context.Context, f domain.ScannedFile, candidate domain.MatchCandidate) error {
@@ -197,6 +350,7 @@ func (s *Service) autoImport(ctx context.Context, f domain.ScannedFile, candidat
 		mf.Codec = f.Fingerprint.EmbeddedTags["codec"]
 		mf.Container = f.Fingerprint.EmbeddedTags["container"]
 		mf.Resolution = f.Fingerprint.EmbeddedTags["resolution"]
+		mf.Quality = qualityFromResolution(mf.Resolution)
 	}
 	if err := s.mediaFiles.Save(ctx, mf); err != nil {
 		return fmt.Errorf("save media file: %w", err)
@@ -207,6 +361,8 @@ func (s *Service) autoImport(ctx context.Context, f domain.ScannedFile, candidat
 	if err := s.items.Save(ctx, candidate.Item); err != nil {
 		return fmt.Errorf("save item: %w", err)
 	}
+
+	s.cleanUnmatchedAtPath(ctx, f.Path)
 
 	_ = s.notifier.Dispatch(ctx, domain.NotificationEvent{
 		Type: domain.NotifyAutoMatched,
@@ -219,17 +375,48 @@ func (s *Service) autoImport(ctx context.Context, f domain.ScannedFile, candidat
 	return nil
 }
 
-func (s *Service) enqueueUnmatched(ctx context.Context, f domain.ScannedFile, candidates []domain.MatchCandidate) error {
-	uf := &domain.UnmatchedFile{
-		ID:           uuid.New().String(),
-		Path:         f.Path,
-		Size:         f.Size,
-		ContentType:  f.ContentType,
-		Fingerprint:  f.Fingerprint,
-		Candidates:   candidates,
-		DiscoveredAt: time.Now().UTC(),
-		Status:       domain.UnmatchedPending,
+func (s *Service) enqueueUnmatched(ctx context.Context, f domain.ScannedFile, candidates []domain.MatchCandidate, duplicateOf string) error {
+	existing, err := s.unmatched.List(ctx, ports.UnmatchedFilter{
+		Path:   f.Path,
+		Status: domain.UnmatchedPending,
+	})
+	if err != nil {
+		return fmt.Errorf("check unmatched file: %w", err)
 	}
+
+	var uf *domain.UnmatchedFile
+	if len(existing) > 0 {
+		uf = existing[0]
+		uf.Fingerprint = f.Fingerprint
+		uf.Candidates = candidates
+		uf.Size = f.Size
+		uf.DuplicateOf = duplicateOf
+	} else {
+		uf = &domain.UnmatchedFile{
+			ID:           uuid.New().String(),
+			Path:         f.Path,
+			Size:         f.Size,
+			ContentType:  f.ContentType,
+			Fingerprint:  f.Fingerprint,
+			Candidates:   candidates,
+			DiscoveredAt: time.Now().UTC(),
+			Status:       domain.UnmatchedPending,
+			DuplicateOf:  duplicateOf,
+		}
+	}
+
+	// Cache a thumbnail for queue display (once per entry; skip re-fetch on update).
+	if s.thumbnailCache != nil && uf.ThumbnailPath == "" {
+		for _, c := range candidates {
+			if c.ExternalItem != nil && c.ExternalItem.ImageURL != "" {
+				uf.ThumbnailPath = s.thumbnailCache.Store(ctx, c.ExternalItem.ImageURL, uf.ID)
+				if uf.ThumbnailPath != "" {
+					break
+				}
+			}
+		}
+	}
+
 	if err := s.unmatched.Save(ctx, uf); err != nil {
 		return fmt.Errorf("save unmatched file: %w", err)
 	}
@@ -239,25 +426,81 @@ func (s *Service) enqueueUnmatched(ctx context.Context, f domain.ScannedFile, ca
 		"content_type": string(f.ContentType),
 	}
 	if len(candidates) > 0 {
-		payload["top_candidate"] = candidates[0].Item.Title
+		c := candidates[0]
+		switch {
+		case c.Item != nil:
+			payload["top_candidate"] = c.Item.Title
+		case c.ExternalItem != nil:
+			payload["top_candidate"] = c.ExternalItem.Title
+		}
 	}
 	_ = s.notifier.Dispatch(ctx, domain.NotificationEvent{
 		Type:    domain.NotifyUnmatched,
 		Payload: payload,
 	})
+	if len(existing) == 0 {
+		_ = s.notifier.Dispatch(ctx, domain.NotificationEvent{
+			Type:    domain.NotifyNewUnmatched,
+			Payload: payload,
+		})
+	}
 	return nil
 }
 
 func (s *Service) handleRemoved(ctx context.Context, path string) {
-	existing, err := s.mediaFiles.GetByPath(ctx, path)
+	mf, err := s.mediaFiles.GetByPath(ctx, path)
 	if errs.IsNotFound(err) {
+		s.cleanUnmatchedAtPath(ctx, path)
 		return
 	}
 	if err != nil {
 		slog.WarnContext(ctx, "media file lookup failed on removal", "path", path, "err", err)
 		return
 	}
-	slog.InfoContext(ctx, "media file removed from disk", "path", path, "item_id", existing.ItemID)
+	if delErr := s.mediaFiles.Delete(ctx, mf.ID); delErr != nil {
+		slog.WarnContext(ctx, "failed to delete media file on removal", "path", path, "err", delErr)
+	}
+	if mf.ItemID != "" {
+		item, itemErr := s.items.Get(ctx, mf.ItemID)
+		if itemErr == nil {
+			item.Status = domain.StatusMissing
+			item.MediaFile = nil
+			if saveErr := s.items.Save(ctx, item); saveErr != nil {
+				slog.WarnContext(ctx, "failed to update item status for removed file", "path", path, "err", saveErr)
+			}
+		}
+		_ = s.notifier.Dispatch(ctx, domain.NotificationEvent{
+			Type:    domain.NotifyFileMissing,
+			Payload: map[string]any{"path": path, "item_id": mf.ItemID},
+		})
+	}
+	s.cleanUnmatchedAtPath(ctx, path)
+}
+
+func (s *Service) cleanUnmatchedAtPath(ctx context.Context, path string) {
+	pending, err := s.unmatched.List(ctx, ports.UnmatchedFilter{Path: path, Status: domain.UnmatchedPending})
+	if err != nil {
+		return
+	}
+	for _, uf := range pending {
+		_ = s.unmatched.Delete(ctx, uf.ID)
+	}
+}
+
+// pruneResolvedUnmatched deletes pending unmatched records whose path already
+// has a media file. This catches stale records created before the file was
+// matched via a code path that didn't clean up the queue (e.g. a scan that ran
+// after an external import, or a match done through a non-ManualMatch route).
+func (s *Service) pruneResolvedUnmatched(ctx context.Context) {
+	pending, err := s.unmatched.List(ctx, ports.UnmatchedFilter{Status: domain.UnmatchedPending})
+	if err != nil {
+		return
+	}
+	for _, uf := range pending {
+		if _, err := s.mediaFiles.GetByPath(ctx, uf.Path); err == nil {
+			_ = s.unmatched.Delete(ctx, uf.ID)
+		}
+	}
 }
 
 // ManualMatch resolves an unmatched file queue entry by linking it to a specific item.
@@ -344,24 +587,75 @@ func deduplicateCandidates(candidates []domain.MatchCandidate) []domain.MatchCan
 	seen := make(map[string]struct{}, len(candidates))
 	out := make([]domain.MatchCandidate, 0, len(candidates))
 	for _, c := range candidates {
-		if _, dup := seen[c.Item.ID]; dup {
+		var key string
+		switch {
+		case c.Item != nil:
+			key = "item:" + c.Item.ID
+		case c.ExternalItem != nil:
+			key = "ext:" + string(c.ExternalItem.Source) + ":" + c.ExternalItem.ExternalID
+		default:
+			out = append(out, c)
 			continue
 		}
-		seen[c.Item.ID] = struct{}{}
+		if _, dup := seen[key]; dup {
+			continue
+		}
+		seen[key] = struct{}{}
 		out = append(out, c)
 	}
 	return out
 }
 
 // confidenceFromSource maps a match strategy name to a MatchConfidence level.
-// Cryptographic/database-verified strategies produce MatchVerified; heuristic
-// strategies produce MatchNameMatched.
 func confidenceFromSource(source string) domain.MatchConfidence {
 	switch source {
 	case "oshash", "acoustid", "musicbrainz_tag":
 		return domain.MatchVerified
 	default:
 		return domain.MatchNameMatched
+	}
+}
+
+// embeddedTag safely reads a key from a possibly-nil Fingerprint.EmbeddedTags.
+func embeddedTag(fp *domain.Fingerprint, key string) string {
+	if fp == nil || fp.EmbeddedTags == nil {
+		return ""
+	}
+	return fp.EmbeddedTags[key]
+}
+
+// qualityFromResolution parses a "WxH" resolution string into a Quality tier.
+// Returns "" when the input is empty or cannot be parsed.
+func qualityFromResolution(resolution string) domain.Quality {
+	if resolution == "" {
+		return ""
+	}
+	parts := strings.SplitN(resolution, "x", 2)
+	if len(parts) != 2 {
+		return ""
+	}
+	h, err := strconv.Atoi(parts[1])
+	if err != nil {
+		return ""
+	}
+	return domain.QualityFromHeight(h)
+}
+
+// qualityRank returns a numeric ordering for Quality values (higher = better).
+func qualityRank(q domain.Quality) int {
+	switch q {
+	case domain.Quality4K:
+		return 4
+	case domain.Quality1080:
+		return 3
+	case domain.Quality720:
+		return 2
+	case domain.Quality480:
+		return 1
+	case domain.QualitySD:
+		return 0
+	default:
+		return -1
 	}
 }
 
@@ -383,18 +677,29 @@ func (s *Service) SubmitScanLibraryJob(ctx context.Context, entryID string) (*do
 		return nil, errs.Validation("library entry has no path configured")
 	}
 	roots := []string{entry.Path}
-	filter := ports.ScanFilter{EntryID: entryID}
+	filter := ports.ScanFilter{EntryID: entryID, ContentTypes: []domain.ContentType{entry.ContentType}}
 	return s.jobs.Submit(ctx, "ScanLibrary", map[string]any{"entry_id": entryID},
 		func(jobCtx context.Context, _ ports.ProgressReporter) error {
 			return s.ScanRoots(jobCtx, roots, filter)
 		})
 }
 
-// SubmitScanAllRootsJob enqueues a background scan across all provided roots.
-func (s *Service) SubmitScanAllRootsJob(ctx context.Context, roots []string) (*domain.Job, error) {
+// SubmitScanAllRootsJob enqueues a background scan across all provided modules.
+// Each module is scanned with its specific content type so the scanner can
+// apply the correct extension filter and the pipeline assigns the right type.
+func (s *Service) SubmitScanAllRootsJob(ctx context.Context, modules []Module) (*domain.Job, error) {
 	return s.jobs.Submit(ctx, "ScanAllRoots", nil,
 		func(jobCtx context.Context, _ ports.ProgressReporter) error {
-			return s.ScanRoots(jobCtx, roots, ports.ScanFilter{})
+			for _, m := range modules {
+				if len(m.Roots) == 0 {
+					continue
+				}
+				filter := ports.ScanFilter{ContentTypes: []domain.ContentType{m.ContentType}}
+				if err := s.ScanRoots(jobCtx, m.Roots, filter); err != nil {
+					slog.WarnContext(jobCtx, "module scan failed", "content_type", m.ContentType, "err", err)
+				}
+			}
+			return nil
 		})
 }
 
@@ -503,6 +808,10 @@ func (s *Service) ListUnmatchedGrouped(ctx context.Context, f ports.UnmatchedFil
 			continue
 		}
 		best := uf.Candidates[0]
+		if best.Item == nil {
+			addToGroup("", "", uf, best.Confidence)
+			continue
+		}
 		item, err := s.items.Get(ctx, best.Item.ID)
 		if err != nil {
 			addToGroup("", "", uf, best.Confidence)

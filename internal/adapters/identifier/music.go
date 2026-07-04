@@ -67,10 +67,15 @@ func (m *musicIdentifier) Identify(ctx context.Context, f domain.ScannedFile) ([
 	}
 
 	// Strategy 2: AcoustID lookup (skipped when no API key or fingerprint absent)
-	if candidates, err := m.acoustidStrategy(ctx, fp); err != nil {
+	acoustidCandidates, err := m.acoustidStrategy(ctx, fp)
+	if err != nil {
 		return nil, err
-	} else if aboveThreshold(candidates) {
-		return candidates, nil
+	}
+	// Only short-circuit if AcoustID resolved to a library item. When above
+	// threshold but item=nil (MBIDs not stored on tracks), fall through so the
+	// tag strategy can still auto-match by title.
+	if aboveThreshold(acoustidCandidates) && anyItemLinked(acoustidCandidates) {
+		return acoustidCandidates, nil
 	}
 
 	// Strategy 3: Full tag-set fuzzy match
@@ -85,25 +90,33 @@ func (m *musicIdentifier) Identify(ctx context.Context, f domain.ScannedFile) ([
 	}
 
 	// Strategy 4: Filename parse
+	// Prefer acoustid candidates (even without library item) over low-confidence
+	// filename guesses so the queue entry carries the MBID for manual review.
+	if len(acoustidCandidates) > 0 {
+		return acoustidCandidates, nil
+	}
 	return m.filenameStrategy(ctx, f.Path)
 }
 
 func (m *musicIdentifier) mbzTrackIDStrategy(ctx context.Context, mbzID string) ([]domain.MatchCandidate, error) {
-	entityID, err := m.extIDs.FindEntity(ctx, "item", "musicbrainz", mbzID)
+	entityID, err := m.extIDs.FindEntity(ctx, "item", string(domain.SourceMusicBrainz), mbzID)
 	if errs.IsNotFound(err) {
-		return nil, nil //nolint:nilnil
+		ext := m.fetchExternalByMBID(ctx, mbzID)
+		return []domain.MatchCandidate{{ExternalItem: ext, Confidence: 0.99, Source: "musicbrainz_track_id"}}, nil
 	}
 	if err != nil {
 		return nil, fmt.Errorf("mbz track id lookup: %w", err)
 	}
 	item, err := m.items.Get(ctx, entityID)
 	if errs.IsNotFound(err) {
-		return nil, nil //nolint:nilnil
+		ext := m.fetchExternalByMBID(ctx, mbzID)
+		return []domain.MatchCandidate{{ExternalItem: ext, Confidence: 0.99, Source: "musicbrainz_track_id"}}, nil
 	}
 	if err != nil {
 		return nil, fmt.Errorf("get item by mbz id: %w", err)
 	}
-	return []domain.MatchCandidate{{Item: item, Confidence: 0.99, Source: "musicbrainz_track_id"}}, nil
+	ext := m.fetchExternalByMBID(ctx, mbzID)
+	return []domain.MatchCandidate{{Item: item, ExternalItem: ext, Confidence: 0.99, Source: "musicbrainz_track_id"}}, nil
 }
 
 func (m *musicIdentifier) acoustidStrategy(ctx context.Context, fp *domain.Fingerprint) ([]domain.MatchCandidate, error) {
@@ -116,28 +129,33 @@ func (m *musicIdentifier) acoustidStrategy(ctx context.Context, fp *domain.Finge
 		slog.WarnContext(ctx, "acoustid lookup failed", "err", err)
 		return nil, nil //nolint:nilnil,nilerr // non-fatal; fall through to next strategy
 	}
+	var candidates []domain.MatchCandidate
 	for _, mbid := range mbids {
-		entityID, err := m.extIDs.FindEntity(ctx, "item", "musicbrainz", mbid)
-		if errs.IsNotFound(err) {
-			continue
+		c := domain.MatchCandidate{
+			ExternalItem: m.fetchExternalByMBID(ctx, mbid),
+			Confidence:   0.95,
+			Source:       "acoustid",
 		}
-		if err != nil {
+		entityID, err := m.extIDs.FindEntity(ctx, "item", string(domain.SourceMusicBrainz), mbid)
+		if err != nil && !errs.IsNotFound(err) {
 			return nil, fmt.Errorf("acoustid extid lookup: %w", err)
 		}
-		item, err := m.items.Get(ctx, entityID)
-		if errs.IsNotFound(err) {
-			continue
+		if entityID != "" {
+			item, err := m.items.Get(ctx, entityID)
+			if err != nil && !errs.IsNotFound(err) {
+				return nil, fmt.Errorf("get item by acoustid mbid: %w", err)
+			}
+			if err == nil {
+				c.Item = item
+			}
 		}
-		if err != nil {
-			return nil, fmt.Errorf("get item by acoustid mbid: %w", err)
-		}
-		return []domain.MatchCandidate{{Item: item, Confidence: 0.95, Source: "acoustid"}}, nil
+		candidates = append(candidates, c)
 	}
-	return nil, nil //nolint:nilnil
+	return candidates, nil
 }
 
 func (m *musicIdentifier) tagFuzzyStrategy(ctx context.Context, fp *domain.Fingerprint) ([]domain.MatchCandidate, error) {
-	title := fp.EmbeddedTags["title"]
+	title := normalizeQuotes(fp.EmbeddedTags["title"])
 	durMS, _ := strconv.Atoi(fp.EmbeddedTags["duration_ms"])
 	durSecs := durMS / 1000
 
@@ -163,6 +181,11 @@ func (m *musicIdentifier) tagFuzzyStrategy(ctx context.Context, fp *domain.Finge
 			Confidence: 0.75,
 			Source:     "tags",
 		})
+	}
+	// Unique title match with full tag context (artist + album + title) is more
+	// reliable than a title-only search that might span multiple albums.
+	if len(candidates) == 1 {
+		candidates[0].Confidence = 0.92
 	}
 	sortCandidates(candidates)
 	return candidates, nil
@@ -194,6 +217,30 @@ func (m *musicIdentifier) filenameStrategy(ctx context.Context, path string) ([]
 	}
 	sortCandidates(candidates)
 	return candidates, nil
+}
+
+// fetchExternalByMBID asks each registered source for the ExternalItem for a
+// MusicBrainz recording ID. Returns a stub with just the ID set when no source
+// can hydrate it, so the queue entry always carries the MBID for the UI.
+func (m *musicIdentifier) fetchExternalByMBID(ctx context.Context, mbid string) *domain.ExternalItem {
+	for _, src := range m.sources {
+		if !slices.Contains(src.ContentTypes(), domain.ContentTypeMusic) {
+			continue
+		}
+		es, ok := src.(ports.ExternalIDSource)
+		if !ok {
+			continue
+		}
+		ext, err := es.FindByExternalID(ctx, domain.ContentTypeMusic, mbid)
+		if err == nil && ext != nil {
+			return ext
+		}
+	}
+	return &domain.ExternalItem{
+		Source:      domain.SourceMusicBrainz,
+		ExternalID:  mbid,
+		ContentType: domain.ContentTypeMusic,
+	}
 }
 
 // hasFullMusicTagSet reports whether fp has all three tags needed for fuzzy matching.

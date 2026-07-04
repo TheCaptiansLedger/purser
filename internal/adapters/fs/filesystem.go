@@ -53,6 +53,9 @@ func (f *osFileSystem) OSHash(_ context.Context, path string) (string, error) {
 
 	const chunkSize = 64 * 1024
 	fileSize := info.Size()
+	if fileSize == 0 {
+		return "", nil
+	}
 	hash := uint64(fileSize) //nolint:gosec // intentional size-to-hash cast
 
 	buf := make([]byte, chunkSize)

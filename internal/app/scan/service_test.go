@@ -113,19 +113,26 @@ type mockMediaFileRepo struct {
 	mu             sync.Mutex
 	byHash         map[string]*domain.MediaFile
 	byPath         map[string]*domain.MediaFile
+	byItemID       map[string]*domain.MediaFile
+	deleted        map[string]bool
 	saved          []*domain.MediaFile
 	getByPathCalls int
 }
 
 func newMediaFileRepo(files ...*domain.MediaFile) *mockMediaFileRepo {
 	r := &mockMediaFileRepo{
-		byHash: make(map[string]*domain.MediaFile),
-		byPath: make(map[string]*domain.MediaFile),
+		byHash:   make(map[string]*domain.MediaFile),
+		byPath:   make(map[string]*domain.MediaFile),
+		byItemID: make(map[string]*domain.MediaFile),
+		deleted:  make(map[string]bool),
 	}
 	for _, f := range files {
 		cp := *f
 		r.byHash[f.OSHash] = &cp
 		r.byPath[f.Path] = &cp
+		if f.ItemID != "" {
+			r.byItemID[f.ItemID] = &cp
+		}
 	}
 	return r
 }
@@ -134,7 +141,8 @@ func (r *mockMediaFileRepo) GetByOSHash(_ context.Context, hash string) (*domain
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if f, ok := r.byHash[hash]; ok {
-		return f, nil
+		cp := *f
+		return &cp, nil
 	}
 	return nil, errs.ErrNotFound
 }
@@ -144,12 +152,19 @@ func (r *mockMediaFileRepo) GetByPath(_ context.Context, path string) (*domain.M
 	defer r.mu.Unlock()
 	r.getByPathCalls++
 	if f, ok := r.byPath[path]; ok {
-		return f, nil
+		cp := *f
+		return &cp, nil
 	}
 	return nil, errs.ErrNotFound
 }
 
-func (r *mockMediaFileRepo) GetByItemID(_ context.Context, _ string) (*domain.MediaFile, error) {
+func (r *mockMediaFileRepo) GetByItemID(_ context.Context, itemID string) (*domain.MediaFile, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if f, ok := r.byItemID[itemID]; ok {
+		cp := *f
+		return &cp, nil
+	}
 	return nil, errs.ErrNotFound
 }
 
@@ -157,13 +172,38 @@ func (r *mockMediaFileRepo) Save(_ context.Context, f *domain.MediaFile) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	cp := *f
-	r.byHash[f.OSHash] = &cp
+	if f.OSHash != "" {
+		r.byHash[f.OSHash] = &cp
+	}
 	r.byPath[f.Path] = &cp
+	if f.ItemID != "" {
+		r.byItemID[f.ItemID] = &cp
+	}
 	r.saved = append(r.saved, &cp)
 	return nil
 }
 
-func (r *mockMediaFileRepo) Delete(_ context.Context, _ string) error { return nil }
+func (r *mockMediaFileRepo) Delete(_ context.Context, id string) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.deleted[id] = true
+	for hash, f := range r.byHash {
+		if f.ID == id {
+			delete(r.byHash, hash)
+		}
+	}
+	for path, f := range r.byPath {
+		if f.ID == id {
+			delete(r.byPath, path)
+		}
+	}
+	for itemID, f := range r.byItemID {
+		if f.ID == id {
+			delete(r.byItemID, itemID)
+		}
+	}
+	return nil
+}
 
 type mockUnmatchedRepo struct {
 	mu    sync.Mutex
@@ -191,6 +231,9 @@ func (r *mockUnmatchedRepo) List(_ context.Context, f ports.UnmatchedFilter) ([]
 		if f.Status != "" && uf.Status != f.Status {
 			continue
 		}
+		if f.Path != "" && uf.Path != f.Path {
+			continue
+		}
 		cp := *uf
 		out = append(out, &cp)
 	}
@@ -216,7 +259,12 @@ func (r *mockUnmatchedRepo) Save(_ context.Context, f *domain.UnmatchedFile) err
 	return nil
 }
 
-func (r *mockUnmatchedRepo) Delete(_ context.Context, _ string) error { return nil }
+func (r *mockUnmatchedRepo) Delete(_ context.Context, id string) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	delete(r.files, id)
+	return nil
+}
 
 type mockNotifier struct {
 	mu     sync.Mutex
@@ -241,6 +289,18 @@ func (n *mockNotifier) has(t domain.NotificationEventType) bool {
 	return false
 }
 
+type mockThumbnailCache struct {
+	mu     sync.Mutex
+	stored []string
+}
+
+func (m *mockThumbnailCache) Store(_ context.Context, url, key string) string {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.stored = append(m.stored, url)
+	return "/test/thumbnails/" + key + ".jpg"
+}
+
 // ── helpers ────────────────────────────────────────────────────────────────────
 
 func newScannedFile(ct domain.ContentType) domain.ScannedFile {
@@ -257,7 +317,25 @@ func newItem() *domain.Item {
 	return &domain.Item{ID: uuid.New().String(), Status: domain.StatusWanted, Title: "Test Item"}
 }
 
-// ── tests ─────────────────────────────────────────────────────────────────────
+// newSvc is the standard test constructor; passes nil for optional last two params.
+func newSvc(
+	scanner ports.FileScanner,
+	watcher ports.FileWatcher,
+	fps []ports.FileFingerprinter,
+	ids []ports.FileIdentifier,
+	items *mockItemRepo,
+	mfRepo *mockMediaFileRepo,
+	unmatchedRepo *mockUnmatchedRepo,
+	notifier *mockNotifier,
+	threshold float64,
+	jobs ports.JobQueue,
+	entries ports.LibraryEntryRepository,
+	groups ports.GroupRepository,
+) *scan.Service {
+	return scan.New(scanner, watcher, fps, ids, items, mfRepo, unmatchedRepo, notifier, threshold, jobs, entries, groups, nil, nil)
+}
+
+// ── core pipeline tests ───────────────────────────────────────────────────────
 
 func TestService_AboveThreshold_AutoImports(t *testing.T) {
 	item := newItem()
@@ -276,8 +354,7 @@ func TestService_AboveThreshold_AutoImports(t *testing.T) {
 	}
 	scanner := &mockScanner{files: []domain.ScannedFile{newScannedFile(domain.ContentTypeMusic)}}
 
-	svc := scan.New(scanner, nil,
-		[]ports.FileFingerprinter{fp}, []ports.FileIdentifier{id},
+	svc := newSvc(scanner, nil, []ports.FileFingerprinter{fp}, []ports.FileIdentifier{id},
 		itemRepo, mfRepo, unmatchedRepo, notifier, 0.85, nil, nil, nil)
 
 	if err := svc.ScanRoots(context.Background(), []string{"/"}, ports.ScanFilter{}); err != nil {
@@ -315,8 +392,7 @@ func TestService_BelowThreshold_EnqueuesUnmatched(t *testing.T) {
 	}
 	scanner := &mockScanner{files: []domain.ScannedFile{newScannedFile(domain.ContentTypeMusic)}}
 
-	svc := scan.New(scanner, nil,
-		[]ports.FileFingerprinter{fp}, []ports.FileIdentifier{id},
+	svc := newSvc(scanner, nil, []ports.FileFingerprinter{fp}, []ports.FileIdentifier{id},
 		itemRepo, mfRepo, unmatchedRepo, notifier, 0.85, nil, nil, nil)
 
 	if err := svc.ScanRoots(context.Background(), []string{"/"}, ports.ScanFilter{}); err != nil {
@@ -334,7 +410,8 @@ func TestService_BelowThreshold_EnqueuesUnmatched(t *testing.T) {
 	}
 }
 
-func TestService_DuplicateOSHash_Skips(t *testing.T) {
+// Regression: scanning the same unchanged file twice must be a no-op.
+func TestService_IdempotentScan_SamePath_SameSize_Skips(t *testing.T) {
 	item := newItem()
 	item.Status = domain.StatusImported
 	itemRepo := newItemRepo(item)
@@ -343,6 +420,7 @@ func TestService_DuplicateOSHash_Skips(t *testing.T) {
 		ID:     uuid.New().String(),
 		ItemID: item.ID,
 		Path:   "/media/test-music",
+		Size:   1024, // same size as newScannedFile
 		OSHash: "existinghash",
 	}
 	mfRepo := newMediaFileRepo(existing)
@@ -359,8 +437,7 @@ func TestService_DuplicateOSHash_Skips(t *testing.T) {
 	}
 	scanner := &mockScanner{files: []domain.ScannedFile{newScannedFile(domain.ContentTypeMusic)}}
 
-	svc := scan.New(scanner, nil,
-		[]ports.FileFingerprinter{fp}, []ports.FileIdentifier{id},
+	svc := newSvc(scanner, nil, []ports.FileFingerprinter{fp}, []ports.FileIdentifier{id},
 		itemRepo, mfRepo, unmatchedRepo, notifier, 0.85, nil, nil, nil)
 
 	if err := svc.ScanRoots(context.Background(), []string{"/"}, ports.ScanFilter{}); err != nil {
@@ -368,13 +445,10 @@ func TestService_DuplicateOSHash_Skips(t *testing.T) {
 	}
 
 	if len(mfRepo.saved) != 0 {
-		t.Errorf("mediaFiles.Save called %d times, want 0 (duplicate)", len(mfRepo.saved))
+		t.Errorf("mediaFiles.Save called %d times, want 0 (idempotent)", len(mfRepo.saved))
 	}
 	if len(unmatchedRepo.saved) != 0 {
-		t.Errorf("unmatched.Save called %d times, want 0 (duplicate)", len(unmatchedRepo.saved))
-	}
-	if notifier.has(domain.NotifyAutoMatched) || notifier.has(domain.NotifyUnmatched) {
-		t.Error("AutoMatched or Unmatched dispatched for duplicate file")
+		t.Errorf("unmatched.Save called %d times, want 0 (idempotent)", len(unmatchedRepo.saved))
 	}
 }
 
@@ -395,7 +469,7 @@ func TestService_ManualMatch(t *testing.T) {
 	}
 	unmatchedRepo := newUnmatchedRepo(uf)
 
-	svc := scan.New(nil, nil, nil, nil, itemRepo, mfRepo, unmatchedRepo, notifier, 0.85, nil, nil, nil)
+	svc := newSvc(nil, nil, nil, nil, itemRepo, mfRepo, unmatchedRepo, notifier, 0.85, nil, nil, nil)
 
 	if err := svc.ManualMatch(context.Background(), ufID, item.ID); err != nil {
 		t.Fatal(err)
@@ -419,7 +493,11 @@ func TestService_ManualMatch(t *testing.T) {
 	}
 }
 
-func TestService_RemovedFile_NoStatusChange(t *testing.T) {
+// ── handleRemoved tests ───────────────────────────────────────────────────────
+
+// Regression: handleRemoved previously only logged; now it marks the item missing
+// and removes the media file record.
+func TestService_FileRemoved_MarksItemMissing(t *testing.T) {
 	item := newItem()
 	item.Status = domain.StatusImported
 	itemRepo := newItemRepo(item)
@@ -435,20 +513,392 @@ func TestService_RemovedFile_NoStatusChange(t *testing.T) {
 	notifier := &mockNotifier{}
 
 	watcher := &mockWatcher{events: []ports.WatchEvent{
-		{Path: "/media/gone.mkv", ContentType: domain.ContentTypeMovie, Op: ports.WatchRemoved},
+		{Path: "/media/gone.mkv", Op: ports.WatchRemoved},
 	}}
 
-	svc := scan.New(nil, watcher, nil, nil, itemRepo, mfRepo, unmatchedRepo, notifier, 0.85, nil, nil, nil)
+	svc := newSvc(nil, watcher, nil, nil, itemRepo, mfRepo, unmatchedRepo, notifier, 0.85, nil, nil, nil)
 
-	if err := svc.StartWatching(context.Background(), []string{"/media"}); err != nil {
+	if err := svc.StartWatching(context.Background(), []scan.Module{{ContentType: domain.ContentTypeMovie, Roots: []string{"/media"}}}); err != nil {
 		t.Fatal(err)
 	}
 
-	if mfRepo.getByPathCalls == 0 {
-		t.Error("GetByPath was not called for removed file")
+	if got := itemRepo.status(item.ID); got != domain.StatusMissing {
+		t.Errorf("item status = %q, want %q", got, domain.StatusMissing)
 	}
+	if !mfRepo.deleted[existing.ID] {
+		t.Error("media file record not deleted after file removal")
+	}
+	if !notifier.has(domain.NotifyFileMissing) {
+		t.Error("NotifyFileMissing not dispatched")
+	}
+}
+
+// cleanUnmatchedAtPath: pending unmatched entries at the removed path are cleaned up.
+func TestService_FileRemoved_CleansUnmatchedAtPath(t *testing.T) {
+	itemRepo := newItemRepo()
+	mfRepo := newMediaFileRepo() // no media file at this path
+	pending := &domain.UnmatchedFile{
+		ID:     uuid.New().String(),
+		Path:   "/media/pending.mp4",
+		Status: domain.UnmatchedPending,
+	}
+	unmatchedRepo := newUnmatchedRepo(pending)
+	notifier := &mockNotifier{}
+
+	watcher := &mockWatcher{events: []ports.WatchEvent{
+		{Path: "/media/pending.mp4", Op: ports.WatchRemoved},
+	}}
+
+	svc := newSvc(nil, watcher, nil, nil, itemRepo, mfRepo, unmatchedRepo, notifier, 0.85, nil, nil, nil)
+
+	if err := svc.StartWatching(context.Background(), []scan.Module{{ContentType: domain.ContentTypeMovie, Roots: []string{"/media"}}}); err != nil {
+		t.Fatal(err)
+	}
+
+	// Pending entry must have been removed.
+	_, err := unmatchedRepo.Get(context.Background(), pending.ID)
+	if !errs.IsNotFound(err) {
+		t.Errorf("pending unmatched entry not deleted after file removal, err=%v", err)
+	}
+}
+
+// ── moved-file / hash-state tests ────────────────────────────────────────────
+
+// Regression: same OSHash at a different path → update the path record (moved file).
+func TestService_MovedFile_UpdatesPath(t *testing.T) {
+	item := newItem()
+	item.Status = domain.StatusImported
+	itemRepo := newItemRepo(item)
+
+	const oldPath = "/media/old/scene.mp4"
+	const newPath = "/media/new/scene.mp4"
+
+	existing := &domain.MediaFile{
+		ID:     uuid.New().String(),
+		ItemID: item.ID,
+		Path:   oldPath,
+		Size:   2048,
+		OSHash: "movehash",
+	}
+	mfRepo := newMediaFileRepo(existing)
+	unmatchedRepo := newUnmatchedRepo()
+	notifier := &mockNotifier{}
+
+	fp := &mockFingerprinter{
+		contentTypes: []domain.ContentType{domain.ContentTypeAdult},
+		result:       &domain.Fingerprint{OSHash: "movehash"},
+	}
+	scanner := &mockScanner{files: []domain.ScannedFile{{
+		Path:        newPath,
+		Size:        2048,
+		ContentType: domain.ContentTypeAdult,
+	}}}
+
+	svc := newSvc(scanner, nil, []ports.FileFingerprinter{fp}, nil,
+		itemRepo, mfRepo, unmatchedRepo, notifier, 0.85, nil, nil, nil)
+
+	if err := svc.ScanRoots(context.Background(), []string{"/media/new"}, ports.ScanFilter{}); err != nil {
+		t.Fatal(err)
+	}
+
+	if len(unmatchedRepo.saved) != 0 {
+		t.Errorf("unmatched.Save called %d times, want 0 (moved file, not duplicate)", len(unmatchedRepo.saved))
+	}
+	if len(mfRepo.saved) != 1 {
+		t.Fatalf("mediaFiles.Save called %d times, want 1 (path update)", len(mfRepo.saved))
+	}
+	if mfRepo.saved[0].Path != newPath {
+		t.Errorf("updated path = %q, want %q", mfRepo.saved[0].Path, newPath)
+	}
+	if mfRepo.saved[0].ID != existing.ID {
+		t.Error("Save created a new record instead of updating the existing one")
+	}
+}
+
+// ── quality-upgrade tests ─────────────────────────────────────────────────────
+
+// Regression: quality upgrade with auto mode replaces old file.
+func TestService_QualityUpgrade_AutoMode_AppliesUpgrade(t *testing.T) {
+	item := newItem()
+	item.Status = domain.StatusImported
+	itemRepo := newItemRepo(item)
+
+	existing1080 := &domain.MediaFile{
+		ID:      "mf-1080",
+		ItemID:  item.ID,
+		Path:    "/media/scene-1080p.mp4",
+		Size:    2048,
+		OSHash:  "hash1080",
+		Quality: domain.Quality1080,
+	}
+	mfRepo := newMediaFileRepo(existing1080)
+	unmatchedRepo := newUnmatchedRepo()
+	notifier := &mockNotifier{}
+
+	fp := &mockFingerprinter{
+		contentTypes: []domain.ContentType{domain.ContentTypeAdult},
+		result: &domain.Fingerprint{
+			OSHash:       "hash4k",
+			EmbeddedTags: map[string]string{"resolution": "3840x2160"},
+		},
+	}
+	id := &mockIdentifier{
+		contentTypes: []domain.ContentType{domain.ContentTypeAdult},
+		candidates:   []domain.MatchCandidate{{Item: item, Confidence: 0.95, Source: "oshash"}},
+	}
+	scanner := &mockScanner{files: []domain.ScannedFile{{
+		Path:        "/media/scene-4k.mp4",
+		Size:        8192,
+		ContentType: domain.ContentTypeAdult,
+	}}}
+
+	upgradeMode := map[domain.ContentType]string{domain.ContentTypeAdult: "auto"}
+	svc := scan.New(scanner, nil, []ports.FileFingerprinter{fp}, []ports.FileIdentifier{id},
+		itemRepo, mfRepo, unmatchedRepo, notifier, 0.85,
+		nil, nil, nil, nil, upgradeMode)
+
+	if err := svc.ScanRoots(context.Background(), []string{"/media"}, ports.ScanFilter{}); err != nil {
+		t.Fatal(err)
+	}
+
+	if !mfRepo.deleted["mf-1080"] {
+		t.Error("old 1080p media file not deleted on auto upgrade")
+	}
+	if len(mfRepo.saved) != 1 {
+		t.Fatalf("mediaFiles.Save called %d times, want 1 (new 4K import)", len(mfRepo.saved))
+	}
+	if mfRepo.saved[0].Quality != domain.Quality4K {
+		t.Errorf("saved quality = %q, want %q", mfRepo.saved[0].Quality, domain.Quality4K)
+	}
+	if len(unmatchedRepo.saved) != 0 {
+		t.Errorf("unmatched.Save called %d times, want 0 (auto upgrade)", len(unmatchedRepo.saved))
+	}
+	if !notifier.has(domain.NotifyUpgradeApplied) {
+		t.Error("NotifyUpgradeApplied not dispatched")
+	}
+}
+
+// Regression: quality upgrade with queue mode (default) enqueues with DuplicateOf set.
+func TestService_QualityUpgrade_QueueMode_EnqueuesWithDuplicateOf(t *testing.T) {
+	item := newItem()
+	item.Status = domain.StatusImported
+	itemRepo := newItemRepo(item)
+
+	existing720 := &domain.MediaFile{
+		ID:      "mf-720",
+		ItemID:  item.ID,
+		Path:    "/media/scene-720p.mp4",
+		Size:    1024,
+		OSHash:  "hash720",
+		Quality: domain.Quality720,
+	}
+	mfRepo := newMediaFileRepo(existing720)
+	unmatchedRepo := newUnmatchedRepo()
+	notifier := &mockNotifier{}
+
+	fp := &mockFingerprinter{
+		contentTypes: []domain.ContentType{domain.ContentTypeAdult},
+		result: &domain.Fingerprint{
+			OSHash:       "hash1080",
+			EmbeddedTags: map[string]string{"resolution": "1920x1080"},
+		},
+	}
+	id := &mockIdentifier{
+		contentTypes: []domain.ContentType{domain.ContentTypeAdult},
+		candidates:   []domain.MatchCandidate{{Item: item, Confidence: 0.95, Source: "oshash"}},
+	}
+	scanner := &mockScanner{files: []domain.ScannedFile{{
+		Path:        "/media/scene-1080p.mp4",
+		Size:        4096,
+		ContentType: domain.ContentTypeAdult,
+	}}}
+
+	// default upgradeMode = "queue"
+	svc := newSvc(scanner, nil, []ports.FileFingerprinter{fp}, []ports.FileIdentifier{id},
+		itemRepo, mfRepo, unmatchedRepo, notifier, 0.85, nil, nil, nil)
+
+	if err := svc.ScanRoots(context.Background(), []string{"/media"}, ports.ScanFilter{}); err != nil {
+		t.Fatal(err)
+	}
+
+	if mfRepo.deleted["mf-720"] {
+		t.Error("old 720p media file deleted in queue mode — should be kept")
+	}
+	if len(unmatchedRepo.saved) != 1 {
+		t.Fatalf("unmatched.Save called %d times, want 1 (queued upgrade)", len(unmatchedRepo.saved))
+	}
+	if unmatchedRepo.saved[0].DuplicateOf != "mf-720" {
+		t.Errorf("DuplicateOf = %q, want %q", unmatchedRepo.saved[0].DuplicateOf, "mf-720")
+	}
+	if !notifier.has(domain.NotifyUpgradeQueued) {
+		t.Error("NotifyUpgradeQueued not dispatched")
+	}
+}
+
+// Same-quality file for an already-imported item is enqueued as a duplicate.
+func TestService_SameQualityDuplicate_EnqueuedWithDuplicateOf(t *testing.T) {
+	item := newItem()
+	item.Status = domain.StatusImported
+	itemRepo := newItemRepo(item)
+
+	existing := &domain.MediaFile{
+		ID:      "mf-existing",
+		ItemID:  item.ID,
+		Path:    "/media/scene-a.mp4",
+		Size:    1024,
+		OSHash:  "hashA",
+		Quality: domain.Quality1080,
+	}
+	mfRepo := newMediaFileRepo(existing)
+	unmatchedRepo := newUnmatchedRepo()
+	notifier := &mockNotifier{}
+
+	fp := &mockFingerprinter{
+		contentTypes: []domain.ContentType{domain.ContentTypeAdult},
+		result: &domain.Fingerprint{
+			OSHash:       "hashB",
+			EmbeddedTags: map[string]string{"resolution": "1920x1080"}, // same quality
+		},
+	}
+	id := &mockIdentifier{
+		contentTypes: []domain.ContentType{domain.ContentTypeAdult},
+		candidates:   []domain.MatchCandidate{{Item: item, Confidence: 0.95, Source: "oshash"}},
+	}
+	scanner := &mockScanner{files: []domain.ScannedFile{{
+		Path:        "/media/scene-b.mp4",
+		Size:        2048,
+		ContentType: domain.ContentTypeAdult,
+	}}}
+
+	svc := newSvc(scanner, nil, []ports.FileFingerprinter{fp}, []ports.FileIdentifier{id},
+		itemRepo, mfRepo, unmatchedRepo, notifier, 0.85, nil, nil, nil)
+
+	if err := svc.ScanRoots(context.Background(), []string{"/media"}, ports.ScanFilter{}); err != nil {
+		t.Fatal(err)
+	}
+
+	if len(unmatchedRepo.saved) != 1 {
+		t.Fatalf("unmatched.Save called %d times, want 1 (duplicate)", len(unmatchedRepo.saved))
+	}
+	if unmatchedRepo.saved[0].DuplicateOf != "mf-existing" {
+		t.Errorf("DuplicateOf = %q, want %q", unmatchedRepo.saved[0].DuplicateOf, "mf-existing")
+	}
+	if len(mfRepo.saved) != 0 {
+		t.Errorf("mediaFiles.Save called %d times, want 0 (not imported)", len(mfRepo.saved))
+	}
+}
+
+// Regression: item in any library status (not just wanted) gets auto-associated.
+func TestService_AssociatesItemRegardlessOfStatus(t *testing.T) {
+	item := newItem()
+	item.Status = domain.StatusSkipped // not wanted, not missing — but in library
+	itemRepo := newItemRepo(item)
+	mfRepo := newMediaFileRepo()
+	unmatchedRepo := newUnmatchedRepo()
+	notifier := &mockNotifier{}
+
+	fp := &mockFingerprinter{
+		contentTypes: []domain.ContentType{domain.ContentTypeMusic},
+		result:       &domain.Fingerprint{OSHash: "newhash"},
+	}
+	id := &mockIdentifier{
+		contentTypes: []domain.ContentType{domain.ContentTypeMusic},
+		candidates:   []domain.MatchCandidate{{Item: item, Confidence: 0.95, Source: "oshash"}},
+	}
+	scanner := &mockScanner{files: []domain.ScannedFile{newScannedFile(domain.ContentTypeMusic)}}
+
+	svc := newSvc(scanner, nil, []ports.FileFingerprinter{fp}, []ports.FileIdentifier{id},
+		itemRepo, mfRepo, unmatchedRepo, notifier, 0.85, nil, nil, nil)
+
+	if err := svc.ScanRoots(context.Background(), []string{"/"}, ports.ScanFilter{}); err != nil {
+		t.Fatal(err)
+	}
+
 	if got := itemRepo.status(item.ID); got != domain.StatusImported {
-		t.Errorf("item status changed to %q after removal, want it unchanged at %q", got, domain.StatusImported)
+		t.Errorf("item status = %q, want %q", got, domain.StatusImported)
+	}
+	if len(mfRepo.saved) != 1 {
+		t.Errorf("mediaFiles.Save called %d times, want 1", len(mfRepo.saved))
+	}
+}
+
+// Regression: ExternalItem-only candidate (nil Item) must not panic and must enqueue.
+func TestService_NilItemCandidate_NoPanic_Enqueues(t *testing.T) {
+	mfRepo := newMediaFileRepo()
+	unmatchedRepo := newUnmatchedRepo()
+	notifier := &mockNotifier{}
+
+	fp := &mockFingerprinter{
+		contentTypes: []domain.ContentType{domain.ContentTypeAdult},
+		result:       &domain.Fingerprint{OSHash: "ext-hash"},
+	}
+	ider := &mockIdentifier{
+		contentTypes: []domain.ContentType{domain.ContentTypeAdult},
+		candidates: []domain.MatchCandidate{
+			{
+				Item:         nil,
+				ExternalItem: &domain.ExternalItem{ExternalID: "ext-1", Source: "stashdb"},
+				Confidence:   0.95,
+				Source:       "oshash",
+			},
+		},
+	}
+	scanner := &mockScanner{files: []domain.ScannedFile{newScannedFile(domain.ContentTypeAdult)}}
+
+	svc := newSvc(scanner, nil, []ports.FileFingerprinter{fp}, []ports.FileIdentifier{ider},
+		newItemRepo(), mfRepo, unmatchedRepo, notifier, 0.85, nil, nil, nil)
+
+	if err := svc.ScanRoots(context.Background(), []string{"/"}, ports.ScanFilter{}); err != nil {
+		t.Fatal(err)
+	}
+	if len(unmatchedRepo.saved) != 1 {
+		t.Fatalf("unmatched.Save called %d times, want 1", len(unmatchedRepo.saved))
+	}
+}
+
+// ThumbnailCache.Store is called during enqueue when ExternalItem has an image URL.
+func TestService_Enqueue_CachesThumbnail(t *testing.T) {
+	mfRepo := newMediaFileRepo()
+	unmatchedRepo := newUnmatchedRepo()
+	notifier := &mockNotifier{}
+	tc := &mockThumbnailCache{}
+
+	fp := &mockFingerprinter{
+		contentTypes: []domain.ContentType{domain.ContentTypeAdult},
+		result:       &domain.Fingerprint{},
+	}
+	ider := &mockIdentifier{
+		contentTypes: []domain.ContentType{domain.ContentTypeAdult},
+		candidates: []domain.MatchCandidate{
+			{
+				Item:         nil,
+				ExternalItem: &domain.ExternalItem{ExternalID: "s1", ImageURL: "https://cdn.example.com/img.jpg"},
+				Confidence:   0.50,
+				Source:       "title",
+			},
+		},
+	}
+	scanner := &mockScanner{files: []domain.ScannedFile{newScannedFile(domain.ContentTypeAdult)}}
+
+	svc := scan.New(scanner, nil, []ports.FileFingerprinter{fp}, []ports.FileIdentifier{ider},
+		newItemRepo(), mfRepo, unmatchedRepo, notifier, 0.85,
+		nil, nil, nil, tc, nil)
+
+	if err := svc.ScanRoots(context.Background(), []string{"/"}, ports.ScanFilter{}); err != nil {
+		t.Fatal(err)
+	}
+
+	tc.mu.Lock()
+	stored := len(tc.stored)
+	tc.mu.Unlock()
+	if stored != 1 {
+		t.Errorf("ThumbnailCache.Store called %d times, want 1", stored)
+	}
+	if len(unmatchedRepo.saved) != 1 {
+		t.Fatalf("unmatched.Save called %d times, want 1", len(unmatchedRepo.saved))
+	}
+	if unmatchedRepo.saved[0].ThumbnailPath == "" {
+		t.Error("ThumbnailPath not set on unmatched entry")
 	}
 }
 
@@ -525,7 +975,7 @@ func (r *mockEntryRepo) SavePerson(_ context.Context, _ string, _ domain.EntryPe
 }
 func (r *mockEntryRepo) RemovePerson(_ context.Context, _, _, _ string) error { return nil }
 
-// ── new tests ─────────────────────────────────────────────────────────────────
+// ── dismiss / rescrape / list tests ──────────────────────────────────────────
 
 func TestService_Dismiss(t *testing.T) {
 	uf := &domain.UnmatchedFile{
@@ -535,7 +985,7 @@ func TestService_Dismiss(t *testing.T) {
 	}
 	unmatchedRepo := newUnmatchedRepo(uf)
 
-	svc := scan.New(nil, nil, nil, nil, newItemRepo(), newMediaFileRepo(), unmatchedRepo, &mockNotifier{}, 0.85, nil, nil, nil)
+	svc := newSvc(nil, nil, nil, nil, newItemRepo(), newMediaFileRepo(), unmatchedRepo, &mockNotifier{}, 0.85, nil, nil, nil)
 
 	if err := svc.Dismiss(context.Background(), uf.ID); err != nil {
 		t.Fatal(err)
@@ -551,7 +1001,7 @@ func TestService_Dismiss(t *testing.T) {
 }
 
 func TestService_Dismiss_NotFound(t *testing.T) {
-	svc := scan.New(nil, nil, nil, nil, newItemRepo(), newMediaFileRepo(), newUnmatchedRepo(), &mockNotifier{}, 0.85, nil, nil, nil)
+	svc := newSvc(nil, nil, nil, nil, newItemRepo(), newMediaFileRepo(), newUnmatchedRepo(), &mockNotifier{}, 0.85, nil, nil, nil)
 	err := svc.Dismiss(context.Background(), "no-such-id")
 	if !errs.IsNotFound(err) {
 		t.Errorf("expected not-found error, got %v", err)
@@ -577,7 +1027,7 @@ func TestService_Rescrape_ReturnsIdentifierCandidates(t *testing.T) {
 		candidates:   []domain.MatchCandidate{{Item: item, Confidence: 0.80, Source: "tags"}},
 	}
 
-	svc := scan.New(nil, nil, nil, []ports.FileIdentifier{ider}, itemRepo, newMediaFileRepo(), unmatchedRepo, &mockNotifier{}, 0.85, nil, nil, nil)
+	svc := newSvc(nil, nil, nil, []ports.FileIdentifier{ider}, itemRepo, newMediaFileRepo(), unmatchedRepo, &mockNotifier{}, 0.85, nil, nil, nil)
 
 	candidates, err := svc.Rescrape(context.Background(), uf.ID, "")
 	if err != nil {
@@ -608,7 +1058,7 @@ func TestService_Rescrape_QueryOverridesPath(t *testing.T) {
 		Status:      domain.UnmatchedPending,
 	}
 
-	svc := scan.New(nil, nil, nil, []ports.FileIdentifier{ider}, newItemRepo(), newMediaFileRepo(), newUnmatchedRepo(uf), &mockNotifier{}, 0.85, nil, nil, nil)
+	svc := newSvc(nil, nil, nil, []ports.FileIdentifier{ider}, newItemRepo(), newMediaFileRepo(), newUnmatchedRepo(uf), &mockNotifier{}, 0.85, nil, nil, nil)
 
 	_, _ = svc.Rescrape(context.Background(), uf.ID, "Bella Donna Stevie Nicks")
 	capturedPath = ider.lastPath
@@ -633,7 +1083,7 @@ func TestService_ListUnmatched_FiltersByStatus(t *testing.T) {
 	matched := &domain.UnmatchedFile{ID: uuid.New().String(), Status: domain.UnmatchedMatched, ContentType: domain.ContentTypeMusic}
 	repo := newUnmatchedRepo(pending, matched)
 
-	svc := scan.New(nil, nil, nil, nil, newItemRepo(), newMediaFileRepo(), repo, &mockNotifier{}, 0.85, nil, nil, nil)
+	svc := newSvc(nil, nil, nil, nil, newItemRepo(), newMediaFileRepo(), repo, &mockNotifier{}, 0.85, nil, nil, nil)
 
 	got, err := svc.ListUnmatched(context.Background(), ports.UnmatchedFilter{Status: domain.UnmatchedPending})
 	if err != nil {
@@ -644,13 +1094,15 @@ func TestService_ListUnmatched_FiltersByStatus(t *testing.T) {
 	}
 }
 
+// ── job submission tests ──────────────────────────────────────────────────────
+
 func TestService_SubmitScanLibraryJob_EnqueuesJob(t *testing.T) {
 	entryID := uuid.New().String()
 	entry := &domain.LibraryEntry{ID: entryID, Path: "/mnt/music", Name: "Test Entry"}
 	entryRepo := newEntryRepo(entry)
 	jobs := &mockJobQueue{}
 
-	svc := scan.New(nil, nil, nil, nil, newItemRepo(), newMediaFileRepo(), newUnmatchedRepo(), &mockNotifier{}, 0.85, jobs, entryRepo, nil)
+	svc := newSvc(nil, nil, nil, nil, newItemRepo(), newMediaFileRepo(), newUnmatchedRepo(), &mockNotifier{}, 0.85, jobs, entryRepo, nil)
 
 	job, err := svc.SubmitScanLibraryJob(context.Background(), entryID)
 	if err != nil {
@@ -670,7 +1122,7 @@ func TestService_SubmitScanLibraryJob_NoPath_ReturnsValidationError(t *testing.T
 	entryRepo := newEntryRepo(entry)
 	jobs := &mockJobQueue{}
 
-	svc := scan.New(nil, nil, nil, nil, newItemRepo(), newMediaFileRepo(), newUnmatchedRepo(), &mockNotifier{}, 0.85, jobs, entryRepo, nil)
+	svc := newSvc(nil, nil, nil, nil, newItemRepo(), newMediaFileRepo(), newUnmatchedRepo(), &mockNotifier{}, 0.85, jobs, entryRepo, nil)
 
 	_, err := svc.SubmitScanLibraryJob(context.Background(), entryID)
 	if !errs.IsValidation(err) {
@@ -680,9 +1132,13 @@ func TestService_SubmitScanLibraryJob_NoPath_ReturnsValidationError(t *testing.T
 
 func TestService_SubmitScanAllRootsJob_EnqueuesJob(t *testing.T) {
 	jobs := &mockJobQueue{}
-	svc := scan.New(nil, nil, nil, nil, newItemRepo(), newMediaFileRepo(), newUnmatchedRepo(), &mockNotifier{}, 0.85, jobs, nil, nil)
+	svc := newSvc(nil, nil, nil, nil, newItemRepo(), newMediaFileRepo(), newUnmatchedRepo(), &mockNotifier{}, 0.85, jobs, nil, nil)
 
-	job, err := svc.SubmitScanAllRootsJob(context.Background(), []string{"/mnt/movies", "/mnt/tv"})
+	modules := []scan.Module{
+		{ContentType: domain.ContentTypeMovie, Roots: []string{"/mnt/movies"}},
+		{ContentType: domain.ContentTypeTV, Roots: []string{"/mnt/tv"}},
+	}
+	job, err := svc.SubmitScanAllRootsJob(context.Background(), modules)
 	if err != nil {
 		t.Fatal(err)
 	}

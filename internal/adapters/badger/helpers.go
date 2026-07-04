@@ -2,13 +2,28 @@ package badger
 
 import (
 	"encoding/json"
+	"errors"
+	"purser/internal/app/errs"
 	"purser/internal/domain"
 	"sort"
+	"strings"
 	"time"
 
 	badgerdb "github.com/dgraph-io/badger/v4"
 	"github.com/google/uuid"
 )
+
+// normalizeSearchText lowercases s and converts typographic apostrophes/quotes
+// to their ASCII equivalents so that MusicBrainz-sourced titles (U+2019) match
+// against file-tag search terms (U+0027).
+func normalizeSearchText(s string) string {
+	s = strings.ToLower(s)
+	s = strings.ReplaceAll(s, "’", "'")  // RIGHT SINGLE QUOTATION MARK → apostrophe
+	s = strings.ReplaceAll(s, "‘", "'")  // LEFT SINGLE QUOTATION MARK → apostrophe
+	s = strings.ReplaceAll(s, "“", "\"") // LEFT DOUBLE QUOTATION MARK → quote
+	s = strings.ReplaceAll(s, "”", "\"") // RIGHT DOUBLE QUOTATION MARK → quote
+	return s
+}
 
 // ── ID / time helpers ─────────────────────────────────────────────────────────
 
@@ -284,23 +299,24 @@ type fingerprintRecord struct {
 	ISBN         string            `json:"isbn,omitempty"`
 }
 
-// matchCandidateRecord stores only the item ID, not the full item.
-// Callers resolve the item via ItemRepository at read time.
 type matchCandidateRecord struct {
-	ItemID     string  `json:"item_id"`
-	Confidence float64 `json:"confidence"`
-	Source     string  `json:"source"`
+	ItemID       string               `json:"item_id,omitempty"`
+	ExternalItem *domain.ExternalItem `json:"external_item,omitempty"`
+	Confidence   float64              `json:"confidence"`
+	Source       string               `json:"source"`
 }
 
 type unmatchedFileRecord struct {
-	ID           string                 `json:"id"`
-	Path         string                 `json:"path"`
-	Size         int64                  `json:"size"`
-	ContentType  string                 `json:"content_type"`
-	Fingerprint  *fingerprintRecord     `json:"fingerprint,omitempty"`
-	Candidates   []matchCandidateRecord `json:"candidates,omitempty"`
-	Status       string                 `json:"status"`
-	DiscoveredAt string                 `json:"discovered_at"`
+	ID            string                 `json:"id"`
+	Path          string                 `json:"path"`
+	Size          int64                  `json:"size"`
+	ContentType   string                 `json:"content_type"`
+	Fingerprint   *fingerprintRecord     `json:"fingerprint,omitempty"`
+	Candidates    []matchCandidateRecord `json:"candidates,omitempty"`
+	Status        string                 `json:"status"`
+	DiscoveredAt  string                 `json:"discovered_at"`
+	DuplicateOf   string                 `json:"duplicate_of,omitempty"`
+	ThumbnailPath string                 `json:"thumbnail_path,omitempty"`
 }
 
 type entryPersonJunction struct {
@@ -311,9 +327,14 @@ type entryPersonJunction struct {
 // ── BadgerDB transaction helpers ──────────────────────────────────────────────
 
 // getJSON reads a key from a transaction and JSON-unmarshals it into dst.
+// Returns errs.ErrNotFound when the key does not exist so callers can use
+// errs.IsNotFound without knowing the underlying storage engine's error type.
 func getJSON[T any](txn *badgerdb.Txn, key []byte) (*T, error) {
 	item, err := txn.Get(key)
 	if err != nil {
+		if errors.Is(err, badgerdb.ErrKeyNotFound) {
+			return nil, errs.ErrNotFound
+		}
 		return nil, err
 	}
 	var rec T

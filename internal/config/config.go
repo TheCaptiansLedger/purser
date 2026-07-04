@@ -98,6 +98,11 @@ type ModuleConfig struct {
 	// watcher waits after the last Write event before emitting a WatchEvent.
 	// Env var: PURSER_MODULES_<TYPE>_WATCH_DEBOUNCE
 	WatchDebounce string `mapstructure:"watch_debounce"`
+	// UpgradeMode controls what happens when a higher-quality file is found for
+	// an already-imported item. "auto" replaces the existing file automatically;
+	// "queue" (default) adds the file to the unmatched queue for user review.
+	// Env var: PURSER_MODULES_<TYPE>_UPGRADE_MODE
+	UpgradeMode string `mapstructure:"upgrade_mode"`
 }
 
 // MetadataSourcesConfig holds connection settings for all external metadata sources.
@@ -227,21 +232,27 @@ func LoadFull(path string) (*Config, *viper.Viper, map[string]struct{}, error) {
 	v.SetDefault("modules.movies.enabled", true)
 	v.SetDefault("modules.movies.watch_enabled", false)
 	v.SetDefault("modules.movies.watch_debounce", "2s")
+	v.SetDefault("modules.movies.upgrade_mode", "queue")
 	v.SetDefault("modules.tv.enabled", true)
 	v.SetDefault("modules.tv.watch_enabled", false)
 	v.SetDefault("modules.tv.watch_debounce", "2s")
+	v.SetDefault("modules.tv.upgrade_mode", "queue")
 	v.SetDefault("modules.music.enabled", true)
 	v.SetDefault("modules.music.watch_enabled", false)
 	v.SetDefault("modules.music.watch_debounce", "2s")
+	v.SetDefault("modules.music.upgrade_mode", "queue")
 	v.SetDefault("modules.books.enabled", true)
 	v.SetDefault("modules.books.watch_enabled", false)
 	v.SetDefault("modules.books.watch_debounce", "2s")
+	v.SetDefault("modules.books.upgrade_mode", "queue")
 	v.SetDefault("modules.afterdark.enabled", true)
 	v.SetDefault("modules.afterdark.watch_enabled", false)
 	v.SetDefault("modules.afterdark.watch_debounce", "2s")
+	v.SetDefault("modules.afterdark.upgrade_mode", "queue")
 	v.SetDefault("modules.jav.enabled", true)
 	v.SetDefault("modules.jav.watch_enabled", false)
 	v.SetDefault("modules.jav.watch_debounce", "2s")
+	v.SetDefault("modules.jav.upgrade_mode", "queue")
 	v.SetDefault("sources.stashdb.enabled", false)
 	v.SetDefault("sources.stashdb.url", "")
 	v.SetDefault("sources.stashdb.api_key", "")

@@ -34,6 +34,7 @@ const (
 type WatchEvent struct {
 	Path        string
 	ContentType domain.ContentType
+	Size        int64
 	Op          WatchOp
 }
 
@@ -66,6 +67,7 @@ type FileIdentifier interface {
 type UnmatchedFilter struct {
 	ContentType domain.ContentType
 	Status      domain.UnmatchedStatus
+	Path        string
 }
 
 // UnmatchedFileRepository persists files awaiting manual resolution.
@@ -81,4 +83,11 @@ type UnmatchedFileRepository interface {
 // The scan service always calls Dispatch — it never checks which adapters are registered.
 type NotificationDispatcher interface {
 	Dispatch(ctx context.Context, event domain.NotificationEvent) error
+}
+
+// ThumbnailCache downloads and stores remote images for offline display in the
+// unmatched queue. Store returns the local absolute path of the cached image,
+// or "" on any error (errors are logged by the implementation).
+type ThumbnailCache interface {
+	Store(ctx context.Context, url, key string) string
 }

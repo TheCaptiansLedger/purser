@@ -38,6 +38,9 @@ func (r *unmatchedFileRepo) List(_ context.Context, f ports.UnmatchedFilter) ([]
 			if f.Status != "" && rec.Status != string(f.Status) {
 				return true
 			}
+			if f.Path != "" && rec.Path != f.Path {
+				return true
+			}
 			results = append(results, unmatchedFileFromRecord(&rec))
 			return true
 		})
@@ -106,12 +109,14 @@ func unmatchedFileFromRecord(rec *unmatchedFileRecord) *domain.UnmatchedFile {
 		status = domain.UnmatchedPending
 	}
 	uf := &domain.UnmatchedFile{
-		ID:           rec.ID,
-		Path:         rec.Path,
-		Size:         rec.Size,
-		ContentType:  domain.ContentType(rec.ContentType),
-		Status:       status,
-		DiscoveredAt: strToTime(rec.DiscoveredAt),
+		ID:            rec.ID,
+		Path:          rec.Path,
+		Size:          rec.Size,
+		ContentType:   domain.ContentType(rec.ContentType),
+		Status:        status,
+		DiscoveredAt:  strToTime(rec.DiscoveredAt),
+		DuplicateOf:   rec.DuplicateOf,
+		ThumbnailPath: rec.ThumbnailPath,
 	}
 	if rec.Fingerprint != nil {
 		uf.Fingerprint = &domain.Fingerprint{
@@ -123,23 +128,29 @@ func unmatchedFileFromRecord(rec *unmatchedFileRecord) *domain.UnmatchedFile {
 		}
 	}
 	for _, c := range rec.Candidates {
-		uf.Candidates = append(uf.Candidates, domain.MatchCandidate{
-			Item:       &domain.Item{ID: c.ItemID},
-			Confidence: c.Confidence,
-			Source:     c.Source,
-		})
+		mc := domain.MatchCandidate{
+			ExternalItem: c.ExternalItem,
+			Confidence:   c.Confidence,
+			Source:       c.Source,
+		}
+		if c.ItemID != "" {
+			mc.Item = &domain.Item{ID: c.ItemID}
+		}
+		uf.Candidates = append(uf.Candidates, mc)
 	}
 	return uf
 }
 
 func unmatchedFileToRecord(f *domain.UnmatchedFile) unmatchedFileRecord {
 	rec := unmatchedFileRecord{
-		ID:           f.ID,
-		Path:         f.Path,
-		Size:         f.Size,
-		ContentType:  string(f.ContentType),
-		Status:       string(f.Status),
-		DiscoveredAt: timeToStr(f.DiscoveredAt),
+		ID:            f.ID,
+		Path:          f.Path,
+		Size:          f.Size,
+		ContentType:   string(f.ContentType),
+		Status:        string(f.Status),
+		DiscoveredAt:  timeToStr(f.DiscoveredAt),
+		DuplicateOf:   f.DuplicateOf,
+		ThumbnailPath: f.ThumbnailPath,
 	}
 	if f.Fingerprint != nil {
 		rec.Fingerprint = &fingerprintRecord{
@@ -151,15 +162,15 @@ func unmatchedFileToRecord(f *domain.UnmatchedFile) unmatchedFileRecord {
 		}
 	}
 	for _, c := range f.Candidates {
-		itemID := ""
-		if c.Item != nil {
-			itemID = c.Item.ID
+		cr := matchCandidateRecord{
+			ExternalItem: c.ExternalItem,
+			Confidence:   c.Confidence,
+			Source:       c.Source,
 		}
-		rec.Candidates = append(rec.Candidates, matchCandidateRecord{
-			ItemID:     itemID,
-			Confidence: c.Confidence,
-			Source:     c.Source,
-		})
+		if c.Item != nil {
+			cr.ItemID = c.Item.ID
+		}
+		rec.Candidates = append(rec.Candidates, cr)
 	}
 	return rec
 }

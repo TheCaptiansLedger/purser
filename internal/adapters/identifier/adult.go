@@ -96,6 +96,7 @@ func (a *adultIdentifier) oShashStrategy(ctx context.Context, _ domain.ContentTy
 }
 
 func (a *adultIdentifier) providerHashStrategy(ctx context.Context, ct domain.ContentType, hash string) ([]domain.MatchCandidate, error) {
+	var candidates []domain.MatchCandidate
 	for _, src := range a.sources {
 		if !slices.Contains(src.ContentTypes(), ct) {
 			continue
@@ -105,23 +106,21 @@ func (a *adultIdentifier) providerHashStrategy(ctx context.Context, ct domain.Co
 			continue
 		}
 		ext, err := hs.FindByHash(ctx, hash)
-		if err != nil || ext == nil {
+		if err != nil || ext == nil || ext.Title == "" {
 			continue
 		}
-		if ext.Title == "" {
-			continue
-		}
+		c := domain.MatchCandidate{ExternalItem: ext, Confidence: 0.97, Source: "provider_hash"}
 		items, _, err := a.items.List(ctx, ports.ItemFilter{
 			ContentTypes: []domain.ContentType{ct},
 			Search:       ext.Title,
 			Limit:        1,
 		})
-		if err != nil || len(items) == 0 {
-			continue
+		if err == nil && len(items) > 0 {
+			c.Item = items[0]
 		}
-		return []domain.MatchCandidate{{Item: items[0], Confidence: 0.97, Source: "provider_hash"}}, nil
+		candidates = append(candidates, c)
 	}
-	return nil, nil //nolint:nilnil
+	return candidates, nil
 }
 
 func (a *adultIdentifier) filenameStrategy(ctx context.Context, ct domain.ContentType, path string) ([]domain.MatchCandidate, error) {

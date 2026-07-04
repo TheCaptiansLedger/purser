@@ -70,7 +70,7 @@ func (r *libraryEntryRepo) Get(ctx context.Context, id string) (*domain.LibraryE
 		`SELECT`+entrySelectCols+`FROM library_entries WHERE id = ?`, id)
 	e, err := scanEntry(row)
 	if err != nil {
-		return nil, fmt.Errorf("get library entry %s: %w", id, err)
+		return nil, fmt.Errorf("get library entry %s: %w", id, mapNotFound(err))
 	}
 
 	ids, err := loadExternalIDs(ctx, r.db, "library_entry", id)

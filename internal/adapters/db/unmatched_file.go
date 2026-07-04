@@ -21,21 +21,24 @@ func NewUnmatchedFileRepo(db *sql.DB) ports.UnmatchedFileRepository {
 var _ ports.UnmatchedFileRepository = (*unmatchedFileRepo)(nil)
 
 const unmatchedFileSelectCols = `
-	id, path, size, content_type, fingerprint, candidates, status, discovered_at
+	id, path, size, content_type, fingerprint, candidates, status, discovered_at, duplicate_of, thumbnail_path
 `
 
 func scanUnmatchedFile(row interface{ Scan(...any) error }) (*domain.UnmatchedFile, error) {
 	var (
-		f            domain.UnmatchedFile
-		contentType  string
-		fingerprint  string
-		candidates   string
-		status       string
-		discoveredAt string
+		f             domain.UnmatchedFile
+		contentType   string
+		fingerprint   string
+		candidates    string
+		status        string
+		discoveredAt  string
+		duplicateOf   string
+		thumbnailPath string
 	)
 	if err := row.Scan(
 		&f.ID, &f.Path, &f.Size, &contentType,
 		&fingerprint, &candidates, &status, &discoveredAt,
+		&duplicateOf, &thumbnailPath,
 	); err != nil {
 		return nil, err
 	}
@@ -47,6 +50,8 @@ func scanUnmatchedFile(row interface{ Scan(...any) error }) (*domain.UnmatchedFi
 	f.DiscoveredAt = strToTime(discoveredAt)
 	f.Fingerprint = unmarshalFingerprint(fingerprint)
 	f.Candidates = unmarshalCandidates(candidates)
+	f.DuplicateOf = duplicateOf
+	f.ThumbnailPath = thumbnailPath
 	return &f, nil
 }
 
@@ -57,6 +62,9 @@ func (r *unmatchedFileRepo) List(ctx context.Context, f ports.UnmatchedFilter) (
 	}
 	if f.Status != "" {
 		w.add("status = ?", string(f.Status))
+	}
+	if f.Path != "" {
+		w.add("path = ?", f.Path)
 	}
 	where, args := w.build()
 	rows, err := r.db.QueryContext(ctx,
@@ -84,7 +92,7 @@ func (r *unmatchedFileRepo) Get(ctx context.Context, id string) (*domain.Unmatch
 		`SELECT`+unmatchedFileSelectCols+`FROM unmatched_files WHERE id = ?`, id)
 	uf, err := scanUnmatchedFile(row)
 	if err != nil {
-		return nil, fmt.Errorf("get unmatched file %s: %w", id, err)
+		return nil, fmt.Errorf("get unmatched file %s: %w", id, mapNotFound(err))
 	}
 	return uf, nil
 }
@@ -112,10 +120,11 @@ func (r *unmatchedFileRepo) Save(ctx context.Context, f *domain.UnmatchedFile) e
 
 	if !exists {
 		_, err := r.db.ExecContext(ctx, `
-			INSERT INTO unmatched_files(id, path, size, content_type, fingerprint, candidates, status, discovered_at)
-			VALUES(?,?,?,?,?,?,?,?)`,
+			INSERT INTO unmatched_files(id, path, size, content_type, fingerprint, candidates, status, discovered_at, duplicate_of, thumbnail_path)
+			VALUES(?,?,?,?,?,?,?,?,?,?)`,
 			f.ID, f.Path, f.Size, string(f.ContentType),
 			fp, cs, string(f.Status), timeToStr(f.DiscoveredAt),
+			f.DuplicateOf, f.ThumbnailPath,
 		)
 		if err != nil {
 			return fmt.Errorf("insert unmatched file: %w", err)
@@ -125,9 +134,10 @@ func (r *unmatchedFileRepo) Save(ctx context.Context, f *domain.UnmatchedFile) e
 
 	_, err := r.db.ExecContext(ctx, `
 		UPDATE unmatched_files
-		SET path=?, size=?, content_type=?, fingerprint=?, candidates=?, status=?
+		SET path=?, size=?, content_type=?, fingerprint=?, candidates=?, status=?, duplicate_of=?, thumbnail_path=?
 		WHERE id=?`,
-		f.Path, f.Size, string(f.ContentType), fp, cs, string(f.Status), f.ID,
+		f.Path, f.Size, string(f.ContentType), fp, cs, string(f.Status),
+		f.DuplicateOf, f.ThumbnailPath, f.ID,
 	)
 	if err != nil {
 		return fmt.Errorf("update unmatched file: %w", err)
@@ -154,9 +164,10 @@ type dbFingerprintRecord struct {
 }
 
 type dbCandidateRecord struct {
-	ItemID     string  `json:"item_id"`
-	Confidence float64 `json:"confidence"`
-	Source     string  `json:"source"`
+	ItemID       string               `json:"item_id,omitempty"`
+	ExternalItem *domain.ExternalItem `json:"external_item,omitempty"`
+	Confidence   float64              `json:"confidence"`
+	Source       string               `json:"source"`
 }
 
 func marshalFingerprint(fp *domain.Fingerprint) string {
@@ -197,15 +208,15 @@ func marshalCandidates(cs []domain.MatchCandidate) string {
 	}
 	recs := make([]dbCandidateRecord, 0, len(cs))
 	for _, c := range cs {
-		itemID := ""
-		if c.Item != nil {
-			itemID = c.Item.ID
+		rec := dbCandidateRecord{
+			ExternalItem: c.ExternalItem,
+			Confidence:   c.Confidence,
+			Source:       c.Source,
 		}
-		recs = append(recs, dbCandidateRecord{
-			ItemID:     itemID,
-			Confidence: c.Confidence,
-			Source:     c.Source,
-		})
+		if c.Item != nil {
+			rec.ItemID = c.Item.ID
+		}
+		recs = append(recs, rec)
 	}
 	b, _ := json.Marshal(recs)
 	return string(b)
@@ -221,11 +232,15 @@ func unmarshalCandidates(s string) []domain.MatchCandidate {
 	}
 	cs := make([]domain.MatchCandidate, 0, len(recs))
 	for _, r := range recs {
-		cs = append(cs, domain.MatchCandidate{
-			Item:       &domain.Item{ID: r.ItemID},
-			Confidence: r.Confidence,
-			Source:     r.Source,
-		})
+		c := domain.MatchCandidate{
+			ExternalItem: r.ExternalItem,
+			Confidence:   r.Confidence,
+			Source:       r.Source,
+		}
+		if r.ItemID != "" {
+			c.Item = &domain.Item{ID: r.ItemID}
+		}
+		cs = append(cs, c)
 	}
 	return cs
 }

@@ -33,12 +33,16 @@ type ScannedFile struct {
 	DiscoveredAt time.Time
 }
 
-// MatchCandidate is a library item that a FileIdentifier believes may correspond
-// to a ScannedFile, with a confidence score.
+// MatchCandidate is a potential match for a scanned file. Item is the local
+// library record when one exists; ExternalItem carries provider metadata when
+// the source identified the file but no local item has been created yet.
+// Both may be set (local item found via external lookup); Item may be nil
+// when the provider recognised the file but the title is not in the library.
 type MatchCandidate struct {
-	Item       *Item
-	Confidence float64 // 0.0–1.0
-	Source     string  // strategy that produced this: "oshash", "acoustid", "tags", "filename", etc.
+	Item         *Item
+	ExternalItem *ExternalItem
+	Confidence   float64 // 0.0–1.0
+	Source       string  // strategy: "oshash", "acoustid", "isbn_provider", "filename", etc.
 }
 
 // UnmatchedFile is written to the queue when no candidate meets the auto-import threshold.
@@ -51,6 +55,11 @@ type UnmatchedFile struct {
 	Candidates   []MatchCandidate // ranked by Confidence desc; may be empty
 	DiscoveredAt time.Time
 	Status       UnmatchedStatus
+	// DuplicateOf holds the MediaFile.ID of an already-imported file with the same
+	// content hash or the same target item, indicating this entry is a duplicate or
+	// upgrade candidate rather than a wholly new file.
+	DuplicateOf   string
+	ThumbnailPath string // local path to a cached thumbnail for queue display
 }
 
 // UnmatchedStatus tracks the resolution state of an unmatched file queue entry.

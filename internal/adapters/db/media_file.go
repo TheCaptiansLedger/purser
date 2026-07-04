@@ -3,9 +3,7 @@ package db
 import (
 	"context"
 	"database/sql"
-	"errors"
 	"fmt"
-	"purser/internal/app/errs"
 	"purser/internal/domain"
 	"purser/internal/ports"
 )
@@ -52,7 +50,7 @@ func (r *mediaFileRepo) GetByItemID(ctx context.Context, itemID string) (*domain
 		`SELECT`+mediaFileSelectCols+`FROM media_files WHERE item_id = ?`, itemID)
 	mf, err := scanMediaFile(row)
 	if err != nil {
-		return nil, fmt.Errorf("get media file for item %s: %w", itemID, err)
+		return nil, fmt.Errorf("get media file for item %s: %w", itemID, mapNotFound(err))
 	}
 	return mf, nil
 }
@@ -62,10 +60,7 @@ func (r *mediaFileRepo) GetByPath(ctx context.Context, path string) (*domain.Med
 		`SELECT`+mediaFileSelectCols+`FROM media_files WHERE path = ?`, path)
 	mf, err := scanMediaFile(row)
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return nil, errs.ErrNotFound
-		}
-		return nil, fmt.Errorf("get media file by path %s: %w", path, err)
+		return nil, fmt.Errorf("get media file by path %s: %w", path, mapNotFound(err))
 	}
 	return mf, nil
 }
@@ -75,7 +70,7 @@ func (r *mediaFileRepo) GetByOSHash(ctx context.Context, hash string) (*domain.M
 		`SELECT`+mediaFileSelectCols+`FROM media_files WHERE oshash = ?`, hash)
 	mf, err := scanMediaFile(row)
 	if err != nil {
-		return nil, fmt.Errorf("get media file by oshash %s: %w", hash, err)
+		return nil, fmt.Errorf("get media file by oshash %s: %w", hash, mapNotFound(err))
 	}
 	return mf, nil
 }

@@ -24,9 +24,14 @@ RUN CGO_ENABLED=0 GOOS=linux go build -trimpath \
 # ──────────────────────────────────────────────────────────────────────────────
 # Stage 2: Runtime image
 # ──────────────────────────────────────────────────────────────────────────────
-# distroless/static includes ca-certificates and tzdata; no shell, no package
-# manager, no writable filesystem outside mounted volumes.
-FROM gcr.io/distroless/static-debian12
+FROM debian:12-slim
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+      ca-certificates \
+      tzdata \
+      ffmpeg \
+      libchromaprint-tools \
+    && rm -rf /var/lib/apt/lists/*
 
 COPY --from=go-builder /out/purser /usr/local/bin/purser
 

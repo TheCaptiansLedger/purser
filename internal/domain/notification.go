@@ -9,7 +9,11 @@ const (
 	NotifyFileDiscovered NotificationEventType = "file_discovered"
 	NotifyAutoMatched    NotificationEventType = "auto_matched"
 	NotifyUnmatched      NotificationEventType = "unmatched"
+	NotifyNewUnmatched   NotificationEventType = "new_unmatched"
 	NotifyScanComplete   NotificationEventType = "scan_complete"
+	NotifyFileMissing    NotificationEventType = "file_missing"
+	NotifyUpgradeQueued  NotificationEventType = "upgrade_queued"
+	NotifyUpgradeApplied NotificationEventType = "upgrade_applied"
 )
 
 // NotificationEvent is emitted by the scan service to ports.NotificationDispatcher.

@@ -7,6 +7,7 @@ import (
 	"purser/internal/app/errs"
 	"purser/internal/domain"
 	"purser/internal/ports"
+	"strings"
 	"time"
 )
 
@@ -14,6 +15,7 @@ type scanner struct {
 	fs         ports.FileSystem
 	mediaFiles ports.MediaFileRepository
 	extMap     map[string]domain.ContentType
+	typeExts   map[domain.ContentType]map[string]struct{}
 }
 
 // NewScanner returns a FileScanner that emits candidate files for the scan
@@ -24,6 +26,7 @@ func NewScanner(fs ports.FileSystem, mediaFiles ports.MediaFileRepository) ports
 		fs:         fs,
 		mediaFiles: mediaFiles,
 		extMap:     buildExtMap(),
+		typeExts:   buildTypeExtSets(),
 	}
 }
 
@@ -53,13 +56,32 @@ func (s *scanner) walkRoot(ctx context.Context, root string, filterTypes map[dom
 			return nil
 		}
 		ext := filepath.Ext(info.Path)
-		ct, ok := s.extMap[ext]
-		if !ok {
+		if _, ok := s.extMap[ext]; !ok {
 			return nil
 		}
-		if len(filterTypes) > 0 {
-			if _, ok := filterTypes[ct]; !ok {
+		// macOS resource forks (._filename) are not media files.
+		if strings.HasPrefix(filepath.Base(info.Path), "._") {
+			return nil
+		}
+
+		// When exactly one content type is requested, use it directly and verify
+		// the extension belongs to that type. This avoids ext-map collisions between
+		// types that share extensions (e.g. adult and jav both register video
+		// extensions; the last writer wins and would misclassify the other).
+		var ct domain.ContentType
+		if len(filterTypes) == 1 {
+			for t := range filterTypes {
+				ct = t
+			}
+			if _, ok := s.typeExts[ct][ext]; !ok {
 				return nil
+			}
+		} else {
+			ct = s.extMap[ext]
+			if len(filterTypes) > 0 {
+				if _, ok := filterTypes[ct]; !ok {
+					return nil
+				}
 			}
 		}
 
@@ -95,6 +117,21 @@ func buildExtMap() map[string]domain.ContentType {
 		for _, ext := range ct.MediaExtensions() {
 			m[ext] = ct
 		}
+	}
+	return m
+}
+
+// buildTypeExtSets returns a per-ContentType set of valid extensions.
+// Used when a single content type is requested to validate extensions without
+// relying on extMap, which has last-writer-wins semantics for shared extensions.
+func buildTypeExtSets() map[domain.ContentType]map[string]struct{} {
+	m := make(map[domain.ContentType]map[string]struct{})
+	for _, ct := range domain.ContentTypes() {
+		set := make(map[string]struct{}, len(ct.MediaExtensions()))
+		for _, ext := range ct.MediaExtensions() {
+			set[ext] = struct{}{}
+		}
+		m[ct] = set
 	}
 	return m
 }

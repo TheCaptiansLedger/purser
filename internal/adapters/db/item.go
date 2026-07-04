@@ -57,7 +57,7 @@ func (r *itemRepo) Get(ctx context.Context, id string) (*domain.Item, error) {
 		`SELECT`+itemSelectCols+`FROM items WHERE id = ?`, id)
 	item, err := scanItem(row)
 	if err != nil {
-		return nil, fmt.Errorf("get item %s: %w", id, err)
+		return nil, fmt.Errorf("get item %s: %w", id, mapNotFound(err))
 	}
 
 	people, err := loadItemPeople(ctx, r.db, id)
@@ -147,7 +147,11 @@ func buildItemWhere(f ports.ItemFilter) *whereClause {
 		w.add("id IN ("+sub+")", tagArgs...) //nolint:gosec // sub contains only hardcoded column predicates with ? parameters
 	}
 	if f.Search != "" {
-		w.add("title LIKE ?", "%"+f.Search+"%")
+		// Normalize both sides to ASCII apostrophe so that MusicBrainz-sourced
+		// titles (U+2019 RIGHT SINGLE QUOTATION MARK) match file-tag searches
+		// (U+0027 APOSTROPHE). SQLite LIKE is character-exact for non-ASCII.
+		term := "%" + f.Search + "%"
+		w.add("REPLACE(title, char(8217), char(39)) LIKE ?", term)
 	}
 	return w
 }
@@ -214,6 +218,9 @@ func (r *itemRepo) List(ctx context.Context, f ports.ItemFilter) ([]*domain.Item
 		func(item *domain.Item, ids []domain.ExternalID) { item.ExternalIDs = ids },
 	); err != nil {
 		return nil, 0, fmt.Errorf("load external ids for items: %w", err)
+	}
+	if err := attachMediaFilesBatch(ctx, r.db, items); err != nil {
+		return nil, 0, fmt.Errorf("load media files for items: %w", err)
 	}
 
 	return items, total, nil

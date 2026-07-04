@@ -49,7 +49,7 @@ func (r *groupRepo) Get(ctx context.Context, id string) (*domain.Group, error) {
 		`SELECT`+groupSelectCols+`FROM groups WHERE id = ?`, id)
 	g, err := scanGroup(row)
 	if err != nil {
-		return nil, fmt.Errorf("get group %s: %w", id, err)
+		return nil, fmt.Errorf("get group %s: %w", id, mapNotFound(err))
 	}
 
 	ids, err := loadExternalIDs(ctx, r.db, "group", id)

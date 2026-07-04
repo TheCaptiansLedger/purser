@@ -3,6 +3,7 @@ package identifier
 import (
 	"purser/internal/domain"
 	"sort"
+	"strings"
 )
 
 // normalizeFingerprint returns a non-nil Fingerprint with a non-nil EmbeddedTags map.
@@ -28,10 +29,31 @@ func sortCandidates(candidates []domain.MatchCandidate) {
 	})
 }
 
+// normalizeQuotes replaces Unicode typographic apostrophes and quotation marks
+// with their ASCII equivalents so that embedded tag text (which uses U+0027)
+// matches library titles sourced from MusicBrainz (which uses U+2019).
+func normalizeQuotes(s string) string {
+	s = strings.ReplaceAll(s, "’", "'")  // RIGHT SINGLE QUOTATION MARK
+	s = strings.ReplaceAll(s, "‘", "'")  // LEFT SINGLE QUOTATION MARK
+	s = strings.ReplaceAll(s, "“", "\"") // LEFT DOUBLE QUOTATION MARK
+	s = strings.ReplaceAll(s, "”", "\"") // RIGHT DOUBLE QUOTATION MARK
+	return s
+}
+
 // aboveThreshold reports whether any candidate meets or exceeds shortCircuitThreshold.
 func aboveThreshold(candidates []domain.MatchCandidate) bool {
 	for _, c := range candidates {
 		if c.Confidence >= shortCircuitThreshold {
+			return true
+		}
+	}
+	return false
+}
+
+// anyItemLinked reports whether any candidate has a resolved library Item.
+func anyItemLinked(candidates []domain.MatchCandidate) bool {
+	for _, c := range candidates {
+		if c.Item != nil {
 			return true
 		}
 	}

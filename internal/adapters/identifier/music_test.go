@@ -121,11 +121,46 @@ func TestMusicIdentifier_TagFuzzyMatch(t *testing.T) {
 	if len(candidates) == 0 {
 		t.Fatal("expected tag fuzzy candidates, got none")
 	}
-	if candidates[0].Confidence != 0.75 {
-		t.Errorf("tag fuzzy confidence = %.2f, want 0.75", candidates[0].Confidence)
+	// Unique title match with full tag context → boosted confidence.
+	if candidates[0].Confidence != 0.92 {
+		t.Errorf("tag fuzzy confidence = %.2f, want 0.92 (unique title match)", candidates[0].Confidence)
 	}
 	if candidates[0].Source != "tags" {
 		t.Errorf("source = %q, want tags", candidates[0].Source)
+	}
+}
+
+func TestMusicIdentifier_TagFuzzyMatch_MultipleResults_KeepsLowConfidence(t *testing.T) {
+	// Multiple items share the same title — ambiguous, keep conservative 0.75.
+	item1 := &domain.Item{ID: "item-a", Title: "Gold Dust Woman", ContentType: domain.ContentTypeMusic, RuntimeSeconds: 295}
+	item2 := &domain.Item{ID: "item-b", Title: "Gold Dust Woman", ContentType: domain.ContentTypeMusic, RuntimeSeconds: 295}
+	extIDs := &stubExternalIDRepo{entries: map[string]string{}}
+	itemRepo := &stubItemRepo{bySearch: []*domain.Item{item1, item2}}
+
+	id := identifier.NewMusicIdentifier(extIDs, itemRepo, nil, "")
+
+	candidates, err := id.Identify(context.Background(), domain.ScannedFile{
+		Path:        "/music/03 - Gold Dust Woman.flac",
+		ContentType: domain.ContentTypeMusic,
+		Fingerprint: &domain.Fingerprint{
+			EmbeddedTags: map[string]string{
+				"title":       "Gold Dust Woman",
+				"artist":      "Fleetwood Mac",
+				"album":       "Rumours",
+				"duration_ms": "295000",
+			},
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(candidates) != 2 {
+		t.Fatalf("expected 2 candidates, got %d", len(candidates))
+	}
+	for _, c := range candidates {
+		if c.Confidence != 0.75 {
+			t.Errorf("multi-match confidence = %.2f, want 0.75", c.Confidence)
+		}
 	}
 }
 

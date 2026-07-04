@@ -11,6 +11,7 @@ import { DateInput } from '../fields/DateInput'
 import { RuntimeInput } from '../fields/RuntimeInput'
 import { TagPicker } from '../fields/TagPicker'
 import { Toggle } from '../fields/Toggle'
+import { ExternalIDList } from '../fields/ExternalIDList'
 import { fmtBytes } from '../../ui/Runtime'
 import type { Item } from '../../../types'
 
@@ -111,6 +112,14 @@ export function ItemEditor({ item, onClose, hideTagKeys = [] }: ItemEditorProps)
           roles={roles}
           people={item.people}
         />
+
+        <FormField label="External IDs" fieldKey="externalIds" locked={false} onToggleLock={() => {}} fullWidth>
+          <ExternalIDList
+            value={currentItem.externalIds}
+            onChange={() => {}}
+            disabled
+          />
+        </FormField>
 
         {currentItem.mediaFile && (
           <div className="space-y-3">

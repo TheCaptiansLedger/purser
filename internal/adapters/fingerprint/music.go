@@ -50,11 +50,8 @@ func (m *musicFingerprinter) Fingerprint(ctx context.Context, f domain.ScannedFi
 	}
 
 	if m.fpcalcAvail {
-		acoustID, err := m.computeAcoustID(ctx, f.Path)
-		if err != nil {
+		if err := m.populateFromFpcalc(ctx, f.Path, fp); err != nil {
 			slog.WarnContext(ctx, "acoustid skipped", "path", f.Path, "err", err)
-		} else {
-			fp.AcoustID = acoustID
 		}
 	}
 
@@ -133,15 +130,34 @@ func normalizeMBZKey(key string) (string, bool) {
 	return mapped, ok
 }
 
-func (m *musicFingerprinter) computeAcoustID(ctx context.Context, path string) (string, error) {
-	out, err := exec.CommandContext(ctx, "fpcalc", "-raw", path).Output() //nolint:gosec // intentional external tool invocation
+// populateFromFpcalc runs fpcalc and writes both the AcoustID fingerprint and
+// the duration into fp. fpcalc outputs FILE=, DURATION=, and FINGERPRINT= lines;
+// the FINGERPRINT value is the base64url-encoded Chromaprint string that the
+// AcoustID /v2/lookup API requires.
+func (m *musicFingerprinter) populateFromFpcalc(ctx context.Context, path string, fp *domain.Fingerprint) error {
+	out, err := exec.CommandContext(ctx, "fpcalc", path).Output() //nolint:gosec // intentional external tool invocation
 	if err != nil {
-		return "", fmt.Errorf("fpcalc: %w", err)
+		return fmt.Errorf("fpcalc: %w", err)
 	}
-	for _, line := range strings.Split(string(out), "\n") {
+	return ApplyFpcalcOutput(string(out), fp)
+}
+
+// ApplyFpcalcOutput parses fpcalc stdout into fp. Package-level so tests
+// can verify parsing without invoking fpcalc.
+func ApplyFpcalcOutput(output string, fp *domain.Fingerprint) error {
+	for _, line := range strings.Split(output, "\n") {
 		if after, ok := strings.CutPrefix(line, "FINGERPRINT="); ok {
-			return strings.TrimSpace(after), nil
+			fp.AcoustID = strings.TrimSpace(after)
+		}
+		if after, ok := strings.CutPrefix(line, "DURATION="); ok {
+			secs, parseErr := strconv.ParseFloat(strings.TrimSpace(after), 64)
+			if parseErr == nil && secs > 0 {
+				fp.EmbeddedTags["duration_ms"] = strconv.Itoa(int(secs * 1000))
+			}
 		}
 	}
-	return "", fmt.Errorf("no fingerprint in fpcalc output")
+	if fp.AcoustID == "" {
+		return fmt.Errorf("no fingerprint in fpcalc output")
+	}
+	return nil
 }

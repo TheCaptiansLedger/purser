@@ -49,7 +49,7 @@ func (r *personRepo) Get(ctx context.Context, id string) (*domain.Person, error)
 		`SELECT`+personSelectCols+`FROM people WHERE id = ?`, id)
 	p, err := scanPerson(row)
 	if err != nil {
-		return nil, fmt.Errorf("get person %s: %w", id, err)
+		return nil, fmt.Errorf("get person %s: %w", id, mapNotFound(err))
 	}
 
 	aliases, err := loadAliases(ctx, r.db, id)

@@ -1304,3 +1304,102 @@ func TestBadger_TagBrowse_UntaggedEntitiesNeverLeakThrough(t *testing.T) {
 		t.Errorf("items = %d, want 0 (no items have the Yoga tag)", len(items))
 	}
 }
+
+// ── ItemRepo.MediaFile population ─────────────────────────────────────────────
+
+// Regression: itemFromRecord never loaded the kMFI index, so item.MediaFile was
+// always nil in Get and List responses even when a media file existed in Badger.
+func TestBadger_ItemRepo_GetPopulatesMediaFile(t *testing.T) {
+	db := setupTestDB(t)
+	ctx := context.Background()
+
+	itemRepo := badger.NewItemRepo(db)
+	mfRepo := badger.NewMediaFileRepo(db)
+
+	item := &domain.Item{
+		ID:          "item-mf-test-1",
+		ContentType: domain.ContentTypeAdult,
+		Title:       "Hot Sex With Paula Shy",
+		Status:      domain.StatusImported,
+	}
+	if err := itemRepo.Save(ctx, item); err != nil {
+		t.Fatalf("Save item: %v", err)
+	}
+
+	mf := &domain.MediaFile{
+		ID:     "mf-test-1",
+		ItemID: "item-mf-test-1",
+		Path:   "/media/content/afterdark/paula-shy.mp4",
+		Size:   1234567890,
+		OSHash: "deadbeef12345678",
+	}
+	if err := mfRepo.Save(ctx, mf); err != nil {
+		t.Fatalf("Save media file: %v", err)
+	}
+
+	got, err := itemRepo.Get(ctx, "item-mf-test-1")
+	if err != nil {
+		t.Fatalf("Get item: %v", err)
+	}
+	if got.MediaFile == nil {
+		t.Fatal("item.MediaFile is nil; itemFromRecord is not loading the kMFI index")
+	}
+	if got.MediaFile.Path != mf.Path {
+		t.Errorf("MediaFile.Path = %q, want %q", got.MediaFile.Path, mf.Path)
+	}
+	if got.MediaFile.Size != mf.Size {
+		t.Errorf("MediaFile.Size = %d, want %d", got.MediaFile.Size, mf.Size)
+	}
+}
+
+func TestBadger_ItemRepo_ListPopulatesMediaFile(t *testing.T) {
+	db := setupTestDB(t)
+	ctx := context.Background()
+
+	itemRepo := badger.NewItemRepo(db)
+	mfRepo := badger.NewMediaFileRepo(db)
+
+	item := &domain.Item{
+		ID:          "item-mf-list-1",
+		ContentType: domain.ContentTypeAdult,
+		Title:       "List Test Scene",
+		Status:      domain.StatusImported,
+		Monitored:   true,
+	}
+	if err := itemRepo.Save(ctx, item); err != nil {
+		t.Fatalf("Save item: %v", err)
+	}
+	mf := &domain.MediaFile{
+		ID:     "mf-list-1",
+		ItemID: "item-mf-list-1",
+		Path:   "/media/content/afterdark/list-test.mp4",
+		Size:   999,
+	}
+	if err := mfRepo.Save(ctx, mf); err != nil {
+		t.Fatalf("Save media file: %v", err)
+	}
+
+	items, _, err := itemRepo.List(ctx, ports.ItemFilter{
+		ContentTypes: []domain.ContentType{domain.ContentTypeAdult},
+		Limit:        10,
+	})
+	if err != nil {
+		t.Fatalf("List items: %v", err)
+	}
+	var found *domain.Item
+	for _, i := range items {
+		if i.ID == "item-mf-list-1" {
+			found = i
+			break
+		}
+	}
+	if found == nil {
+		t.Fatal("item not found in List results")
+	}
+	if found.MediaFile == nil {
+		t.Fatal("item.MediaFile is nil in List results; itemFromRecord is not loading the kMFI index")
+	}
+	if found.MediaFile.Path != mf.Path {
+		t.Errorf("MediaFile.Path = %q, want %q", found.MediaFile.Path, mf.Path)
+	}
+}

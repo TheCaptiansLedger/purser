@@ -5,6 +5,7 @@ import (
 	"purser/internal/app/metadata"
 	"purser/internal/app/scan"
 	"purser/internal/config"
+	"purser/internal/domain"
 
 	"github.com/go-chi/chi/v5"
 )
@@ -38,7 +39,7 @@ func (h *commandsHandler) submit(w http.ResponseWriter, r *http.Request) {
 		}
 		writeJSON(w, http.StatusAccepted, jobToResponse(job))
 	case "ScanAllRoots":
-		job, err := h.scanSvc.SubmitScanAllRootsJob(r.Context(), enabledRoots(h.cfg))
+		job, err := h.scanSvc.SubmitScanAllRootsJob(r.Context(), modulesFromConfig(h.cfg))
 		if handleErr(w, err) {
 			return
 		}
@@ -52,20 +53,26 @@ func (h *commandsHandler) submit(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func enabledRoots(cfg *config.Config) []string {
-	modules := []config.ModuleConfig{
-		cfg.Modules.Movies,
-		cfg.Modules.TV,
-		cfg.Modules.Music,
-		cfg.Modules.Books,
-		cfg.Modules.AfterDark,
-		cfg.Modules.JAV,
+// modulesFromConfig builds per-content-type ScanModules from the enabled modules in config.
+// Each module carries its explicit ContentType so the scanner uses the correct extension filter.
+func modulesFromConfig(cfg *config.Config) []scan.Module {
+	type entry struct {
+		mc config.ModuleConfig
+		ct domain.ContentType
 	}
-	var roots []string
-	for _, m := range modules {
-		if m.Enabled {
-			roots = append(roots, m.Roots...)
+	all := []entry{
+		{cfg.Modules.Movies, domain.ContentTypeMovie},
+		{cfg.Modules.TV, domain.ContentTypeTV},
+		{cfg.Modules.Music, domain.ContentTypeMusic},
+		{cfg.Modules.Books, domain.ContentTypeBook},
+		{cfg.Modules.AfterDark, domain.ContentTypeAdult},
+		{cfg.Modules.JAV, domain.ContentTypeJAV},
+	}
+	var modules []scan.Module
+	for _, e := range all {
+		if e.mc.Enabled && len(e.mc.Roots) > 0 {
+			modules = append(modules, scan.Module{ContentType: e.ct, Roots: e.mc.Roots})
 		}
 	}
-	return roots
+	return modules
 }

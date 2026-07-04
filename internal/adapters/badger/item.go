@@ -93,7 +93,30 @@ func itemFromRecord(txn *badgerdb.Txn, rec *itemRecord) *domain.Item {
 		item.People = append(item.People, ip)
 	}
 
+	// Media file (via item→media-file index)
+	if txn != nil {
+		if mf := loadMediaFileByItemID(txn, rec.ID); mf != nil {
+			item.MediaFile = mf
+		}
+	}
+
 	return item
+}
+
+func loadMediaFileByItemID(txn *badgerdb.Txn, itemID string) *domain.MediaFile {
+	mfIDItem, err := txn.Get(kMFI(itemID))
+	if err != nil {
+		return nil
+	}
+	var mfID string
+	if err := mfIDItem.Value(func(val []byte) error { mfID = string(val); return nil }); err != nil {
+		return nil
+	}
+	rec, err := getJSON[mediaFileRecord](txn, kMF(mfID))
+	if err != nil {
+		return nil
+	}
+	return mediaFileFromRecord(rec)
 }
 
 func (r *itemRepo) List(_ context.Context, f ports.ItemFilter) ([]*domain.Item, int, error) {
@@ -199,7 +222,7 @@ func matchesItemFilter(rec itemRecord, f ports.ItemFilter, personItemIDs map[str
 	if f.Monitored != nil && rec.Monitored != *f.Monitored {
 		return false
 	}
-	if f.Search != "" && !strings.Contains(strings.ToLower(rec.Title), strings.ToLower(f.Search)) {
+	if f.Search != "" && !strings.Contains(normalizeSearchText(rec.Title), normalizeSearchText(f.Search)) {
 		return false
 	}
 	if personItemIDs != nil {

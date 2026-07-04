@@ -183,6 +183,36 @@ func TestMusicFingerprinter_MusicBrainzID3v2(t *testing.T) {
 	}
 }
 
+func TestApplyFpcalcOutput_PopulatesAcoustIDAndDuration(t *testing.T) {
+	fp := &domain.Fingerprint{EmbeddedTags: map[string]string{}}
+	// Non-raw fpcalc output: FINGERPRINT is the base64url Chromaprint string.
+	output := "FILE=/music/test.flac\nDURATION=252.86\nFINGERPRINT=AQADtNSmiUmScEiS\n"
+	if err := fingerprint.ApplyFpcalcOutput(output, fp); err != nil {
+		t.Fatal(err)
+	}
+	if fp.AcoustID != "AQADtNSmiUmScEiS" {
+		t.Errorf("AcoustID = %q, want AQADtNSmiUmScEiS", fp.AcoustID)
+	}
+	if fp.EmbeddedTags["duration_ms"] != "252860" {
+		t.Errorf("duration_ms = %q, want 252860", fp.EmbeddedTags["duration_ms"])
+	}
+}
+
+func TestApplyFpcalcOutput_MissingFingerprint(t *testing.T) {
+	fp := &domain.Fingerprint{EmbeddedTags: map[string]string{}}
+	if err := fingerprint.ApplyFpcalcOutput("DURATION=252.86\n", fp); err == nil {
+		t.Error("expected error for missing FINGERPRINT, got nil")
+	}
+}
+
+func TestApplyFpcalcOutput_ZeroDurationIgnored(t *testing.T) {
+	fp := &domain.Fingerprint{EmbeddedTags: map[string]string{}}
+	_ = fingerprint.ApplyFpcalcOutput("DURATION=0\nFINGERPRINT=abc\n", fp)
+	if _, ok := fp.EmbeddedTags["duration_ms"]; ok {
+		t.Error("duration_ms should not be set for zero duration")
+	}
+}
+
 func TestMusicFingerprinter_FLACVorbisComment(t *testing.T) {
 	const wantTitle = "FLAC Test Track"
 	const wantArtist = "FLAC Test Artist"

@@ -90,6 +90,7 @@ func (b *bookIdentifier) isbnLocalStrategy(ctx context.Context, isbn string) ([]
 }
 
 func (b *bookIdentifier) providerISBNStrategy(ctx context.Context, isbn string) ([]domain.MatchCandidate, error) {
+	var candidates []domain.MatchCandidate
 	for _, src := range b.sources {
 		if !slices.Contains(src.ContentTypes(), domain.ContentTypeBook) {
 			continue
@@ -99,23 +100,21 @@ func (b *bookIdentifier) providerISBNStrategy(ctx context.Context, isbn string) 
 			continue
 		}
 		ext, err := es.FindByExternalID(ctx, domain.ContentTypeBook, isbn)
-		if err != nil || ext == nil {
+		if err != nil || ext == nil || ext.Title == "" {
 			continue
 		}
-		if ext.Title == "" {
-			continue
-		}
+		c := domain.MatchCandidate{ExternalItem: ext, Confidence: 0.92, Source: "isbn_provider"}
 		items, _, err := b.items.List(ctx, ports.ItemFilter{
 			ContentTypes: []domain.ContentType{domain.ContentTypeBook},
 			Search:       ext.Title,
 			Limit:        1,
 		})
-		if err != nil || len(items) == 0 {
-			continue
+		if err == nil && len(items) > 0 {
+			c.Item = items[0]
 		}
-		return []domain.MatchCandidate{{Item: items[0], Confidence: 0.92, Source: "isbn_provider"}}, nil
+		candidates = append(candidates, c)
 	}
-	return nil, nil //nolint:nilnil
+	return candidates, nil
 }
 
 func (b *bookIdentifier) titleStrategy(ctx context.Context, fp *domain.Fingerprint, path string) ([]domain.MatchCandidate, error) {

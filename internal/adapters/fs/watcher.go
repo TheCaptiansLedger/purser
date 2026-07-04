@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"purser/internal/domain"
 	"purser/internal/ports"
+	"strings"
 	"sync"
 	"time"
 
@@ -120,6 +121,9 @@ func (w *watcher) handleEvent(
 	if _, ok := w.extMap[filepath.Ext(event.Name)]; !ok {
 		return
 	}
+	if strings.HasPrefix(filepath.Base(event.Name), "._") {
+		return
+	}
 
 	var eventOp ports.WatchOp
 	switch {
@@ -166,17 +170,19 @@ func (w *watcher) fire(ctx context.Context, ch chan<- ports.WatchEvent, path str
 	delete(timers, path)
 	mu.Unlock()
 
-	if _, err := os.Stat(path); err != nil {
+	var size int64
+	if fi, err := os.Stat(path); err != nil {
 		op = ports.WatchRemoved
+	} else {
+		size = fi.Size()
 	}
 
-	ct, ok := w.extMap[filepath.Ext(path)]
-	if !ok {
+	if _, ok := w.extMap[filepath.Ext(path)]; !ok {
 		return
 	}
 
 	select {
-	case ch <- ports.WatchEvent{Path: path, ContentType: ct, Op: op}:
+	case ch <- ports.WatchEvent{Path: path, Size: size, Op: op}:
 	case <-ctx.Done():
 	}
 }
