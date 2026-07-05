@@ -277,18 +277,19 @@ type tagRecord struct {
 }
 
 type mediaFileRecord struct {
-	ID              string `json:"id"`
-	ItemID          string `json:"item_id"`
-	Path            string `json:"path"`
-	Size            int64  `json:"size"`
-	OSHash          string `json:"oshash,omitempty"`
-	MD5             string `json:"md5,omitempty"`
-	Quality         string `json:"quality,omitempty"`
-	Resolution      string `json:"resolution,omitempty"`
-	Codec           string `json:"codec,omitempty"`
-	Container       string `json:"container,omitempty"`
-	MatchConfidence string `json:"match_confidence,omitempty"`
-	AddedAt         string `json:"added_at"`
+	ID              string         `json:"id"`
+	ItemID          string         `json:"item_id"`
+	Path            string         `json:"path"`
+	Size            int64          `json:"size"`
+	OSHash          string         `json:"oshash,omitempty"`
+	MD5             string         `json:"md5,omitempty"`
+	Quality         string         `json:"quality,omitempty"`
+	Resolution      string         `json:"resolution,omitempty"`
+	Codec           string         `json:"codec,omitempty"`
+	Container       string         `json:"container,omitempty"`
+	MatchConfidence string         `json:"match_confidence,omitempty"`
+	MatchDetail     map[string]any `json:"match_detail,omitempty"`
+	AddedAt         string         `json:"added_at"`
 }
 
 type fingerprintRecord struct {
@@ -300,10 +301,13 @@ type fingerprintRecord struct {
 }
 
 type matchCandidateRecord struct {
-	ItemID       string               `json:"item_id,omitempty"`
-	ExternalItem *domain.ExternalItem `json:"external_item,omitempty"`
-	Confidence   float64              `json:"confidence"`
-	Source       string               `json:"source"`
+	ItemID              string               `json:"item_id,omitempty"`
+	ExternalItem        *domain.ExternalItem `json:"external_item,omitempty"`
+	Confidence          float64              `json:"confidence"`
+	RecordingConfidence float64              `json:"recording_confidence,omitempty"`
+	ReleaseConfidence   float64              `json:"release_confidence,omitempty"`
+	MusicDetail         map[string]any       `json:"music_detail,omitempty"`
+	Source              string               `json:"source"`
 }
 
 type unmatchedFileRecord struct {

@@ -4,6 +4,7 @@ import (
 	"context"
 	"purser/internal/app/errs"
 	"purser/internal/domain"
+	"reflect"
 	"testing"
 )
 
@@ -122,6 +123,72 @@ func runMediaFileContract(t *testing.T, s BackendSuite) { //nolint:cyclop
 		_, err = s.MediaFiles.GetByOSHash(ctx, mf.OSHash)
 		if !errs.IsNotFound(err) {
 			t.Errorf("after Delete GetByOSHash: want ErrNotFound, got %v", err)
+		}
+	})
+
+	t.Run("MatchDetailRoundTrip", func(t *testing.T) {
+		ctx := context.Background()
+		item := newTestItem(ctx, t, s, "MF MatchDetail Test")
+		detail := map[string]any{
+			"recording_mbid":       "rec-mbid-123",
+			"recording_confidence": float64(0.97),
+			"release_mbid":         "rel-mbid-456",
+			"release_confidence":   float64(0.82),
+		}
+		mf := &domain.MediaFile{
+			ItemID:          item.ID,
+			Path:            "/media/mf-matchdetail-test.flac",
+			Size:            5_000_000,
+			OSHash:          "matchdetail-hash-001",
+			MatchConfidence: domain.MatchVerified,
+			MatchDetail:     detail,
+		}
+		if err := s.MediaFiles.Save(ctx, mf); err != nil {
+			t.Fatalf("Save: %v", err)
+		}
+		for _, name := range []string{"ByItemID", "ByPath", "ByOSHash"} {
+			var got *domain.MediaFile
+			var err error
+			switch name {
+			case "ByItemID":
+				got, err = s.MediaFiles.GetByItemID(ctx, item.ID)
+			case "ByPath":
+				got, err = s.MediaFiles.GetByPath(ctx, mf.Path)
+			case "ByOSHash":
+				got, err = s.MediaFiles.GetByOSHash(ctx, mf.OSHash)
+			}
+			if err != nil {
+				t.Fatalf("Get%s: %v", name, err)
+			}
+			if got.MatchDetail == nil {
+				t.Errorf("Get%s: MatchDetail is nil, want populated", name)
+				continue
+			}
+			if !reflect.DeepEqual(got.MatchDetail, detail) {
+				t.Errorf("Get%s: MatchDetail = %v, want %v", name, got.MatchDetail, detail)
+			}
+		}
+	})
+
+	t.Run("NilMatchDetailRoundTrip", func(t *testing.T) {
+		ctx := context.Background()
+		item := newTestItem(ctx, t, s, "MF NilMatchDetail Test")
+		mf := &domain.MediaFile{
+			ItemID:      item.ID,
+			Path:        "/media/mf-nilmatchdetail-test.mp4",
+			Size:        1_000,
+			OSHash:      "nilmatchdetail-hash-002",
+			MatchDetail: nil,
+		}
+		if err := s.MediaFiles.Save(ctx, mf); err != nil {
+			t.Fatalf("Save: %v", err)
+		}
+		got, err := s.MediaFiles.GetByItemID(ctx, item.ID)
+		if err != nil {
+			t.Fatalf("GetByItemID: %v", err)
+		}
+		if got.MatchDetail != nil {
+			t.Errorf("MatchDetail = %v, want nil", got.MatchDetail)
 		}
 	})
 

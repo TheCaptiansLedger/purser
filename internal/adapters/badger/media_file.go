@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"purser/internal/app/errs"
 	"purser/internal/domain"
 	"purser/internal/ports"
@@ -126,7 +127,7 @@ func mediaFileFromRecord(rec *mediaFileRecord) *domain.MediaFile {
 	if mc == "" {
 		mc = domain.MatchNameMatched
 	}
-	return &domain.MediaFile{
+	mf := &domain.MediaFile{
 		ID:              rec.ID,
 		ItemID:          rec.ItemID,
 		Path:            rec.Path,
@@ -138,8 +139,14 @@ func mediaFileFromRecord(rec *mediaFileRecord) *domain.MediaFile {
 		Codec:           rec.Codec,
 		Container:       rec.Container,
 		MatchConfidence: mc,
+		MatchDetail:     rec.MatchDetail,
 		AddedAt:         strToTime(rec.AddedAt),
 	}
+	slog.Debug("storage: loaded media file match detail",
+		"file_id", mf.ID,
+		"has_match_detail", mf.MatchDetail != nil,
+	)
+	return mf
 }
 
 func (r *mediaFileRepo) Save(_ context.Context, mf *domain.MediaFile) error {
@@ -180,11 +187,16 @@ func (r *mediaFileRepo) Save(_ context.Context, mf *domain.MediaFile) error {
 			Codec:           mf.Codec,
 			Container:       mf.Container,
 			MatchConfidence: string(mc),
+			MatchDetail:     mf.MatchDetail,
 			AddedAt:         timeToStr(mf.AddedAt),
 		}
 		if err := setJSON(txn, kMF(mf.ID), rec); err != nil {
 			return err
 		}
+		slog.Debug("storage: saved media file match detail",
+			"file_id", mf.ID,
+			"has_match_detail", mf.MatchDetail != nil,
+		)
 
 		if mf.ItemID != "" {
 			if err := txn.Set(kMFI(mf.ItemID), []byte(mf.ID)); err != nil {
