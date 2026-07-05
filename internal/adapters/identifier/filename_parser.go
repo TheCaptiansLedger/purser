@@ -15,7 +15,7 @@ func ParseVideoFilename(name string) (title string, year int, season, episode in
 
 	// TV: SnnEnn or nnxnn pattern
 	if s, e, rest := extractSE(clean); s > 0 {
-		return normalizeTitle(rest), 0, s, e
+		return normalizeFilenameTitle(rest), 0, s, e
 	}
 
 	// Movie: title (YYYY) or title.YYYY
@@ -23,7 +23,7 @@ func ParseVideoFilename(name string) (title string, year int, season, episode in
 		return t, y, 0, 0
 	}
 
-	return normalizeTitle(clean), 0, 0, 0
+	return normalizeFilenameTitle(clean), 0, 0, 0
 }
 
 // ParseAdultFilename extracts studio slug, title, performer names, a date, and a
@@ -125,19 +125,19 @@ func extractTitleYear(name string) (title string, year int) {
 	if m := yearInParens.FindStringIndex(name); m != nil {
 		y, _ := strconv.Atoi(yearInParens.FindStringSubmatch(name)[1])
 		t := strings.TrimSpace(name[:m[0]])
-		return normalizeTitle(t), y
+		return normalizeFilenameTitle(t), y
 	}
 	if m := yearBare.FindStringIndex(name); m != nil {
 		y, _ := strconv.Atoi(yearBare.FindStringSubmatch(name)[1])
 		t := strings.TrimSpace(name[:m[0]])
 		if t != "" {
-			return normalizeTitle(t), y
+			return normalizeFilenameTitle(t), y
 		}
 	}
 	return "", 0
 }
 
-func normalizeTitle(s string) string {
+func normalizeFilenameTitle(s string) string {
 	s = strings.NewReplacer(".", " ", "_", " ", "-", " ").Replace(s)
 	return strings.TrimSpace(s)
 }
