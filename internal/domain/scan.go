@@ -102,16 +102,48 @@ func (s MatchSource) Description() string {
 	}
 }
 
+// MusicMatchDetail carries the three-tier confidence evidence for a music file.
+// Stored as MediaFile.MatchDetail for music content; nil for other content types.
+type MusicMatchDetail struct {
+	RecordingMBID       string       `json:"recording_mbid,omitempty"`
+	RecordingTitle      string       `json:"recording_title,omitempty"`
+	RecordingConfidence float64      `json:"recording_confidence"`
+	ReleaseGroupMBID    string       `json:"release_group_mbid,omitempty"`
+	ReleaseMBID         string       `json:"release_mbid,omitempty"`
+	ReleaseTitle        string       `json:"release_title,omitempty"`
+	ReleaseDate         string       `json:"release_date,omitempty"`
+	ReleaseLabel        string       `json:"release_label,omitempty"`
+	ReleaseCountry      string       `json:"release_country,omitempty"`
+	ReleaseCatalog      string       `json:"release_catalog,omitempty"`
+	ReleaseBarcode      string       `json:"release_barcode,omitempty"`
+	ReleaseConfidence   float64      `json:"release_confidence"`
+	MatchReasons        MatchReasons `json:"match_reasons"`
+}
+
+// MatchReasons records the individual signal contributions to a match score.
+// All values are 0.0–1.0; zero means the signal was absent or did not fire.
+type MatchReasons struct {
+	Fingerprint  float64 `json:"fingerprint,omitempty"`
+	Duration     float64 `json:"duration,omitempty"`
+	TitleTag     float64 `json:"title_tag,omitempty"`
+	ArtistTag    float64 `json:"artist_tag,omitempty"`
+	AlbumTag     float64 `json:"album_tag,omitempty"`
+	AlbumContext float64 `json:"album_context,omitempty"`
+}
+
 // MatchCandidate is a potential match for a scanned file. Item is the local
 // library record when one exists; ExternalItem carries provider metadata when
 // the source identified the file but no local item has been created yet.
 // Both may be set (local item found via external lookup); Item may be nil
 // when the provider recognised the file but the title is not in the library.
 type MatchCandidate struct {
-	Item         *Item
-	ExternalItem *ExternalItem
-	Confidence   float64 // 0.0–1.0
-	Source       string  // strategy: "oshash", "acoustid", "isbn_provider", "filename", etc.
+	Item                *Item
+	ExternalItem        *ExternalItem
+	Confidence          float64           // combined; drives auto-import threshold
+	RecordingConfidence float64           // how sure we are WHAT this recording is
+	ReleaseConfidence   float64           // how sure we are WHICH edition
+	Source              string            // strategy: "oshash", "acoustid", "isbn_provider", "filename", etc.
+	MusicDetail         *MusicMatchDetail // nil for non-music content
 }
 
 // UnmatchedFile is written to the queue when no candidate meets the auto-import threshold.

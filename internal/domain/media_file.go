@@ -15,5 +15,6 @@ type MediaFile struct {
 	Codec           string
 	Container       string
 	MatchConfidence MatchConfidence
+	MatchDetail     map[string]any // content-type-specific match evidence; nil when absent
 	AddedAt         time.Time
 }
