@@ -10,6 +10,7 @@ import (
 	"purser/internal/ports"
 	"purser/pkg/cache"
 	"slices"
+	"sort"
 	"strconv"
 	"strings"
 )
@@ -17,43 +18,138 @@ import (
 var musicContentTypes = []domain.ContentType{domain.ContentTypeMusic}
 
 const (
+	// baseMBZTrackID is the starting confidence when a MusicBrainz recording ID
+	// is embedded in the file's tags. A precise machine-readable identifier —
+	// stronger than any combination of human-readable tags.
 	baseMBZTrackID = 0.95
-	baseAcoustID   = 0.80
-	baseTagFuzzy1  = 0.70
-	baseTagFuzzyN  = 0.60
-	baseFilename   = 0.35
-	bonusTitle     = 0.05
-	bonusArtist    = 0.05
-	bonusAlbum     = 0.05
-	bonusDuration  = 0.05
+
+	// Tag-quality base scores reflect how completely the embedded tags identify
+	// the file. Embedded tags are the primary evidence; external lookups verify.
+	tagBaseFullWithTrack = 0.75 // title + artist + album + track number
+	tagBaseFullSet       = 0.70 // title + artist + album
+	tagBaseArtist        = 0.50 // title + artist only
+	tagBaseTitle         = 0.35 // title only
+	tagBaseNone          = 0.20 // no useful embedded tags
+
+	// Agreement bonuses are added to the base, scaled by the verification score.
+	// Total possible: 0.10+0.05+0.10+0.03 = 0.28
+	bonusTitleAgreement    = 0.10
+	bonusArtistAgreement   = 0.05
+	bonusAlbumAgreement    = 0.10
+	bonusDurationAgreement = 0.03
+
+	// acoustidNoTagCeiling caps confidence when the only evidence is a fingerprint
+	// match and the file has no useful embedded tags. Keeps it below the
+	// auto-import threshold so a human reviews before import.
+	acoustidNoTagCeiling = 0.60
+
+	// Tag-fuzzy and filename strategy bases.
+	baseTagFuzzy1 = 0.70 // single local-library match — confident
+	baseTagFuzzyN = 0.60 // multiple local-library matches — ambiguous
+	baseFilename  = 0.35
+
+	// AcoustID result filtering.
+	minAcoustIDScore      = 0.50 // discard results below this score
+	maxAcoustIDCandidates = 4    // cap on candidates emitted by AcoustID strategy
 )
 
-func computeConfidence(base float64, c domain.MatchCandidate, fp *domain.Fingerprint) float64 {
-	score := base
-	if c.ExternalItem != nil {
-		title := fp.EmbeddedTags["title"]
-		if title != "" && strings.EqualFold(c.ExternalItem.Title, title) {
-			score += bonusTitle
+// tagQualityBase returns a base confidence score from embedded tag completeness.
+// A richer tag set represents stronger evidence of deliberate identification.
+func tagQualityBase(fp *domain.Fingerprint) float64 {
+	hasTitle := fp.EmbeddedTags["title"] != ""
+	hasArtist := fp.EmbeddedTags["artist"] != ""
+	hasAlbum := fp.EmbeddedTags["album"] != ""
+	hasTrack := fp.EmbeddedTags["tracknumber"] != "" || fp.EmbeddedTags["track"] != ""
+	switch {
+	case hasTitle && hasArtist && hasAlbum && hasTrack:
+		return tagBaseFullWithTrack
+	case hasTitle && hasArtist && hasAlbum:
+		return tagBaseFullSet
+	case hasTitle && hasArtist:
+		return tagBaseArtist
+	case hasTitle:
+		return tagBaseTitle
+	default:
+		return tagBaseNone
+	}
+}
+
+// tagAgreementBonus returns the sum of per-field agreement bonuses between an
+// external candidate and the embedded tags of the file.
+func tagAgreementBonus(item *domain.ExternalItem, fp *domain.Fingerprint) float64 {
+	var bonus float64
+	if title := fp.EmbeddedTags["title"]; title != "" && strings.EqualFold(item.Title, title) {
+		bonus += bonusTitleAgreement
+	}
+	if artist := fp.EmbeddedTags["artist"]; artist != "" {
+		if item.Studio != nil && strings.EqualFold(item.Studio.Name, artist) {
+			bonus += bonusArtistAgreement
 		}
-		artist := fp.EmbeddedTags["artist"]
-		if artist != "" && c.ExternalItem.Studio != nil && strings.EqualFold(c.ExternalItem.Studio.Name, artist) {
-			score += bonusArtist
+	}
+	if album := fp.EmbeddedTags["album"]; album != "" && strings.EqualFold(item.GroupTitle, album) {
+		bonus += bonusAlbumAgreement
+	}
+	if durMS, _ := strconv.Atoi(fp.EmbeddedTags["duration_ms"]); durMS > 0 && item.RuntimeSecs > 0 {
+		diff := item.RuntimeSecs - durMS/1000
+		if diff >= -5 && diff <= 5 {
+			bonus += bonusDurationAgreement
 		}
-		album := fp.EmbeddedTags["album"]
-		if album != "" && strings.EqualFold(c.ExternalItem.GroupTitle, album) {
-			score += bonusAlbum
-		}
-		durMS, _ := strconv.Atoi(fp.EmbeddedTags["duration_ms"])
-		durSecs := durMS / 1000
-		if durSecs > 0 && c.ExternalItem.RuntimeSecs > 0 {
-			diff := c.ExternalItem.RuntimeSecs - durSecs
-			if diff >= -5 && diff <= 5 {
-				score += bonusDuration
+	}
+	return bonus
+}
+
+// computeConfidence returns the final confidence for a candidate.
+//
+// base is the starting score for the identification strategy.
+// verificationScore scales the tag-agreement bonuses: 1.0 for a direct MBZ
+// lookup (the MBID was in the file's tags), or the AcoustID match score for
+// fingerprint-based matches.
+//
+// When there are no useful embedded tags and the candidate is from AcoustID,
+// the score is capped at acoustidNoTagCeiling so the file goes to the queue.
+func computeConfidence(base, verificationScore float64, c domain.MatchCandidate, fp *domain.Fingerprint) float64 {
+	if c.ExternalItem == nil {
+		return base
+	}
+
+	agreement := tagAgreementBonus(c.ExternalItem, fp)
+
+	// No useful tags: fall back to a scaled ceiling so the file requires review.
+	if base <= tagBaseNone && agreement == 0 {
+		return verificationScore * acoustidNoTagCeiling
+	}
+
+	score := base + agreement*verificationScore
+	if score > 1.0 {
+		return 1.0
+	}
+	return score
+}
+
+// inlineTagScore scores an AcoustIDRecording against embedded tags using only
+// the data returned by AcoustID — no MusicBrainz lookup required. Used to rank
+// candidate MBIDs before deciding which ones to fetch from MusicBrainz.
+func inlineTagScore(rec AcoustIDRecording, fp *domain.Fingerprint) float64 {
+	var score float64
+	if title := fp.EmbeddedTags["title"]; title != "" && strings.EqualFold(rec.Title, title) {
+		score += bonusTitleAgreement
+	}
+	if artist := fp.EmbeddedTags["artist"]; artist != "" && strings.EqualFold(rec.Artist, artist) {
+		score += bonusArtistAgreement
+	}
+	if album := fp.EmbeddedTags["album"]; album != "" {
+		for _, rel := range rec.Albums {
+			if strings.EqualFold(rel, album) {
+				score += bonusAlbumAgreement
+				break
 			}
 		}
 	}
-	if score > 1.0 {
-		score = 1.0
+	if durMS, _ := strconv.Atoi(fp.EmbeddedTags["duration_ms"]); durMS > 0 && rec.Duration > 0 {
+		diff := rec.Duration - durMS/1000
+		if diff >= -5 && diff <= 5 {
+			score += bonusDurationAgreement
+		}
 	}
 	return score
 }
@@ -117,14 +213,13 @@ func (m *musicIdentifier) Identify(ctx context.Context, f domain.ScannedFile) ([
 		return nil, err
 	}
 	// Only short-circuit if AcoustID resolved to a library item. When above
-	// threshold but item=nil (MBIDs not stored on tracks), fall through so the
-	// tag strategy can still auto-match by title.
+	// threshold but item=nil, fall through so the tag strategy can auto-match.
 	if aboveThreshold(acoustidCandidates) && anyItemLinked(acoustidCandidates) {
 		enrichFromTags(acoustidCandidates, fp)
 		return acoustidCandidates, nil
 	}
 
-	// Strategy 3: Full tag-set fuzzy match
+	// Strategy 3: Full tag-set fuzzy match against local library
 	if hasFullMusicTagSet(fp) {
 		candidates, err := m.tagFuzzyStrategy(ctx, fp)
 		if err != nil {
@@ -135,9 +230,8 @@ func (m *musicIdentifier) Identify(ctx context.Context, f domain.ScannedFile) ([
 		}
 	}
 
-	// Strategy 4: Filename parse
-	// Prefer acoustid candidates (even without library item) over low-confidence
-	// filename guesses so the queue entry carries the MBID for manual review.
+	// Strategy 4: Prefer AcoustID candidates (even without library item) over
+	// low-confidence filename guesses so the queue entry carries MBIDs.
 	if len(acoustidCandidates) > 0 {
 		enrichFromTags(acoustidCandidates, fp)
 		return acoustidCandidates, nil
@@ -146,10 +240,10 @@ func (m *musicIdentifier) Identify(ctx context.Context, f domain.ScannedFile) ([
 }
 
 // enrichFromTags fills in missing metadata on candidates whose ExternalItem was
-// built from a MBID stub (recording endpoint not available in MBZ adapter).
-// Embedded tags are the fallback source for title, runtime, and artist info.
-// Studio is only populated when a musicbrainz_artist_id tag is present so that
-// the Import & Create dialog can call importEntry with a valid external ID.
+// built from a MBID stub. Embedded tags are the fallback source for title,
+// runtime, and artist info. Studio is only populated when a
+// musicbrainz_artist_id tag is present so that the Import & Create dialog can
+// call importEntry with a valid external ID.
 func enrichFromTags(candidates []domain.MatchCandidate, fp *domain.Fingerprint) {
 	durMS, _ := strconv.Atoi(fp.EmbeddedTags["duration_ms"])
 	artist := fp.EmbeddedTags["artist"]
@@ -180,11 +274,12 @@ func enrichFromTags(candidates []domain.MatchCandidate, fp *domain.Fingerprint) 
 }
 
 func (m *musicIdentifier) mbzTrackIDStrategy(ctx context.Context, mbzID string, fp *domain.Fingerprint) ([]domain.MatchCandidate, error) {
+	albumHint := fp.EmbeddedTags["album"]
 	entityID, err := m.extIDs.FindEntity(ctx, "item", string(domain.SourceMusicBrainz), mbzID)
 	if errs.IsNotFound(err) {
-		ext := m.fetchExternalByMBID(ctx, mbzID)
+		ext := m.fetchExternalByMBID(ctx, mbzID, albumHint)
 		c := domain.MatchCandidate{ExternalItem: ext, Source: "musicbrainz_track_id"}
-		c.Confidence = computeConfidence(baseMBZTrackID, c, fp)
+		c.Confidence = computeConfidence(baseMBZTrackID, 1.0, c, fp)
 		return []domain.MatchCandidate{c}, nil
 	}
 	if err != nil {
@@ -192,18 +287,88 @@ func (m *musicIdentifier) mbzTrackIDStrategy(ctx context.Context, mbzID string, 
 	}
 	item, err := m.items.Get(ctx, entityID)
 	if errs.IsNotFound(err) {
-		ext := m.fetchExternalByMBID(ctx, mbzID)
+		ext := m.fetchExternalByMBID(ctx, mbzID, albumHint)
 		c := domain.MatchCandidate{ExternalItem: ext, Source: "musicbrainz_track_id"}
-		c.Confidence = computeConfidence(baseMBZTrackID, c, fp)
+		c.Confidence = computeConfidence(baseMBZTrackID, 1.0, c, fp)
 		return []domain.MatchCandidate{c}, nil
 	}
 	if err != nil {
 		return nil, fmt.Errorf("get item by mbz id: %w", err)
 	}
-	ext := m.fetchExternalByMBID(ctx, mbzID)
+	ext := m.fetchExternalByMBID(ctx, mbzID, albumHint)
 	c := domain.MatchCandidate{Item: item, ExternalItem: ext, Source: "musicbrainz_track_id"}
-	c.Confidence = computeConfidence(baseMBZTrackID, c, fp)
+	c.Confidence = computeConfidence(baseMBZTrackID, 1.0, c, fp)
 	return []domain.MatchCandidate{c}, nil
+}
+
+type rankedMBID struct {
+	mbid          string
+	acoustidScore float64
+}
+
+// rankAcoustIDMBIDs deduplicates MBIDs across AcoustID results, filters
+// low-quality matches, and returns up to maxAcoustIDCandidates entries ranked
+// by combined fingerprint + tag agreement score.
+func rankAcoustIDMBIDs(matches []AcoustIDMatch, fp *domain.Fingerprint) []rankedMBID {
+	type scored struct {
+		acoustidScore float64
+		tagScore      float64
+	}
+	best := make(map[string]scored)
+	for _, match := range matches {
+		if match.Score < minAcoustIDScore {
+			continue
+		}
+		for _, rec := range match.Recordings {
+			if rec.MBID == "" {
+				continue
+			}
+			ts := inlineTagScore(rec, fp)
+			if prev, ok := best[rec.MBID]; !ok || match.Score > prev.acoustidScore {
+				best[rec.MBID] = scored{acoustidScore: match.Score, tagScore: ts}
+			}
+		}
+	}
+	type combined struct {
+		rankedMBID
+		combined float64
+	}
+	all := make([]combined, 0, len(best))
+	for mbid, s := range best {
+		all = append(all, combined{
+			rankedMBID: rankedMBID{mbid: mbid, acoustidScore: s.acoustidScore},
+			combined:   s.acoustidScore * (1 + s.tagScore),
+		})
+	}
+	sort.Slice(all, func(i, j int) bool { return all[i].combined > all[j].combined })
+	if len(all) > maxAcoustIDCandidates {
+		all = all[:maxAcoustIDCandidates]
+	}
+	out := make([]rankedMBID, len(all))
+	for i, a := range all {
+		out[i] = a.rankedMBID
+	}
+	return out
+}
+
+// resolveLibraryItem looks up a library item linked to the given MusicBrainz
+// recording ID. Returns nil (not an error) when no linked item is found.
+func (m *musicIdentifier) resolveLibraryItem(ctx context.Context, mbid string) (*domain.Item, error) {
+	entityID, err := m.extIDs.FindEntity(ctx, "item", string(domain.SourceMusicBrainz), mbid)
+	if errs.IsNotFound(err) {
+		return nil, nil //nolint:nilnil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("acoustid extid lookup: %w", err)
+	}
+	item, err := m.items.Get(ctx, entityID)
+	if errs.IsNotFound(err) {
+		return nil, nil //nolint:nilnil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("get item by acoustid mbid: %w", err)
+	}
+	return item, nil
 }
 
 func (m *musicIdentifier) acoustidStrategy(ctx context.Context, fp *domain.Fingerprint) ([]domain.MatchCandidate, error) {
@@ -211,31 +376,37 @@ func (m *musicIdentifier) acoustidStrategy(ctx context.Context, fp *domain.Finge
 		return nil, nil //nolint:nilnil
 	}
 	durMS, _ := strconv.Atoi(fp.EmbeddedTags["duration_ms"])
-	mbids, err := m.acoustid.Lookup(ctx, fp.AcoustID, durMS/1000)
+	matches, err := m.acoustid.Lookup(ctx, fp.AcoustID, durMS/1000)
 	if err != nil {
-		slog.WarnContext(ctx, "acoustid lookup failed", "err", err)
+		slog.WarnContext(ctx, "acoustid lookup failed",
+			"title", fp.EmbeddedTags["title"],
+			"artist", fp.EmbeddedTags["artist"],
+			"err", err)
 		return nil, nil //nolint:nilnil,nilerr // non-fatal; fall through to next strategy
 	}
-	var candidates []domain.MatchCandidate
-	for _, mbid := range mbids {
+
+	ranked := rankAcoustIDMBIDs(matches, fp)
+	if len(ranked) == 0 {
+		slog.DebugContext(ctx, "acoustid: no usable recordings after ranking",
+			"title", fp.EmbeddedTags["title"],
+			"matches", len(matches))
+		return nil, nil //nolint:nilnil
+	}
+
+	albumHint := fp.EmbeddedTags["album"]
+	base := tagQualityBase(fp)
+	candidates := make([]domain.MatchCandidate, 0, len(ranked))
+	for _, r := range ranked {
 		c := domain.MatchCandidate{
-			ExternalItem: m.fetchExternalByMBID(ctx, mbid),
+			ExternalItem: m.fetchExternalByMBID(ctx, r.mbid, albumHint),
 			Source:       "acoustid",
 		}
-		entityID, err := m.extIDs.FindEntity(ctx, "item", string(domain.SourceMusicBrainz), mbid)
-		if err != nil && !errs.IsNotFound(err) {
-			return nil, fmt.Errorf("acoustid extid lookup: %w", err)
+		item, err := m.resolveLibraryItem(ctx, r.mbid)
+		if err != nil {
+			return nil, err
 		}
-		if entityID != "" {
-			item, err := m.items.Get(ctx, entityID)
-			if err != nil && !errs.IsNotFound(err) {
-				return nil, fmt.Errorf("get item by acoustid mbid: %w", err)
-			}
-			if err == nil {
-				c.Item = item
-			}
-		}
-		c.Confidence = computeConfidence(baseAcoustID, c, fp)
+		c.Item = item
+		c.Confidence = computeConfidence(base, r.acoustidScore, c, fp)
 		candidates = append(candidates, c)
 	}
 	return candidates, nil
@@ -275,7 +446,7 @@ func (m *musicIdentifier) tagFuzzyStrategy(ctx context.Context, fp *domain.Finge
 		base = baseTagFuzzy1
 	}
 	for i := range candidates {
-		candidates[i].Confidence = computeConfidence(base, candidates[i], fp)
+		candidates[i].Confidence = base
 	}
 	sortCandidates(candidates)
 	return candidates, nil
@@ -310,27 +481,25 @@ func (m *musicIdentifier) filenameStrategy(ctx context.Context, path string) ([]
 }
 
 // recordingLookup is the narrow interface for fetching a recording by MBID.
-// The MBZ adapter implements this; other sources need not.
+// albumHint is matched against MBZ release titles to select the best release
+// for cover art and grouping; pass empty string when no hint is available.
 type recordingLookup interface {
-	FetchRecordingByID(ctx context.Context, mbid string) (*domain.ExternalItem, error)
+	FetchRecordingByID(ctx context.Context, mbid, albumHint string) (*domain.ExternalItem, error)
 }
 
 // fetchExternalByMBID fetches full recording metadata for a MusicBrainz recording
-// ID. It prefers the dedicated recording endpoint (title + artist credits) over
-// the generic FindByExternalID, which does an artist lookup for MBZ and always
-// 404s on recording MBIDs. Returns a minimal stub if no source can hydrate it.
-func (m *musicIdentifier) fetchExternalByMBID(ctx context.Context, mbid string) *domain.ExternalItem {
+// ID. Returns a minimal stub if no source can hydrate it.
+func (m *musicIdentifier) fetchExternalByMBID(ctx context.Context, mbid, albumHint string) *domain.ExternalItem {
 	for _, src := range m.sources {
 		if !slices.Contains(src.ContentTypes(), domain.ContentTypeMusic) {
 			continue
 		}
 		if rl, ok := src.(recordingLookup); ok {
-			if ext, err := rl.FetchRecordingByID(ctx, mbid); err == nil && ext != nil {
+			if ext, err := rl.FetchRecordingByID(ctx, mbid, albumHint); err == nil && ext != nil {
 				return ext
 			}
 		}
 	}
-	// Fallback for non-MBZ sources that implement FindByExternalID.
 	for _, src := range m.sources {
 		if !slices.Contains(src.ContentTypes(), domain.ContentTypeMusic) {
 			continue

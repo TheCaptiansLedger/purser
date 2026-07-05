@@ -54,6 +54,7 @@ type externalCandidateResponse struct {
 	Date            string                  `json:"date,omitempty"`
 	RuntimeSeconds  int                     `json:"runtime_seconds,omitempty"`
 	GroupExternalID string                  `json:"group_external_id,omitempty"`
+	GroupTitle      string                  `json:"group_title,omitempty"`
 	Parent          *externalParentResponse `json:"parent,omitempty"`
 }
 
@@ -144,6 +145,7 @@ func candidatesToResponse(cs []domain.MatchCandidate, fp *domain.Fingerprint) []
 				Date:            date,
 				RuntimeSeconds:  c.ExternalItem.RuntimeSecs,
 				GroupExternalID: c.ExternalItem.GroupExternalID,
+				GroupTitle:      c.ExternalItem.GroupTitle,
 			}
 			// For music stubs stored before the MBZ recording lookup was available,
 			// enrich title/runtime/artist from the file's embedded tags at response time.

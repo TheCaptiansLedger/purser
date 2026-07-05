@@ -53,37 +53,92 @@ func NewTestAcoustIDClientWithCache(apiKey, baseURL string, c *cache.Cache) *aco
 	}
 }
 
-// acoustidResponse is the top-level response from the AcoustID lookup API.
+// ── AcoustID API response types ───────────────────────────────────────────────
+
 type acoustidResponse struct {
 	Status  string           `json:"status"`
 	Results []acoustidResult `json:"results"`
 }
 
 type acoustidResult struct {
-	Recordings []acoustidRecording `json:"recordings"`
+	ID         string              `json:"id"` // AcoustID identifier UUID
 	Score      float64             `json:"score"`
+	Recordings []acoustidRecording `json:"recordings"`
 }
 
 type acoustidRecording struct {
-	ID string `json:"id"` // MusicBrainz Recording ID
+	ID       string            `json:"id"` // MusicBrainz Recording ID
+	Title    string            `json:"title"`
+	Duration float64           `json:"duration"` // fractional seconds (AcoustID returns floats)
+	Artists  []acoustidArtist  `json:"artists"`
+	Releases []acoustidRelease `json:"releases"`
 }
 
-// Lookup queries the AcoustID API and returns a list of MusicBrainz Recording IDs
-// that match the given raw fingerprint and duration (in seconds).
+type acoustidArtist struct {
+	Name string `json:"name"`
+}
+
+type acoustidRelease struct {
+	Title string `json:"title"`
+}
+
+// ── Exported result types ─────────────────────────────────────────────────────
+
+// AcoustIDRecording holds inline metadata for a single MusicBrainz recording
+// returned by AcoustID. Enough to rank candidates against embedded tags without
+// additional MusicBrainz lookups.
+type AcoustIDRecording struct {
+	MBID     string // MusicBrainz Recording ID
+	Title    string
+	Duration int      // seconds
+	Artist   string   // first artist credit name
+	Albums   []string // associated release titles
+}
+
+// AcoustIDMatch is one result from the AcoustID /v2/lookup endpoint.
+// A single fingerprint may produce multiple results at different scores.
+type AcoustIDMatch struct {
+	AcoustID   string              // AcoustID identifier UUID (may be empty)
+	Score      float64             // fingerprint match confidence, 0.0–1.0
+	Recordings []AcoustIDRecording // candidate recordings with inline metadata
+}
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+func toAcoustIDRecording(rec acoustidRecording) (AcoustIDRecording, bool) {
+	if rec.ID == "" {
+		return AcoustIDRecording{}, false
+	}
+	ar := AcoustIDRecording{MBID: rec.ID, Title: rec.Title, Duration: int(rec.Duration)}
+	if len(rec.Artists) > 0 {
+		ar.Artist = rec.Artists[0].Name
+	}
+	for _, rel := range rec.Releases {
+		if rel.Title != "" {
+			ar.Albums = append(ar.Albums, rel.Title)
+		}
+	}
+	return ar, true
+}
+
+// ── Client ────────────────────────────────────────────────────────────────────
+
+// Lookup queries the AcoustID API and returns matches with their scores and
+// inline recording metadata. Results are ordered by descending score.
 // Returns an empty slice (not an error) when no matches are found.
-func (c *acoustidClient) Lookup(ctx context.Context, fingerprint string, durationSecs int) ([]string, error) {
+func (c *acoustidClient) Lookup(ctx context.Context, fingerprint string, durationSecs int) ([]AcoustIDMatch, error) {
 	cacheKey := fingerprint + ":" + strconv.Itoa(durationSecs)
 	if c.cache != nil {
 		if v, ok := c.cache.Get(cacheKey); ok {
-			var mbids []string
-			_ = json.Unmarshal(v, &mbids)
-			return mbids, nil
+			var matches []AcoustIDMatch
+			_ = json.Unmarshal(v, &matches)
+			return matches, nil
 		}
 	}
 
 	params := url.Values{}
 	params.Set("client", c.apiKey)
-	params.Set("meta", "recordings")
+	params.Set("meta", "recordings releases")
 	params.Set("fingerprint", fingerprint)
 	params.Set("duration", strconv.Itoa(durationSecs))
 
@@ -111,20 +166,24 @@ func (c *acoustidClient) Lookup(ctx context.Context, fingerprint string, duratio
 		return nil, fmt.Errorf("acoustid status: %s", result.Status)
 	}
 
-	var mbids []string
+	matches := make([]AcoustIDMatch, 0, len(result.Results))
 	for _, r := range result.Results {
+		m := AcoustIDMatch{AcoustID: r.ID, Score: r.Score}
 		for _, rec := range r.Recordings {
-			if rec.ID != "" {
-				mbids = append(mbids, rec.ID)
+			if ar, ok := toAcoustIDRecording(rec); ok {
+				m.Recordings = append(m.Recordings, ar)
 			}
+		}
+		if len(m.Recordings) > 0 {
+			matches = append(matches, m)
 		}
 	}
 
 	if c.cache != nil {
-		if b, err := json.Marshal(mbids); err == nil {
+		if b, err := json.Marshal(matches); err == nil {
 			c.cache.Set(cacheKey, b, acoustidCacheTTL)
 		}
 	}
 
-	return mbids, nil
+	return matches, nil
 }

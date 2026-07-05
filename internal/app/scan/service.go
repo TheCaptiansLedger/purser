@@ -232,6 +232,9 @@ func (s *Service) processFile(ctx context.Context, f domain.ScannedFile) error {
 			return s.autoImport(ctx, f, c)
 		}
 	}
+	if len(candidates) == 0 {
+		slog.WarnContext(ctx, "no candidates found for file, queuing unmatched", "path", f.Path)
+	}
 	return s.enqueueUnmatched(ctx, f, candidates, "")
 }
 

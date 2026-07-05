@@ -51,6 +51,7 @@ function CandidateRow({
   candidate, selected, onSelect,
 }: { candidate: MatchCandidate; selected: boolean; onSelect: () => void }) {
   const title  = candidate.external?.title ?? candidate.item_title ?? '(unknown)'
+  const album  = candidate.external?.group_title
   const parent = candidate.external?.parent?.name
   const conf   = candidate.confidence
   const color  = confidenceColor(conf)
@@ -82,9 +83,10 @@ function CandidateRow({
       {/* Confidence bar */}
       <ConfidenceBar confidence={conf} />
 
-      {/* Match title + parent */}
+      {/* Match title + album + artist */}
       <div className="min-w-0">
         <span className="text-xs text-white/70 block truncate">{title}</span>
+        {album && <span className="text-[10px] text-white/50 block truncate">{album}</span>}
         {parent && <span className="text-[10px] text-white/35">{parent}</span>}
       </div>
     </button>

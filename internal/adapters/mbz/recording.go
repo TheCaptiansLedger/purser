@@ -6,6 +6,7 @@ import (
 	"net/url"
 	"purser/internal/domain"
 	"strconv"
+	"strings"
 )
 
 // ── MusicBrainz response types ────────────────────────────────────────────────
@@ -55,7 +56,7 @@ func (a *Adapter) SearchItems(ctx context.Context, _ domain.ContentType, query s
 	}
 	out := make([]*domain.ExternalItem, len(resp.Recordings))
 	for i := range resp.Recordings {
-		out[i] = toExternalRecording(&resp.Recordings[i])
+		out[i] = toExternalRecording(&resp.Recordings[i], "")
 	}
 	return out, nil
 }
@@ -63,8 +64,10 @@ func (a *Adapter) SearchItems(ctx context.Context, _ domain.ContentType, query s
 // ── Mapping ───────────────────────────────────────────────────────────────────
 
 // FetchRecordingByID fetches a single recording from MusicBrainz by its MBID,
-// including artist credits. Used by the music identifier for direct MBID lookups.
-func (a *Adapter) FetchRecordingByID(ctx context.Context, mbid string) (*domain.ExternalItem, error) {
+// including artist credits. albumHint is matched case-insensitively against
+// the recording's release titles to select the best release for cover art and
+// grouping; pass empty string to use the first release MBZ returns.
+func (a *Adapter) FetchRecordingByID(ctx context.Context, mbid, albumHint string) (*domain.ExternalItem, error) {
 	u := fmt.Sprintf("%srecording/%s?inc=artist-credits+releases&fmt=json", a.baseURL, mbid)
 	var r mbzRecording
 	if err := a.get(ctx, u, &r); err != nil {
@@ -73,15 +76,32 @@ func (a *Adapter) FetchRecordingByID(ctx context.Context, mbid string) (*domain.
 	if r.ID == "" {
 		return nil, fmt.Errorf("mbz recording not found: %s", mbid)
 	}
-	return toExternalRecording(&r), nil
+	return toExternalRecording(&r, albumHint), nil
 }
 
 // FindItemByExternalID fetches a recording by MBID. Implements ports.ItemSource.
 func (a *Adapter) FindItemByExternalID(ctx context.Context, _ domain.ContentType, id string) (*domain.ExternalItem, error) {
-	return a.FetchRecordingByID(ctx, id)
+	return a.FetchRecordingByID(ctx, id, "")
 }
 
-func toExternalRecording(r *mbzRecording) *domain.ExternalItem {
+// pickRelease returns the release from candidates that best matches albumHint
+// (case-insensitive substring), falling back to the first release.
+func pickRelease(releases []mbzRecordingRelease, albumHint string) *mbzRecordingRelease {
+	if len(releases) == 0 {
+		return nil
+	}
+	if albumHint != "" {
+		hint := strings.ToLower(albumHint)
+		for i := range releases {
+			if strings.Contains(strings.ToLower(releases[i].Title), hint) || strings.Contains(hint, strings.ToLower(releases[i].Title)) {
+				return &releases[i]
+			}
+		}
+	}
+	return &releases[0]
+}
+
+func toExternalRecording(r *mbzRecording, albumHint string) *domain.ExternalItem {
 	item := &domain.ExternalItem{
 		Source:      domain.SourceMusicBrainz,
 		ExternalID:  r.ID,
@@ -104,12 +124,12 @@ func toExternalRecording(r *mbzRecording) *domain.ExternalItem {
 			Name:       ac.Name,
 		}
 	}
-	// Use the first release to populate the group external ID and album cover.
-	// Cover Art Archive URLs are deterministic so no HTTP fetch is needed at this stage.
-	if len(r.Releases) > 0 && r.Releases[0].ID != "" {
-		item.GroupExternalID = r.Releases[0].ID
-		item.GroupTitle = r.Releases[0].Title
-		item.ImageURL = "https://coverartarchive.org/release/" + r.Releases[0].ID + "/front-250"
+	// Prefer the release whose title matches albumHint (embedded album tag); fall
+	// back to first. Cover Art Archive URLs are deterministic — no HTTP fetch needed.
+	if rel := pickRelease(r.Releases, albumHint); rel != nil {
+		item.GroupExternalID = rel.ID
+		item.GroupTitle = rel.Title
+		item.ImageURL = "https://coverartarchive.org/release/" + rel.ID + "/front-250"
 	}
 	return item
 }

@@ -266,6 +266,7 @@ export interface ExternalCandidateItem {
   date?: string
   runtime_seconds?: number
   group_external_id?: string
+  group_title?: string
   parent?: ExternalParent
 }
 
