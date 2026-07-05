@@ -1371,6 +1371,11 @@ func TestImportItem_CreatesItemFromSource(t *testing.T) {
 			ContentType: domain.ContentTypeMusic,
 			Title:       "Heroes",
 			RuntimeSecs: 369,
+			Studio: &domain.ExternalStudio{
+				Source:     domain.SourceMusicBrainz,
+				ExternalID: "artist-rec-mbid-1",
+				Name:       "Test Artist",
+			},
 		},
 	}
 	svc := importItemSvc(src, newStubEntryRepo(), itemRepo, &stubPersonRepo{}, &stubTagRepo{})
@@ -1416,6 +1421,11 @@ func TestImportItem_PersistsPerformersAndTags(t *testing.T) {
 				{Source: domain.SourceStashDB, ExternalID: "p-2", Name: "Performer Two"},
 			},
 			Tags: []string{"tag-a", "tag-b"},
+			Studio: &domain.ExternalStudio{
+				Source:     domain.SourceStashDB,
+				ExternalID: "studio-scene-perf-1",
+				Name:       "Test Studio",
+			},
 		},
 	}
 	svc := importItemSvc(src, newStubEntryRepo(), itemRepo, personRepo, tagRepo)
@@ -1447,6 +1457,11 @@ func TestImportItem_UnmonitoredIsStatusMissing(t *testing.T) {
 			ExternalID:  "rec-unmon-1",
 			ContentType: domain.ContentTypeMusic,
 			Title:       "Hidden Track",
+			Studio: &domain.ExternalStudio{
+				Source:     domain.SourceMusicBrainz,
+				ExternalID: "artist-rec-unmon-1",
+				Name:       "Test Artist",
+			},
 		},
 	}
 	svc := importItemSvc(src, newStubEntryRepo(), &stubItemRepo{}, &stubPersonRepo{}, &stubTagRepo{})
@@ -1482,6 +1497,11 @@ func TestImportItem_Idempotent(t *testing.T) {
 			ExternalID:  "rec-idem-1",
 			ContentType: domain.ContentTypeMusic,
 			Title:       "Once Only",
+			Studio: &domain.ExternalStudio{
+				Source:     domain.SourceMusicBrainz,
+				ExternalID: "artist-idem-1",
+				Name:       "Test Artist",
+			},
 		},
 	}
 	svc := metadata.New([]ports.MetadataSource{src}, nil, newStubEntryRepo(), nil, seeded, &stubPersonRepo{}, &stubTagRepo{}, seeded, nil)
@@ -1497,6 +1517,65 @@ func TestImportItem_Idempotent(t *testing.T) {
 	}
 	if result.Item.ID != existing.ID {
 		t.Errorf("idempotent call returned different ID: %q vs %q", result.Item.ID, existing.ID)
+	}
+}
+
+func TestImportItem_NoStudio_ReturnsValidationError(t *testing.T) {
+	src := &stubMusicSource{
+		findItem: &domain.ExternalItem{
+			Source:      domain.SourceMusicBrainz,
+			ExternalID:  "rec-nostudio-1",
+			ContentType: domain.ContentTypeMusic,
+			Title:       "Orphan Track",
+		},
+	}
+	svc := importItemSvc(src, newStubEntryRepo(), &stubItemRepo{}, &stubPersonRepo{}, &stubTagRepo{})
+
+	_, err := svc.ImportItem(context.Background(), &metadata.ImportItemRequest{
+		Source:      domain.SourceMusicBrainz,
+		ExternalID:  "rec-nostudio-1",
+		ContentType: domain.ContentTypeMusic,
+		Monitored:   true,
+	})
+	if err == nil {
+		t.Fatal("expected validation error, got nil")
+	}
+	if !errs.IsValidation(err) {
+		t.Errorf("err = %v, want ValidationError", err)
+	}
+}
+
+func TestImportItem_WithStudio_NoAlbum_SetsEntryID(t *testing.T) {
+	itemRepo := &stubItemRepo{}
+	src := &stubMusicSource{
+		findItem: &domain.ExternalItem{
+			Source:      domain.SourceMusicBrainz,
+			ExternalID:  "rec-noalbum-1",
+			ContentType: domain.ContentTypeMusic,
+			Title:       "Standalone Track",
+			Studio: &domain.ExternalStudio{
+				Source:     domain.SourceMusicBrainz,
+				ExternalID: "artist-noalbum-1",
+				Name:       "Test Artist",
+			},
+		},
+	}
+	svc := importItemSvc(src, newStubEntryRepo(), itemRepo, &stubPersonRepo{}, &stubTagRepo{})
+
+	result, err := svc.ImportItem(context.Background(), &metadata.ImportItemRequest{
+		Source:      domain.SourceMusicBrainz,
+		ExternalID:  "rec-noalbum-1",
+		ContentType: domain.ContentTypeMusic,
+		Monitored:   true,
+	})
+	if err != nil {
+		t.Fatalf("ImportItem: %v", err)
+	}
+	if result.Item.LibraryEntryID == "" {
+		t.Error("item LibraryEntryID is empty, want non-empty entry ID")
+	}
+	if result.Item.GroupID != "" {
+		t.Errorf("item GroupID = %q, want empty (no album)", result.Item.GroupID)
 	}
 }
 

@@ -287,6 +287,11 @@ func (s *Service) importItemContainers(ctx context.Context, req *ImportItemReque
 		result.Entry = er.Entry
 		result.Network = er.Network
 	}
+	// Without a parent entry the item would be saved with an empty LibraryEntryID,
+	// making it unreachable from any entry's item list.
+	if ext.Studio == nil {
+		return nil, errs.Validation(fmt.Sprintf("no parent entry in external metadata for %q — import the artist first or re-scan with complete tags", ext.ExternalID))
+	}
 	// Prefer the explicitly supplied album ID; fall back to the one the source
 	// embedded in the item (e.g. MBZ recording → release MBID).
 	albumExtID := req.AlbumExternalID

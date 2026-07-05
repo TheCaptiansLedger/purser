@@ -353,15 +353,20 @@ func (d *stubImageDownloader) Download(_ context.Context, url, _, _ string) stri
 }
 
 // seededItemExternalIDRepo implements both ExternalIDRepository and ItemRepository.
-// FindEntity always returns the seeded ID; Get returns the seeded item when asked
-// for that ID. Used to verify idempotent ImportTrack behaviour.
+// FindEntity returns the seeded ID only for "item" entity lookups; all other entity
+// types return ErrNotFound so that ImportEntry creates a fresh entry rather than
+// trying to load a non-existent one. Get returns the seeded item when asked for that ID.
+// Used to verify idempotent ImportItem behaviour.
 type seededItemExternalIDRepo struct {
 	id   string
 	item *domain.Item
 }
 
-func (r *seededItemExternalIDRepo) FindEntity(_ context.Context, _, _, _ string) (string, error) {
-	return r.id, nil
+func (r *seededItemExternalIDRepo) FindEntity(_ context.Context, entityType, _, _ string) (string, error) {
+	if entityType == "item" {
+		return r.id, nil
+	}
+	return "", fmt.Errorf("not found: %w", errs.ErrNotFound)
 }
 
 func (r *seededItemExternalIDRepo) Get(_ context.Context, id string) (*domain.Item, error) {
