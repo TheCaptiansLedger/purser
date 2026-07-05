@@ -7,6 +7,12 @@ import { confidenceColor } from './UnmatchedFileCard'
 import { ScrapeDialog } from './ScrapeDialog'
 import { CreateFromCandidateDialog } from './CreateFromCandidateDialog'
 
+export function candidateActionState(candidate: MatchCandidate | undefined) {
+  const canAccept = Boolean(candidate?.item_id)
+  const canCreate = !canAccept && Boolean(candidate?.external?.parent)
+  return { canAccept, canCreate }
+}
+
 interface Props {
   file: UnmatchedFile
   onResolved: () => void
@@ -41,15 +47,20 @@ function ConfidenceBar({ confidence }: { confidence: number }) {
   )
 }
 
-function CandidateRow({ candidate, onAccept }: { candidate: MatchCandidate; onAccept?: () => void }) {
+function CandidateRow({
+  candidate, selected, onSelect,
+}: { candidate: MatchCandidate; selected: boolean; onSelect: () => void }) {
   const title  = candidate.external?.title ?? candidate.item_title ?? '(unknown)'
   const parent = candidate.external?.parent?.name
-  const isLocalMatch = Boolean(candidate.item_id)
   const conf   = candidate.confidence
   const color  = confidenceColor(conf)
 
   return (
-    <div className="py-3 border-b border-white/4 last:border-0 space-y-2">
+    <button
+      onClick={onSelect}
+      className="w-full text-left py-3 border-b border-white/4 last:border-0 space-y-2 pl-3 transition-colors hover:bg-white/2"
+      style={selected ? { borderLeft: '2px solid #6366f1' } : { borderLeft: '2px solid transparent' }}
+    >
       {/* Source method badge + confidence */}
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-2 min-w-0">
@@ -72,22 +83,11 @@ function CandidateRow({ candidate, onAccept }: { candidate: MatchCandidate; onAc
       <ConfidenceBar confidence={conf} />
 
       {/* Match title + parent */}
-      <div className="flex items-start justify-between gap-2">
-        <div className="min-w-0">
-          <span className="text-xs text-white/70 block truncate">{title}</span>
-          {parent && <span className="text-[10px] text-white/35">{parent}</span>}
-        </div>
-        {isLocalMatch && onAccept && (
-          <button
-            onClick={onAccept}
-            className="shrink-0 text-[10px] font-medium px-2 py-0.5 rounded text-white transition-colors"
-            style={{ background: '#10b981' }}
-          >
-            Accept
-          </button>
-        )}
+      <div className="min-w-0">
+        <span className="text-xs text-white/70 block truncate">{title}</span>
+        {parent && <span className="text-[10px] text-white/35">{parent}</span>}
       </div>
-    </div>
+    </button>
   )
 }
 
@@ -97,8 +97,9 @@ export function UnmatchedFileDetail({ file, onResolved }: Props) {
   const [scrapeOpen, setScrapeOpen] = useState(false)
   const [createCandidate, setCreateCandidate] = useState<MatchCandidate | null>(null)
   const [fingerprintOpen, setFingerprintOpen] = useState(false)
+  const [selectedIdx, setSelectedIdx] = useState(0)
 
-  const top = file.candidates[0]
+  const top = file.candidates[selectedIdx] ?? file.candidates[0]
   const ext = top?.external
 
   const imageUrl = ext?.image_url
@@ -108,8 +109,7 @@ export function UnmatchedFileDetail({ file, onResolved }: Props) {
   const date     = ext?.date
   const runtime  = ext?.runtime_seconds
 
-  const canAccept = Boolean(top?.item_id)
-  const canCreate = !canAccept && Boolean(ext?.parent)
+  const { canAccept, canCreate } = candidateActionState(top)
 
   const handleAccept = async (itemId: string) => {
     setAccepting(true)
@@ -167,7 +167,8 @@ export function UnmatchedFileDetail({ file, onResolved }: Props) {
               <CandidateRow
                 key={i}
                 candidate={c}
-                onAccept={c.item_id ? () => { void handleAccept(c.item_id) } : undefined}
+                selected={i === selectedIdx}
+                onSelect={() => setSelectedIdx(i)}
               />
             ))}
           </div>
