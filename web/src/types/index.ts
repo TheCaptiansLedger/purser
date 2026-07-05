@@ -19,6 +19,7 @@ export interface Job {
   id: string
   name: string
   payload?: Record<string, unknown>
+  result?: Record<string, unknown>
   status: JobStatus
   current: number
   total: number

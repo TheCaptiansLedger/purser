@@ -136,7 +136,7 @@ func (s *Server) mount(
 		dbH := &databaseHandler{store: store}
 		r.Route("/database", func(r chi.Router) { dbH.routes(r, shutdownFn) })
 
-		metaH := &metadataHandler{svc: metaSvc}
+		metaH := &metadataHandler{svc: metaSvc, jobs: jobQueue}
 		r.Route("/metadata", metaH.routes)
 
 		jobH := &jobHandler{queue: jobQueue}

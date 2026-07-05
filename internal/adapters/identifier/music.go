@@ -16,6 +16,48 @@ import (
 
 var musicContentTypes = []domain.ContentType{domain.ContentTypeMusic}
 
+const (
+	baseMBZTrackID = 0.95
+	baseAcoustID   = 0.80
+	baseTagFuzzy1  = 0.70
+	baseTagFuzzyN  = 0.60
+	baseFilename   = 0.35
+	bonusTitle     = 0.05
+	bonusArtist    = 0.05
+	bonusAlbum     = 0.05
+	bonusDuration  = 0.05
+)
+
+func computeConfidence(base float64, c domain.MatchCandidate, fp *domain.Fingerprint) float64 {
+	score := base
+	if c.ExternalItem != nil {
+		title := fp.EmbeddedTags["title"]
+		if title != "" && strings.EqualFold(c.ExternalItem.Title, title) {
+			score += bonusTitle
+		}
+		artist := fp.EmbeddedTags["artist"]
+		if artist != "" && c.ExternalItem.Studio != nil && strings.EqualFold(c.ExternalItem.Studio.Name, artist) {
+			score += bonusArtist
+		}
+		album := fp.EmbeddedTags["album"]
+		if album != "" && strings.EqualFold(c.ExternalItem.GroupTitle, album) {
+			score += bonusAlbum
+		}
+		durMS, _ := strconv.Atoi(fp.EmbeddedTags["duration_ms"])
+		durSecs := durMS / 1000
+		if durSecs > 0 && c.ExternalItem.RuntimeSecs > 0 {
+			diff := c.ExternalItem.RuntimeSecs - durSecs
+			if diff >= -5 && diff <= 5 {
+				score += bonusDuration
+			}
+		}
+	}
+	if score > 1.0 {
+		score = 1.0
+	}
+	return score
+}
+
 type musicIdentifier struct {
 	extIDs   ports.ExternalIDRepository
 	items    ports.ItemRepository
@@ -59,7 +101,7 @@ func (m *musicIdentifier) Identify(ctx context.Context, f domain.ScannedFile) ([
 
 	// Strategy 1: Embedded MusicBrainz Track ID
 	if mbzID := fp.EmbeddedTags["musicbrainz_track_id"]; mbzID != "" {
-		candidates, err := m.mbzTrackIDStrategy(ctx, mbzID)
+		candidates, err := m.mbzTrackIDStrategy(ctx, mbzID, fp)
 		if err != nil {
 			return nil, err
 		}
@@ -137,11 +179,13 @@ func enrichFromTags(candidates []domain.MatchCandidate, fp *domain.Fingerprint) 
 	}
 }
 
-func (m *musicIdentifier) mbzTrackIDStrategy(ctx context.Context, mbzID string) ([]domain.MatchCandidate, error) {
+func (m *musicIdentifier) mbzTrackIDStrategy(ctx context.Context, mbzID string, fp *domain.Fingerprint) ([]domain.MatchCandidate, error) {
 	entityID, err := m.extIDs.FindEntity(ctx, "item", string(domain.SourceMusicBrainz), mbzID)
 	if errs.IsNotFound(err) {
 		ext := m.fetchExternalByMBID(ctx, mbzID)
-		return []domain.MatchCandidate{{ExternalItem: ext, Confidence: 0.99, Source: "musicbrainz_track_id"}}, nil
+		c := domain.MatchCandidate{ExternalItem: ext, Source: "musicbrainz_track_id"}
+		c.Confidence = computeConfidence(baseMBZTrackID, c, fp)
+		return []domain.MatchCandidate{c}, nil
 	}
 	if err != nil {
 		return nil, fmt.Errorf("mbz track id lookup: %w", err)
@@ -149,13 +193,17 @@ func (m *musicIdentifier) mbzTrackIDStrategy(ctx context.Context, mbzID string) 
 	item, err := m.items.Get(ctx, entityID)
 	if errs.IsNotFound(err) {
 		ext := m.fetchExternalByMBID(ctx, mbzID)
-		return []domain.MatchCandidate{{ExternalItem: ext, Confidence: 0.99, Source: "musicbrainz_track_id"}}, nil
+		c := domain.MatchCandidate{ExternalItem: ext, Source: "musicbrainz_track_id"}
+		c.Confidence = computeConfidence(baseMBZTrackID, c, fp)
+		return []domain.MatchCandidate{c}, nil
 	}
 	if err != nil {
 		return nil, fmt.Errorf("get item by mbz id: %w", err)
 	}
 	ext := m.fetchExternalByMBID(ctx, mbzID)
-	return []domain.MatchCandidate{{Item: item, ExternalItem: ext, Confidence: 0.99, Source: "musicbrainz_track_id"}}, nil
+	c := domain.MatchCandidate{Item: item, ExternalItem: ext, Source: "musicbrainz_track_id"}
+	c.Confidence = computeConfidence(baseMBZTrackID, c, fp)
+	return []domain.MatchCandidate{c}, nil
 }
 
 func (m *musicIdentifier) acoustidStrategy(ctx context.Context, fp *domain.Fingerprint) ([]domain.MatchCandidate, error) {
@@ -172,7 +220,6 @@ func (m *musicIdentifier) acoustidStrategy(ctx context.Context, fp *domain.Finge
 	for _, mbid := range mbids {
 		c := domain.MatchCandidate{
 			ExternalItem: m.fetchExternalByMBID(ctx, mbid),
-			Confidence:   0.95,
 			Source:       "acoustid",
 		}
 		entityID, err := m.extIDs.FindEntity(ctx, "item", string(domain.SourceMusicBrainz), mbid)
@@ -188,6 +235,7 @@ func (m *musicIdentifier) acoustidStrategy(ctx context.Context, fp *domain.Finge
 				c.Item = item
 			}
 		}
+		c.Confidence = computeConfidence(baseAcoustID, c, fp)
 		candidates = append(candidates, c)
 	}
 	return candidates, nil
@@ -216,15 +264,18 @@ func (m *musicIdentifier) tagFuzzyStrategy(ctx context.Context, fp *domain.Finge
 			}
 		}
 		candidates = append(candidates, domain.MatchCandidate{
-			Item:       item,
-			Confidence: 0.75,
-			Source:     "tags",
+			Item:   item,
+			Source: "tags",
 		})
 	}
 	// Unique title match with full tag context (artist + album + title) is more
 	// reliable than a title-only search that might span multiple albums.
+	base := baseTagFuzzyN
 	if len(candidates) == 1 {
-		candidates[0].Confidence = 0.92
+		base = baseTagFuzzy1
+	}
+	for i := range candidates {
+		candidates[i].Confidence = computeConfidence(base, candidates[i], fp)
 	}
 	sortCandidates(candidates)
 	return candidates, nil
@@ -250,7 +301,7 @@ func (m *musicIdentifier) filenameStrategy(ctx context.Context, path string) ([]
 	for _, item := range items {
 		candidates = append(candidates, domain.MatchCandidate{
 			Item:       item,
-			Confidence: 0.40,
+			Confidence: baseFilename,
 			Source:     "filename",
 		})
 	}

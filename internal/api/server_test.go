@@ -3593,3 +3593,107 @@ func TestCommands_ScanLibrary_202(t *testing.T) {
 		t.Errorf("job name = %q, want ScanLibrary", resp.Name)
 	}
 }
+
+// ── ImportItem async ──────────────────────────────────────────────────────────
+
+// stubItemSource wraps stubSource and adds FindItemByExternalID so the metadata
+// service can call ImportItem.
+type stubItemSource struct {
+	stubSource
+	item *domain.ExternalItem
+}
+
+func (s *stubItemSource) ContentTypes() []domain.ContentType {
+	return []domain.ContentType{domain.ContentTypeMusic}
+}
+
+func (s *stubItemSource) FindItemByExternalID(_ context.Context, _ domain.ContentType, _ string) (*domain.ExternalItem, error) {
+	return s.item, nil
+}
+
+func newHandlerWithItemSource(t *testing.T, src *stubItemSource) (http.Handler, ports.JobQueue) {
+	t.Helper()
+	dbPath := t.TempDir() + "/test.db"
+	database, err := dbadapter.Open(dbPath)
+	if err != nil {
+		t.Fatalf("open test db: %v", err)
+	}
+	t.Cleanup(func() { database.Close() })
+	personRepo := dbadapter.NewPersonRepo(database)
+	libSvc := library.New(dbadapter.NewLibraryEntryRepo(database), dbadapter.NewGroupRepo(database), dbadapter.NewItemRepo(database), personRepo, dbadapter.NewTagRepo(database))
+	peopleSvc := people.New(personRepo)
+	tagRepo := dbadapter.NewTagRepo(database)
+	jobQueue := jobsadapter.New(1)
+	t.Cleanup(jobQueue.Close)
+	metaSvc := metadata.New([]ports.MetadataSource{src}, jobQueue,
+		dbadapter.NewLibraryEntryRepo(database), dbadapter.NewGroupRepo(database),
+		dbadapter.NewItemRepo(database), dbadapter.NewPersonRepo(database),
+		dbadapter.NewTagRepo(database), dbadapter.NewExternalIDRepo(database), nil)
+	uiFS, _ := fs.Sub(web.Dist, "dist")
+	cfg := &config.Config{
+		Server:   config.ServerConfig{Port: 0, Workers: 1},
+		Database: config.DatabaseConfig{Driver: "sqlite", DSN: dbPath},
+		Log:      config.LogConfig{Level: "info", Format: "text"},
+	}
+	h := api.New(0, "", cfg, dbadapter.NewStorageAdmin(database, dbPath), libSvc, peopleSvc, metaSvc, nil, tagRepo, jobQueue,
+		noopConfigSvc{}, nil, uiFS, nil, nil, nil, func() {}).Handler()
+	return h, jobQueue
+}
+
+func TestImportItem_Async_Returns202WithJobID(t *testing.T) {
+	src := &stubItemSource{
+		stubSource: stubSource{name: "musicbrainz"},
+		item: &domain.ExternalItem{
+			Source:      domain.SourceMusicBrainz,
+			ExternalID:  "rec-async-1",
+			ContentType: domain.ContentTypeMusic,
+			Title:       "Async Song",
+			Studio: &domain.ExternalStudio{
+				Source:     domain.SourceMusicBrainz,
+				ExternalID: "artist-async-1",
+				Name:       "Async Artist",
+			},
+		},
+	}
+	h, jobQueue := newHandlerWithItemSource(t, src)
+
+	w := do(t, h, http.MethodPost, "/api/v1/metadata/items/import", map[string]any{
+		"source":      "musicbrainz",
+		"externalId":  "rec-async-1",
+		"contentType": "music",
+		"monitored":   true,
+	})
+	if w.Code != http.StatusAccepted {
+		t.Fatalf("status = %d, want 202 — body: %s", w.Code, w.Body.String())
+	}
+	var resp struct {
+		JobID string `json:"job_id"`
+	}
+	decodeJSON(t, w, &resp)
+	if resp.JobID == "" {
+		t.Fatal("job_id is empty")
+	}
+
+	// Poll until the job completes so we also verify the job stores item_id in result.
+	var completed *domain.Job
+	for range 50 {
+		j, getErr := jobQueue.Get(context.Background(), resp.JobID)
+		if getErr != nil {
+			t.Fatalf("Get job: %v", getErr)
+		}
+		if j.IsTerminal() {
+			completed = j
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	if completed == nil {
+		t.Fatal("job did not complete within timeout")
+	}
+	if completed.Status != domain.JobStatusCompleted {
+		t.Errorf("job status = %q, error = %q", completed.Status, completed.Error)
+	}
+	if completed.Result["item_id"] == "" {
+		t.Errorf("job Result[item_id] is empty")
+	}
+}

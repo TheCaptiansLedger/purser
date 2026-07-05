@@ -41,6 +41,8 @@ func (r *stubReporter) Report(current, total int, message string) {
 	r.message = message
 }
 
+func (r *stubReporter) SetResult(_ map[string]any) {}
+
 // Compile-time interface satisfaction checks.
 var (
 	_ ports.JobQueue         = (*stubQueue)(nil)

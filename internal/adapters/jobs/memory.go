@@ -202,12 +202,24 @@ func (p *progressReporter) Report(current, total int, message string) {
 	p.queue.mu.Unlock()
 }
 
+func (p *progressReporter) SetResult(result map[string]any) {
+	p.queue.mu.Lock()
+	p.queue.jobs[p.jobID].job.Result = result
+	p.queue.mu.Unlock()
+}
+
 func copyJob(j *domain.Job) *domain.Job {
 	cp := *j
 	if j.Payload != nil {
 		cp.Payload = make(map[string]any, len(j.Payload))
 		for k, v := range j.Payload {
 			cp.Payload[k] = v
+		}
+	}
+	if j.Result != nil {
+		cp.Result = make(map[string]any, len(j.Result))
+		for k, v := range j.Result {
+			cp.Result[k] = v
 		}
 	}
 	if j.StartedAt != nil {

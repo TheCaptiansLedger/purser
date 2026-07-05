@@ -19,6 +19,7 @@ type Job struct {
 	ID          string
 	Name        string
 	Payload     map[string]any
+	Result      map[string]any
 	Status      JobStatus
 	Current     int
 	Total       int

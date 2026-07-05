@@ -5,13 +5,15 @@ import (
 	"purser/internal/app/errs"
 	"purser/internal/app/metadata"
 	"purser/internal/domain"
+	"purser/internal/ports"
 	"strconv"
 
 	"github.com/go-chi/chi/v5"
 )
 
 type metadataHandler struct {
-	svc *metadata.Service
+	svc  *metadata.Service
+	jobs ports.JobQueue
 }
 
 func (h *metadataHandler) routes(r chi.Router) {
@@ -295,6 +297,20 @@ func (h *metadataHandler) importItem(w http.ResponseWriter, r *http.Request) {
 		AlbumExternalID: req.AlbumExternalID,
 		AlbumTitle:      req.AlbumTitle,
 		Monitored:       req.Monitored,
+	}
+
+	if h.jobs != nil {
+		job, err := h.svc.SubmitImportItemJob(r.Context(), svcReq)
+		if err != nil {
+			if errs.IsValidation(err) {
+				writeError(w, http.StatusBadRequest, "IMPORT_ERROR", err.Error())
+				return
+			}
+			writeError(w, http.StatusInternalServerError, "IMPORT_ERROR", "import failed")
+			return
+		}
+		writeJSON(w, http.StatusAccepted, map[string]any{"job_id": job.ID})
+		return
 	}
 
 	result, err := h.svc.ImportItem(r.Context(), svcReq)

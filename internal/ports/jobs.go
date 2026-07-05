@@ -9,6 +9,9 @@ import (
 // progress back to the queue without coupling to any concrete implementation.
 type ProgressReporter interface {
 	Report(current, total int, message string)
+	// SetResult stores structured return data on the job. Called once on success,
+	// before the job function returns nil. The result is visible via JobQueue.Get.
+	SetResult(result map[string]any)
 }
 
 // JobFunc is the unit of work submitted to the queue.

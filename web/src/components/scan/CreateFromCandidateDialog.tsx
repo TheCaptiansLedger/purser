@@ -1,9 +1,11 @@
 import { useState } from 'react'
+import { Link } from 'react-router-dom'
 import { X, CheckCircle, Loader2, AlertCircle } from 'lucide-react'
 import type { UnmatchedFile, MatchCandidate, ContentType } from '../../types'
 import { manualMatch } from '../../api/scan'
 import { importEntry, importItem, entryKindForContentType } from '../../api/metadata'
 import { createItem } from '../../api/items'
+import { pollForItemId } from '../../api/jobs'
 
 interface Props {
   unmatchedId: string
@@ -34,14 +36,16 @@ export function CreateFromCandidateDialog({ unmatchedId, file, candidate, onMatc
                              ?? file.fingerprint?.embedded_tags?.musicbrainz_album_id
         const albumTitle = file.fingerprint?.embedded_tags?.album
 
-        const result = await importItem({
+        const resp = await importItem({
           source: ext.source,
           externalId: ext.external_id,
           contentType: ext.content_type as ContentType,
           ...(albumExternalId ? { albumExternalId, albumTitle } : {}),
           monitored: true,
         })
-        itemId = result.item.id
+        itemId = 'job_id' in resp
+          ? await pollForItemId(resp.job_id)
+          : resp.item.id
       } else {
         // Unidentified file: create studio manually then create a bare item.
         let libraryEntryId = ''
@@ -143,12 +147,12 @@ export function CreateFromCandidateDialog({ unmatchedId, file, candidate, onMatc
           {phase === 'done' ? (
             <>
               {createdId && (
-                <a
-                  href={`/items/${createdId}`}
+                <Link
+                  to={`/items/${createdId}`}
                   className="text-sm text-indigo-400 hover:text-indigo-300 transition-colors"
                 >
                   View item
-                </a>
+                </Link>
               )}
               <button
                 onClick={() => { onMatch(); onClose() }}

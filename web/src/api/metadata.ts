@@ -135,6 +135,10 @@ export interface ImportItemResult {
   album?: Group
 }
 
+export interface ImportItemJobAccepted {
+  job_id: string
+}
+
 export function importItem(req: ImportItemRequest) {
-  return post<ImportItemResult>('/metadata/items/import', req)
+  return post<ImportItemResult | ImportItemJobAccepted>('/metadata/items/import', req)
 }

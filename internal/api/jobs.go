@@ -25,6 +25,7 @@ type jobResponse struct {
 	ID          string         `json:"id"`
 	Name        string         `json:"name"`
 	Payload     map[string]any `json:"payload,omitempty"`
+	Result      map[string]any `json:"result,omitempty"`
 	Status      string         `json:"status"`
 	Current     int            `json:"current"`
 	Total       int            `json:"total"`
@@ -40,6 +41,7 @@ func jobToResponse(j *domain.Job) jobResponse {
 		ID:          j.ID,
 		Name:        j.Name,
 		Payload:     j.Payload,
+		Result:      j.Result,
 		Status:      string(j.Status),
 		Current:     j.Current,
 		Total:       j.Total,

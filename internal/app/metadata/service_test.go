@@ -3,6 +3,7 @@ package metadata_test
 import (
 	"context"
 	"errors"
+	"purser/internal/adapters/jobs"
 	"purser/internal/app/errs"
 	"purser/internal/app/metadata"
 	"purser/internal/domain"
@@ -1682,5 +1683,67 @@ func TestRefreshArtist_GroupLinkedToItem(t *testing.T) {
 		if _, ok := groupByID[it.GroupID]; !ok {
 			t.Errorf("item %q: GroupID %q does not match any saved group", it.Title, it.GroupID)
 		}
+	}
+}
+
+// ── SubmitImportItemJob ───────────────────────────────────────────────────────
+
+func TestSubmitImportItemJob_EnqueuesAndSetsResult(t *testing.T) {
+	q := jobs.New(1)
+	t.Cleanup(q.Close)
+
+	src := &stubMusicSource{
+		findItem: &domain.ExternalItem{
+			Source:      domain.SourceMusicBrainz,
+			ExternalID:  "rec-job-1",
+			ContentType: domain.ContentTypeMusic,
+			Title:       "Async Track",
+			Studio: &domain.ExternalStudio{
+				Source:     domain.SourceMusicBrainz,
+				ExternalID: "artist-job-1",
+				Name:       "Async Artist",
+			},
+		},
+	}
+	svc := metadata.New([]ports.MetadataSource{src}, q, newStubEntryRepo(), nil, &stubItemRepo{}, &stubPersonRepo{}, &stubTagRepo{}, &stubExternalIDRepo{}, nil)
+
+	job, err := svc.SubmitImportItemJob(context.Background(), &metadata.ImportItemRequest{
+		Source:      domain.SourceMusicBrainz,
+		ExternalID:  "rec-job-1",
+		ContentType: domain.ContentTypeMusic,
+		Monitored:   true,
+	})
+	if err != nil {
+		t.Fatalf("SubmitImportItemJob: %v", err)
+	}
+	if job == nil || job.Name != "ImportItem" {
+		t.Fatalf("job = %v, want Name=%q", job, "ImportItem")
+	}
+
+	// Wait for the job to reach a terminal state.
+	var completed *domain.Job
+	for range 50 {
+		j, getErr := q.Get(context.Background(), job.ID)
+		if getErr != nil {
+			t.Fatalf("Get: %v", getErr)
+		}
+		if j.IsTerminal() {
+			completed = j
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	if completed == nil {
+		t.Fatal("job did not complete within timeout")
+	}
+	if completed.Status != domain.JobStatusCompleted {
+		t.Errorf("status = %q, want %q; error = %q", completed.Status, domain.JobStatusCompleted, completed.Error)
+	}
+	if completed.Result == nil {
+		t.Fatal("job Result is nil, want item_id")
+	}
+	itemID, ok := completed.Result["item_id"].(string)
+	if !ok || itemID == "" {
+		t.Errorf("Result[item_id] = %v, want non-empty string", completed.Result["item_id"])
 	}
 }

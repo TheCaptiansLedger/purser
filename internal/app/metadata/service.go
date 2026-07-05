@@ -752,6 +752,22 @@ func (s *Service) collectNewItems(ctx context.Context, src ports.MetadataSource,
 	return newExtItems, nil
 }
 
+// SubmitImportItemJob enqueues an item import and returns the job immediately.
+// The caller polls JobQueue.Get until the job is terminal; on completion the
+// job's Result carries {"item_id": "<uuid>"}.
+func (s *Service) SubmitImportItemJob(ctx context.Context, req *ImportItemRequest) (*domain.Job, error) {
+	return s.jobs.Submit(ctx, "ImportItem",
+		map[string]any{"source": string(req.Source), "external_id": req.ExternalID},
+		func(ctx context.Context, p ports.ProgressReporter) error {
+			result, err := s.ImportItem(ctx, req)
+			if err != nil {
+				return err
+			}
+			p.SetResult(map[string]any{"item_id": result.Item.ID})
+			return nil
+		})
+}
+
 // SubmitRefreshJob enqueues a metadata refresh for the given entity.
 func (s *Service) SubmitRefreshJob(ctx context.Context, jobName, entityID string) (*domain.Job, error) {
 	if entityID == "" {
