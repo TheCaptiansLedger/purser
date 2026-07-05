@@ -297,6 +297,7 @@ export interface UnmatchedFileGroup {
   group_title: string
   files: UnmatchedFile[]
   best_candidate_confidence: number
+  cover_url?: string
 }
 
 export interface UnmatchedListResponse<T = UnmatchedFile | UnmatchedFileGroup> {

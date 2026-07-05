@@ -98,6 +98,15 @@ export function AlbumUnmatchedGroup({ group, onResolved }: Props) {
           {expanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
         </button>
 
+        {group.cover_url && (
+          <img
+            src={group.cover_url}
+            alt=""
+            className="w-10 h-10 rounded object-cover shrink-0 bg-white/5"
+            onError={e => { (e.target as HTMLImageElement).style.display = 'none' }}
+          />
+        )}
+
         <div className="flex-1 min-w-0">
           <p className="text-sm font-medium text-white/80 truncate">{group.group_title || 'Unknown Album'}</p>
           <p className="text-[10px] text-white/30 mt-0.5">

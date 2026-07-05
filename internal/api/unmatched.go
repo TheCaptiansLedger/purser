@@ -83,6 +83,7 @@ type unmatchedGroupResponse struct {
 	GroupTitle              string                  `json:"group_title"`
 	Files                   []unmatchedFileResponse `json:"files"`
 	BestCandidateConfidence float64                 `json:"best_candidate_confidence"`
+	CoverURL                string                  `json:"cover_url,omitempty"`
 }
 
 type unmatchedListResponse struct {
@@ -226,11 +227,16 @@ func (h *unmatchedHandler) list(w http.ResponseWriter, r *http.Request) {
 			for _, f := range g.Files {
 				files = append(files, unmatchedToResponse(f))
 			}
+			coverURL := ""
+			if g.GroupID != "" {
+				coverURL = "https://coverartarchive.org/release/" + g.GroupID + "/front-250"
+			}
 			items = append(items, unmatchedGroupResponse{
 				GroupID:                 g.GroupID,
 				GroupTitle:              g.GroupTitle,
 				Files:                   files,
 				BestCandidateConfidence: g.BestCandidateConfidence,
+				CoverURL:                coverURL,
 			})
 		}
 		writeJSON(w, http.StatusOK, unmatchedListResponse{
