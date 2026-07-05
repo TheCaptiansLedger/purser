@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react'
 import { X, Loader2 } from 'lucide-react'
 import { useQueryClient } from '@tanstack/react-query'
-import { searchTracks, importTrack } from '../../api/metadata'
+import { searchTracks } from '../../api/metadata'
+import { createItem } from '../../api/items'
 import { RuntimeInput } from '../../components/edit/fields/RuntimeInput'
 import { Toggle } from '../../components/edit/fields/Toggle'
 import { fmtRuntime } from '../../components/ui/Runtime'
@@ -86,16 +87,17 @@ export function AddTrackDialog({
     setSaving(true)
     setError(undefined)
     try {
-      await importTrack({
-        source: selectedTrack?.source,
-        externalId: selectedTrack?.externalId,
-        groupId: albumId,
-        libraryEntryId,
+      await createItem({
         contentType,
+        libraryEntryId,
+        groupId: albumId,
         title: form.title,
         sequence: form.sequence || undefined,
         runtimeSeconds: form.runtimeSeconds || undefined,
         monitored: form.monitored,
+        ...(selectedTrack?.externalId && selectedTrack.source
+          ? { externalIds: [{ source: selectedTrack.source, value: selectedTrack.externalId }] }
+          : {}),
       })
       await queryClient.invalidateQueries({ queryKey: ['items'] })
       onClose()

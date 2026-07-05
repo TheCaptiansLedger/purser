@@ -86,30 +86,14 @@ func run(cfgPath string) error {
 	jobQueue := jobsadapter.New(cfg.Server.Workers)
 	defer jobQueue.Close()
 
-	githubCache, err := cache.New("github", 256)
+	caches, err := buildCaches()
 	if err != nil {
-		return fmt.Errorf("create github cache: %w", err)
-	}
-	audiodbCache, err := cache.New("audiodb", 1024)
-	if err != nil {
-		return fmt.Errorf("create audiodb cache: %w", err)
-	}
-	mbzCache, err := cache.New("mbz", 512)
-	if err != nil {
-		return fmt.Errorf("create mbz cache: %w", err)
-	}
-	fanartCache, err := cache.New("fanart", 256)
-	if err != nil {
-		return fmt.Errorf("create fanart cache: %w", err)
-	}
-	stashdbCache, err := cache.New("stashdb", 256)
-	if err != nil {
-		return fmt.Errorf("create stashdb cache: %w", err)
+		return fmt.Errorf("build caches: %w", err)
 	}
 
 	libSvc := library.New(entryRepo, groupRepo, itemRepo, personRepo, tagRepo)
 	peopleSvc := people.New(personRepo)
-	sources := buildSources(cfg, audiodbCache, mbzCache, fanartCache, stashdbCache)
+	sources := buildSources(cfg, caches.audiodb, caches.mbz, caches.fanart, caches.stashdb)
 	imgDownloader := fsadapter.NewImageDownloader(cfg.Media.Path)
 
 	osFS := fsadapter.NewFileSystem()
@@ -119,7 +103,7 @@ func run(cfgPath string) error {
 	musicFP := fingerprint.NewMusicFingerprinter()
 	bookFP := fingerprint.NewBookFingerprinter()
 	adultID := identifier.NewAdultIdentifier(mediaFileRepo, itemRepo, sources)
-	musicID := identifier.NewMusicIdentifier(extIDRepo, itemRepo, sources, cfg.Sources.AcoustID.APIKey)
+	musicID := identifier.NewMusicIdentifier(extIDRepo, itemRepo, sources, cfg.Sources.AcoustID.APIKey, caches.acoustid)
 	videoID := identifier.NewVideoIdentifier(mediaFileRepo, itemRepo, sources)
 	bookID := identifier.NewBookIdentifier(extIDRepo, itemRepo, sources)
 	noopNotifier := &notify.NoopDispatcher{}
@@ -136,7 +120,7 @@ func run(cfgPath string) error {
 	ghAdapter := githubadapter.New(githubadapter.Config{
 		Repo:  cfg.GitHub.Repo,
 		Token: cfg.GitHub.Token,
-	}, githubCache)
+	}, caches.github)
 
 	uiFS, err := fs.Sub(web.Dist, "dist")
 	if err != nil {
@@ -151,9 +135,13 @@ func run(cfgPath string) error {
 		shutdown()
 	}()
 
-	srv := api.New(cfg.Server.Port, cfg.Media.Path, cfg, storageAdmin, libSvc, peopleSvc, metaSvc, scanSvc, tagRepo, jobQueue, cfgSvc, sources, uiFS, imgDownloader, ghAdapter, []*cache.Cache{githubCache, audiodbCache, mbzCache, fanartCache, stashdbCache}, shutdown)
+	srv := api.New(cfg.Server.Port, cfg.Media.Path, cfg, storageAdmin, libSvc, peopleSvc, metaSvc, scanSvc, tagRepo, jobQueue, cfgSvc, sources, uiFS, imgDownloader, ghAdapter, caches.all(), shutdown)
 
-	go func() { _ = scanSvc.StartWatching(lifecycleCtx, modulesFromConfig(cfg)) }()
+	go func() {
+		if err := scanSvc.StartWatching(lifecycleCtx, modulesFromConfig(cfg)); err != nil {
+			slog.Error("file watcher stopped", "err", err)
+		}
+	}()
 
 	go func() {
 		slog.Info("listening", "port", cfg.Server.Port)
@@ -289,6 +277,50 @@ func buildSources(cfg *config.Config, audiodbCache, mbzCache, fanartCache, stash
 		sources = append(sources, theaudiodb.New(cfg.Sources.TheAudioDB, audiodbCache))
 	}
 	return sources
+}
+
+type appCaches struct {
+	github   *cache.Cache
+	audiodb  *cache.Cache
+	mbz      *cache.Cache
+	fanart   *cache.Cache
+	stashdb  *cache.Cache
+	acoustid *cache.Cache
+}
+
+func (a *appCaches) all() []*cache.Cache {
+	return []*cache.Cache{a.github, a.audiodb, a.mbz, a.fanart, a.stashdb, a.acoustid}
+}
+
+func buildCaches() (*appCaches, error) {
+	type spec struct {
+		name string
+		size int
+	}
+	specs := []spec{
+		{"github", 256},
+		{"audiodb", 1024},
+		{"mbz", 512},
+		{"fanart", 256},
+		{"stashdb", 256},
+		{"acoustid", 512},
+	}
+	built := make([]*cache.Cache, 0, len(specs))
+	for _, s := range specs {
+		c, err := cache.New(s.name, s.size)
+		if err != nil {
+			return nil, fmt.Errorf("cache %q: %w", s.name, err)
+		}
+		built = append(built, c)
+	}
+	return &appCaches{
+		github:   built[0],
+		audiodb:  built[1],
+		mbz:      built[2],
+		fanart:   built[3],
+		stashdb:  built[4],
+		acoustid: built[5],
+	}, nil
 }
 
 func newLogger(cfg config.LogConfig) *slog.Logger {

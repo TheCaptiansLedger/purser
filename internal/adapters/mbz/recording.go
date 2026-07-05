@@ -16,13 +16,16 @@ type mbzRecordingResponse struct {
 }
 
 type mbzRecording struct {
-	ID       string                `json:"id"`
-	Title    string                `json:"title"`
-	Length   int                   `json:"length"` // milliseconds
-	Releases []mbzRecordingRelease `json:"releases"`
+	ID           string                `json:"id"`
+	Title        string                `json:"title"`
+	Length       int                   `json:"length"`        // milliseconds
+	ArtistCredit []mbzArtistCredit     `json:"artist-credit"` // present on direct lookup
+	Releases     []mbzRecordingRelease `json:"releases"`
 }
 
 type mbzRecordingRelease struct {
+	ID           string            `json:"id"`
+	Title        string            `json:"title"`
 	ArtistCredit []mbzArtistCredit `json:"artist-credit"`
 }
 
@@ -59,6 +62,25 @@ func (a *Adapter) SearchItems(ctx context.Context, _ domain.ContentType, query s
 
 // ── Mapping ───────────────────────────────────────────────────────────────────
 
+// FetchRecordingByID fetches a single recording from MusicBrainz by its MBID,
+// including artist credits. Used by the music identifier for direct MBID lookups.
+func (a *Adapter) FetchRecordingByID(ctx context.Context, mbid string) (*domain.ExternalItem, error) {
+	u := fmt.Sprintf("%srecording/%s?inc=artist-credits+releases&fmt=json", a.baseURL, mbid)
+	var r mbzRecording
+	if err := a.get(ctx, u, &r); err != nil {
+		return nil, err
+	}
+	if r.ID == "" {
+		return nil, fmt.Errorf("mbz recording not found: %s", mbid)
+	}
+	return toExternalRecording(&r), nil
+}
+
+// FindItemByExternalID fetches a recording by MBID. Implements ports.ItemSource.
+func (a *Adapter) FindItemByExternalID(ctx context.Context, _ domain.ContentType, id string) (*domain.ExternalItem, error) {
+	return a.FetchRecordingByID(ctx, id)
+}
+
 func toExternalRecording(r *mbzRecording) *domain.ExternalItem {
 	item := &domain.ExternalItem{
 		Source:      domain.SourceMusicBrainz,
@@ -67,13 +89,26 @@ func toExternalRecording(r *mbzRecording) *domain.ExternalItem {
 		Title:       r.Title,
 		RuntimeSecs: r.Length / 1000,
 	}
-	if len(r.Releases) > 0 && len(r.Releases[0].ArtistCredit) > 0 {
-		ac := &r.Releases[0].ArtistCredit[0]
+	// Top-level ArtistCredit is present on direct lookup; fall back to releases for search results.
+	var credits []mbzArtistCredit
+	if len(r.ArtistCredit) > 0 {
+		credits = r.ArtistCredit
+	} else if len(r.Releases) > 0 {
+		credits = r.Releases[0].ArtistCredit
+	}
+	if len(credits) > 0 {
+		ac := &credits[0]
 		item.Studio = &domain.ExternalStudio{
 			Source:     domain.SourceMusicBrainz,
 			ExternalID: ac.Artist.ID,
 			Name:       ac.Name,
 		}
+	}
+	// Use the first release to populate the group external ID and album cover.
+	// Cover Art Archive URLs are deterministic so no HTTP fetch is needed at this stage.
+	if len(r.Releases) > 0 && r.Releases[0].ID != "" {
+		item.GroupExternalID = r.Releases[0].ID
+		item.ImageURL = "https://coverartarchive.org/release/" + r.Releases[0].ID + "/front-250"
 	}
 	return item
 }

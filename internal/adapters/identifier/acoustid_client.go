@@ -6,22 +6,29 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"purser/pkg/cache"
 	"strconv"
+	"time"
 )
 
-const acoustidBaseURL = "https://api.acoustid.org"
+const (
+	acoustidBaseURL  = "https://api.acoustid.org"
+	acoustidCacheTTL = 7 * 24 * time.Hour
+)
 
 type acoustidClient struct {
 	apiKey  string
 	baseURL string
 	http    *http.Client
+	cache   *cache.Cache // nil = caching disabled (tests)
 }
 
-func newAcoustIDClient(apiKey string) *acoustidClient {
+func newAcoustIDClient(apiKey string, c *cache.Cache) *acoustidClient {
 	return &acoustidClient{
 		apiKey:  apiKey,
 		baseURL: acoustidBaseURL,
 		http:    &http.Client{},
+		cache:   c,
 	}
 }
 
@@ -32,6 +39,17 @@ func NewTestAcoustIDClient(apiKey, baseURL string) *acoustidClient {
 		apiKey:  apiKey,
 		baseURL: baseURL,
 		http:    &http.Client{},
+	}
+}
+
+// NewTestAcoustIDClientWithCache constructs a test client with caching enabled.
+// Used by tests that verify cache hit/miss behaviour.
+func NewTestAcoustIDClientWithCache(apiKey, baseURL string, c *cache.Cache) *acoustidClient {
+	return &acoustidClient{
+		apiKey:  apiKey,
+		baseURL: baseURL,
+		http:    &http.Client{},
+		cache:   c,
 	}
 }
 
@@ -54,6 +72,15 @@ type acoustidRecording struct {
 // that match the given raw fingerprint and duration (in seconds).
 // Returns an empty slice (not an error) when no matches are found.
 func (c *acoustidClient) Lookup(ctx context.Context, fingerprint string, durationSecs int) ([]string, error) {
+	cacheKey := fingerprint + ":" + strconv.Itoa(durationSecs)
+	if c.cache != nil {
+		if v, ok := c.cache.Get(cacheKey); ok {
+			var mbids []string
+			_ = json.Unmarshal(v, &mbids)
+			return mbids, nil
+		}
+	}
+
 	params := url.Values{}
 	params.Set("client", c.apiKey)
 	params.Set("meta", "recordings")
@@ -92,5 +119,12 @@ func (c *acoustidClient) Lookup(ctx context.Context, fingerprint string, duratio
 			}
 		}
 	}
+
+	if c.cache != nil {
+		if b, err := json.Marshal(mbids); err == nil {
+			c.cache.Set(cacheKey, b, acoustidCacheTTL)
+		}
+	}
+
 	return mbids, nil
 }

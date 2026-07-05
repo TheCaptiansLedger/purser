@@ -43,7 +43,10 @@ export interface PersonRoleCount {
 
 export interface ContentTypeConfig {
   contentType: ContentType
+  label: string
+  moduleKey: string
   personRoles: string[]
+  supportsFileGrouping: boolean
 }
 
 export interface KindConfig {
@@ -241,11 +244,38 @@ export interface Fingerprint {
   isbn?: string
 }
 
+export interface ExternalParent {
+  source: string
+  external_id: string
+  name: string
+  parent_id?: string
+  parent_name?: string
+  image_url?: string
+  parent_image_url?: string
+}
+
+export interface ExternalCandidateItem {
+  source: string
+  external_id: string
+  title: string
+  content_type: string
+  parent_kind?: string
+  image_url?: string
+  overview?: string
+  date?: string
+  runtime_seconds?: number
+  group_external_id?: string
+  parent?: ExternalParent
+}
+
 export interface MatchCandidate {
   item_id: string
   item_title?: string
   confidence: number
   source: string
+  source_label: string
+  source_description?: string
+  external?: ExternalCandidateItem
 }
 
 export type UnmatchedStatus = 'pending' | 'matched' | 'dismissed'

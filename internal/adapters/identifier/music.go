@@ -8,6 +8,7 @@ import (
 	"purser/internal/app/errs"
 	"purser/internal/domain"
 	"purser/internal/ports"
+	"purser/pkg/cache"
 	"slices"
 	"strconv"
 	"strings"
@@ -31,10 +32,11 @@ func NewMusicIdentifier(
 	items ports.ItemRepository,
 	sources []ports.MetadataSource,
 	acoustidKey string,
+	acoustidCache *cache.Cache,
 ) ports.FileIdentifier {
 	var ac *acoustidClient
 	if acoustidKey != "" {
-		ac = newAcoustIDClient(acoustidKey)
+		ac = newAcoustIDClient(acoustidKey, acoustidCache)
 	}
 	return &musicIdentifier{
 		extIDs:   extIDs,
@@ -62,6 +64,7 @@ func (m *musicIdentifier) Identify(ctx context.Context, f domain.ScannedFile) ([
 			return nil, err
 		}
 		if aboveThreshold(candidates) {
+			enrichFromTags(candidates, fp)
 			return candidates, nil
 		}
 	}
@@ -75,6 +78,7 @@ func (m *musicIdentifier) Identify(ctx context.Context, f domain.ScannedFile) ([
 	// threshold but item=nil (MBIDs not stored on tracks), fall through so the
 	// tag strategy can still auto-match by title.
 	if aboveThreshold(acoustidCandidates) && anyItemLinked(acoustidCandidates) {
+		enrichFromTags(acoustidCandidates, fp)
 		return acoustidCandidates, nil
 	}
 
@@ -93,9 +97,41 @@ func (m *musicIdentifier) Identify(ctx context.Context, f domain.ScannedFile) ([
 	// Prefer acoustid candidates (even without library item) over low-confidence
 	// filename guesses so the queue entry carries the MBID for manual review.
 	if len(acoustidCandidates) > 0 {
+		enrichFromTags(acoustidCandidates, fp)
 		return acoustidCandidates, nil
 	}
 	return m.filenameStrategy(ctx, f.Path)
+}
+
+// enrichFromTags fills in missing metadata on candidates whose ExternalItem was
+// built from a MBID stub (recording endpoint not available in MBZ adapter).
+// Embedded tags are the fallback source for title, runtime, and artist info.
+// Studio is only populated when a musicbrainz_artist_id tag is present so that
+// the Import & Create dialog can call importEntry with a valid external ID.
+func enrichFromTags(candidates []domain.MatchCandidate, fp *domain.Fingerprint) {
+	durMS, _ := strconv.Atoi(fp.EmbeddedTags["duration_ms"])
+	artist := fp.EmbeddedTags["artist"]
+	artistID := fp.EmbeddedTags["musicbrainz_artist_id"]
+
+	for i := range candidates {
+		ext := candidates[i].ExternalItem
+		if ext == nil {
+			continue
+		}
+		if ext.Title == "" {
+			ext.Title = fp.EmbeddedTags["title"]
+		}
+		if ext.RuntimeSecs == 0 && durMS > 0 {
+			ext.RuntimeSecs = durMS / 1000
+		}
+		if ext.Studio == nil && artist != "" && artistID != "" {
+			ext.Studio = &domain.ExternalStudio{
+				Name:       artist,
+				Source:     domain.SourceMusicBrainz,
+				ExternalID: artistID,
+			}
+		}
+	}
 }
 
 func (m *musicIdentifier) mbzTrackIDStrategy(ctx context.Context, mbzID string) ([]domain.MatchCandidate, error) {
@@ -219,21 +255,36 @@ func (m *musicIdentifier) filenameStrategy(ctx context.Context, path string) ([]
 	return candidates, nil
 }
 
-// fetchExternalByMBID asks each registered source for the ExternalItem for a
-// MusicBrainz recording ID. Returns a stub with just the ID set when no source
-// can hydrate it, so the queue entry always carries the MBID for the UI.
+// recordingLookup is the narrow interface for fetching a recording by MBID.
+// The MBZ adapter implements this; other sources need not.
+type recordingLookup interface {
+	FetchRecordingByID(ctx context.Context, mbid string) (*domain.ExternalItem, error)
+}
+
+// fetchExternalByMBID fetches full recording metadata for a MusicBrainz recording
+// ID. It prefers the dedicated recording endpoint (title + artist credits) over
+// the generic FindByExternalID, which does an artist lookup for MBZ and always
+// 404s on recording MBIDs. Returns a minimal stub if no source can hydrate it.
 func (m *musicIdentifier) fetchExternalByMBID(ctx context.Context, mbid string) *domain.ExternalItem {
 	for _, src := range m.sources {
 		if !slices.Contains(src.ContentTypes(), domain.ContentTypeMusic) {
 			continue
 		}
-		es, ok := src.(ports.ExternalIDSource)
-		if !ok {
+		if rl, ok := src.(recordingLookup); ok {
+			if ext, err := rl.FetchRecordingByID(ctx, mbid); err == nil && ext != nil {
+				return ext
+			}
+		}
+	}
+	// Fallback for non-MBZ sources that implement FindByExternalID.
+	for _, src := range m.sources {
+		if !slices.Contains(src.ContentTypes(), domain.ContentTypeMusic) {
 			continue
 		}
-		ext, err := es.FindByExternalID(ctx, domain.ContentTypeMusic, mbid)
-		if err == nil && ext != nil {
-			return ext
+		if es, ok := src.(ports.ExternalIDSource); ok {
+			if ext, err := es.FindByExternalID(ctx, domain.ContentTypeMusic, mbid); err == nil && ext != nil {
+				return ext
+			}
 		}
 	}
 	return &domain.ExternalItem{

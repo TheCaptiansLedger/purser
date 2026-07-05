@@ -5,22 +5,23 @@ import "time"
 // ExternalItem is scene/movie/episode/track metadata returned from an external source.
 // It is a data-transfer type used by MetadataSource adapters and is not persisted directly.
 type ExternalItem struct {
-	Source      ExternalIDSource
-	ExternalID  string
-	ContentType ContentType
-	Title       string
-	Overview    string
-	Sequence    string // track number, episode number, or other position indicator
-	Year        int
-	Date        time.Time
-	RuntimeSecs int
-	ImageURL    string
-	Studio      *ExternalStudio
-	People      []*ExternalPerson
-	Tags        []string
-	Genres      []string
-	ExternalIDs map[string]string
-	Images      []ExternalImage
+	Source          ExternalIDSource
+	ExternalID      string
+	ContentType     ContentType
+	Title           string
+	Overview        string
+	Sequence        string // track number, episode number, or other position indicator
+	Year            int
+	Date            time.Time
+	RuntimeSecs     int
+	ImageURL        string
+	GroupExternalID string // parent group (release MBID, season ID, etc.) for this item
+	Studio          *ExternalStudio
+	People          []*ExternalPerson
+	Tags            []string
+	Genres          []string
+	ExternalIDs     map[string]string
+	Images          []ExternalImage
 }
 
 // ExternalImage is image metadata returned by a metadata source for a given entity.

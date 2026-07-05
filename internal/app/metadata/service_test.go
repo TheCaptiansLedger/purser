@@ -27,12 +27,12 @@ func newService() *metadata.Service {
 	)
 }
 
-// ── ImportStudio ──────────────────────────────────────────────────────────────
+// ── ImportEntry ───────────────────────────────────────────────────────────────
 
-func TestImportStudio_DefaultMonitorMode(t *testing.T) {
+func TestImportEntry_DefaultMonitorMode(t *testing.T) {
 	svc := newService()
 
-	res, err := svc.ImportStudio(context.Background(), &metadata.ImportStudioRequest{
+	res, err := svc.ImportEntry(context.Background(), &metadata.ImportEntryRequest{
 		Source:      domain.SourceStashDB,
 		ExternalID:  "studio-1",
 		Name:        "Acme Studios",
@@ -41,17 +41,17 @@ func TestImportStudio_DefaultMonitorMode(t *testing.T) {
 		// MonitorMode deliberately omitted — should default to latest
 	})
 	if err != nil {
-		t.Fatalf("ImportStudio: %v", err)
+		t.Fatalf("ImportEntry: %v", err)
 	}
-	if res.Studio.MonitorMode != domain.MonitorLatest {
-		t.Errorf("MonitorMode = %q, want %q", res.Studio.MonitorMode, domain.MonitorLatest)
+	if res.Entry.MonitorMode != domain.MonitorLatest {
+		t.Errorf("MonitorMode = %q, want %q", res.Entry.MonitorMode, domain.MonitorLatest)
 	}
 }
 
-func TestImportStudio_ExplicitMonitorMode(t *testing.T) {
+func TestImportEntry_ExplicitMonitorMode(t *testing.T) {
 	svc := newService()
 
-	res, err := svc.ImportStudio(context.Background(), &metadata.ImportStudioRequest{
+	res, err := svc.ImportEntry(context.Background(), &metadata.ImportEntryRequest{
 		Source:      domain.SourceStashDB,
 		ExternalID:  "studio-2",
 		Name:        "Full Collection Studios",
@@ -59,74 +59,73 @@ func TestImportStudio_ExplicitMonitorMode(t *testing.T) {
 		MonitorMode: domain.MonitorAll,
 	})
 	if err != nil {
-		t.Fatalf("ImportStudio: %v", err)
+		t.Fatalf("ImportEntry: %v", err)
 	}
-	if res.Studio.MonitorMode != domain.MonitorAll {
-		t.Errorf("MonitorMode = %q, want %q", res.Studio.MonitorMode, domain.MonitorAll)
+	if res.Entry.MonitorMode != domain.MonitorAll {
+		t.Errorf("MonitorMode = %q, want %q", res.Entry.MonitorMode, domain.MonitorAll)
 	}
 }
 
-func TestImportStudio_KindDefaultsToStudio(t *testing.T) {
+func TestImportEntry_AdultKindIsStudio(t *testing.T) {
 	svc := newService()
 
-	res, err := svc.ImportStudio(context.Background(), &metadata.ImportStudioRequest{
+	res, err := svc.ImportEntry(context.Background(), &metadata.ImportEntryRequest{
 		Source:      domain.SourceStashDB,
 		ExternalID:  "studio-kind-default",
 		Name:        "Default Kind Studio",
 		ContentType: domain.ContentTypeAdult,
 	})
 	if err != nil {
-		t.Fatalf("ImportStudio: %v", err)
+		t.Fatalf("ImportEntry: %v", err)
 	}
-	if res.Studio.Kind != domain.KindStudio {
-		t.Errorf("Kind = %q, want %q", res.Studio.Kind, domain.KindStudio)
+	if res.Entry.Kind != domain.KindStudio {
+		t.Errorf("Kind = %q, want %q", res.Entry.Kind, domain.KindStudio)
 	}
 }
 
-func TestImportStudio_KindArtist(t *testing.T) {
+func TestImportEntry_MusicKindIsArtist(t *testing.T) {
 	svc := newService()
 
-	res, err := svc.ImportStudio(context.Background(), &metadata.ImportStudioRequest{
+	res, err := svc.ImportEntry(context.Background(), &metadata.ImportEntryRequest{
 		Source:      domain.SourceMusicBrainz,
 		ExternalID:  "artist-mbz-1",
 		Name:        "Test Artist",
 		ContentType: domain.ContentTypeMusic,
-		Kind:        domain.KindArtist,
 	})
 	if err != nil {
-		t.Fatalf("ImportStudio: %v", err)
+		t.Fatalf("ImportEntry: %v", err)
 	}
-	if res.Studio.Kind != domain.KindArtist {
-		t.Errorf("Kind = %q, want %q", res.Studio.Kind, domain.KindArtist)
+	if res.Entry.Kind != domain.KindArtist {
+		t.Errorf("Kind = %q, want %q", res.Entry.Kind, domain.KindArtist)
 	}
 }
 
-func TestImportStudio_Idempotent(t *testing.T) {
+func TestImportEntry_Idempotent(t *testing.T) {
 	entryRepo := newStubEntryRepo()
 	svc := metadata.New(nil, nil, entryRepo, nil, &stubItemRepo{}, &stubPersonRepo{}, &stubTagRepo{}, &stubExternalIDRepo{}, nil)
 
-	req := &metadata.ImportStudioRequest{
+	req := &metadata.ImportEntryRequest{
 		Source:      domain.SourceStashDB,
 		ExternalID:  "studio-3",
 		Name:        "Once Only",
 		ContentType: domain.ContentTypeAdult,
 	}
 
-	res1, err := svc.ImportStudio(context.Background(), req)
+	res1, err := svc.ImportEntry(context.Background(), req)
 	if err != nil {
-		t.Fatalf("first ImportStudio: %v", err)
+		t.Fatalf("first ImportEntry: %v", err)
 	}
 
 	// Seed the external ID repo with the saved entry so the second call finds it.
-	seededRepo := &seededExternalIDRepo{id: res1.Studio.ID}
+	seededRepo := &seededExternalIDRepo{id: res1.Entry.ID}
 	svc2 := metadata.New(nil, nil, entryRepo, nil, &stubItemRepo{}, &stubPersonRepo{}, &stubTagRepo{}, seededRepo, nil)
 
-	res2, err := svc2.ImportStudio(context.Background(), req)
+	res2, err := svc2.ImportEntry(context.Background(), req)
 	if err != nil {
-		t.Fatalf("second ImportStudio: %v", err)
+		t.Fatalf("second ImportEntry: %v", err)
 	}
-	if res2.Studio.ID != res1.Studio.ID {
-		t.Errorf("idempotent call returned different ID: %q vs %q", res2.Studio.ID, res1.Studio.ID)
+	if res2.Entry.ID != res1.Entry.ID {
+		t.Errorf("idempotent call returned different ID: %q vs %q", res2.Entry.ID, res1.Entry.ID)
 	}
 	if len(entryRepo.data) != 1 {
 		t.Errorf("entry count = %d, want 1 (no duplicate created)", len(entryRepo.data))
@@ -243,7 +242,7 @@ func TestRefreshStudio_MonitorFuture(t *testing.T) {
 
 // ── AutoImport ────────────────────────────────────────────────────────────────
 
-func TestImportStudio_AutoImport_EnqueuesJob(t *testing.T) {
+func TestImportEntry_AutoImport_EnqueuesJob(t *testing.T) {
 	jobQueue := &stubJobQueue{}
 	svc := metadata.New(
 		nil, // no metadata sources
@@ -257,7 +256,7 @@ func TestImportStudio_AutoImport_EnqueuesJob(t *testing.T) {
 		nil,
 	)
 
-	_, err := svc.ImportStudio(context.Background(), &metadata.ImportStudioRequest{
+	_, err := svc.ImportEntry(context.Background(), &metadata.ImportEntryRequest{
 		Source:      domain.SourceStashDB,
 		ExternalID:  "studio-auto-1",
 		Name:        "Auto Import Studio",
@@ -265,7 +264,7 @@ func TestImportStudio_AutoImport_EnqueuesJob(t *testing.T) {
 		AutoImport:  true,
 	})
 	if err != nil {
-		t.Fatalf("ImportStudio: %v", err)
+		t.Fatalf("ImportEntry: %v", err)
 	}
 	if len(jobQueue.submitted) != 1 {
 		t.Fatalf("submitted job count = %d, want 1", len(jobQueue.submitted))
@@ -275,7 +274,7 @@ func TestImportStudio_AutoImport_EnqueuesJob(t *testing.T) {
 	}
 }
 
-func TestImportStudio_AutoImport_KindArtist_EnqueuesRefreshArtist(t *testing.T) {
+func TestImportEntry_MusicAutoImport_EnqueuesRefreshArtist(t *testing.T) {
 	jobQueue := &stubJobQueue{}
 	svc := metadata.New(
 		nil,
@@ -289,16 +288,15 @@ func TestImportStudio_AutoImport_KindArtist_EnqueuesRefreshArtist(t *testing.T) 
 		nil,
 	)
 
-	_, err := svc.ImportStudio(context.Background(), &metadata.ImportStudioRequest{
+	_, err := svc.ImportEntry(context.Background(), &metadata.ImportEntryRequest{
 		Source:      domain.SourceMusicBrainz,
 		ExternalID:  "artist-auto-1",
 		Name:        "Fleetwood Mac",
 		ContentType: domain.ContentTypeMusic,
-		Kind:        domain.KindArtist,
 		AutoImport:  true,
 	})
 	if err != nil {
-		t.Fatalf("ImportStudio: %v", err)
+		t.Fatalf("ImportEntry: %v", err)
 	}
 	if len(jobQueue.submitted) != 1 {
 		t.Fatalf("submitted job count = %d, want 1", len(jobQueue.submitted))
@@ -308,7 +306,7 @@ func TestImportStudio_AutoImport_KindArtist_EnqueuesRefreshArtist(t *testing.T) 
 	}
 }
 
-func TestImportStudio_AutoImport_False_NoJob(t *testing.T) {
+func TestImportEntry_AutoImport_False_NoJob(t *testing.T) {
 	jobQueue := &stubJobQueue{}
 	svc := metadata.New(
 		nil,
@@ -322,7 +320,7 @@ func TestImportStudio_AutoImport_False_NoJob(t *testing.T) {
 		nil,
 	)
 
-	_, err := svc.ImportStudio(context.Background(), &metadata.ImportStudioRequest{
+	_, err := svc.ImportEntry(context.Background(), &metadata.ImportEntryRequest{
 		Source:      domain.SourceStashDB,
 		ExternalID:  "studio-no-auto-1",
 		Name:        "Manual Studio",
@@ -330,7 +328,7 @@ func TestImportStudio_AutoImport_False_NoJob(t *testing.T) {
 		AutoImport:  false,
 	})
 	if err != nil {
-		t.Fatalf("ImportStudio: %v", err)
+		t.Fatalf("ImportEntry: %v", err)
 	}
 	if len(jobQueue.submitted) != 0 {
 		t.Errorf("submitted job count = %d, want 0 (AutoImport=false)", len(jobQueue.submitted))
@@ -1206,69 +1204,66 @@ func TestRefreshArtist_PersonImagePrefersAudioDB(t *testing.T) {
 	}
 }
 
-// ── Movie studio hierarchy ────────────────────────────────────────────────────
+// ── Movie entry hierarchy ─────────────────────────────────────────────────────
 
-func TestImportStudio_MovieStudio(t *testing.T) {
-	res, err := newService().ImportStudio(context.Background(), &metadata.ImportStudioRequest{
+func TestImportEntry_MovieKindIsMovie(t *testing.T) {
+	res, err := newService().ImportEntry(context.Background(), &metadata.ImportEntryRequest{
 		Source:      "tmdb",
-		ExternalID:  "tmdb-studio-420",
-		Name:        "Universal Pictures",
+		ExternalID:  "tmdb-movie-420",
+		Name:        "Hidden Figures",
 		ContentType: domain.ContentTypeMovie,
-		Kind:        domain.KindStudio,
 		Monitored:   false,
 	})
 	if err != nil {
-		t.Fatalf("ImportStudio: %v", err)
+		t.Fatalf("ImportEntry: %v", err)
 	}
-	if res.Studio.Kind != domain.KindStudio {
-		t.Errorf("Kind = %q, want %q", res.Studio.Kind, domain.KindStudio)
+	if res.Entry.Kind != domain.KindMovie {
+		t.Errorf("Kind = %q, want %q", res.Entry.Kind, domain.KindMovie)
 	}
-	if res.Studio.ContentType != domain.ContentTypeMovie {
-		t.Errorf("ContentType = %q, want %q", res.Studio.ContentType, domain.ContentTypeMovie)
+	if res.Entry.ContentType != domain.ContentTypeMovie {
+		t.Errorf("ContentType = %q, want %q", res.Entry.ContentType, domain.ContentTypeMovie)
 	}
-	if res.Studio.ParentID != "" {
-		t.Errorf("ParentID = %q, want empty (root entry)", res.Studio.ParentID)
+	if res.Entry.ParentID != "" {
+		t.Errorf("ParentID = %q, want empty (root entry)", res.Entry.ParentID)
 	}
 }
 
-func TestImportStudio_MovieStudio_SetsMovieParent(t *testing.T) {
+func TestImportEntry_MovieWithParent_SetsParentID(t *testing.T) {
 	entryRepo := newStubEntryRepo()
 	svc := metadata.New(nil, nil, entryRepo, nil, &stubItemRepo{}, &stubPersonRepo{}, &stubTagRepo{}, &stubExternalIDRepo{}, nil)
 
-	studioRes, err := svc.ImportStudio(context.Background(), &metadata.ImportStudioRequest{
+	parentRes, err := svc.ImportEntry(context.Background(), &metadata.ImportEntryRequest{
 		Source:      "tmdb",
-		ExternalID:  "tmdb-studio-420",
-		Name:        "Universal Pictures",
+		ExternalID:  "tmdb-movie-420",
+		Name:        "Hidden Figures",
 		ContentType: domain.ContentTypeMovie,
-		Kind:        domain.KindStudio,
 	})
 	if err != nil {
-		t.Fatalf("ImportStudio (studio): %v", err)
+		t.Fatalf("ImportEntry (parent): %v", err)
 	}
 
-	// Seed only the studio's external ID so the movie import finds the studio
-	// as parent without treating the movie as already-imported.
+	// Seed only the parent's external ID so the child import finds the parent
+	// without treating the child as already-imported.
 	extIDs := &mapExternalIDRepo{entries: map[string]string{
-		"library_entry:tmdb:tmdb-studio-420": studioRes.Studio.ID,
+		"library_entry:tmdb:tmdb-movie-420": parentRes.Entry.ID,
 	}}
 	svc2 := metadata.New(nil, nil, entryRepo, nil, &stubItemRepo{}, &stubPersonRepo{}, &stubTagRepo{}, extIDs, nil)
 
-	movieRes, err := svc2.ImportStudio(context.Background(), &metadata.ImportStudioRequest{
+	childRes, err := svc2.ImportEntry(context.Background(), &metadata.ImportEntryRequest{
 		Source:           "tmdb",
 		ExternalID:       "tmdb-movie-12345",
-		Name:             "Hidden Figures",
+		Name:             "Hidden Figures: Sequel",
 		ContentType:      domain.ContentTypeMovie,
-		Kind:             domain.KindMovie,
-		ParentExternalID: "tmdb-studio-420",
+		ParentExternalID: "tmdb-movie-420",
 	})
 	if err != nil {
-		t.Fatalf("ImportStudio (movie): %v", err)
+		t.Fatalf("ImportEntry (child): %v", err)
 	}
-	if movieRes.Studio.Kind != domain.KindMovie {
-		t.Errorf("Kind = %q, want %q", movieRes.Studio.Kind, domain.KindMovie)
+	if childRes.Entry.Kind != domain.KindMovie {
+		t.Errorf("Kind = %q, want %q", childRes.Entry.Kind, domain.KindMovie)
 	}
-	if movieRes.Studio.ParentID != studioRes.Studio.ID {
-		t.Errorf("ParentID = %q, want %q", movieRes.Studio.ParentID, studioRes.Studio.ID)
+	if childRes.Entry.ParentID != parentRes.Entry.ID {
+		t.Errorf("ParentID = %q, want %q", childRes.Entry.ParentID, parentRes.Entry.ID)
 	}
 }
 
@@ -1351,117 +1346,189 @@ func TestSearchTracks_PreservesSequence(t *testing.T) {
 	}
 }
 
-// ── ImportTrack ───────────────────────────────────────────────────────────────
+// ── ImportItem ────────────────────────────────────────────────────────────────
 
-func TestImportTrack_CreatesItem(t *testing.T) {
+func importItemSvc(src ports.MetadataSource, entryRepo *stubEntryRepo, itemRepo *stubItemRepo, personRepo *stubPersonRepo, tagRepo *stubTagRepo) *metadata.Service {
+	return metadata.New(
+		[]ports.MetadataSource{src},
+		nil,
+		entryRepo,
+		nil,
+		itemRepo,
+		personRepo,
+		tagRepo,
+		&stubExternalIDRepo{},
+		nil,
+	)
+}
+
+func TestImportItem_CreatesItemFromSource(t *testing.T) {
 	itemRepo := &stubItemRepo{}
-	svc := metadata.New(nil, nil, newStubEntryRepo(), nil, itemRepo, &stubPersonRepo{}, &stubTagRepo{}, &stubExternalIDRepo{}, nil)
+	src := &stubMusicSource{
+		findItem: &domain.ExternalItem{
+			Source:      domain.SourceMusicBrainz,
+			ExternalID:  "rec-mbid-1",
+			ContentType: domain.ContentTypeMusic,
+			Title:       "Heroes",
+			RuntimeSecs: 369,
+		},
+	}
+	svc := importItemSvc(src, newStubEntryRepo(), itemRepo, &stubPersonRepo{}, &stubTagRepo{})
 
-	item, err := svc.ImportTrack(context.Background(), &metadata.ImportTrackRequest{
-		Source:         domain.SourceMusicBrainz,
-		ExternalID:     "rec-mbid-1",
-		GroupID:        "group-uuid-1",
-		LibraryEntryID: "entry-uuid-1",
-		ContentType:    domain.ContentTypeMusic,
-		Title:          "Heroes",
-		Sequence:       "3",
-		RuntimeSeconds: 369,
-		Monitored:      true,
+	result, err := svc.ImportItem(context.Background(), &metadata.ImportItemRequest{
+		Source:      domain.SourceMusicBrainz,
+		ExternalID:  "rec-mbid-1",
+		ContentType: domain.ContentTypeMusic,
+		Monitored:   true,
 	})
 	if err != nil {
-		t.Fatalf("ImportTrack: %v", err)
+		t.Fatalf("ImportItem: %v", err)
 	}
-	if item.Title != "Heroes" {
-		t.Errorf("title = %q, want %q", item.Title, "Heroes")
+	if result.Item.Title != "Heroes" {
+		t.Errorf("title = %q, want %q", result.Item.Title, "Heroes")
 	}
-	if item.Sequence != "3" {
-		t.Errorf("sequence = %q, want %q", item.Sequence, "3")
+	if result.Item.RuntimeSeconds != 369 {
+		t.Errorf("runtime = %d, want 369", result.Item.RuntimeSeconds)
 	}
-	if item.Status != domain.StatusWanted {
-		t.Errorf("status = %q, want %q", item.Status, domain.StatusWanted)
+	if result.Item.Status != domain.StatusWanted {
+		t.Errorf("status = %q, want %q", result.Item.Status, domain.StatusWanted)
 	}
-	if len(item.ExternalIDs) != 1 || item.ExternalIDs[0].Value != "rec-mbid-1" {
-		t.Errorf("externalIDs = %v, want one entry with value rec-mbid-1", item.ExternalIDs)
+	if len(result.Item.ExternalIDs) != 1 || result.Item.ExternalIDs[0].Value != "rec-mbid-1" {
+		t.Errorf("externalIDs = %v, want one entry with value rec-mbid-1", result.Item.ExternalIDs)
 	}
 	if len(itemRepo.items) != 1 {
 		t.Errorf("saved item count = %d, want 1", len(itemRepo.items))
 	}
 }
 
-func TestImportTrack_UnmonitoredIsStatusMissing(t *testing.T) {
+func TestImportItem_PersistsPerformersAndTags(t *testing.T) {
 	itemRepo := &stubItemRepo{}
-	svc := metadata.New(nil, nil, newStubEntryRepo(), nil, itemRepo, &stubPersonRepo{}, &stubTagRepo{}, &stubExternalIDRepo{}, nil)
+	personRepo := &stubPersonRepo{}
+	tagRepo := &stubTagRepo{}
+	src := &stubMusicSource{
+		findItem: &domain.ExternalItem{
+			Source:      domain.SourceMusicBrainz,
+			ExternalID:  "scene-perf-1",
+			ContentType: domain.ContentTypeAdult,
+			Title:       "Test Scene",
+			People: []*domain.ExternalPerson{
+				{Source: domain.SourceStashDB, ExternalID: "p-1", Name: "Performer One"},
+				{Source: domain.SourceStashDB, ExternalID: "p-2", Name: "Performer Two"},
+			},
+			Tags: []string{"tag-a", "tag-b"},
+		},
+	}
+	svc := importItemSvc(src, newStubEntryRepo(), itemRepo, personRepo, tagRepo)
 
-	item, err := svc.ImportTrack(context.Background(), &metadata.ImportTrackRequest{
-		GroupID:        "group-uuid-2",
-		LibraryEntryID: "entry-uuid-1",
-		ContentType:    domain.ContentTypeMusic,
-		Title:          "Hidden Track",
-		Monitored:      false,
+	result, err := svc.ImportItem(context.Background(), &metadata.ImportItemRequest{
+		Source:      domain.SourceMusicBrainz,
+		ExternalID:  "scene-perf-1",
+		ContentType: domain.ContentTypeAdult,
+		Monitored:   true,
 	})
 	if err != nil {
-		t.Fatalf("ImportTrack: %v", err)
+		t.Fatalf("ImportItem: %v", err)
 	}
-	if item.Status != domain.StatusMissing {
-		t.Errorf("unmonitored status = %q, want %q", item.Status, domain.StatusMissing)
+	if len(result.Item.People) != 2 {
+		t.Errorf("people count = %d, want 2", len(result.Item.People))
+	}
+	if len(result.Item.Tags) != 2 {
+		t.Errorf("tag count = %d, want 2", len(result.Item.Tags))
+	}
+	if len(personRepo.saved) != 2 {
+		t.Errorf("person records saved = %d, want 2", len(personRepo.saved))
 	}
 }
 
-func TestImportTrack_ManualEntry_NoExternalIDs(t *testing.T) {
-	itemRepo := &stubItemRepo{}
-	svc := metadata.New(nil, nil, newStubEntryRepo(), nil, itemRepo, &stubPersonRepo{}, &stubTagRepo{}, &stubExternalIDRepo{}, nil)
+func TestImportItem_UnmonitoredIsStatusMissing(t *testing.T) {
+	src := &stubMusicSource{
+		findItem: &domain.ExternalItem{
+			Source:      domain.SourceMusicBrainz,
+			ExternalID:  "rec-unmon-1",
+			ContentType: domain.ContentTypeMusic,
+			Title:       "Hidden Track",
+		},
+	}
+	svc := importItemSvc(src, newStubEntryRepo(), &stubItemRepo{}, &stubPersonRepo{}, &stubTagRepo{})
 
-	item, err := svc.ImportTrack(context.Background(), &metadata.ImportTrackRequest{
-		GroupID:        "group-uuid-3",
-		LibraryEntryID: "entry-uuid-1",
-		ContentType:    domain.ContentTypeMusic,
-		Title:          "Unlisted Track",
-		Monitored:      true,
+	result, err := svc.ImportItem(context.Background(), &metadata.ImportItemRequest{
+		Source:      domain.SourceMusicBrainz,
+		ExternalID:  "rec-unmon-1",
+		ContentType: domain.ContentTypeMusic,
+		Monitored:   false,
 	})
 	if err != nil {
-		t.Fatalf("ImportTrack (manual): %v", err)
+		t.Fatalf("ImportItem: %v", err)
 	}
-	if len(item.ExternalIDs) != 0 {
-		t.Errorf("manual entry should have no ExternalIDs, got %v", item.ExternalIDs)
+	if result.Item.Status != domain.StatusMissing {
+		t.Errorf("unmonitored status = %q, want %q", result.Item.Status, domain.StatusMissing)
 	}
 }
 
-func TestImportTrack_Idempotent(t *testing.T) {
-	itemRepo := &stubItemRepo{}
-	svc := metadata.New(nil, nil, newStubEntryRepo(), nil, itemRepo, &stubPersonRepo{}, &stubTagRepo{}, &stubExternalIDRepo{}, nil)
+func TestImportItem_Idempotent(t *testing.T) {
+	existing := &domain.Item{
+		ID:          "item-existing-1",
+		Title:       "Once Only",
+		Status:      domain.StatusWanted,
+		ExternalIDs: []domain.ExternalID{{Source: domain.SourceMusicBrainz, Value: "rec-idem-1"}},
+	}
+	// seededItemExternalIDRepo acts as both the external ID repo (returns existing.ID for any
+	// FindEntity call) and the item repo (returns existing for Get). Since findItem has no Studio,
+	// ImportEntry is never called, so the "all-entity-type" seeding does not conflict.
+	seeded := &seededItemExternalIDRepo{id: existing.ID, item: existing}
+	src := &stubMusicSource{
+		findItem: &domain.ExternalItem{
+			Source:      domain.SourceMusicBrainz,
+			ExternalID:  "rec-idem-1",
+			ContentType: domain.ContentTypeMusic,
+			Title:       "Once Only",
+		},
+	}
+	svc := metadata.New([]ports.MetadataSource{src}, nil, newStubEntryRepo(), nil, seeded, &stubPersonRepo{}, &stubTagRepo{}, seeded, nil)
 
-	item1, err := svc.ImportTrack(context.Background(), &metadata.ImportTrackRequest{
-		Source:         domain.SourceMusicBrainz,
-		ExternalID:     "rec-idem-1",
-		GroupID:        "group-uuid-4",
-		LibraryEntryID: "entry-uuid-1",
-		ContentType:    domain.ContentTypeMusic,
-		Title:          "Once Only",
-		Monitored:      true,
+	result, err := svc.ImportItem(context.Background(), &metadata.ImportItemRequest{
+		Source:      domain.SourceMusicBrainz,
+		ExternalID:  "rec-idem-1",
+		ContentType: domain.ContentTypeMusic,
+		Monitored:   true,
 	})
 	if err != nil {
-		t.Fatalf("first ImportTrack: %v", err)
+		t.Fatalf("ImportItem (idempotent): %v", err)
 	}
+	if result.Item.ID != existing.ID {
+		t.Errorf("idempotent call returned different ID: %q vs %q", result.Item.ID, existing.ID)
+	}
+}
 
-	seeded := &seededItemExternalIDRepo{id: item1.ID, item: item1}
-	svc2 := metadata.New(nil, nil, newStubEntryRepo(), nil, seeded, &stubPersonRepo{}, &stubTagRepo{}, seeded, nil)
-	item2, err := svc2.ImportTrack(context.Background(), &metadata.ImportTrackRequest{
-		Source:         domain.SourceMusicBrainz,
-		ExternalID:     "rec-idem-1",
-		GroupID:        "group-uuid-4",
-		LibraryEntryID: "entry-uuid-1",
-		ContentType:    domain.ContentTypeMusic,
-		Title:          "Once Only",
-		Monitored:      true,
+func TestImportItem_NeverTriggersAutoImport(t *testing.T) {
+	jobQueue := &stubJobQueue{}
+	entryRepo := newStubEntryRepo()
+	src := &stubMusicSource{
+		findItem: &domain.ExternalItem{
+			Source:      domain.SourceMusicBrainz,
+			ExternalID:  "rec-noauto-1",
+			ContentType: domain.ContentTypeMusic,
+			Title:       "No Auto Import Track",
+			Studio: &domain.ExternalStudio{
+				Source:     domain.SourceMusicBrainz,
+				ExternalID: "artist-noauto-1",
+				Name:       "Test Artist",
+			},
+		},
+	}
+	svc := metadata.New([]ports.MetadataSource{src}, jobQueue, entryRepo, nil, &stubItemRepo{}, &stubPersonRepo{}, &stubTagRepo{}, &stubExternalIDRepo{}, nil)
+
+	_, err := svc.ImportItem(context.Background(), &metadata.ImportItemRequest{
+		Source:      domain.SourceMusicBrainz,
+		ExternalID:  "rec-noauto-1",
+		ContentType: domain.ContentTypeMusic,
+		Monitored:   true,
 	})
 	if err != nil {
-		t.Fatalf("second ImportTrack: %v", err)
+		t.Fatalf("ImportItem: %v", err)
 	}
-	if item2.ID != item1.ID {
-		t.Errorf("idempotent call returned different ID: %q vs %q", item2.ID, item1.ID)
-	}
-	if len(itemRepo.items) != 1 {
-		t.Errorf("item count = %d, want 1 (no duplicate)", len(itemRepo.items))
+	if len(jobQueue.submitted) != 0 {
+		t.Errorf("job queue calls = %d, want 0 (no catalog refresh on ImportItem)", len(jobQueue.submitted))
 	}
 }
 

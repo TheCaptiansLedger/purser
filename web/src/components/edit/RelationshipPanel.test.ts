@@ -3,12 +3,12 @@ import { itemPersonRoles, entryPersonRoles } from './RelationshipPanel'
 import type { ContentTypeConfig, KindConfig } from '../../types'
 
 const contentTypeConfigs: ContentTypeConfig[] = [
-  { contentType: 'adult', personRoles: ['performer', 'actress', 'actor', 'director'] },
-  { contentType: 'jav',   personRoles: ['performer', 'actress', 'actor', 'director'] },
-  { contentType: 'tv',    personRoles: ['actor', 'actress', 'director', 'guest_star', 'writer'] },
-  { contentType: 'movie', personRoles: ['actor', 'actress', 'director', 'producer', 'writer'] },
-  { contentType: 'music', personRoles: ['artist', 'featured_artist', 'producer', 'songwriter'] },
-  { contentType: 'book',  personRoles: ['author', 'editor', 'illustrator', 'narrator'] },
+  { contentType: 'adult', label: 'AfterDark', moduleKey: 'afterdark', personRoles: ['performer', 'actress', 'actor', 'director'], supportsFileGrouping: false },
+  { contentType: 'jav',   label: 'JAV',       moduleKey: 'afterdark', personRoles: ['performer', 'actress', 'actor', 'director'], supportsFileGrouping: false },
+  { contentType: 'tv',    label: 'TV',        moduleKey: 'tv',        personRoles: ['actor', 'actress', 'director', 'guest_star', 'writer'], supportsFileGrouping: false },
+  { contentType: 'movie', label: 'Movies',    moduleKey: 'movies',    personRoles: ['actor', 'actress', 'director', 'producer', 'writer'], supportsFileGrouping: false },
+  { contentType: 'music', label: 'Music',     moduleKey: 'music',     personRoles: ['artist', 'featured_artist', 'producer', 'songwriter'], supportsFileGrouping: true },
+  { contentType: 'book',  label: 'Books',     moduleKey: 'books',     personRoles: ['author', 'editor', 'illustrator', 'narrator'], supportsFileGrouping: false },
 ]
 
 const kindConfigs: KindConfig[] = [

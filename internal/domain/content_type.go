@@ -172,6 +172,71 @@ func (c ContentType) ItemLabel() string {
 	}
 }
 
+// Label returns the human-readable display name for this content type.
+func (c ContentType) Label() string {
+	switch c {
+	case ContentTypeMovie:
+		return "Movies"
+	case ContentTypeTV:
+		return "TV"
+	case ContentTypeMusic:
+		return "Music"
+	case ContentTypeAdult:
+		return "AfterDark"
+	case ContentTypeJAV:
+		return "JAV"
+	case ContentTypeBook:
+		return "Books"
+	default:
+		return string(c)
+	}
+}
+
+// ModuleKey returns the config module key that enables this content type.
+// Both adult and jav map to the "afterdark" module.
+func (c ContentType) ModuleKey() string {
+	switch c {
+	case ContentTypeMovie:
+		return "movies"
+	case ContentTypeTV:
+		return "tv"
+	case ContentTypeMusic:
+		return "music"
+	case ContentTypeAdult, ContentTypeJAV:
+		return "afterdark"
+	case ContentTypeBook:
+		return "books"
+	default:
+		return string(c)
+	}
+}
+
+// SupportsFileGrouping reports whether items of this content type can be
+// grouped by an intermediate entity (album) in the unmatched-file queue.
+func (c ContentType) SupportsFileGrouping() bool {
+	return c == ContentTypeMusic
+}
+
+// ParentEntryKind returns the Kind string for the root LibraryEntry that
+// owns items of this content type. Empty when the content type has no
+// fixed parent kind.
+func (c ContentType) ParentEntryKind() string {
+	switch c {
+	case ContentTypeMusic:
+		return string(KindArtist)
+	case ContentTypeAdult, ContentTypeJAV:
+		return string(KindStudio)
+	case ContentTypeTV:
+		return string(KindSeries)
+	case ContentTypeMovie:
+		return string(KindMovie)
+	case ContentTypeBook:
+		return string(KindAuthor)
+	default:
+		return ""
+	}
+}
+
 // MediaExtensions returns the file extensions (lowercased, with dot) that are
 // considered media files for this content type.
 // Example: ContentTypeMusic → [".flac", ".mp3", ".m4a", ".ogg", ".opus", ".wav", ".aiff"]

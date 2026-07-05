@@ -62,6 +62,13 @@ type ExternalIDSource interface {
 	FindByExternalID(ctx context.Context, contentType domain.ContentType, id string) (*domain.ExternalItem, error)
 }
 
+// ItemSource is implemented by sources that can fetch a single consumable item
+// (recording, scene, episode) by its source-native ID. This is distinct from
+// ExternalIDSource, which is used for library-entry (artist, studio) lookups.
+type ItemSource interface {
+	FindItemByExternalID(ctx context.Context, contentType domain.ContentType, id string) (*domain.ExternalItem, error)
+}
+
 // EntryContentSource is implemented by sources that page through the direct
 // children of a library entry (scenes for a studio, release-groups for an artist).
 // Returns groups (deep hierarchy) or items (flat hierarchy), never both.

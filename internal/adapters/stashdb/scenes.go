@@ -23,6 +23,7 @@ type gqlScene struct {
 	Studio *struct {
 		ID     string        `json:"id"`
 		Name   string        `json:"name"`
+		Images []gqlImage    `json:"images"`
 		Parent *gqlStudioRef `json:"parent"`
 	} `json:"studio"`
 	Performers []struct {
@@ -37,7 +38,7 @@ const sceneFields = `
     id title details date duration
     images { url }
     tags { name }
-    studio { id name parent { id name } }
+    studio { id name images { url } parent { id name images { url } } }
     performers {
       performer {
         id name aliases images { url }
@@ -177,6 +178,11 @@ func (a *Adapter) FindByExternalID(ctx context.Context, _ domain.ContentType, id
 	return nil, ports.ErrNotFound
 }
 
+// FindItemByExternalID fetches a scene by its StashDB UUID. Implements ports.ItemSource.
+func (a *Adapter) FindItemByExternalID(ctx context.Context, _ domain.ContentType, id string) (*domain.ExternalItem, error) {
+	return a.findSceneByID(ctx, id)
+}
+
 func (a *Adapter) findSceneByID(ctx context.Context, id string) (*domain.ExternalItem, error) {
 	var resp struct {
 		FindScene *gqlScene `json:"findScene"`
@@ -255,9 +261,15 @@ func toExternalItem(s *gqlScene, contentType domain.ContentType) *domain.Externa
 			ExternalID: s.Studio.ID,
 			Name:       s.Studio.Name,
 		}
+		if len(s.Studio.Images) > 0 {
+			e.Studio.ImageURL = s.Studio.Images[0].URL
+		}
 		if s.Studio.Parent != nil {
 			e.Studio.ParentID = s.Studio.Parent.ID
 			e.Studio.ParentName = s.Studio.Parent.Name
+			if len(s.Studio.Parent.Images) > 0 {
+				e.Studio.ParentImageURL = s.Studio.Parent.Images[0].URL
+			}
 		}
 	}
 	for i := range s.Performers {

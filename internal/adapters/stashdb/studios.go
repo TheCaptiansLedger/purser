@@ -73,11 +73,16 @@ func (a *Adapter) findStudioByID(ctx context.Context, id string) (*domain.Extern
 			images = append(images, domain.ExternalImage{Type: domain.ImageTypePoster, URL: img.URL})
 		}
 	}
+	var imageURL string
+	if len(s.Images) > 0 {
+		imageURL = s.Images[0].URL
+	}
 	return &domain.ExternalItem{
 		Source:     domain.SourceStashDB,
 		ExternalID: s.ID,
 		Title:      s.Name,
 		Images:     images,
+		ImageURL:   imageURL,
 	}, nil
 }
 

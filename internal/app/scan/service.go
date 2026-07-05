@@ -13,6 +13,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/google/uuid"
@@ -116,10 +117,15 @@ func (s *Service) StartWatching(ctx context.Context, modules []Module) error {
 		roots = append(roots, root)
 	}
 
+	slog.InfoContext(ctx, "watcher: starting", "roots", roots)
 	ch, err := s.watcher.Watch(ctx, roots)
 	if err != nil {
 		return fmt.Errorf("start watcher: %w", err)
 	}
+
+	var wg sync.WaitGroup
+	defer wg.Wait()
+
 	for {
 		select {
 		case <-ctx.Done():
@@ -128,7 +134,11 @@ func (s *Service) StartWatching(ctx context.Context, modules []Module) error {
 			if !ok {
 				return nil
 			}
-			s.handleWatchEvent(ctx, event, rootTypes)
+			wg.Add(1)
+			go func(e ports.WatchEvent) {
+				defer wg.Done()
+				s.handleWatchEvent(ctx, e, rootTypes)
+			}(event)
 		}
 	}
 }
@@ -161,21 +171,29 @@ func contentTypeForPath(path string, rootTypes map[string]domain.ContentType) do
 	return ct
 }
 
+// watchFileTimeout caps how long a single file's fingerprinting + identification may take.
+// Network-backed identifiers (AcoustID, MusicBrainz, StashDB) can hang without this bound.
+const watchFileTimeout = 5 * time.Minute
+
 func (s *Service) handleWatchEvent(ctx context.Context, event ports.WatchEvent, rootTypes map[string]domain.ContentType) {
 	switch event.Op {
 	case ports.WatchCreated, ports.WatchModified:
 		ct := contentTypeForPath(event.Path, rootTypes)
 		if ct == "" {
-			return // file is not under any known module root
+			slog.DebugContext(ctx, "watcher: ignoring event: path not under any watched root", "path", event.Path)
+			return
 		}
+		slog.InfoContext(ctx, "watcher: queuing file for processing", "path", event.Path, "content_type", ct)
 		f := domain.ScannedFile{
 			Path:         event.Path,
 			Size:         event.Size,
 			ContentType:  ct,
 			DiscoveredAt: time.Now().UTC(),
 		}
-		if err := s.processFile(ctx, f); err != nil {
-			slog.WarnContext(ctx, "process watch event failed", "path", event.Path, "err", err)
+		fileCtx, cancel := context.WithTimeout(ctx, watchFileTimeout)
+		defer cancel()
+		if err := s.processFile(fileCtx, f); err != nil {
+			slog.WarnContext(ctx, "watcher: process file failed", "path", event.Path, "err", err)
 		}
 	case ports.WatchRemoved:
 		s.handleRemoved(ctx, event.Path)

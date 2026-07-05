@@ -2,6 +2,10 @@ package scan_test
 
 import (
 	"context"
+	"fmt"
+	"os"
+	"path/filepath"
+	"purser/internal/adapters/fs"
 	"purser/internal/app/errs"
 	"purser/internal/app/scan"
 	"purser/internal/domain"
@@ -1127,6 +1131,157 @@ func TestService_SubmitScanLibraryJob_NoPath_ReturnsValidationError(t *testing.T
 	_, err := svc.SubmitScanLibraryJob(context.Background(), entryID)
 	if !errs.IsValidation(err) {
 		t.Errorf("expected validation error, got %v", err)
+	}
+}
+
+// ── watcher integration tests (real filesystem + real watcher) ────────────────
+
+// slowFingerprinter sleeps for a configurable duration to simulate a heavy
+// operation (fpcalc, AcoustID network call, etc.).
+type slowFingerprinter struct {
+	delay        time.Duration
+	contentTypes []domain.ContentType
+}
+
+func (s *slowFingerprinter) ContentTypes() []domain.ContentType { return s.contentTypes }
+func (s *slowFingerprinter) Fingerprint(_ context.Context, _ domain.ScannedFile) (*domain.Fingerprint, error) {
+	time.Sleep(s.delay)
+	return &domain.Fingerprint{}, nil
+}
+
+// pollUnmatched repeatedly calls List until at least want entries appear or the
+// deadline fires. It returns the list at the moment the condition is met.
+func pollUnmatched(t *testing.T, repo *mockUnmatchedRepo, want int, deadline time.Duration) []*domain.UnmatchedFile {
+	t.Helper()
+	timer := time.NewTimer(deadline)
+	defer timer.Stop()
+	for {
+		time.Sleep(50 * time.Millisecond)
+		files, err := repo.List(context.Background(), ports.UnmatchedFilter{Status: domain.UnmatchedPending})
+		if err != nil {
+			t.Fatalf("List: %v", err)
+		}
+		if len(files) >= want {
+			return files
+		}
+		select {
+		case <-timer.C:
+			t.Fatalf("timeout after %s: only %d/%d files enqueued", deadline, len(files), want)
+		default:
+		}
+	}
+}
+
+// TestService_StartWatching_DroppedDirectory_EnqueuesFiles is an end-to-end
+// integration test: a real fsnotify watcher feeds events to a real Service.
+// It simulates the user dropping a folder of FLAC files into a watched root and
+// verifies that all media files end up in the unmatched queue.
+func TestService_StartWatching_DroppedDirectory_EnqueuesFiles(t *testing.T) {
+	root := t.TempDir()
+
+	unmatchedRepo := newUnmatchedRepo()
+	watcher := fs.NewWatcherNoStabilityCheck(50 * time.Millisecond)
+	svc := newSvc(nil, watcher, nil, nil, newItemRepo(), newMediaFileRepo(), unmatchedRepo, &mockNotifier{}, 0.0, nil, nil, nil)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+
+	go func() {
+		if err := svc.StartWatching(ctx, []scan.Module{
+			{ContentType: domain.ContentTypeMusic, Roots: []string{root}},
+		}); err != nil && ctx.Err() == nil {
+			t.Errorf("StartWatching: %v", err)
+		}
+	}()
+
+	time.Sleep(100 * time.Millisecond) // let fsnotify register the root watch
+
+	// Build a staging directory (outside the watched root) with media files.
+	staging := t.TempDir()
+	mediaFiles := []string{"track_a.flac", "track_b.flac", "track_c.mp3"}
+	nonMedia := []string{"cover.jpg", "info.txt"}
+	for _, f := range append(mediaFiles, nonMedia...) {
+		if err := os.WriteFile(filepath.Join(staging, f), []byte("fake-audio"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	// Atomic rename into the watched root — mirrors "drop folder" on same-volume Finder drag.
+	dest := filepath.Join(root, "new-album")
+	if err := os.Rename(staging, dest); err != nil {
+		t.Fatal(err)
+	}
+
+	files := pollUnmatched(t, unmatchedRepo, len(mediaFiles), 15*time.Second)
+
+	// Verify the exact set of media files is present.
+	got := make(map[string]bool, len(files))
+	for _, f := range files {
+		got[filepath.Base(f.Path)] = true
+	}
+	for _, name := range mediaFiles {
+		if !got[name] {
+			t.Errorf("expected %q to be enqueued, was not", name)
+		}
+	}
+	for _, name := range nonMedia {
+		if got[name] {
+			t.Errorf("expected %q NOT to be enqueued (non-media), but it was", name)
+		}
+	}
+}
+
+// TestService_StartWatching_ConcurrentProcessing verifies that a slow
+// fingerprinter on one file does not block other files from being processed.
+// With the old serial implementation, N files × slowDelay = N×slowDelay total.
+// With concurrent processing the wall time should be roughly slowDelay, not N×slowDelay.
+func TestService_StartWatching_ConcurrentProcessing(t *testing.T) {
+	root := t.TempDir()
+
+	const nFiles = 5
+	const slowDelay = 150 * time.Millisecond
+
+	unmatchedRepo := newUnmatchedRepo()
+	fp := &slowFingerprinter{
+		delay:        slowDelay,
+		contentTypes: []domain.ContentType{domain.ContentTypeMusic},
+	}
+	watcher := fs.NewWatcherNoStabilityCheck(50 * time.Millisecond)
+	svc := newSvc(nil, watcher, []ports.FileFingerprinter{fp}, nil, newItemRepo(), newMediaFileRepo(), unmatchedRepo, &mockNotifier{}, 0.0, nil, nil, nil)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+
+	go func() {
+		if err := svc.StartWatching(ctx, []scan.Module{
+			{ContentType: domain.ContentTypeMusic, Roots: []string{root}},
+		}); err != nil && ctx.Err() == nil {
+			t.Errorf("StartWatching: %v", err)
+		}
+	}()
+
+	time.Sleep(100 * time.Millisecond)
+
+	// Create all files, then record when the last one is written.
+	for i := range nFiles {
+		name := filepath.Join(root, fmt.Sprintf("track%02d.flac", i+1))
+		if err := os.WriteFile(name, []byte("data"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	start := time.Now()
+
+	// With concurrent processing, debounce (50ms) + fingerprint (150ms) = ~200ms total.
+	// Serial would be nFiles × (debounce + fingerprint) ≈ nFiles × 200ms.
+	serialBound := time.Duration(nFiles) * (50*time.Millisecond + slowDelay)
+	files := pollUnmatched(t, unmatchedRepo, nFiles, 10*time.Second)
+	elapsed := time.Since(start)
+
+	if len(files) != nFiles {
+		t.Errorf("got %d files, want %d", len(files), nFiles)
+	}
+	if elapsed >= serialBound {
+		t.Errorf("processing took %v which is ≥ serial bound %v — likely processing serially", elapsed, serialBound)
 	}
 }
 

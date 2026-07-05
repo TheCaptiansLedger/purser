@@ -2,8 +2,8 @@ import { useState } from 'react'
 import { Music2, Plus, ChevronRight } from 'lucide-react'
 import { useQueryClient } from '@tanstack/react-query'
 import { useLibraryEntries } from '../../api/library'
-import { searchStudios, importStudio } from '../../api/metadata'
-import type { ImportStudioRequest, AlbumFilterToken } from '../../api/metadata'
+import { searchStudios, importEntry } from '../../api/metadata'
+import type { ImportEntryRequest, AlbumFilterToken } from '../../api/metadata'
 import type { ExternalStudio } from '../../types'
 import { PageHeader } from '../../components/layout/PageHeader'
 import { EntryCard } from '../../components/media/EntryCard'
@@ -15,7 +15,7 @@ import { ImportDialog } from '../../components/ImportDialog'
 const ACCENT = '#10b981'
 const LIMIT = 48
 
-export function artistImportRequest(candidate: ExternalStudio): ImportStudioRequest {
+export function artistImportRequest(candidate: ExternalStudio): ImportEntryRequest {
   return {
     source: candidate.source,
     externalId: candidate.externalId,
@@ -60,7 +60,7 @@ function ArtistResult({ artist, onPick }: { artist: ExternalStudio; onPick: (s: 
   )
 }
 
-function ArtistEditForm({ form, onChange }: { form: ImportStudioRequest; onChange: (f: ImportStudioRequest) => void }) {
+function ArtistEditForm({ form, onChange }: { form: ImportEntryRequest; onChange: (f: ImportEntryRequest) => void }) {
   return (
     <div className="space-y-4">
       {form.imageUrl && (
@@ -134,7 +134,7 @@ function ArtistEditForm({ form, onChange }: { form: ImportStudioRequest; onChang
         <label className="block text-xs text-white/40 mb-1">Import mode</label>
         <select
           value={form.monitorMode}
-          onChange={e => onChange({ ...form, monitorMode: e.target.value as ImportStudioRequest['monitorMode'] })}
+          onChange={e => onChange({ ...form, monitorMode: e.target.value as ImportEntryRequest['monitorMode'] })}
           className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-white/20"
         >
           <option value="all">All — mark every album as wanted</option>
@@ -183,8 +183,8 @@ export function MusicPage() {
     offset,
   })
 
-  async function handleImport(form: ImportStudioRequest) {
-    await importStudio(form)
+  async function handleImport(form: ImportEntryRequest) {
+    await importEntry(form)
     queryClient.invalidateQueries({ queryKey: ['library-entries'] })
   }
 
@@ -217,7 +217,7 @@ export function MusicPage() {
         )}
       </div>
 
-      <ImportDialog<ExternalStudio, ImportStudioRequest>
+      <ImportDialog<ExternalStudio, ImportEntryRequest>
         open={showAdd}
         onClose={() => setShowAdd(false)}
         title="Add Artist"

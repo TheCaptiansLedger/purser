@@ -85,8 +85,11 @@ type sourcePatchRequest struct {
 }
 
 type contentTypeConfigResponse struct {
-	ContentType string   `json:"contentType"`
-	PersonRoles []string `json:"personRoles"`
+	ContentType          string   `json:"contentType"`
+	Label                string   `json:"label"`
+	ModuleKey            string   `json:"moduleKey"`
+	PersonRoles          []string `json:"personRoles"`
+	SupportsFileGrouping bool     `json:"supportsFileGrouping"`
 }
 
 type kindConfigResponse struct {
@@ -101,8 +104,11 @@ func (h *configHandler) contentTypes(w http.ResponseWriter, _ *http.Request) {
 	out := make([]contentTypeConfigResponse, 0, len(domain.ContentTypes()))
 	for _, ct := range domain.ContentTypes() {
 		out = append(out, contentTypeConfigResponse{
-			ContentType: string(ct),
-			PersonRoles: ct.ItemPersonRoles(),
+			ContentType:          string(ct),
+			Label:                ct.Label(),
+			ModuleKey:            ct.ModuleKey(),
+			PersonRoles:          ct.ItemPersonRoles(),
+			SupportsFileGrouping: ct.SupportsFileGrouping(),
 		})
 	}
 	writeJSON(w, http.StatusOK, out)

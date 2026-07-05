@@ -9,6 +9,7 @@ interface UnmatchedParams {
 }
 
 export function useUnmatchedFiles(params: UnmatchedParams = {}) {
+  const isPending = !params.status || params.status === 'pending'
   return useQuery({
     queryKey: ['unmatched-files', params],
     queryFn: () =>
@@ -17,6 +18,27 @@ export function useUnmatchedFiles(params: UnmatchedParams = {}) {
         contentType: params.contentType,
         groupBy: params.groupBy,
       }),
+    refetchInterval: isPending ? 30_000 : false,
+  })
+}
+
+export function useUnmatchedCount() {
+  return useQuery({
+    queryKey: ['unmatched-files', { status: 'pending', _count: true }],
+    queryFn: () => get<UnmatchedListResponse<UnmatchedFile>>('/unmatched-files', { status: 'pending' }),
+    refetchInterval: 30_000,
+    select: (data) => data.total,
+  })
+}
+
+// Returns the set of content type strings that have at least one pending file.
+// Used by ImportQueuePage to only show tabs for content types present in the queue.
+export function usePendingContentTypes() {
+  return useQuery({
+    queryKey: ['unmatched-files-content-types'],
+    queryFn: () => get<UnmatchedListResponse<UnmatchedFile>>('/unmatched-files', { status: 'pending' }),
+    refetchInterval: 30_000,
+    select: (data) => new Set<string>((data.items as UnmatchedFile[]).map(f => f.content_type)),
   })
 }
 

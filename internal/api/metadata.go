@@ -17,10 +17,10 @@ type metadataHandler struct {
 func (h *metadataHandler) routes(r chi.Router) {
 	r.Get("/search", h.search)
 	r.Get("/discography", h.discography)
-	r.Post("/studios/import", h.importStudio)
+	r.Post("/entries/import", h.importEntry)
 	r.Post("/people/import", h.importPerson)
 	r.Post("/albums/import", h.importAlbum)
-	r.Post("/tracks/import", h.importTrack)
+	r.Post("/items/import", h.importItem)
 }
 
 // ── Search ────────────────────────────────────────────────────────────────────
@@ -96,15 +96,14 @@ func (h *metadataHandler) search(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// ── Import studio ─────────────────────────────────────────────────────────────
+// ── Import entry ──────────────────────────────────────────────────────────────
 
-type importStudioRequest struct {
+type importEntryRequest struct {
 	Source           string   `json:"source"`
 	ExternalID       string   `json:"externalId"`
 	Name             string   `json:"name"`
 	Overview         string   `json:"overview"`
 	ContentType      string   `json:"contentType"`
-	Kind             string   `json:"kind"`
 	Monitored        bool     `json:"monitored"`
 	MonitorMode      string   `json:"monitorMode"`
 	AutoImport       *bool    `json:"autoImport"` // nil = omitted → defaults to true
@@ -117,9 +116,9 @@ type importStudioRequest struct {
 	AlbumFilter      []string `json:"albumFilter"`
 }
 
-// POST /api/v1/metadata/studios/import
-func (h *metadataHandler) importStudio(w http.ResponseWriter, r *http.Request) {
-	var req importStudioRequest
+// POST /api/v1/metadata/entries/import
+func (h *metadataHandler) importEntry(w http.ResponseWriter, r *http.Request) {
+	var req importEntryRequest
 	if err := decode(r, &req); err != nil {
 		writeError(w, http.StatusBadRequest, "INVALID_BODY", "invalid request body")
 		return
@@ -129,15 +128,20 @@ func (h *metadataHandler) importStudio(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	ct := domain.ContentType(req.ContentType)
+	if ct.ParentEntryKind() == "" {
+		writeError(w, http.StatusBadRequest, "INVALID_CONTENT_TYPE", "contentType "+req.ContentType+" has no known entry kind")
+		return
+	}
+
 	autoImport := req.AutoImport == nil || *req.AutoImport
 
-	svcReq := &metadata.ImportStudioRequest{
+	svcReq := &metadata.ImportEntryRequest{
 		Source:           domain.ExternalIDSource(req.Source),
 		ExternalID:       req.ExternalID,
 		Name:             req.Name,
 		Overview:         req.Overview,
-		ContentType:      domain.ContentType(req.ContentType),
-		Kind:             domain.Kind(req.Kind),
+		ContentType:      ct,
 		Monitored:        req.Monitored,
 		MonitorMode:      domain.MonitorMode(req.MonitorMode),
 		AutoImport:       autoImport,
@@ -150,14 +154,14 @@ func (h *metadataHandler) importStudio(w http.ResponseWriter, r *http.Request) {
 		AlbumFilter:      req.AlbumFilter,
 	}
 
-	result, err := h.svc.ImportStudio(r.Context(), svcReq)
+	result, err := h.svc.ImportEntry(r.Context(), svcReq)
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, "IMPORT_ERROR", "import failed")
+		handleErr(w, err)
 		return
 	}
 
 	resp := map[string]any{
-		"studio": toEntryResponse(result.Studio),
+		"entry": toEntryResponse(result.Entry),
 	}
 	if result.Network != nil {
 		resp["network"] = toEntryResponse(result.Network)
@@ -261,45 +265,39 @@ func (h *metadataHandler) importAlbum(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusCreated, toGroupResponse(group))
 }
 
-// ── Import track ──────────────────────────────────────────────────────────────
+// ── Import item ───────────────────────────────────────────────────────────────
 
-type importTrackRequest struct {
-	Source         string `json:"source"`
-	ExternalID     string `json:"externalId"`
-	GroupID        string `json:"groupId"`
-	LibraryEntryID string `json:"libraryEntryId"`
-	ContentType    string `json:"contentType"`
-	Title          string `json:"title"`
-	Sequence       string `json:"sequence"`
-	RuntimeSeconds int    `json:"runtimeSeconds"`
-	Monitored      bool   `json:"monitored"`
+type importItemRequest struct {
+	Source          string `json:"source"`
+	ExternalID      string `json:"externalId"`
+	ContentType     string `json:"contentType"`
+	AlbumExternalID string `json:"albumExternalId,omitempty"`
+	AlbumTitle      string `json:"albumTitle,omitempty"`
+	Monitored       bool   `json:"monitored"`
 }
 
-// POST /api/v1/metadata/tracks/import
-func (h *metadataHandler) importTrack(w http.ResponseWriter, r *http.Request) {
-	var req importTrackRequest
+// POST /api/v1/metadata/items/import
+func (h *metadataHandler) importItem(w http.ResponseWriter, r *http.Request) {
+	var req importItemRequest
 	if err := decode(r, &req); err != nil {
 		writeError(w, http.StatusBadRequest, "INVALID_BODY", "invalid request body")
 		return
 	}
-	if req.GroupID == "" || req.LibraryEntryID == "" || req.ContentType == "" || req.Title == "" {
-		writeError(w, http.StatusBadRequest, "MISSING_FIELDS", "groupId, libraryEntryId, contentType, and title are required")
+	if req.Source == "" || req.ExternalID == "" || req.ContentType == "" {
+		writeError(w, http.StatusBadRequest, "MISSING_FIELDS", "source, externalId, and contentType are required")
 		return
 	}
 
-	svcReq := &metadata.ImportTrackRequest{
-		Source:         domain.ExternalIDSource(req.Source),
-		ExternalID:     req.ExternalID,
-		GroupID:        req.GroupID,
-		LibraryEntryID: req.LibraryEntryID,
-		ContentType:    domain.ContentType(req.ContentType),
-		Title:          req.Title,
-		Sequence:       req.Sequence,
-		RuntimeSeconds: req.RuntimeSeconds,
-		Monitored:      req.Monitored,
+	svcReq := &metadata.ImportItemRequest{
+		Source:          domain.ExternalIDSource(req.Source),
+		ExternalID:      req.ExternalID,
+		ContentType:     domain.ContentType(req.ContentType),
+		AlbumExternalID: req.AlbumExternalID,
+		AlbumTitle:      req.AlbumTitle,
+		Monitored:       req.Monitored,
 	}
 
-	item, err := h.svc.ImportTrack(r.Context(), svcReq)
+	result, err := h.svc.ImportItem(r.Context(), svcReq)
 	if err != nil {
 		if errs.IsValidation(err) {
 			writeError(w, http.StatusBadRequest, "IMPORT_ERROR", err.Error())
@@ -308,7 +306,20 @@ func (h *metadataHandler) importTrack(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "IMPORT_ERROR", "import failed")
 		return
 	}
-	writeJSON(w, http.StatusCreated, toItemResponse(item))
+
+	resp := map[string]any{
+		"item": toItemResponse(result.Item),
+	}
+	if result.Entry != nil {
+		resp["entry"] = toEntryResponse(result.Entry)
+	}
+	if result.Network != nil {
+		resp["network"] = toEntryResponse(result.Network)
+	}
+	if result.Album != nil {
+		resp["album"] = toGroupResponse(result.Album)
+	}
+	writeJSON(w, http.StatusCreated, resp)
 }
 
 // ── Discography ───────────────────────────────────────────────────────────────

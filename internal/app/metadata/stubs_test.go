@@ -304,6 +304,13 @@ func (s *stubMusicSource) FindByExternalID(_ context.Context, _ domain.ContentTy
 	return nil, ports.ErrNotFound
 }
 
+func (s *stubMusicSource) FindItemByExternalID(_ context.Context, _ domain.ContentType, _ string) (*domain.ExternalItem, error) {
+	if s.findItem != nil {
+		return s.findItem, nil
+	}
+	return nil, ports.ErrNotFound
+}
+
 func (s *stubMusicSource) FetchEntryContent(_ context.Context, _ domain.ContentType, _ string, page, _ int) ([]*domain.ExternalGroup, []*domain.ExternalItem, int, error) {
 	if page == 1 {
 		return s.albums, nil, len(s.albums), nil

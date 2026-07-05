@@ -5,6 +5,7 @@ import (
 	"purser/internal/app/scan"
 	"purser/internal/domain"
 	"purser/internal/ports"
+	"strconv"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -32,11 +33,38 @@ type fingerprintResponse struct {
 	ISBN         string            `json:"isbn,omitempty"`
 }
 
+type externalParentResponse struct {
+	Source         string `json:"source"`
+	ExternalID     string `json:"external_id"`
+	Name           string `json:"name"`
+	ParentID       string `json:"parent_id,omitempty"`
+	ParentName     string `json:"parent_name,omitempty"`
+	ImageURL       string `json:"image_url,omitempty"`
+	ParentImageURL string `json:"parent_image_url,omitempty"`
+}
+
+type externalCandidateResponse struct {
+	Source          string                  `json:"source"`
+	ExternalID      string                  `json:"external_id"`
+	Title           string                  `json:"title"`
+	ContentType     string                  `json:"content_type"`
+	ParentKind      string                  `json:"parent_kind,omitempty"`
+	ImageURL        string                  `json:"image_url,omitempty"`
+	Overview        string                  `json:"overview,omitempty"`
+	Date            string                  `json:"date,omitempty"`
+	RuntimeSeconds  int                     `json:"runtime_seconds,omitempty"`
+	GroupExternalID string                  `json:"group_external_id,omitempty"`
+	Parent          *externalParentResponse `json:"parent,omitempty"`
+}
+
 type matchCandidateResponse struct {
-	ItemID     string  `json:"item_id"`
-	ItemTitle  string  `json:"item_title,omitempty"`
-	Confidence float64 `json:"confidence"`
-	Source     string  `json:"source"`
+	ItemID            string                     `json:"item_id"`
+	ItemTitle         string                     `json:"item_title,omitempty"`
+	Confidence        float64                    `json:"confidence"`
+	Source            string                     `json:"source"`
+	SourceLabel       string                     `json:"source_label"`
+	SourceDescription string                     `json:"source_description,omitempty"`
+	External          *externalCandidateResponse `json:"external,omitempty"`
 }
 
 type unmatchedFileResponse struct {
@@ -82,7 +110,7 @@ func fingerprintToResponse(fp *domain.Fingerprint) *fingerprintResponse {
 	}
 }
 
-func candidatesToResponse(cs []domain.MatchCandidate) []matchCandidateResponse {
+func candidatesToResponse(cs []domain.MatchCandidate, fp *domain.Fingerprint) []matchCandidateResponse {
 	out := make([]matchCandidateResponse, 0, len(cs))
 	for _, c := range cs {
 		itemID, itemTitle := "", ""
@@ -90,12 +118,69 @@ func candidatesToResponse(cs []domain.MatchCandidate) []matchCandidateResponse {
 			itemID = c.Item.ID
 			itemTitle = c.Item.Title
 		}
-		out = append(out, matchCandidateResponse{
-			ItemID:     itemID,
-			ItemTitle:  itemTitle,
-			Confidence: c.Confidence,
-			Source:     c.Source,
-		})
+		ms := domain.MatchSource(c.Source)
+		resp := matchCandidateResponse{
+			ItemID:            itemID,
+			ItemTitle:         itemTitle,
+			Confidence:        c.Confidence,
+			Source:            c.Source,
+			SourceLabel:       ms.Label(),
+			SourceDescription: ms.Description(),
+		}
+		if c.ExternalItem != nil {
+			var date string
+			if !c.ExternalItem.Date.IsZero() {
+				date = c.ExternalItem.Date.Format("2006-01-02")
+			}
+			ext := &externalCandidateResponse{
+				Source:          string(c.ExternalItem.Source),
+				ExternalID:      c.ExternalItem.ExternalID,
+				Title:           c.ExternalItem.Title,
+				ContentType:     string(c.ExternalItem.ContentType),
+				ParentKind:      c.ExternalItem.ContentType.ParentEntryKind(),
+				ImageURL:        c.ExternalItem.ImageURL,
+				Overview:        c.ExternalItem.Overview,
+				Date:            date,
+				RuntimeSeconds:  c.ExternalItem.RuntimeSecs,
+				GroupExternalID: c.ExternalItem.GroupExternalID,
+			}
+			// For music stubs stored before the MBZ recording lookup was available,
+			// enrich title/runtime/artist from the file's embedded tags at response time.
+			if fp != nil && c.ExternalItem.ContentType == domain.ContentTypeMusic {
+				if ext.Title == "" {
+					ext.Title = fp.EmbeddedTags["title"]
+				}
+				if ext.RuntimeSeconds == 0 {
+					if ms, err := strconv.Atoi(fp.EmbeddedTags["duration_ms"]); err == nil {
+						ext.RuntimeSeconds = ms / 1000
+					}
+				}
+			}
+			if c.ExternalItem.Studio != nil {
+				ext.Parent = &externalParentResponse{
+					Source:         string(c.ExternalItem.Studio.Source),
+					ExternalID:     c.ExternalItem.Studio.ExternalID,
+					Name:           c.ExternalItem.Studio.Name,
+					ParentID:       c.ExternalItem.Studio.ParentID,
+					ParentName:     c.ExternalItem.Studio.ParentName,
+					ImageURL:       c.ExternalItem.Studio.ImageURL,
+					ParentImageURL: c.ExternalItem.Studio.ParentImageURL,
+				}
+			} else if fp != nil && c.ExternalItem.ContentType == domain.ContentTypeMusic {
+				// Synthesise a parent from embedded tags if the stub has no artist.
+				artist := fp.EmbeddedTags["artist"]
+				artistID := fp.EmbeddedTags["musicbrainz_artist_id"]
+				if artist != "" && artistID != "" {
+					ext.Parent = &externalParentResponse{
+						Source:     string(domain.SourceMusicBrainz),
+						ExternalID: artistID,
+						Name:       artist,
+					}
+				}
+			}
+			resp.External = ext
+		}
+		out = append(out, resp)
 	}
 	return out
 }
@@ -109,7 +194,7 @@ func unmatchedToResponse(uf *domain.UnmatchedFile) unmatchedFileResponse {
 		DiscoveredAt: uf.DiscoveredAt,
 		Status:       string(uf.Status),
 		Fingerprint:  fingerprintToResponse(uf.Fingerprint),
-		Candidates:   candidatesToResponse(uf.Candidates),
+		Candidates:   candidatesToResponse(uf.Candidates, uf.Fingerprint),
 	}
 }
 
@@ -213,7 +298,7 @@ func (h *unmatchedHandler) rescrape(w http.ResponseWriter, r *http.Request) {
 	if handleErr(w, err) {
 		return
 	}
-	writeJSON(w, http.StatusOK, rescrapeResponse{Candidates: candidatesToResponse(candidates)})
+	writeJSON(w, http.StatusOK, rescrapeResponse{Candidates: candidatesToResponse(candidates, nil)})
 }
 
 func (h *unmatchedHandler) dismiss(w http.ResponseWriter, r *http.Request) {

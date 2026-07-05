@@ -11,17 +11,17 @@ export function searchPeople(q: string, role?: PersonRole, limit = 25) {
   return get<{ results: ExternalPerson[] }>('/metadata/search', { kind: 'person', q, role, limit })
 }
 
-// ── Import studio ─────────────────────────────────────────────────────────────
+// ── Import entry ──────────────────────────────────────────────────────────────
 
 export type AlbumFilterToken = 'studio' | 'live' | 'compilation' | 'ep' | 'single' | 'all'
 
-export interface ImportStudioRequest {
+export interface ImportEntryRequest {
   source: string
   externalId: string
   name: string
   overview?: string
   contentType: ContentType
-  kind?: string
+  kind: string
   monitored: boolean
   monitorMode: MonitorMode
   parentExternalId?: string
@@ -33,13 +33,26 @@ export interface ImportStudioRequest {
   albumFilter?: AlbumFilterToken[]
 }
 
-export interface ImportStudioResult {
-  studio: LibraryEntry
+// entryKindForContentType mirrors Go's ContentType.ParentEntryKind().
+// Keep in sync with internal/domain/content_type.go.
+export function entryKindForContentType(ct: ContentType): string {
+  switch (ct) {
+    case 'music':  return 'artist'
+    case 'adult':
+    case 'jav':    return 'studio'
+    case 'tv':     return 'series'
+    case 'movie':  return 'movie'
+    case 'book':   return 'author'
+  }
+}
+
+export interface ImportEntryResult {
+  entry: LibraryEntry
   network?: LibraryEntry
 }
 
-export function importStudio(req: ImportStudioRequest) {
-  return post<ImportStudioResult>('/metadata/studios/import', req)
+export function importEntry(req: ImportEntryRequest) {
+  return post<ImportEntryResult>('/metadata/entries/import', req)
 }
 
 // ── Import person ─────────────────────────────────────────────────────────────
@@ -104,20 +117,24 @@ export function searchTracks(source: string, contentType: ContentType, groupExte
   })
 }
 
-// ── Import track ──────────────────────────────────────────────────────────────
+// ── Import item ───────────────────────────────────────────────────────────────
 
-export interface ImportTrackRequest {
-  source?: string
-  externalId?: string
-  groupId: string
-  libraryEntryId: string
+export interface ImportItemRequest {
+  source: string
+  externalId: string
   contentType: ContentType
-  title: string
-  sequence?: string
-  runtimeSeconds?: number
+  albumExternalId?: string
+  albumTitle?: string
   monitored: boolean
 }
 
-export function importTrack(req: ImportTrackRequest) {
-  return post<Item>('/metadata/tracks/import', req)
+export interface ImportItemResult {
+  item: Item
+  entry?: LibraryEntry
+  network?: LibraryEntry
+  album?: Group
+}
+
+export function importItem(req: ImportItemRequest) {
+  return post<ImportItemResult>('/metadata/items/import', req)
 }

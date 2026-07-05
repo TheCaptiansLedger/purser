@@ -147,59 +147,188 @@ func (s *Service) SearchTracks(ctx context.Context, req *SearchTracksRequest) ([
 	return out, nil
 }
 
-// ImportTrackRequest carries the user-confirmed track to persist.
-type ImportTrackRequest struct {
-	Source         domain.ExternalIDSource
-	ExternalID     string // recording MBID; empty for manual entry
-	GroupID        string // internal album group ID
-	LibraryEntryID string
-	ContentType    domain.ContentType
-	Title          string
-	Sequence       string
-	RuntimeSeconds int
-	Monitored      bool
+// ImportItemRequest identifies a single item to fetch from a metadata source and
+// persist with full enrichment (performers, tags, genres, cover art). AlbumExternalID
+// and AlbumTitle are used only for music content — they carry the release MBID and
+// title from the file's embedded tags so the track is linked to its album.
+type ImportItemRequest struct {
+	Source          domain.ExternalIDSource
+	ExternalID      string
+	ContentType     domain.ContentType
+	AlbumExternalID string // release MBID (music); empty for other content types
+	AlbumTitle      string // release title from embedded tags; used when creating a new album
+	Monitored       bool
 }
 
-// ImportTrack adds a single track to an existing album group. When ExternalID is
-// non-empty the operation is idempotent: an existing track is returned unchanged.
-// If the external ID record exists but the item was subsequently deleted, the track
-// is re-created (the orphaned external ID row is overwritten on save).
-func (s *Service) ImportTrack(ctx context.Context, req *ImportTrackRequest) (*domain.Item, error) {
-	if req.ExternalID != "" {
-		if id, err := s.externalIDs.FindEntity(ctx, "item", string(req.Source), req.ExternalID); err == nil {
-			if existing, err := s.items.Get(ctx, id); err == nil {
-				return existing, nil
-			}
-			// External ID points to a deleted item — fall through to re-create.
-		}
+// ImportItemResult carries all entities created or resolved during an item import.
+type ImportItemResult struct {
+	Item    *domain.Item
+	Entry   *domain.LibraryEntry
+	Network *domain.LibraryEntry
+	Album   *domain.Group
+}
+
+// ImportItem fetches the full ExternalItem from its metadata source, then creates
+// the studio (and optional parent network), the item, and any album group in a
+// single call. Performers, tags, genres, and cover art all come from the source —
+// no metadata travels through the caller. The operation is idempotent: an existing
+// item with the same external ID is returned without re-import.
+func (s *Service) ImportItem(ctx context.Context, req *ImportItemRequest) (*ImportItemResult, error) {
+	src := s.sourceByName(string(req.Source))
+	if src == nil {
+		return nil, errs.Validation(fmt.Sprintf("unknown metadata source %q", req.Source))
+	}
+	is, ok := src.(ports.ItemSource)
+	if !ok {
+		return nil, errs.Validation(fmt.Sprintf("source %q does not support item lookup by ID", req.Source))
+	}
+	ext, err := is.FindItemByExternalID(ctx, req.ContentType, req.ExternalID)
+	if err != nil {
+		return nil, fmt.Errorf("import item: fetch from source: %w", err)
 	}
 
-	status := domain.StatusWanted
+	result, err := s.importItemContainers(ctx, req, ext)
+	if err != nil {
+		return nil, err
+	}
+
+	// Idempotency: item may already exist (e.g. created by a prior catalog refresh or album import).
+	if id, findErr := s.externalIDs.FindEntity(ctx, "item", string(req.Source), req.ExternalID); findErr == nil {
+		if existing, getErr := s.items.Get(ctx, id); getErr == nil {
+			result.Item = existing
+			return result, nil
+		}
+		// External ID points to a deleted item — fall through to re-create.
+	}
+
+	var groupID, libraryEntryID string
+	if result.Album != nil {
+		groupID = result.Album.ID
+	}
+	if result.Entry != nil {
+		libraryEntryID = result.Entry.ID
+	}
+
+	itemID := uuid.New().String()
+	var coverPath string
+	if ext.ImageURL != "" && s.downloader != nil {
+		coverPath = s.downloader.Download(ctx, ext.ImageURL, "items", itemID)
+	}
+
+	tagCache := s.loadTagCache(ctx)
+	personCache := map[string]string{}
+
+	itemStatus := domain.StatusWanted
 	if !req.Monitored {
-		status = domain.StatusMissing
+		itemStatus = domain.StatusMissing
 	}
 
 	item := &domain.Item{
-		ID:             uuid.New().String(),
+		ID:             itemID,
 		ContentType:    req.ContentType,
-		LibraryEntryID: req.LibraryEntryID,
-		GroupID:        req.GroupID,
-		Title:          req.Title,
-		Sequence:       req.Sequence,
-		RuntimeSeconds: req.RuntimeSeconds,
+		LibraryEntryID: libraryEntryID,
+		GroupID:        groupID,
+		Title:          ext.Title,
+		Overview:       ext.Overview,
+		Date:           ext.Date,
+		RuntimeSeconds: ext.RuntimeSecs,
 		Monitored:      req.Monitored,
-		Status:         status,
+		Status:         itemStatus,
+		CoverPath:      coverPath,
+		People:         s.resolveItemPeople(ctx, ext.People, personCache),
+		Tags:           append(s.resolveItemTags(ctx, domain.TagKeyAdult, ext.Tags, tagCache), s.resolveItemGenreTags(ctx, ext.Genres, tagCache)...),
+		ExternalIDs:    []domain.ExternalID{{Source: ext.Source, Value: ext.ExternalID}},
 		AddedAt:        time.Now().UTC(),
-	}
-	if req.ExternalID != "" {
-		item.ExternalIDs = []domain.ExternalID{{Source: req.Source, Value: req.ExternalID}}
 	}
 	item.ApplyDefaults()
 	if err := s.items.Save(ctx, item); err != nil {
-		return nil, fmt.Errorf("import track: %w", err)
+		return nil, fmt.Errorf("import item: save: %w", err)
 	}
-	slog.Info("track.imported", "group_id", req.GroupID, "item_id", item.ID, "title", item.Title)
-	return item, nil
+	result.Item = item
+	slog.Info("item.imported", "entry_id", libraryEntryID, "item_id", item.ID, "title", item.Title)
+
+	// Targeted entry image enrichment. For adult studios, repairEntryImageFromSource
+	// fetches the image directly from the source. For music artists, fetchArtistHeroImage
+	// fans out to the aggregator (TheAudioDB) which carries the hero images MBZ lacks.
+	// Both are no-ops when an image is already present, so order does not matter.
+	if result.Entry != nil {
+		s.repairEntryImageFromSource(ctx, result.Entry, src, ext.Studio.ExternalID)
+		s.fetchArtistHeroImage(ctx, result.Entry, ext.Studio.ExternalID)
+	}
+	s.importItemAlbumCover(ctx, req, ext, result)
+
+	return result, nil
+}
+
+// importItemContainers finds or creates the parent entry/network and album (if any) for
+// the item being imported. It never triggers a background catalog refresh.
+func (s *Service) importItemContainers(ctx context.Context, req *ImportItemRequest, ext *domain.ExternalItem) (*ImportItemResult, error) {
+	result := &ImportItemResult{}
+	if ext.Studio != nil {
+		er, err := s.ImportEntry(ctx, &ImportEntryRequest{
+			Source:           ext.Studio.Source,
+			ExternalID:       ext.Studio.ExternalID,
+			Name:             ext.Studio.Name,
+			Overview:         ext.Studio.Overview,
+			ContentType:      req.ContentType,
+			Monitored:        false,
+			MonitorMode:      domain.MonitorLatest,
+			ImageURL:         ext.Studio.ImageURL,
+			WebsiteURL:       ext.Studio.WebsiteURL,
+			ParentExternalID: ext.Studio.ParentID,
+			ParentName:       ext.Studio.ParentName,
+			ParentImageURL:   ext.Studio.ParentImageURL,
+			ParentWebsiteURL: ext.Studio.ParentWebsiteURL,
+			AutoImport:       false,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("import item: ensure entry: %w", err)
+		}
+		result.Entry = er.Entry
+		result.Network = er.Network
+	}
+	// Prefer the explicitly supplied album ID; fall back to the one the source
+	// embedded in the item (e.g. MBZ recording → release MBID).
+	albumExtID := req.AlbumExternalID
+	if albumExtID == "" {
+		albumExtID = ext.GroupExternalID
+	}
+	if albumExtID != "" && result.Entry != nil {
+		album, err := s.ImportAlbum(ctx, &ImportAlbumRequest{
+			Source:         req.Source,
+			ExternalID:     albumExtID,
+			LibraryEntryID: result.Entry.ID,
+			Title:          req.AlbumTitle,
+			Monitored:      req.Monitored,
+			MonitorMode:    domain.MonitorAll,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("import item: ensure album: %w", err)
+		}
+		result.Album = album
+	}
+	return result, nil
+}
+
+// importItemAlbumCover fetches the cover for the album created during an item import.
+// It is a no-op when no album was created or the ExternalItem has no studio external ID.
+func (s *Service) importItemAlbumCover(ctx context.Context, req *ImportItemRequest, ext *domain.ExternalItem, result *ImportItemResult) {
+	if result.Album == nil || ext.Studio == nil {
+		return
+	}
+	var albumExtID string
+	for _, eid := range result.Album.ExternalIDs {
+		if eid.Source == req.Source {
+			albumExtID = eid.Value
+			break
+		}
+	}
+	if albumExtID == "" {
+		return
+	}
+	s.fetchAlbumCovers(ctx, req.ContentType, ext.Studio.ExternalID, []artistAlbum{
+		{internalID: result.Album.ID, extGroup: &domain.ExternalGroup{ExternalID: albumExtID}},
+	})
 }
 
 // ImportAlbumRequest carries the user-selected album to persist.
@@ -368,17 +497,18 @@ func (s *Service) sourceByName(name string) ports.MetadataSource {
 
 // ── Import ────────────────────────────────────────────────────────────────────
 
-// ImportStudioRequest carries the (user-reviewed) studio data to persist.
-type ImportStudioRequest struct {
+// ImportEntryRequest carries the data needed to create a LibraryEntry from an
+// external source. The entry kind is always derived from ContentType — the caller
+// does not set it. If ContentType has no known parent kind, ImportEntry returns an error.
+type ImportEntryRequest struct {
 	Source           domain.ExternalIDSource
 	ExternalID       string
 	Name             string
 	Overview         string
 	ContentType      domain.ContentType
-	Kind             domain.Kind // defaults to KindStudio if empty
 	Monitored        bool
 	MonitorMode      domain.MonitorMode
-	AutoImport       bool // when true, enqueue a RefreshStudio job immediately after saving
+	AutoImport       bool // when true, enqueue a refresh job immediately after saving
 	ImageURL         string
 	WebsiteURL       string
 	ParentExternalID string // parent's ID within the same source
@@ -391,15 +521,15 @@ type ImportStudioRequest struct {
 	AlbumFilter []string
 }
 
-// ImportStudioResult holds the persisted studio and, if applicable, its network.
-type ImportStudioResult struct {
-	Studio  *domain.LibraryEntry
+// ImportEntryResult holds the persisted entry and, if applicable, its parent network.
+type ImportEntryResult struct {
+	Entry   *domain.LibraryEntry
 	Network *domain.LibraryEntry // nil if no parent was specified or it already existed
 }
 
-// importOrFindNetwork resolves or creates the parent network for an ImportStudioRequest.
+// importOrFindNetwork resolves or creates the parent network for an ImportEntryRequest.
 // Returns the parent ID, the newly created network (nil if it already existed or not needed), and any error.
-func (s *Service) importOrFindNetwork(ctx context.Context, req *ImportStudioRequest) (string, *domain.LibraryEntry, error) {
+func (s *Service) importOrFindNetwork(ctx context.Context, req *ImportEntryRequest) (string, *domain.LibraryEntry, error) {
 	src := string(req.Source)
 
 	if req.ParentExternalID != "" {
@@ -447,23 +577,33 @@ func (s *Service) importOrFindNetwork(ctx context.Context, req *ImportStudioRequ
 	return network.ID, network, nil
 }
 
-// ImportStudio persists an ExternalStudio as a library entry. If the studio
-// has a parent network, that network is looked up or created first.
+// ImportEntry persists an external entity as a LibraryEntry of the correct kind
+// for its content type. The kind is derived from ContentType.ParentEntryKind() —
+// the caller does not set it. If the content type has no known parent kind, an
+// error is returned immediately rather than silently creating the wrong thing.
+// If a parent network is specified it is looked up or created first.
 // The operation is idempotent: if an entry with the same external ID already
 // exists, it is returned without modification.
-func (s *Service) ImportStudio(ctx context.Context, req *ImportStudioRequest) (*ImportStudioResult, error) {
+func (s *Service) ImportEntry(ctx context.Context, req *ImportEntryRequest) (*ImportEntryResult, error) {
+	kindStr := req.ContentType.ParentEntryKind()
+	if kindStr == "" {
+		return nil, fmt.Errorf("import entry: content type %q has no known entry kind", req.ContentType)
+	}
+	kind := domain.Kind(kindStr)
+
 	src := string(req.Source)
 
-	// Idempotency: return existing studio if already imported.
+	// Idempotency: return existing entry if already imported.
 	if id, err := s.externalIDs.FindEntity(ctx, "library_entry", src, req.ExternalID); err == nil {
 		entry, err := s.entries.Get(ctx, id)
 		if err != nil {
 			return nil, err
 		}
-		return &ImportStudioResult{Studio: entry}, nil
+		s.repairEntryImage(ctx, entry, req.ImageURL)
+		return &ImportEntryResult{Entry: entry}, nil
 	}
 
-	res := &ImportStudioResult{}
+	res := &ImportEntryResult{}
 
 	parentID, network, err := s.importOrFindNetwork(ctx, req)
 	if err != nil {
@@ -476,22 +616,17 @@ func (s *Service) ImportStudio(ctx context.Context, req *ImportStudioRequest) (*
 		monitorMode = domain.MonitorLatest
 	}
 
-	kind := req.Kind
-	if kind == "" {
-		kind = domain.KindStudio
-	}
-
-	studioID := uuid.New().String()
+	entryID := uuid.New().String()
 
 	var imagePath string
 	if req.ImageURL != "" && s.downloader != nil {
-		imagePath = s.downloader.Download(ctx, req.ImageURL, "entries", studioID)
+		imagePath = s.downloader.Download(ctx, req.ImageURL, "entries", entryID)
 	}
 
 	meta := buildEntryMeta(req, kind)
 
-	studio := &domain.LibraryEntry{
-		ID:          studioID,
+	entry := &domain.LibraryEntry{
+		ID:          entryID,
 		ContentType: req.ContentType,
 		Kind:        kind,
 		Name:        req.Name,
@@ -507,14 +642,14 @@ func (s *Service) ImportStudio(ctx context.Context, req *ImportStudioRequest) (*
 			{Source: req.Source, Value: req.ExternalID},
 		},
 	}
-	if err := s.entries.Save(ctx, studio); err != nil {
+	if err := s.entries.Save(ctx, entry); err != nil {
 		return nil, err
 	}
-	res.Studio = studio
+	res.Entry = entry
 
 	if req.AutoImport && s.jobs != nil {
-		if _, err := s.SubmitRefreshJob(ctx, kind.RefreshJobName(), studio.ID); err != nil {
-			slog.Warn("auto-import: failed to enqueue refresh", "entry_id", studio.ID, "error", err)
+		if _, err := s.SubmitRefreshJob(ctx, kind.RefreshJobName(), entry.ID); err != nil {
+			slog.Warn("auto-import: failed to enqueue refresh", "entry_id", entry.ID, "error", err)
 		}
 	}
 
@@ -729,6 +864,8 @@ func (s *Service) RefreshStudio(ctx context.Context, entryID string, p ports.Pro
 			p.Report(i+1, total, item.Title)
 		}
 	}
+
+	s.repairEntryImageFromSource(ctx, entry, src, srcExtID)
 
 	slog.Info("studio.refreshed", "entry_id", entryID, "name", entry.Name, "new_items", total)
 	return nil
@@ -1124,9 +1261,9 @@ func isImportableAlbum(eg *domain.ExternalGroup, filter []string) bool {
 }
 
 // buildEntryMeta constructs the metadata map for a new library entry from an
-// import request. Kept separate to avoid inflating ImportStudio's cyclomatic
+// import request. Kept separate to avoid inflating ImportEntry's cyclomatic
 // complexity beyond the project lint threshold.
-func buildEntryMeta(req *ImportStudioRequest, kind domain.Kind) map[string]any {
+func buildEntryMeta(req *ImportEntryRequest, kind domain.Kind) map[string]any {
 	meta := map[string]any{}
 	if req.WebsiteURL != "" {
 		meta["website_url"] = req.WebsiteURL
@@ -1492,5 +1629,40 @@ func albumTypeMetadata(primaryType string, secondaryTypes []string) map[string]a
 	return map[string]any{
 		"primary_type":    primaryType,
 		"secondary_types": st,
+	}
+}
+
+// repairEntryImage downloads and saves an image for entry if its ImagePath is
+// empty and imageURL is non-empty. The save error is intentionally ignored —
+// a missing image is a cosmetic issue, not a fatal one.
+func (s *Service) repairEntryImage(ctx context.Context, entry *domain.LibraryEntry, imageURL string) {
+	if entry.ImagePath != "" || imageURL == "" || s.downloader == nil {
+		return
+	}
+	if path := s.downloader.Download(ctx, imageURL, "entries", entry.ID); path != "" {
+		entry.ImagePath = path
+		_ = s.entries.Save(ctx, entry)
+	}
+}
+
+// repairEntryImageFromSource fetches the entry's own metadata from src and
+// downloads its image when the entry currently has none.
+func (s *Service) repairEntryImageFromSource(ctx context.Context, entry *domain.LibraryEntry, src ports.MetadataSource, srcExtID string) {
+	if entry.ImagePath != "" || s.downloader == nil {
+		return
+	}
+	es, ok := src.(ports.ExternalIDSource)
+	if !ok {
+		return
+	}
+	extEntry, err := es.FindByExternalID(ctx, entry.ContentType, srcExtID)
+	if err != nil || extEntry.ImageURL == "" {
+		return
+	}
+	if path := s.downloader.Download(ctx, extEntry.ImageURL, "entries", entry.ID); path != "" {
+		entry.ImagePath = path
+		if saveErr := s.entries.Save(ctx, entry); saveErr != nil {
+			slog.Warn("studio.refresh: update entry image", "error", saveErr)
+		}
 	}
 }

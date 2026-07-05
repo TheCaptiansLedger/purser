@@ -5,6 +5,8 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"purser/internal/adapters/identifier"
+	"purser/pkg/cache"
+	"sync/atomic"
 	"testing"
 )
 
@@ -92,5 +94,37 @@ func TestAcoustIDClient_Lookup_HTTPError(t *testing.T) {
 	_, err := client.Lookup(context.Background(), "fingerprint", 300)
 	if err == nil {
 		t.Error("expected error for HTTP 500, got nil")
+	}
+}
+
+func TestAcoustIDClient_Lookup_CachesResult(t *testing.T) {
+	var calls atomic.Int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		calls.Add(1)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(acoustidOKResponse))
+	}))
+	defer srv.Close()
+
+	c, err := cache.New("test-acoustid", 64)
+	if err != nil {
+		t.Fatal(err)
+	}
+	client := identifier.NewTestAcoustIDClientWithCache("test-key", srv.URL, c)
+
+	mbids1, err := client.Lookup(context.Background(), "fp-abc", 300)
+	if err != nil {
+		t.Fatal(err)
+	}
+	mbids2, err := client.Lookup(context.Background(), "fp-abc", 300)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if calls.Load() != 1 {
+		t.Errorf("expected 1 HTTP call, got %d", calls.Load())
+	}
+	if len(mbids1) != len(mbids2) {
+		t.Errorf("cached result mismatch: first=%d second=%d", len(mbids1), len(mbids2))
 	}
 }

@@ -33,6 +33,75 @@ type ScannedFile struct {
 	DiscoveredAt time.Time
 }
 
+// MatchSource identifies the strategy used to produce a MatchCandidate.
+type MatchSource string
+
+// Known match source constants. Adapters set MatchCandidate.Source to one of these.
+const (
+	MatchSourceOSHash       MatchSource = "oshash"
+	MatchSourceProviderHash MatchSource = "provider_hash"
+	MatchSourceAcoustID     MatchSource = "acoustid"
+	MatchSourceMBTrackID    MatchSource = "musicbrainz_track_id"
+	MatchSourceMBTagLegacy  MatchSource = "musicbrainz_tag"
+	MatchSourceEmbeddedTags MatchSource = "tags"
+	MatchSourceFilename     MatchSource = "filename"
+	MatchSourceISBNLocal    MatchSource = "isbn_local"
+	MatchSourceISBNProvider MatchSource = "isbn_provider"
+	MatchSourceTitle        MatchSource = "title"
+)
+
+// Label returns the short human-readable name for this match source.
+func (s MatchSource) Label() string {
+	switch s {
+	case MatchSourceOSHash:
+		return "File Hash"
+	case MatchSourceProviderHash:
+		return "Provider Hash"
+	case MatchSourceAcoustID:
+		return "Audio Fingerprint"
+	case MatchSourceMBTrackID, MatchSourceMBTagLegacy:
+		return "MusicBrainz Tag"
+	case MatchSourceEmbeddedTags:
+		return "Embedded Tags"
+	case MatchSourceFilename:
+		return "Filename"
+	case MatchSourceISBNLocal:
+		return "ISBN (Library)"
+	case MatchSourceISBNProvider:
+		return "ISBN (Provider)"
+	case MatchSourceTitle:
+		return "Title Match"
+	default:
+		return string(s)
+	}
+}
+
+// Description returns a one-line explanation of how this source found its match.
+func (s MatchSource) Description() string {
+	switch s {
+	case MatchSourceOSHash:
+		return "File fingerprint matched an item already in your library"
+	case MatchSourceProviderHash:
+		return "File hash submitted to metadata provider (e.g. StashDB) and returned a match"
+	case MatchSourceAcoustID:
+		return "Audio fingerprint computed via AcoustID and matched on MusicBrainz"
+	case MatchSourceMBTrackID, MatchSourceMBTagLegacy:
+		return "MusicBrainz recording ID found in embedded file tags"
+	case MatchSourceEmbeddedTags:
+		return "Title and artist matched from embedded metadata tags (FLAC/ID3)"
+	case MatchSourceFilename:
+		return "Title parsed from the filename"
+	case MatchSourceISBNLocal:
+		return "ISBN matched an item already in your library"
+	case MatchSourceISBNProvider:
+		return "ISBN looked up against a metadata provider"
+	case MatchSourceTitle:
+		return "Title searched against a metadata provider"
+	default:
+		return ""
+	}
+}
+
 // MatchCandidate is a potential match for a scanned file. Item is the local
 // library record when one exists; ExternalItem carries provider metadata when
 // the source identified the file but no local item has been created yet.

@@ -40,3 +40,5 @@ testdata/
 # Test media files for scan pipeline development
 test-data/*
 !test-data/.gitkeep
+
+.claude

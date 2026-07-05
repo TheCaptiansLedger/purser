@@ -23,11 +23,11 @@ func newServiceWithSources(sources ...ports.MetadataSource) *metadata.Service {
 	)
 }
 
-// seedEntry imports a library entry with the given external ID via ImportStudio,
+// seedEntry imports a library entry with the given external ID via ImportEntry,
 // returning the assigned internal ID.
 func seedEntry(t *testing.T, svc *metadata.Service, source domain.ExternalIDSource, extID string) string {
 	t.Helper()
-	res, err := svc.ImportStudio(context.Background(), &metadata.ImportStudioRequest{
+	res, err := svc.ImportEntry(context.Background(), &metadata.ImportEntryRequest{
 		Source:      source,
 		ExternalID:  extID,
 		Name:        "Test Studio",
@@ -36,7 +36,7 @@ func seedEntry(t *testing.T, svc *metadata.Service, source domain.ExternalIDSour
 	if err != nil {
 		t.Fatalf("seed entry: %v", err)
 	}
-	return res.Studio.ID
+	return res.Entry.ID
 }
 
 // seedPerson imports a person with the given external ID via ImportPerson,
@@ -158,7 +158,7 @@ func TestFetchImagesForGroup_ReturnsImages(t *testing.T) {
 	}
 	svc := newServiceWithSources(src)
 
-	entryRes, err := svc.ImportStudio(context.Background(), &metadata.ImportStudioRequest{
+	entryRes, err := svc.ImportEntry(context.Background(), &metadata.ImportEntryRequest{
 		Source:      domain.SourceMusicBrainz,
 		ExternalID:  "artist-mbid",
 		Name:        "Test Artist",
@@ -170,7 +170,7 @@ func TestFetchImagesForGroup_ReturnsImages(t *testing.T) {
 	groupRes, err := svc.ImportAlbum(context.Background(), &metadata.ImportAlbumRequest{
 		Source:         domain.SourceMusicBrainz,
 		ExternalID:     "album-mbid",
-		LibraryEntryID: entryRes.Studio.ID,
+		LibraryEntryID: entryRes.Entry.ID,
 		Title:          "Test Album",
 	})
 	if err != nil {

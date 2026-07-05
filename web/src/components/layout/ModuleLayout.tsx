@@ -6,6 +6,7 @@ export interface ModuleTab {
   label: string
   icon: LucideIcon
   end?: boolean
+  badge?: number
 }
 
 interface Props {
@@ -30,7 +31,7 @@ export function ModuleLayout({ tabs, accent }: Props) {
           borderColor: 'rgba(255,255,255,0.06)',
         }}
       >
-        {tabs.map(({ path, label, icon: Icon, end }) => (
+        {tabs.map(({ path, label, icon: Icon, end, badge }) => (
           <NavLink
             key={path}
             to={path}
@@ -51,6 +52,11 @@ export function ModuleLayout({ tabs, accent }: Props) {
                     strokeWidth={isActive ? 2.5 : 2}
                     style={isActive ? { color: accent } : {}}
                   />
+                  {badge !== undefined && badge > 0 && (
+                    <span className="absolute -top-1.5 -right-1.5 min-w-[16px] h-4 bg-rose-500 text-white text-[9px] font-bold rounded-full flex items-center justify-center px-0.5">
+                      {badge > 99 ? '99+' : badge}
+                    </span>
+                  )}
                   {isActive && (
                     <span
                       className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full"

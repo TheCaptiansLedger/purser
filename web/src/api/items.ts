@@ -60,6 +60,23 @@ export function deleteItem(id: string) {
   return delConfirmed(`/items/${id}`)
 }
 
+export interface CreateItemRequest {
+  contentType: string
+  libraryEntryId: string
+  groupId?: string
+  title: string
+  overview?: string
+  date?: string
+  sequence?: string
+  runtimeSeconds?: number
+  monitored: boolean
+  externalIds?: { source: string; value: string }[]
+}
+
+export function createItem(req: CreateItemRequest): Promise<Item> {
+  return post<Item>('/items', req)
+}
+
 export function useAddItemTag(itemId: string) {
   const qc = useQueryClient()
   return useMutation({

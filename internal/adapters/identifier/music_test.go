@@ -8,7 +8,7 @@ import (
 )
 
 func TestMusicIdentifier_ContentTypes(t *testing.T) {
-	id := identifier.NewMusicIdentifier(&stubExternalIDRepo{}, &stubItemRepo{}, nil, "")
+	id := identifier.NewMusicIdentifier(&stubExternalIDRepo{}, &stubItemRepo{}, nil, "", nil)
 	cts := id.ContentTypes()
 	if len(cts) != 1 || cts[0] != domain.ContentTypeMusic {
 		t.Errorf("ContentTypes() = %v, want [music]", cts)
@@ -16,7 +16,7 @@ func TestMusicIdentifier_ContentTypes(t *testing.T) {
 }
 
 func TestMusicIdentifier_UnsupportedType(t *testing.T) {
-	id := identifier.NewMusicIdentifier(&stubExternalIDRepo{}, &stubItemRepo{}, nil, "")
+	id := identifier.NewMusicIdentifier(&stubExternalIDRepo{}, &stubItemRepo{}, nil, "", nil)
 	candidates, err := id.Identify(context.Background(), domain.ScannedFile{
 		Path:        "/fake/movie.mkv",
 		ContentType: domain.ContentTypeMovie,
@@ -41,7 +41,7 @@ func TestMusicIdentifier_EmbeddedMBZTrackID(t *testing.T) {
 	}
 	itemRepo := &stubItemRepo{byID: map[string]*domain.Item{itemID: item}}
 
-	id := identifier.NewMusicIdentifier(extIDs, itemRepo, nil, "")
+	id := identifier.NewMusicIdentifier(extIDs, itemRepo, nil, "", nil)
 
 	candidates, err := id.Identify(context.Background(), domain.ScannedFile{
 		Path:        "/music/01 - Bella Donna.flac",
@@ -75,7 +75,7 @@ func TestMusicIdentifier_NoAcoustIDKey_FallsToFilename(t *testing.T) {
 	itemRepo := &stubItemRepo{bySearch: []*domain.Item{item}}
 
 	// No AcoustID key → strategy 2 skipped. No embedded MBZ tag. Falls through to filename.
-	id := identifier.NewMusicIdentifier(extIDs, itemRepo, nil, "")
+	id := identifier.NewMusicIdentifier(extIDs, itemRepo, nil, "", nil)
 
 	candidates, err := id.Identify(context.Background(), domain.ScannedFile{
 		Path:        "/music/01 - Bella Donna.flac",
@@ -101,7 +101,7 @@ func TestMusicIdentifier_TagFuzzyMatch(t *testing.T) {
 	extIDs := &stubExternalIDRepo{entries: map[string]string{}}
 	itemRepo := &stubItemRepo{bySearch: []*domain.Item{item}}
 
-	id := identifier.NewMusicIdentifier(extIDs, itemRepo, nil, "")
+	id := identifier.NewMusicIdentifier(extIDs, itemRepo, nil, "", nil)
 
 	candidates, err := id.Identify(context.Background(), domain.ScannedFile{
 		Path:        "/music/03 - Gold Dust Woman.flac",
@@ -137,7 +137,7 @@ func TestMusicIdentifier_TagFuzzyMatch_MultipleResults_KeepsLowConfidence(t *tes
 	extIDs := &stubExternalIDRepo{entries: map[string]string{}}
 	itemRepo := &stubItemRepo{bySearch: []*domain.Item{item1, item2}}
 
-	id := identifier.NewMusicIdentifier(extIDs, itemRepo, nil, "")
+	id := identifier.NewMusicIdentifier(extIDs, itemRepo, nil, "", nil)
 
 	candidates, err := id.Identify(context.Background(), domain.ScannedFile{
 		Path:        "/music/03 - Gold Dust Woman.flac",
@@ -170,7 +170,7 @@ func TestMusicIdentifier_TagFuzzyMatch_DurationMismatch(t *testing.T) {
 	extIDs := &stubExternalIDRepo{entries: map[string]string{}}
 	itemRepo := &stubItemRepo{bySearch: []*domain.Item{item}}
 
-	id := identifier.NewMusicIdentifier(extIDs, itemRepo, nil, "")
+	id := identifier.NewMusicIdentifier(extIDs, itemRepo, nil, "", nil)
 
 	candidates, err := id.Identify(context.Background(), domain.ScannedFile{
 		Path:        "/music/04 - Sara.flac",
