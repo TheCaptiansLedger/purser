@@ -3,6 +3,7 @@ package mbz
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"net/url"
 	"purser/internal/domain"
 	"strconv"
@@ -28,6 +29,20 @@ type mbzRecordingRelease struct {
 	ID           string            `json:"id"`
 	Title        string            `json:"title"`
 	ArtistCredit []mbzArtistCredit `json:"artist-credit"`
+	ReleaseGroup mbzReleaseGroup   `json:"release-group"`
+	LabelInfo    []mbzLabelInfo    `json:"label-info"`
+	Barcode      string            `json:"barcode"`
+	Country      string            `json:"country"`
+	Date         string            `json:"date"`
+}
+
+type mbzLabelInfo struct {
+	Label         *mbzLabel `json:"label"`
+	CatalogNumber string    `json:"catalog-number"`
+}
+
+type mbzLabel struct {
+	Name string `json:"name"`
 }
 
 type mbzArtistCredit struct {
@@ -56,7 +71,7 @@ func (a *Adapter) SearchItems(ctx context.Context, _ domain.ContentType, query s
 	}
 	out := make([]*domain.ExternalItem, len(resp.Recordings))
 	for i := range resp.Recordings {
-		out[i] = toExternalRecording(&resp.Recordings[i], "")
+		out[i] = toExternalRecording(ctx, &resp.Recordings[i], "")
 	}
 	return out, nil
 }
@@ -64,11 +79,12 @@ func (a *Adapter) SearchItems(ctx context.Context, _ domain.ContentType, query s
 // ── Mapping ───────────────────────────────────────────────────────────────────
 
 // FetchRecordingByID fetches a single recording from MusicBrainz by its MBID,
-// including artist credits. albumHint is matched case-insensitively against
-// the recording's release titles to select the best release for cover art and
-// grouping; pass empty string to use the first release MBZ returns.
+// including artist credits and release group IDs. albumHint is matched
+// case-insensitively against the recording's release titles to select the best
+// release for cover art and grouping; pass empty string to use the first release
+// MBZ returns.
 func (a *Adapter) FetchRecordingByID(ctx context.Context, mbid, albumHint string) (*domain.ExternalItem, error) {
-	u := fmt.Sprintf("%srecording/%s?inc=artist-credits+releases&fmt=json", a.baseURL, mbid)
+	u := fmt.Sprintf("%srecording/%s?inc=artist-credits+releases+release-groups&fmt=json", a.baseURL, mbid)
 	var r mbzRecording
 	if err := a.get(ctx, u, &r); err != nil {
 		return nil, err
@@ -76,7 +92,25 @@ func (a *Adapter) FetchRecordingByID(ctx context.Context, mbid, albumHint string
 	if r.ID == "" {
 		return nil, fmt.Errorf("mbz recording not found: %s", mbid)
 	}
-	return toExternalRecording(&r, albumHint), nil
+	item := toExternalRecording(ctx, &r, albumHint)
+	selectedReleaseMBID := ""
+	selectedReleaseTitle := ""
+	rgMBID := ""
+	if item.ReleaseDetail != nil {
+		selectedReleaseMBID = item.ReleaseDetail.ReleaseMBID
+		selectedReleaseTitle = item.ReleaseDetail.ReleaseTitle
+		rgMBID = item.GroupExternalID
+	}
+	slog.DebugContext(ctx, "mbz: recording fetched",
+		"recording_mbid", mbid,
+		"recording_title", r.Title,
+		"release_count", len(r.Releases),
+		"album_hint", albumHint,
+		"selected_release_mbid", selectedReleaseMBID,
+		"selected_release_title", selectedReleaseTitle,
+		"release_group_mbid", rgMBID,
+	)
+	return item, nil
 }
 
 // FindItemByExternalID fetches a recording by MBID. Implements ports.ItemSource.
@@ -101,7 +135,7 @@ func pickRelease(releases []mbzRecordingRelease, albumHint string) *mbzRecording
 	return &releases[0]
 }
 
-func toExternalRecording(r *mbzRecording, albumHint string) *domain.ExternalItem {
+func toExternalRecording(ctx context.Context, r *mbzRecording, albumHint string) *domain.ExternalItem {
 	item := &domain.ExternalItem{
 		Source:      domain.SourceMusicBrainz,
 		ExternalID:  r.ID,
@@ -126,10 +160,52 @@ func toExternalRecording(r *mbzRecording, albumHint string) *domain.ExternalItem
 	}
 	// Prefer the release whose title matches albumHint (embedded album tag); fall
 	// back to first. Cover Art Archive URLs are deterministic — no HTTP fetch needed.
-	if rel := pickRelease(r.Releases, albumHint); rel != nil {
-		item.GroupExternalID = rel.ID
-		item.GroupTitle = rel.Title
-		item.ImageURL = "https://coverartarchive.org/release/" + rel.ID + "/front-250"
+	// GroupExternalID is the release group MBID (the conceptual album), not the
+	// release MBID (the specific pressing), so scanned files can be matched to
+	// albums imported via discography which also uses release group MBIDs.
+	rel := pickRelease(r.Releases, albumHint)
+	// A release without an ID is a stub (e.g. embedded in a search response for
+	// artist-credit extraction only). Treat it as absent so we don't set an empty
+	// GroupExternalID or emit a misleading WARN.
+	if rel == nil || rel.ID == "" {
+		return item
+	}
+	if rel.ReleaseGroup.ID == "" {
+		slog.WarnContext(ctx, "mbz: release has no release-group",
+			"recording_mbid", r.ID,
+			"release_mbid", rel.ID,
+			"release_title", rel.Title,
+		)
+	}
+	item.GroupExternalID = rel.ReleaseGroup.ID
+	item.GroupTitle = rel.ReleaseGroup.Title
+	item.ImageURL = "https://coverartarchive.org/release/" + rel.ID + "/front-250"
+	item.ReleaseDetail = &domain.ExternalReleaseDetail{
+		ReleaseMBID:    rel.ID,
+		ReleaseTitle:   rel.Title,
+		ReleaseDate:    rel.Date,
+		ReleaseLabel:   releaseLabel(rel),
+		ReleaseCountry: rel.Country,
+		ReleaseCatalog: releaseCatalog(rel),
+		ReleaseBarcode: rel.Barcode,
 	}
 	return item
+}
+
+func releaseLabel(rel *mbzRecordingRelease) string {
+	for _, li := range rel.LabelInfo {
+		if li.Label != nil && li.Label.Name != "" {
+			return li.Label.Name
+		}
+	}
+	return ""
+}
+
+func releaseCatalog(rel *mbzRecordingRelease) string {
+	for _, li := range rel.LabelInfo {
+		if li.CatalogNumber != "" {
+			return li.CatalogNumber
+		}
+	}
+	return ""
 }

@@ -15,7 +15,7 @@ type ExternalItem struct {
 	Date            time.Time
 	RuntimeSecs     int
 	ImageURL        string
-	GroupExternalID string // parent group (release MBID, season ID, etc.) for this item
+	GroupExternalID string // parent release group MBID, season ID, etc.
 	GroupTitle      string // title of the parent group when known from the external source
 	Studio          *ExternalStudio
 	People          []*ExternalPerson
@@ -23,6 +23,20 @@ type ExternalItem struct {
 	Genres          []string
 	ExternalIDs     map[string]string
 	Images          []ExternalImage
+	ReleaseDetail   *ExternalReleaseDetail // non-nil only for music items; holds edition-specific fields
+}
+
+// ExternalReleaseDetail carries the edition-specific fields for a music recording.
+// It is populated by the MBZ adapter when fetching a recording by ID and carries the
+// specific release (pressing) details that differ between editions of the same conceptual album.
+type ExternalReleaseDetail struct {
+	ReleaseMBID    string // MBZ release MBID (a specific pressing, not the release group)
+	ReleaseTitle   string // edition-qualified title, e.g. "Hi Infidelity (2024 Remaster)"
+	ReleaseDate    string // ISO 8601 date string as returned by MBZ (may be partial, e.g. "1981-02")
+	ReleaseLabel   string // first label name from label-info
+	ReleaseCountry string // ISO 3166-1 alpha-2 country code
+	ReleaseCatalog string // catalog number from the first label-info entry
+	ReleaseBarcode string // barcode (EAN/UPC) as a string
 }
 
 // ExternalImage is image metadata returned by a metadata source for a given entity.

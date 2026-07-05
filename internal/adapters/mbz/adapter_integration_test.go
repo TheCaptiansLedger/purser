@@ -261,6 +261,64 @@ func TestMBZ_FetchEntryPeople(t *testing.T) {
 	}
 }
 
+// TestIntegrationRecordingGroupMBID verifies that FetchRecordingByID returns a
+// release group MBID in GroupExternalID, not a release MBID. It obtains a
+// recording MBID dynamically from The Beatles discography to avoid hardcoding
+// brittle IDs. The critical invariant: GroupExternalID != "" and
+// GroupExternalID != item.ExternalID (recording MBID).
+func TestIntegrationRecordingGroupMBID(t *testing.T) {
+	a := newIntegrationAdapter()
+
+	// Step 1 — get a release-group from The Beatles discography.
+	ctx1, cancel1 := integrationCtx(t)
+	defer cancel1()
+
+	groups, _, _, err := a.FetchEntryContent(ctx1, domain.ContentTypeMusic, beatlesMBID, 1, 5)
+	if err != nil {
+		t.Fatalf("FetchEntryContent (setup): %v", err)
+	}
+	if len(groups) == 0 {
+		t.Fatal("FetchEntryContent returned no groups; cannot run recording group MBID test")
+	}
+
+	// Step 2 — get a recording MBID from that release-group.
+	ctx2, cancel2 := integrationCtx(t)
+	defer cancel2()
+
+	items, _, err := a.FetchGroupContent(ctx2, domain.ContentTypeMusic, groups[0].ExternalID, 1, 5)
+	if err != nil {
+		t.Fatalf("FetchGroupContent (setup): %v", err)
+	}
+	if len(items) == 0 {
+		t.Fatal("FetchGroupContent returned no items; cannot run recording group MBID test")
+	}
+	recordingMBID := items[0].ExternalID
+
+	// Step 3 — fetch the recording by ID and assert GroupExternalID is a release group MBID.
+	ctx3, cancel3 := integrationCtx(t)
+	defer cancel3()
+
+	item, err := a.FetchRecordingByID(ctx3, recordingMBID, "")
+	if err != nil {
+		t.Fatalf("FetchRecordingByID(%q): %v", recordingMBID, err)
+	}
+	if item.ExternalID != recordingMBID {
+		t.Errorf("ExternalID = %q, want %q", item.ExternalID, recordingMBID)
+	}
+	if item.GroupExternalID == "" {
+		t.Error("GroupExternalID is empty; MBZ must return a release-group for any canonical recording")
+	}
+	// Core invariant: recording MBID and release group MBID are different MBZ entity types.
+	if item.GroupExternalID == item.ExternalID {
+		t.Errorf("GroupExternalID == ExternalID (%q); release group MBID must differ from recording MBID", item.ExternalID)
+	}
+	// ReleaseDetail carries the selected release MBID; it must also differ from the release group MBID.
+	if item.ReleaseDetail != nil && item.ReleaseDetail.ReleaseMBID == item.GroupExternalID {
+		t.Errorf("ReleaseDetail.ReleaseMBID (%q) == GroupExternalID (%q); release and release group are different MBZ entities",
+			item.ReleaseDetail.ReleaseMBID, item.GroupExternalID)
+	}
+}
+
 // TestMBZ_FetchGroupContent verifies that tracks for a release-group can be
 // retrieved with positive runtime durations. The release-group MBID is obtained
 // dynamically from FetchEntryContent so this test doesn't hardcode a brittle ID.
