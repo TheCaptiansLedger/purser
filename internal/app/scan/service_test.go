@@ -305,6 +305,53 @@ func (m *mockThumbnailCache) Store(_ context.Context, url, key string) string {
 	return "/test/thumbnails/" + key + ".jpg"
 }
 
+type mockGroupRepo struct {
+	mu     sync.Mutex
+	groups map[string]*domain.Group
+}
+
+func newGroupRepo(groups ...*domain.Group) *mockGroupRepo {
+	r := &mockGroupRepo{groups: make(map[string]*domain.Group)}
+	for _, g := range groups {
+		cp := *g
+		r.groups[g.ID] = &cp
+	}
+	return r
+}
+
+func (r *mockGroupRepo) Get(_ context.Context, id string) (*domain.Group, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if g, ok := r.groups[id]; ok {
+		cp := *g
+		return &cp, nil
+	}
+	return nil, errs.ErrNotFound
+}
+
+func (r *mockGroupRepo) List(_ context.Context, _ ports.GroupFilter) ([]*domain.Group, error) {
+	return nil, nil //nolint:nilnil
+}
+
+func (r *mockGroupRepo) Save(_ context.Context, g *domain.Group) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	cp := *g
+	r.groups[g.ID] = &cp
+	return nil
+}
+
+func (r *mockGroupRepo) Delete(_ context.Context, id string) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	delete(r.groups, id)
+	return nil
+}
+func (r *mockGroupRepo) DeleteByLibraryEntry(_ context.Context, _ string) error { return nil }
+func (r *mockGroupRepo) DeletionImpact(_ context.Context, _ string) (*domain.DeletionImpact, error) {
+	return nil, nil //nolint:nilnil
+}
+
 // ── helpers ────────────────────────────────────────────────────────────────────
 
 func newScannedFile(ct domain.ContentType) domain.ScannedFile {
@@ -1299,5 +1346,98 @@ func TestService_SubmitScanAllRootsJob_EnqueuesJob(t *testing.T) {
 	}
 	if job.Name != "ScanAllRoots" {
 		t.Errorf("job name = %q, want ScanAllRoots", job.Name)
+	}
+}
+
+// ── ListUnmatchedGrouped tests ────────────────────────────────────────────────
+
+// When the top candidate has ExternalItem.GroupExternalID set and Item is nil
+// (pre-import file), files must be grouped by the external album ID, not lumped
+// into the catch-all empty group.
+func TestService_ListUnmatchedGrouped_ExternalGroupID(t *testing.T) {
+	const releaseMBID = "release-mbid-1"
+	const albumTitle = "Debut Album"
+
+	uf := &domain.UnmatchedFile{
+		ID:          uuid.New().String(),
+		Path:        "/music/track01.flac",
+		ContentType: domain.ContentTypeMusic,
+		Status:      domain.UnmatchedPending,
+		Candidates: []domain.MatchCandidate{
+			{
+				Item: nil,
+				ExternalItem: &domain.ExternalItem{
+					ExternalID:      "rec-001",
+					GroupExternalID: releaseMBID,
+					GroupTitle:      albumTitle,
+				},
+				Confidence: 0.80,
+				Source:     "acoustid",
+			},
+		},
+	}
+	unmatchedRepo := newUnmatchedRepo(uf)
+	svc := newSvc(nil, nil, nil, nil, newItemRepo(), newMediaFileRepo(), unmatchedRepo, &mockNotifier{}, 0.85, nil, nil, nil)
+
+	groups, err := svc.ListUnmatchedGrouped(context.Background(), ports.UnmatchedFilter{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(groups) != 1 {
+		t.Fatalf("got %d groups, want 1", len(groups))
+	}
+	if got := groups[0].GroupID; got != releaseMBID {
+		t.Errorf("GroupID = %q, want %q", got, releaseMBID)
+	}
+	if got := groups[0].GroupTitle; got != albumTitle {
+		t.Errorf("GroupTitle = %q, want %q", got, albumTitle)
+	}
+}
+
+// When the top candidate has Item set (library item already exists) but no
+// ExternalItem GroupExternalID, grouping must use item.GroupID.
+func TestService_ListUnmatchedGrouped_LocalGroupID(t *testing.T) {
+	const localGroupID = "local-album-uuid"
+	const albumTitle = "Local Album"
+
+	item := &domain.Item{
+		ID:      uuid.New().String(),
+		GroupID: localGroupID,
+		Title:   "Track 01",
+		Status:  domain.StatusWanted,
+	}
+	grp := &domain.Group{ID: localGroupID, Title: albumTitle}
+
+	uf := &domain.UnmatchedFile{
+		ID:          uuid.New().String(),
+		Path:        "/music/track01.flac",
+		ContentType: domain.ContentTypeMusic,
+		Status:      domain.UnmatchedPending,
+		Candidates: []domain.MatchCandidate{
+			{
+				Item:         item,
+				ExternalItem: nil,
+				Confidence:   0.75,
+				Source:       "tags",
+			},
+		},
+	}
+	unmatchedRepo := newUnmatchedRepo(uf)
+	itemRepo := newItemRepo(item)
+	groupRepo := newGroupRepo(grp)
+	svc := newSvc(nil, nil, nil, nil, itemRepo, newMediaFileRepo(), unmatchedRepo, &mockNotifier{}, 0.85, nil, nil, groupRepo)
+
+	groups, err := svc.ListUnmatchedGrouped(context.Background(), ports.UnmatchedFilter{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(groups) != 1 {
+		t.Fatalf("got %d groups, want 1", len(groups))
+	}
+	if got := groups[0].GroupID; got != localGroupID {
+		t.Errorf("GroupID = %q, want %q", got, localGroupID)
+	}
+	if got := groups[0].GroupTitle; got != albumTitle {
+		t.Errorf("GroupTitle = %q, want %q", got, albumTitle)
 	}
 }

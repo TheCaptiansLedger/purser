@@ -16,6 +16,7 @@ type ExternalItem struct {
 	RuntimeSecs     int
 	ImageURL        string
 	GroupExternalID string // parent group (release MBID, season ID, etc.) for this item
+	GroupTitle      string // title of the parent group when known from the external source
 	Studio          *ExternalStudio
 	People          []*ExternalPerson
 	Tags            []string

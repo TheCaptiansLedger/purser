@@ -826,22 +826,29 @@ func (s *Service) ListUnmatchedGrouped(ctx context.Context, f ports.UnmatchedFil
 			continue
 		}
 		best := uf.Candidates[0]
-		if best.Item == nil {
-			addToGroup("", "", uf, best.Confidence)
+
+		// Prefer external album ID (pre-import files). Fall back to the local group
+		// when the candidate already links to an imported library item.
+		if ext := best.ExternalItem; ext != nil && ext.GroupExternalID != "" {
+			addToGroup(ext.GroupExternalID, ext.GroupTitle, uf, best.Confidence)
 			continue
 		}
-		item, err := s.items.Get(ctx, best.Item.ID)
-		if err != nil {
-			addToGroup("", "", uf, best.Confidence)
-			continue
-		}
-		groupTitle := ""
-		if item.GroupID != "" && s.groups != nil {
-			if grp, err := s.groups.Get(ctx, item.GroupID); err == nil {
-				groupTitle = grp.Title
+		if best.Item != nil {
+			item, err := s.items.Get(ctx, best.Item.ID)
+			if err != nil {
+				addToGroup("", "", uf, best.Confidence)
+				continue
 			}
+			groupTitle := ""
+			if item.GroupID != "" && s.groups != nil {
+				if grp, err := s.groups.Get(ctx, item.GroupID); err == nil {
+					groupTitle = grp.Title
+				}
+			}
+			addToGroup(item.GroupID, groupTitle, uf, best.Confidence)
+			continue
 		}
-		addToGroup(item.GroupID, groupTitle, uf, best.Confidence)
+		addToGroup("", "", uf, best.Confidence)
 	}
 
 	result := make([]*domain.UnmatchedFileGroup, 0, len(byGroup))

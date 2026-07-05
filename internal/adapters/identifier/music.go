@@ -124,6 +124,9 @@ func enrichFromTags(candidates []domain.MatchCandidate, fp *domain.Fingerprint) 
 		if ext.RuntimeSecs == 0 && durMS > 0 {
 			ext.RuntimeSecs = durMS / 1000
 		}
+		if ext.GroupTitle == "" {
+			ext.GroupTitle = fp.EmbeddedTags["album"]
+		}
 		if ext.Studio == nil && artist != "" && artistID != "" {
 			ext.Studio = &domain.ExternalStudio{
 				Name:       artist,

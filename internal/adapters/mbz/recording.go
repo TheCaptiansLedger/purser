@@ -108,6 +108,7 @@ func toExternalRecording(r *mbzRecording) *domain.ExternalItem {
 	// Cover Art Archive URLs are deterministic so no HTTP fetch is needed at this stage.
 	if len(r.Releases) > 0 && r.Releases[0].ID != "" {
 		item.GroupExternalID = r.Releases[0].ID
+		item.GroupTitle = r.Releases[0].Title
 		item.ImageURL = "https://coverartarchive.org/release/" + r.Releases[0].ID + "/front-250"
 	}
 	return item
