@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"net/url"
 	"purser/internal/domain"
+	"purser/internal/ports"
 	"strconv"
 	"strings"
 )
@@ -54,6 +55,11 @@ type mbzArtistCredit struct {
 }
 
 // ── MetadataSource ────────────────────────────────────────────────────────────
+
+// FindByHash is not supported by MusicBrainz; it returns ErrNotSupported.
+func (a *Adapter) FindByHash(_ context.Context, _ string) (*domain.ExternalItem, error) {
+	return nil, ports.ErrNotSupported
+}
 
 // SearchItems searches MusicBrainz for recordings matching the given title.
 func (a *Adapter) SearchItems(ctx context.Context, _ domain.ContentType, query string, limit int) ([]*domain.ExternalItem, error) {

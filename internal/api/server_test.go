@@ -4086,6 +4086,88 @@ func TestAPI_MusicQueue_Detail_AllSevenSignalFieldsPresent(t *testing.T) {
 	}
 }
 
+func TestAPI_MusicQueue_TagSummaryShape(t *testing.T) {
+	h := newHandler(t)
+
+	w := do(t, h, http.MethodPost, "/api/v1/music/queue", map[string]any{
+		"folderPath":  "/music/REO Speedwagon/Hi Infidelity",
+		"totalTracks": 10,
+		"totalDiscs":  1,
+		"status":      "pending",
+		"candidates":  []any{},
+		"tags": map[string]any{
+			"albumArtist":      "REO Speedwagon",
+			"albumTitle":       "Hi Infidelity",
+			"year":             1981,
+			"barcode":          "0074646161425",
+			"label":            "Epic - Legacy",
+			"catalogNumber":    "",
+			"totalTracks":      10,
+			"totalDiscs":       1,
+			"mbzReleaseId":     "1e639bf3-6b4c-4e1a-9d15-c61511804c8f",
+			"trackTitles":      []string{"Don't Let Him Go", "Keep on Loving You"},
+			"isrcs":            []string{"USSM10012807", "USSM10012808"},
+			"trackDurationsMs": []int64{240000, 213000},
+		},
+	})
+	if w.Code != http.StatusCreated {
+		t.Fatalf("create: status %d, body: %s", w.Code, w.Body.String())
+	}
+	var created struct {
+		ID string `json:"id"`
+	}
+	decodeJSON(t, w, &created)
+
+	w = do(t, h, http.MethodGet, "/api/v1/music/queue/"+created.ID, nil)
+	if w.Code != http.StatusOK {
+		t.Fatalf("get: status %d", w.Code)
+	}
+	var got struct {
+		Tags struct {
+			AlbumArtist      string   `json:"albumArtist"`
+			AlbumTitle       string   `json:"albumTitle"`
+			Year             int      `json:"year"`
+			Barcode          string   `json:"barcode"`
+			Label            string   `json:"label"`
+			TotalTracks      int      `json:"totalTracks"`
+			TotalDiscs       int      `json:"totalDiscs"`
+			MBZReleaseID     string   `json:"mbzReleaseId"`
+			TrackTitles      []string `json:"trackTitles"`
+			ISRCs            []string `json:"isrcs"`
+			TrackDurationsMS []int64  `json:"trackDurationsMs"`
+		} `json:"tags"`
+	}
+	decodeJSON(t, w, &got)
+
+	if got.Tags.AlbumArtist != "REO Speedwagon" {
+		t.Errorf("tags.albumArtist = %q, want %q", got.Tags.AlbumArtist, "REO Speedwagon")
+	}
+	if got.Tags.Barcode != "0074646161425" {
+		t.Errorf("tags.barcode = %q, want %q", got.Tags.Barcode, "0074646161425")
+	}
+	if got.Tags.Year != 1981 {
+		t.Errorf("tags.year = %d, want 1981", got.Tags.Year)
+	}
+	if got.Tags.TotalTracks != 10 {
+		t.Errorf("tags.totalTracks = %d, want 10", got.Tags.TotalTracks)
+	}
+	if got.Tags.TotalDiscs != 1 {
+		t.Errorf("tags.totalDiscs = %d, want 1", got.Tags.TotalDiscs)
+	}
+	if got.Tags.MBZReleaseID != "1e639bf3-6b4c-4e1a-9d15-c61511804c8f" {
+		t.Errorf("tags.mbzReleaseId = %q", got.Tags.MBZReleaseID)
+	}
+	if len(got.Tags.TrackTitles) != 2 {
+		t.Errorf("tags.trackTitles length = %d, want 2", len(got.Tags.TrackTitles))
+	}
+	if len(got.Tags.ISRCs) != 2 || got.Tags.ISRCs[0] != "USSM10012807" {
+		t.Errorf("tags.isrcs = %v, want [USSM10012807 USSM10012808]", got.Tags.ISRCs)
+	}
+	if len(got.Tags.TrackDurationsMS) != 2 || got.Tags.TrackDurationsMS[0] != 240000 {
+		t.Errorf("tags.trackDurationsMs = %v, want [240000 213000]", got.Tags.TrackDurationsMS)
+	}
+}
+
 func TestAPI_MusicQueue_Dismiss(t *testing.T) {
 	h := newHandler(t)
 

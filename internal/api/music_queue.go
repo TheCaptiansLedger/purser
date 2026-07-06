@@ -20,6 +20,71 @@ func (h *musicQueueHandler) routes(r chi.Router) {
 	r.Delete("/{id}", h.dismiss)
 }
 
+func toTagSummaryResponse(s domain.MusicTagSummary) musicTagSummaryResponse {
+	durations := make([]int64, len(s.TrackDurations))
+	for i, d := range s.TrackDurations {
+		durations[i] = d.Milliseconds()
+	}
+	titles := s.TrackTitles
+	if titles == nil {
+		titles = []string{}
+	}
+	isrcs := s.ISRCs
+	if isrcs == nil {
+		isrcs = []string{}
+	}
+	return musicTagSummaryResponse{
+		AlbumArtist:      s.AlbumArtist,
+		AlbumTitle:       s.AlbumTitle,
+		Year:             s.Year,
+		Barcode:          s.Barcode,
+		Label:            s.Label,
+		CatalogNumber:    s.CatalogNumber,
+		TotalTracks:      s.TotalTracks,
+		TotalDiscs:       s.TotalDiscs,
+		MBZReleaseID:     s.MBZReleaseID,
+		TrackTitles:      titles,
+		ISRCs:            isrcs,
+		TrackDurationsMS: durations,
+	}
+}
+
+type tagsRequestFields struct {
+	AlbumArtist      string   `json:"albumArtist"`
+	AlbumTitle       string   `json:"albumTitle"`
+	Year             int      `json:"year"`
+	Barcode          string   `json:"barcode"`
+	Label            string   `json:"label"`
+	CatalogNumber    string   `json:"catalogNumber"`
+	TotalTracks      int      `json:"totalTracks"`
+	TotalDiscs       int      `json:"totalDiscs"`
+	MBZReleaseID     string   `json:"mbzReleaseId"`
+	TrackTitles      []string `json:"trackTitles"`
+	ISRCs            []string `json:"isrcs"`
+	TrackDurationsMS []int64  `json:"trackDurationsMs"`
+}
+
+func reqTagsToSummary(req tagsRequestFields) domain.MusicTagSummary {
+	durations := make([]time.Duration, len(req.TrackDurationsMS))
+	for i, ms := range req.TrackDurationsMS {
+		durations[i] = time.Duration(ms) * time.Millisecond
+	}
+	return domain.MusicTagSummary{
+		AlbumArtist:    req.AlbumArtist,
+		AlbumTitle:     req.AlbumTitle,
+		Year:           req.Year,
+		Barcode:        req.Barcode,
+		Label:          req.Label,
+		CatalogNumber:  req.CatalogNumber,
+		TotalTracks:    req.TotalTracks,
+		TotalDiscs:     req.TotalDiscs,
+		MBZReleaseID:   req.MBZReleaseID,
+		TrackTitles:    req.TrackTitles,
+		TrackDurations: durations,
+		ISRCs:          req.ISRCs,
+	}
+}
+
 func toSignalsResponse(s domain.MusicConfidenceSignals) musicConfidenceSignalsResponse {
 	return musicConfidenceSignalsResponse{
 		Barcode:       s.Barcode,
@@ -64,16 +129,18 @@ func toMusicScanGroupResponse(g *domain.MusicScanGroup) *musicScanGroupResponse 
 		TotalTracks:  g.TotalTracks,
 		TotalDiscs:   g.TotalDiscs,
 		Status:       string(g.Status),
+		Tags:         toTagSummaryResponse(g.Tags),
 		Candidates:   candidates,
 		DiscoveredAt: g.DiscoveredAt,
 	}
 }
 
 type createMusicQueueRequest struct {
-	FolderPath  string `json:"folderPath"`
-	TotalTracks int    `json:"totalTracks"`
-	TotalDiscs  int    `json:"totalDiscs"`
-	Status      string `json:"status"`
+	FolderPath  string            `json:"folderPath"`
+	TotalTracks int               `json:"totalTracks"`
+	TotalDiscs  int               `json:"totalDiscs"`
+	Status      string            `json:"status"`
+	Tags        tagsRequestFields `json:"tags"`
 	Candidates  []struct {
 		ArtistMBID         string  `json:"artistMbid"`
 		ArtistName         string  `json:"artistName"`
@@ -114,6 +181,7 @@ func (h *musicQueueHandler) create(w http.ResponseWriter, r *http.Request) {
 		TotalDiscs:   req.TotalDiscs,
 		Status:       domain.UnmatchedStatus(req.Status),
 		DiscoveredAt: time.Now().UTC(),
+		Tags:         reqTagsToSummary(req.Tags),
 	}
 	if g.Status == "" {
 		g.Status = domain.UnmatchedPending

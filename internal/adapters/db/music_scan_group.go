@@ -35,20 +35,36 @@ func unmarshalMusicCandidates(s string) []domain.MusicReleaseCandidate {
 	return cs
 }
 
+func marshalMusicTags(t domain.MusicTagSummary) string {
+	b, _ := json.Marshal(t)
+	return string(b)
+}
+
+func unmarshalMusicTags(s string) domain.MusicTagSummary {
+	if s == "" || s == "{}" {
+		return domain.MusicTagSummary{}
+	}
+	var t domain.MusicTagSummary
+	_ = json.Unmarshal([]byte(s), &t)
+	return t
+}
+
 func scanMusicScanGroup(row interface{ Scan(...any) error }) (*domain.MusicScanGroup, error) {
 	var (
 		g            domain.MusicScanGroup
 		status       string
+		tags         string
 		candidates   string
 		discoveredAt string
 	)
 	if err := row.Scan(
 		&g.ID, &g.FolderPath, &g.TotalTracks, &g.TotalDiscs,
-		&status, &candidates, &discoveredAt,
+		&status, &tags, &candidates, &discoveredAt,
 	); err != nil {
 		return nil, err
 	}
 	g.Status = domain.UnmatchedStatus(status)
+	g.Tags = unmarshalMusicTags(tags)
 	g.Candidates = unmarshalMusicCandidates(candidates)
 	g.DiscoveredAt = strToTime(discoveredAt)
 	return &g, nil
@@ -56,7 +72,7 @@ func scanMusicScanGroup(row interface{ Scan(...any) error }) (*domain.MusicScanG
 
 func (r *musicScanGroupRepo) Get(ctx context.Context, id string) (*domain.MusicScanGroup, error) {
 	row := r.db.QueryRowContext(ctx,
-		`SELECT id, folder_path, total_tracks, total_discs, status, candidates, discovered_at
+		`SELECT id, folder_path, total_tracks, total_discs, status, tags, candidates, discovered_at
 		 FROM music_scan_groups WHERE id = ?`, id)
 	g, err := scanMusicScanGroup(row)
 	if err != nil {
@@ -67,7 +83,7 @@ func (r *musicScanGroupRepo) Get(ctx context.Context, id string) (*domain.MusicS
 
 func (r *musicScanGroupRepo) List(ctx context.Context, status domain.UnmatchedStatus) ([]*domain.MusicScanGroup, error) {
 	rows, err := r.db.QueryContext(ctx,
-		`SELECT id, folder_path, total_tracks, total_discs, status, candidates, discovered_at
+		`SELECT id, folder_path, total_tracks, total_discs, status, tags, candidates, discovered_at
 		 FROM music_scan_groups WHERE status = ? ORDER BY discovered_at DESC`,
 		string(status))
 	if err != nil {
@@ -97,18 +113,20 @@ func (r *musicScanGroupRepo) Save(ctx context.Context, g *domain.MusicScanGroup)
 		g.Status = domain.UnmatchedPending
 	}
 
+	tags := marshalMusicTags(g.Tags)
 	candidates := marshalMusicCandidates(g.Candidates)
 	_, err := r.db.ExecContext(ctx, `
-		INSERT INTO music_scan_groups(id, folder_path, total_tracks, total_discs, status, candidates, discovered_at)
-		VALUES(?,?,?,?,?,?,?)
+		INSERT INTO music_scan_groups(id, folder_path, total_tracks, total_discs, status, tags, candidates, discovered_at)
+		VALUES(?,?,?,?,?,?,?,?)
 		ON CONFLICT(id) DO UPDATE SET
 			folder_path   = excluded.folder_path,
 			total_tracks  = excluded.total_tracks,
 			total_discs   = excluded.total_discs,
 			status        = excluded.status,
+			tags          = excluded.tags,
 			candidates    = excluded.candidates`,
 		g.ID, g.FolderPath, g.TotalTracks, g.TotalDiscs,
-		string(g.Status), candidates, timeToStr(g.DiscoveredAt),
+		string(g.Status), tags, candidates, timeToStr(g.DiscoveredAt),
 	)
 	if err != nil {
 		return fmt.Errorf("save music scan group: %w", err)

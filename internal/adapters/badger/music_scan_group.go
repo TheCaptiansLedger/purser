@@ -105,6 +105,7 @@ func musicScanGroupFromRecord(rec *musicScanGroupRecord) *domain.MusicScanGroup 
 		TotalTracks:  rec.TotalTracks,
 		TotalDiscs:   rec.TotalDiscs,
 		Status:       domain.UnmatchedStatus(rec.Status),
+		Tags:         rec.Tags,
 		Candidates:   rec.Candidates,
 		DiscoveredAt: strToTime(rec.DiscoveredAt),
 	}
@@ -117,6 +118,7 @@ func musicScanGroupToRecord(g *domain.MusicScanGroup) musicScanGroupRecord {
 		TotalTracks:  g.TotalTracks,
 		TotalDiscs:   g.TotalDiscs,
 		Status:       string(g.Status),
+		Tags:         g.Tags,
 		Candidates:   g.Candidates,
 		DiscoveredAt: timeToStr(g.DiscoveredAt),
 	}

@@ -161,4 +161,60 @@ export default function () {
       'dismissed entry absent from pending list': () => !ids.includes(id),
     });
   });
+
+  // ── FLOW 4: tag summary round-trip ─────────────────────────────────────────
+  // When MusicGroupQueueWriter persists a ScannedFileGroup it calls
+  // ExtractMusicTagSummary and stores the result on MusicScanGroup.Tags.
+  // This flow verifies that the tags field is present and correct in the
+  // API response so the UI can surface album metadata before identification.
+
+  group('tag summary: shape and values round-trip', () => {
+    const createRes = http.post(`${BASE_URL}/music/queue`,
+      JSON.stringify({
+        folderPath:  '/music/REO Speedwagon/Hi Infidelity',
+        totalTracks: 10,
+        totalDiscs:  1,
+        status:      'pending',
+        candidates:  [],
+        tags: {
+          albumArtist:      'REO Speedwagon',
+          albumTitle:       'Hi Infidelity',
+          year:             1981,
+          barcode:          '0074646161425',
+          label:            'Epic - Legacy',
+          catalogNumber:    '',
+          totalTracks:      10,
+          totalDiscs:       1,
+          mbzReleaseId:     '1e639bf3-6b4c-4e1a-9d15-c61511804c8f',
+          trackTitles:      ["Don't Let Him Go", 'Keep on Loving You'],
+          isrcs:            ['USSM10012807', 'USSM10012808'],
+          trackDurationsMs: [240000, 213000],
+        },
+      }),
+      { headers: JSON_HEADERS });
+    check(createRes, { 'created 201': r => r.status === 201 });
+    const id = createRes.json('id');
+
+    const getRes = http.get(`${BASE_URL}/music/queue/${id}`);
+    check(getRes, {
+      'get 200':                          r => r.status === 200,
+      'tags object present':              r => r.json('tags') !== null,
+      'tags.albumArtist correct':         r => r.json('tags.albumArtist') === 'REO Speedwagon',
+      'tags.albumTitle correct':          r => r.json('tags.albumTitle') === 'Hi Infidelity',
+      'tags.barcode correct':             r => r.json('tags.barcode') === '0074646161425',
+      'tags.year correct':                r => r.json('tags.year') === 1981,
+      'tags.totalTracks correct':         r => r.json('tags.totalTracks') === 10,
+      'tags.totalDiscs correct':          r => r.json('tags.totalDiscs') === 1,
+      'tags.mbzReleaseId correct':        r => r.json('tags.mbzReleaseId') === '1e639bf3-6b4c-4e1a-9d15-c61511804c8f',
+      'tags.label correct':               r => r.json('tags.label') === 'Epic - Legacy',
+      'tags.trackTitles is array':        r => Array.isArray(r.json('tags.trackTitles')),
+      'tags.trackTitles[0] correct':      r => r.json('tags.trackTitles')[0] === "Don't Let Him Go",
+      'tags.isrcs is array':              r => Array.isArray(r.json('tags.isrcs')),
+      'tags.isrcs[0] correct':            r => r.json('tags.isrcs')[0] === 'USSM10012807',
+      'tags.trackDurationsMs is array':   r => Array.isArray(r.json('tags.trackDurationsMs')),
+      'tags.trackDurationsMs[0] correct': r => r.json('tags.trackDurationsMs')[0] === 240000,
+    });
+
+    http.del(`${BASE_URL}/music/queue/${id}`);
+  });
 }

@@ -69,6 +69,11 @@ func (a *Adapter) FetchEntryContent(ctx context.Context, ct domain.ContentType, 
 	}
 }
 
+// SearchStudios is not supported by fanart; it returns ErrNotSupported.
+func (a *Adapter) SearchStudios(_ context.Context, _ string, _ int) ([]*domain.ExternalStudio, error) {
+	return nil, ports.ErrNotSupported
+}
+
 // FetchPersonImage returns the hero image for the artist identified by MBID.
 func (a *Adapter) FetchPersonImage(ctx context.Context, extID string) (*domain.ExternalImage, error) {
 	item, err := a.findMusicByID(ctx, extID)

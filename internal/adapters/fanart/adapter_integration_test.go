@@ -25,7 +25,7 @@ func newIntegrationAdapter(t *testing.T) *fanart.Adapter {
 	if apiKey == "" {
 		t.Skip("PURSER_SOURCES_FANART_API_KEY not set")
 	}
-	return fanart.New(config.MetadataSourceConfig{APIKey: apiKey})
+	return fanart.New(config.MetadataSourceConfig{APIKey: apiKey}, nil)
 }
 
 func integrationCtx(t *testing.T) (context.Context, context.CancelFunc) {

@@ -561,6 +561,7 @@ type musicScanGroupRecord struct {
 	TotalTracks  int                            `json:"total_tracks"`
 	TotalDiscs   int                            `json:"total_discs"`
 	Status       string                         `json:"status"`
+	Tags         domain.MusicTagSummary         `json:"tags"`
 	Candidates   []domain.MusicReleaseCandidate `json:"candidates,omitempty"`
 	DiscoveredAt string                         `json:"discovered_at"`
 }

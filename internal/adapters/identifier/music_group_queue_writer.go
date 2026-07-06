@@ -56,6 +56,7 @@ func (w *MusicGroupQueueWriter) Identify(ctx context.Context, group ports.Scanne
 			existing.TotalTracks = len(group.Files)
 			existing.TotalDiscs = totalDiscs
 			existing.Files = group.Files
+			existing.Tags = ExtractMusicTagSummary(ctx, group)
 			if err := w.queue.Save(ctx, existing); err != nil {
 				return fmt.Errorf("update existing music scan group: %w", err)
 			}
@@ -75,6 +76,7 @@ func (w *MusicGroupQueueWriter) Identify(ctx context.Context, group ports.Scanne
 		Files:        group.Files,
 		TotalTracks:  len(group.Files),
 		TotalDiscs:   totalDiscs,
+		Tags:         ExtractMusicTagSummary(ctx, group),
 		Status:       domain.UnmatchedPending,
 		DiscoveredAt: time.Now().UTC(),
 	}

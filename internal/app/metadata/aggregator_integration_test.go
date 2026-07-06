@@ -26,8 +26,8 @@ func TestMetadataAggregator_FindByExternalID_Music(t *testing.T) {
 	}
 
 	sources := []ports.MetadataSource{
-		mbz.New(config.MetadataSourceConfig{}),
-		fanart.New(config.MetadataSourceConfig{APIKey: apiKey}),
+		mbz.New(config.MetadataSourceConfig{}, nil),
+		fanart.New(config.MetadataSourceConfig{APIKey: apiKey}, nil),
 	}
 	agg := metadata.NewAggregator(sources)
 

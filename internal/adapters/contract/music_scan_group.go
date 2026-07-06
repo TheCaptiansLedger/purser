@@ -5,6 +5,7 @@ import (
 	"purser/internal/app/errs"
 	"purser/internal/domain"
 	"testing"
+	"time"
 )
 
 func runMusicScanGroupContract(t *testing.T, s BackendSuite) { //nolint:cyclop
@@ -124,6 +125,68 @@ func runMusicScanGroupContract(t *testing.T, s BackendSuite) { //nolint:cyclop
 		_, err := s.MusicScanGroups.Get(ctx, g.ID)
 		if !errs.IsNotFound(err) {
 			t.Errorf("after Delete Get: want ErrNotFound, got %v", err)
+		}
+	})
+
+	t.Run("TagsRoundTrip", func(t *testing.T) {
+		ctx := context.Background()
+		tags := domain.MusicTagSummary{
+			AlbumArtist:    "REO Speedwagon",
+			AlbumTitle:     "Hi Infidelity",
+			Year:           1981,
+			Barcode:        "0074646161425",
+			Label:          "Epic - Legacy",
+			CatalogNumber:  "CK 36844",
+			TotalTracks:    10,
+			TotalDiscs:     1,
+			MBZReleaseID:   "1e639bf3-6b4c-4e1a-9d15-c61511804c8f",
+			TrackTitles:    []string{"Don't Let Him Go", "Keep on Loving You"},
+			TrackDurations: []time.Duration{240 * time.Second, 213 * time.Second},
+			ISRCs:          []string{"USSM10012807", "USSM10012808"},
+		}
+		g := &domain.MusicScanGroup{
+			FolderPath:  "/music/tags-rt",
+			TotalTracks: 10,
+			Status:      domain.UnmatchedPending,
+			Tags:        tags,
+		}
+		if err := s.MusicScanGroups.Save(ctx, g); err != nil {
+			t.Fatalf("Save: %v", err)
+		}
+		got, err := s.MusicScanGroups.Get(ctx, g.ID)
+		if err != nil {
+			t.Fatalf("Get: %v", err)
+		}
+		gt := got.Tags
+		if gt.AlbumArtist != tags.AlbumArtist {
+			t.Errorf("Tags.AlbumArtist = %q, want %q", gt.AlbumArtist, tags.AlbumArtist)
+		}
+		if gt.AlbumTitle != tags.AlbumTitle {
+			t.Errorf("Tags.AlbumTitle = %q, want %q", gt.AlbumTitle, tags.AlbumTitle)
+		}
+		if gt.Year != tags.Year {
+			t.Errorf("Tags.Year = %d, want %d", gt.Year, tags.Year)
+		}
+		if gt.Barcode != tags.Barcode {
+			t.Errorf("Tags.Barcode = %q, want %q", gt.Barcode, tags.Barcode)
+		}
+		if gt.MBZReleaseID != tags.MBZReleaseID {
+			t.Errorf("Tags.MBZReleaseID = %q, want %q", gt.MBZReleaseID, tags.MBZReleaseID)
+		}
+		if gt.TotalTracks != tags.TotalTracks {
+			t.Errorf("Tags.TotalTracks = %d, want %d", gt.TotalTracks, tags.TotalTracks)
+		}
+		if gt.TotalDiscs != tags.TotalDiscs {
+			t.Errorf("Tags.TotalDiscs = %d, want %d", gt.TotalDiscs, tags.TotalDiscs)
+		}
+		if len(gt.TrackTitles) != len(tags.TrackTitles) || gt.TrackTitles[0] != tags.TrackTitles[0] {
+			t.Errorf("Tags.TrackTitles = %v, want %v", gt.TrackTitles, tags.TrackTitles)
+		}
+		if len(gt.ISRCs) != len(tags.ISRCs) || gt.ISRCs[0] != tags.ISRCs[0] {
+			t.Errorf("Tags.ISRCs = %v, want %v", gt.ISRCs, tags.ISRCs)
+		}
+		if len(gt.TrackDurations) != len(tags.TrackDurations) || gt.TrackDurations[0] != tags.TrackDurations[0] {
+			t.Errorf("Tags.TrackDurations = %v, want %v", gt.TrackDurations, tags.TrackDurations)
 		}
 	})
 

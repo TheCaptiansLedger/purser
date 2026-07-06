@@ -23,7 +23,7 @@ func integrationAdapter(t *testing.T) *theaudiodb.Adapter {
 	if apiKey == "" {
 		t.Skip("PURSER_SOURCES_THEAUDIODB_API_KEY not set (use 123 for free tier)")
 	}
-	return theaudiodb.New(config.MetadataSourceConfig{APIKey: apiKey})
+	return theaudiodb.New(config.MetadataSourceConfig{APIKey: apiKey}, nil)
 }
 
 func TestIntegration_FindByExternalID_Artist(t *testing.T) {

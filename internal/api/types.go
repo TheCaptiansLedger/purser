@@ -79,12 +79,28 @@ type musicReleaseCandidateResponse struct {
 	Signals            musicConfidenceSignalsResponse `json:"signals"`
 }
 
+type musicTagSummaryResponse struct {
+	AlbumArtist      string   `json:"albumArtist"`
+	AlbumTitle       string   `json:"albumTitle"`
+	Year             int      `json:"year"`
+	Barcode          string   `json:"barcode"`
+	Label            string   `json:"label"`
+	CatalogNumber    string   `json:"catalogNumber"`
+	TotalTracks      int      `json:"totalTracks"`
+	TotalDiscs       int      `json:"totalDiscs"`
+	MBZReleaseID     string   `json:"mbzReleaseId"`
+	TrackTitles      []string `json:"trackTitles"`
+	ISRCs            []string `json:"isrcs"`
+	TrackDurationsMS []int64  `json:"trackDurationsMs"`
+}
+
 type musicScanGroupResponse struct {
 	ID           string                          `json:"id"`
 	FolderPath   string                          `json:"folderPath"`
 	TotalTracks  int                             `json:"totalTracks"`
 	TotalDiscs   int                             `json:"totalDiscs"`
 	Status       string                          `json:"status"`
+	Tags         musicTagSummaryResponse         `json:"tags"`
 	Candidates   []musicReleaseCandidateResponse `json:"candidates"`
 	DiscoveredAt time.Time                       `json:"discoveredAt"`
 }

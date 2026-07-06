@@ -196,6 +196,11 @@ func (a *Adapter) findSceneByID(ctx context.Context, id string) (*domain.Externa
 	return toExternalItem(resp.FindScene, domain.ContentTypeAdult), nil
 }
 
+// FetchGroupContent is not supported by StashDB; it returns ErrNotSupported.
+func (a *Adapter) FetchGroupContent(_ context.Context, _ domain.ContentType, _ string, _, _ int) ([]*domain.ExternalItem, int, error) {
+	return nil, 0, ports.ErrNotSupported
+}
+
 // FetchEntryContent pages through all scenes for a studio. StashDB scenes are
 // flat — groups is always nil; items contains the page of scenes; total is the
 // scene count across all pages.
