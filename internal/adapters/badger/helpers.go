@@ -531,11 +531,6 @@ func kMRELEntry(entryID, id string) []byte { return []byte("mrel:entry:" + entry
 func pfxMRELGrp(groupID string) []byte     { return []byte("mrel:grp:" + groupID + ":") }
 func pfxMRELEntry(entryID string) []byte   { return []byte("mrel:entry:" + entryID + ":") }
 
-// MusicScanGroup record key and status index
-func kMSG(id string) []byte               { return []byte("msg:" + id) }
-func kMSGStatus(status, id string) []byte { return []byte("msg:status:" + status + ":" + id) }
-func pfxMSGStatus(status string) []byte   { return []byte("msg:status:" + status + ":") }
-
 // ── Music storage structs ─────────────────────────────────────────────────────
 
 type musicReleaseRecord struct {
