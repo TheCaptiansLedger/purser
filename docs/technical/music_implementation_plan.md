@@ -264,7 +264,6 @@ New `EmbeddedTags` keys: `barcode`, `isrc`, `label`, `catalog_number`, `track_to
 
 **Verified by**:
 - `go test -run TestMusicFingerprinter_Integration_REOSpeedwagon_Track1 ./internal/adapters/fingerprint/... -v` — output shows full extracted tag map via `t.Logf`
-- Start server, scan `test-data/music/` with `LOG_LEVEL=debug`: `grep "music fingerprint" server.log | head -3` shows `barcode=0074646161425 isrc=USSM10012807` on track 1
 
 ---
 
@@ -277,8 +276,11 @@ New `EmbeddedTags` keys: `barcode`, `isrc`, `label`, `catalog_number`, `track_to
 **Files**:
 - `internal/adapters/identifier/music_grouper.go` (new)
 - `internal/adapters/identifier/music_grouper_test.go` (new)
-- `internal/app/scan/service.go` (update) — accept `[]ports.FileGrouper`; fan-out after fingerprinting; pass groups to `GroupIdentifier`
+- `internal/adapters/identifier/music_group_queue_writer.go` (new) — `GroupIdentifier` that persists every `ScannedFileGroup` to the queue as a pending entry; makes grouper output API-visible before Task 14 exists
+- `internal/adapters/identifier/music_group_queue_writer_test.go` (new)
+- `internal/app/scan/service.go` (update) — accept `[]ports.FileGrouper` and `[]ports.GroupIdentifier`; fan-out after fingerprinting; pass groups to each registered `GroupIdentifier`
 - `internal/app/scan/service_test.go` (update)
+- `tests/k6/flows/music-scan-grouper-flow.js` (new) — verifies queue entry shape produced by the scan pipeline
 
 Multi-disc patterns: `CD\d+`, `Disc \d+`, `Disk \d+` (case-insensitive) as direct siblings of a common parent. Merge all into one group; `RootPath` = common parent.
 
@@ -294,10 +296,34 @@ Multi-disc patterns: `CD\d+`, `Disc \d+`, `Disk \d+` (case-insensitive) as direc
 - `TestMusicFolderGrouper_TwoAlbums_TwoGroups`
 - `TestMusicFolderGrouper_OnlyClaimsMusic`
 - `TestScanService_RoutesGroupsThroughGrouper`
+- `TestMusicGroupQueueWriter_ContentTypes`
+- `TestMusicGroupQueueWriter_SingleDisc_CreatesEntry`
+- `TestMusicGroupQueueWriter_MultiDisc_CountsDiscs`
+- `TestMusicGroupQueueWriter_Idempotent_UpdatesExisting`
+- `TestMusicGroupQueueWriter_ListError_Propagates`
+- `TestMusicGroupQueueWriter_SaveError_Propagates`
 
 **Verified by**:
 - `go test -run TestMusicFolderGrouper_MultiDisc_CD ./internal/adapters/identifier/... -v` — output shows merged group
-- Scan `test-data/music/` with `LOG_LEVEL=debug`: `grep "music folder grouper"` shows `groups=1`; `grep "music group formed"` shows `tracks=10 discs=1`
+- `go test -run TestScanService_RoutesGroupsThroughGrouper ./internal/app/scan/... -v` — service routes groups to the group identifier
+
+**Verified by curl** (after configuring a music library root and triggering a scan):
+```bash
+# Trigger a full scan
+curl -s -X POST http://localhost:7474/api/v1/commands \
+  -H "Content-Type: application/json" \
+  -d '{"name":"ScanAllRoots"}' | jq '.id'
+# → job id; wait for scan to complete
+
+# Each album folder = exactly one pending queue entry.
+# Multi-disc: one entry per album, totalDiscs > 1, folderPath = merged parent.
+curl -s "http://localhost:7474/api/music/queue?status=pending" \
+  | jq '[.[] | {folderPath, totalTracks, totalDiscs}]'
+# → e.g. [{"folderPath":"/music/REO Speedwagon/Hi Infidelity","totalTracks":10,"totalDiscs":1}]
+# No candidates yet — those are added by Task 14.
+```
+Note: `MusicGroupQueueWriter` (also part of Task 8) persists every `ScannedFileGroup` to
+the queue so grouper output is API-visible before the album identifier exists.
 
 ---
 
@@ -326,7 +352,6 @@ Consensus = majority value; ties broken by first non-empty. `TotalDiscs` falls b
 
 **Verified by**:
 - `go test -run TestExtractMusicTagSummary_Integration_REOSpeedwagon ./internal/adapters/identifier/... -v` — prints full `MusicTagSummary` via `t.Logf`
-- Scan `test-data/music/` with `LOG_LEVEL=info`: `grep "music tag summary"` shows `barcode=0074646161425 total_tracks=10 has_isrcs=true`
 
 ---
 
@@ -360,7 +385,6 @@ Alias filtering: type `"Artist name"` or `"Search hint"`, locale empty or `"en"`
 
 **Verified by**:
 - `go test -tags integration -run TestMBZAdapter_Integration_REOSpeedwagon_Enrichment ./internal/adapters/mbz/... -v` — prints populated metadata map
-- After importing REO Speedwagon: `grep "mbz artist enriched" server.log` shows `aliases=<N>` non-zero and `members=<N>` ≥5
 
 ---
 
@@ -397,8 +421,7 @@ MBZ endpoints:
 
 **Verified by**:
 - `go test -tags integration -run TestMBZAdapter_Integration_BarcodeToRelease ./internal/adapters/mbz/... -v` — prints resolved release MBID
-- `grep "mbz barcode lookup" server.log` shows `hit=true` after a barcode scan
-- `grep "mbz rg releases fetched" server.log` shows `count=<N>` ≥5 after fetching Hi Infidelity releases
+- `go test -tags integration -run TestMBZAdapter_Integration_HiInfidelity_AllReleases ./internal/adapters/mbz/... -v` — prints ≥5 releases
 
 ---
 
@@ -428,7 +451,6 @@ Functions: `StripAlbumSuffixes(string) string`, `ScoreBarcodeSignal`, `ScoreISRC
 
 **Verified by**:
 - `go test -run TestStripAlbumSuffixes ./internal/adapters/identifier/... -v` — all 12 rows pass
-- Scan `test-data/music/` with `LOG_LEVEL=debug`: `grep "rg signal"` shows all four signals logged with their scores; `grep "suffix stripped"` shows `original="Hi Infidelity (2024 Remaster)" stripped="Hi Infidelity"`
 
 ---
 
@@ -456,7 +478,6 @@ Functions: `FilterReleasesByTrackCount`, `ScoreReleaseYearSignal`, `ScoreRelease
 
 **Verified by**:
 - `go test -run TestScoreReleaseDurationSignal_Integration_REOSpeedwagon ./internal/adapters/identifier/... -v` — prints score and which tracks matched
-- Scan `test-data/music/`: `grep "release signal" server.log` shows all signal lines; `grep "release ranked"` shows `top_score=<N>` and the winning MBID
 
 ---
 
@@ -487,10 +508,10 @@ Functions: `FilterReleasesByTrackCount`, `ScoreReleaseYearSignal`, `ScoreRelease
 **Verified by curl** (after scanning `test-data/music/`):
 ```bash
 # Trigger scan
-curl -s -X POST http://localhost:7474/api/commands/scan \
+curl -s -X POST http://localhost:7474/api/v1/commands \
   -H "Content-Type: application/json" \
-  -d '{"paths":["/path/to/test-data/music"]}'
-# Wait for job to complete (poll GET /api/jobs or watch logs for "album confidence")
+  -d '{"name":"ScanAllRoots"}' | jq '.id'
+# → job id; wait for scan to complete
 
 # If barcode hit (REO Speedwagon with real MBZ): queue should be empty
 curl -s "http://localhost:7474/api/music/queue?status=pending" | jq 'length'
@@ -502,16 +523,9 @@ curl -s "http://localhost:7474/api/music/queue/$QUEUE_ID" \
   | jq '.candidates[0] | {overallConfidence, signals}'
 # → signals object with all seven numeric fields present and non-null
 
-# Log verification
-grep "album scan start" server.log
-# → root=".../Hi Infidelity..." has_barcode=true has_isrcs=true
-
-grep "album confidence" server.log
-# → overall=<N> action=auto_import|queue
-
-# If action=queue, investigate which signals fired:
-grep "rg signal" server.log
-grep "release signal" server.log
+curl -s "http://localhost:7474/api/music/queue/$QUEUE_ID" \
+  | jq '.candidates[0].signals | to_entries | map(select(.value == null)) | length'
+# → 0 (no null signal values — all seven must be numbers even when zero)
 ```
 
 ---
@@ -577,10 +591,6 @@ curl -s "http://localhost:7474/api/groups/$HI_INF_ID/releases" \
   | jq '[.[] | {title, status, isDefault, barcode}]'
 # → ≥1 result; one with isDefault==true; all status=="stub" at this point
 # → the 2024 release should show barcode="074646161425"
-
-# Log verification
-grep "artist import" server.log
-# → name="REO Speedwagon" rg_count=<N> release_stubs=<N> member_count=<N>
 ```
 
 ---
@@ -647,19 +657,15 @@ curl -s "http://localhost:7474/api/items/$TRACK_ID/file" | jq '.sha1'
 # → non-empty hex string
 
 # 6. Re-scan — no duplicates (re-scan shortcut must fire)
-curl -s -X POST http://localhost:7474/api/commands/scan \
+curl -s -X POST http://localhost:7474/api/v1/commands \
   -H "Content-Type: application/json" \
-  -d '{"paths":["/path/to/test-data/music"]}'
-# Wait, then:
+  -d '{"name":"ScanAllRoots"}' | jq '.id'
+# Wait for scan to complete, then:
 curl -s "http://localhost:7474/api/music/releases/$RELEASE_ID/tracks" | jq 'length'
-# → still 10
+# → still 10 (re-scan shortcut prevented duplicates)
 
-# Log verification
-grep "release import complete" server.log
-# → tracks=10 files=10 status=imported
-
-grep "album re-scan shortcut" server.log   # (from second scan)
-# → root=".../Hi Infidelity..."
+curl -s "http://localhost:7474/api/music/queue?status=pending" | jq 'length'
+# → 0 (re-scan shortcut fires; no new queue entries created for already-imported releases)
 ```
 
 ---

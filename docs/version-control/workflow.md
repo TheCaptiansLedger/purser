@@ -30,6 +30,13 @@ Conventional Commits:
 
 ```
 type(scope): description
+
+Paragraph 1 — why this matters.
+
+Paragraph 2 — one supporting sentence, if needed.
+
+Part-Of: #xxx
+Closes: #xxx
 ```
 
 | Field | Values |
@@ -37,18 +44,37 @@ type(scope): description
 | `type` | `feat` \| `fix` \| `chore` \| `docs` \| `refactor` \| `test` \| `ci` |
 | `scope` | optional; name the sub-system (e.g. `stashdb`, `api`, `ui`, `db`, `config`) |
 
-Rules:
-
-- Subject line under 80 characters
+**Subject line**:
+- Under 80 characters
+- Names the capability or problem, not the files changed
 - Present tense, imperative mood (`add` not `added`, `fix` not `fixed`)
-- No period at the end of the subject line
-- No commas in the subject line — if you reach for a comma it is too long or trying to say two things
-- Do not add Co-Authored-By AI attribution
-- Body explains the WHY: what does this change enable or fix? Not implementation mechanics, not renamed files, not a list of what changed
-- Footers: `Closes: #xxx` to close an issue, `Part-Of: #xxx` when the commit only partially resolves an issue
+- No period at the end
+- No commas — if you reach for one it is too long or saying two things
+
+**Body**:
+- Two short paragraphs maximum
+- Paragraph 1: one or two sentences stating the problem or gap this closes — what couldn't happen before?
+- Paragraph 2: one sentence of supporting context or caveat, only if there is something meaningful to add
+- No bullets, no section headers, no file names, no list of what changed
+
+**Footers**: `Part-Of: #xxx` and/or `Closes: #xxx` on separate lines.
+
+**Example**:
 
 ```
+feat(adapter): add grouping capability to music module
 
-## commits
+Albums cannot be identified file-by-file; correct identification requires
+all tracks from a folder to be evaluated together as a unit. This adds the
+grouping layer that makes album-level identification possible.
 
-At the end of a session, present the suggested commit message and a summary of changes. Do NOT run `git commit` — the user commits manually.
+We add a MusicGroupQueueWriter stub writer to persist entries so that we
+can verify grouping through the API. Issue #406 will fully implement this.
+
+Part-Of: #376
+Closes: #400
+```
+
+## Commits
+
+At the end of a session, present the suggested commit message. Do NOT run `git commit` — the user commits manually.
