@@ -192,6 +192,84 @@ func runMediaFileContract(t *testing.T, s BackendSuite) { //nolint:cyclop
 		}
 	})
 
+	t.Run("SHA1RoundTrip", func(t *testing.T) {
+		t.Skip("not implemented yet")
+		ctx := context.Background()
+		item := newTestItem(ctx, t, s, "MF SHA1 Test")
+		mf := &domain.MediaFile{
+			ItemID: item.ID,
+			Path:   "/media/mf-sha1-test.flac",
+			Size:   8_000_000,
+			OSHash: "sha1-oshash-001",
+			SHA1:   "da39a3ee5e6b4b0d3255bfef95601890afd80709",
+		}
+		if err := s.MediaFiles.Save(ctx, mf); err != nil {
+			t.Fatalf("Save: %v", err)
+		}
+		got, err := s.MediaFiles.GetByItemID(ctx, item.ID)
+		if err != nil {
+			t.Fatalf("GetByItemID: %v", err)
+		}
+		if got.SHA1 != mf.SHA1 {
+			t.Errorf("SHA1 = %q, want %q", got.SHA1, mf.SHA1)
+		}
+	})
+
+	t.Run("MetadataRoundTrip", func(t *testing.T) {
+		t.Skip("not implemented yet")
+		ctx := context.Background()
+		item := newTestItem(ctx, t, s, "MF Metadata Test")
+		meta := map[string]string{
+			"release_id":  "release-abc-001",
+			"isrc":        "USSM10012807",
+			"disc_number": "1",
+		}
+		mf := &domain.MediaFile{
+			ItemID:   item.ID,
+			Path:     "/media/mf-metadata-test.flac",
+			Size:     7_000_000,
+			OSHash:   "meta-oshash-001",
+			Metadata: meta,
+		}
+		if err := s.MediaFiles.Save(ctx, mf); err != nil {
+			t.Fatalf("Save: %v", err)
+		}
+		got, err := s.MediaFiles.GetByItemID(ctx, item.ID)
+		if err != nil {
+			t.Fatalf("GetByItemID: %v", err)
+		}
+		if got.Metadata == nil {
+			t.Fatal("Metadata is nil, want populated map")
+		}
+		for key, want := range meta {
+			if got.Metadata[key] != want {
+				t.Errorf("Metadata[%q] = %q, want %q", key, got.Metadata[key], want)
+			}
+		}
+	})
+
+	t.Run("NilMetadataRoundTrip", func(t *testing.T) {
+		ctx := context.Background()
+		item := newTestItem(ctx, t, s, "MF NilMetadata Test")
+		mf := &domain.MediaFile{
+			ItemID:   item.ID,
+			Path:     "/media/mf-nilmetadata-test.flac",
+			Size:     6_000_000,
+			OSHash:   "nilmeta-oshash-001",
+			Metadata: nil,
+		}
+		if err := s.MediaFiles.Save(ctx, mf); err != nil {
+			t.Fatalf("Save: %v", err)
+		}
+		got, err := s.MediaFiles.GetByItemID(ctx, item.ID)
+		if err != nil {
+			t.Fatalf("GetByItemID: %v", err)
+		}
+		if len(got.Metadata) != 0 {
+			t.Errorf("Metadata = %v, want nil or empty", got.Metadata)
+		}
+	})
+
 	t.Run("ResaveCleansPreviousIndexEntries", func(t *testing.T) {
 		ctx := context.Background()
 		item := newTestItem(ctx, t, s, "MF Resave Test")

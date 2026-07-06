@@ -19,15 +19,17 @@ import (
 
 // BackendSuite holds every repository for one storage backend.
 type BackendSuite struct {
-	LibraryEntries ports.LibraryEntryRepository
-	Groups         ports.GroupRepository
-	Items          ports.ItemRepository
-	MediaFiles     ports.MediaFileRepository
-	People         ports.PersonRepository
-	Tags           ports.TagRepository
-	ExternalIDs    ports.ExternalIDRepository
-	Settings       ports.SettingsRepository
-	Unmatched      ports.UnmatchedFileRepository
+	LibraryEntries  ports.LibraryEntryRepository
+	Groups          ports.GroupRepository
+	Items           ports.ItemRepository
+	MediaFiles      ports.MediaFileRepository
+	People          ports.PersonRepository
+	Tags            ports.TagRepository
+	ExternalIDs     ports.ExternalIDRepository
+	Settings        ports.SettingsRepository
+	Unmatched       ports.UnmatchedFileRepository
+	MusicReleases   ports.MusicReleaseRepository
+	MusicScanGroups ports.MusicScanGroupRepository
 }
 
 // RunAll executes the full contract suite for a backend.
@@ -44,4 +46,6 @@ func RunAll(t *testing.T, s BackendSuite) {
 	t.Run("MediaFile", func(t *testing.T) { runMediaFileContract(t, s) })
 	t.Run("ExternalID", func(t *testing.T) { runExternalIDContract(t, s) })
 	t.Run("UnmatchedFile", func(t *testing.T) { runUnmatchedFileContract(t, s) })
+	t.Run("MusicRelease", func(t *testing.T) { runMusicReleaseContract(t, s) })
+	t.Run("MusicScanGroup", func(t *testing.T) { runMusicScanGroupContract(t, s) })
 }

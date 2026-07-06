@@ -24,6 +24,22 @@ func newTestEntry(ctx context.Context, t *testing.T, s BackendSuite, ct domain.C
 	return entry
 }
 
+// newTestMusicGroup creates a music LibraryEntry (artist) and a Group (album) under it.
+func newTestMusicGroup(ctx context.Context, t *testing.T, s BackendSuite, artistName, albumTitle string) (*domain.LibraryEntry, *domain.Group) {
+	t.Helper()
+	entry := newTestEntry(ctx, t, s, domain.ContentTypeMusic, domain.KindArtist, artistName)
+	group := &domain.Group{
+		LibraryEntryID: entry.ID,
+		Title:          albumTitle,
+		Monitored:      true,
+		MonitorMode:    domain.MonitorAll,
+	}
+	if err := s.Groups.Save(ctx, group); err != nil {
+		t.Fatalf("newTestMusicGroup Save %q: %v", albumTitle, err)
+	}
+	return entry, group
+}
+
 // newTestItem creates and saves a minimal Item under a new LibraryEntry.
 func newTestItem(ctx context.Context, t *testing.T, s BackendSuite, title string) *domain.Item {
 	t.Helper()
