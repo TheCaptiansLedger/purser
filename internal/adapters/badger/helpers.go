@@ -127,6 +127,11 @@ func kMFP(path string) []byte   { return []byte("mfp:" + path) }
 func kUMF(id string) []byte { return []byte("umf:" + id) }
 func pfxUMF() []byte        { return []byte("umf:") }
 
+// MusicScanGroup record key and status index
+func kMSG(id string) []byte               { return []byte("msg:" + id) }
+func kMSGStatus(status, id string) []byte { return []byte("msg:status:" + status + ":" + id) }
+func pfxMSGStatus(status string) []byte   { return []byte("msg:status:" + status + ":") }
+
 // Prefixes for iterator scans
 func pfxLE() []byte             { return []byte("le:") }
 func pfxGRP() []byte            { return []byte("grp:") }
