@@ -383,7 +383,7 @@ func newSvc(
 	entries ports.LibraryEntryRepository,
 	groups ports.GroupRepository,
 ) *scan.Service {
-	return scan.New(scanner, watcher, fps, ids, items, mfRepo, unmatchedRepo, notifier, threshold, jobs, entries, groups, nil, nil)
+	return scan.New(scanner, watcher, fps, ids, nil, nil, items, mfRepo, unmatchedRepo, notifier, threshold, jobs, entries, groups, nil, nil)
 }
 
 // ── core pipeline tests ───────────────────────────────────────────────────────
@@ -705,6 +705,7 @@ func TestService_QualityUpgrade_AutoMode_AppliesUpgrade(t *testing.T) {
 
 	upgradeMode := map[domain.ContentType]string{domain.ContentTypeAdult: "auto"}
 	svc := scan.New(scanner, nil, []ports.FileFingerprinter{fp}, []ports.FileIdentifier{id},
+		nil, nil,
 		itemRepo, mfRepo, unmatchedRepo, notifier, 0.85,
 		nil, nil, nil, nil, upgradeMode)
 
@@ -932,6 +933,7 @@ func TestService_Enqueue_CachesThumbnail(t *testing.T) {
 	scanner := &mockScanner{files: []domain.ScannedFile{newScannedFile(domain.ContentTypeAdult)}}
 
 	svc := scan.New(scanner, nil, []ports.FileFingerprinter{fp}, []ports.FileIdentifier{ider},
+		nil, nil,
 		newItemRepo(), mfRepo, unmatchedRepo, notifier, 0.85,
 		nil, nil, nil, tc, nil)
 
@@ -1439,5 +1441,80 @@ func TestService_ListUnmatchedGrouped_LocalGroupID(t *testing.T) {
 	}
 	if got := groups[0].GroupTitle; got != albumTitle {
 		t.Errorf("GroupTitle = %q, want %q", got, albumTitle)
+	}
+}
+
+// ── FileGrouper / GroupIdentifier mocks ──────────────────────────────────────
+
+type mockGrouper struct {
+	contentTypes []domain.ContentType
+	groupFn      func(context.Context, []domain.ScannedFile) ([]ports.ScannedFileGroup, error)
+}
+
+func (m *mockGrouper) ContentTypes() []domain.ContentType { return m.contentTypes }
+func (m *mockGrouper) Group(ctx context.Context, files []domain.ScannedFile) ([]ports.ScannedFileGroup, error) {
+	return m.groupFn(ctx, files)
+}
+
+type mockGroupIdentifier struct {
+	contentTypes []domain.ContentType
+	identifyFn   func(context.Context, ports.ScannedFileGroup) error
+}
+
+func (m *mockGroupIdentifier) ContentTypes() []domain.ContentType { return m.contentTypes }
+func (m *mockGroupIdentifier) Identify(ctx context.Context, group ports.ScannedFileGroup) error {
+	return m.identifyFn(ctx, group)
+}
+
+func TestScanService_RoutesGroupsThroughGrouper(t *testing.T) {
+	musicFiles := []domain.ScannedFile{
+		{Path: "/music/Hi Infidelity/01.flac", ContentType: domain.ContentTypeMusic, Size: 1000},
+		{Path: "/music/Hi Infidelity/02.flac", ContentType: domain.ContentTypeMusic, Size: 1000},
+	}
+	scanner := &mockScanner{files: musicFiles}
+
+	var grouperReceived []domain.ScannedFile
+	grouper := &mockGrouper{
+		contentTypes: []domain.ContentType{domain.ContentTypeMusic},
+		groupFn: func(_ context.Context, files []domain.ScannedFile) ([]ports.ScannedFileGroup, error) {
+			grouperReceived = files
+			return []ports.ScannedFileGroup{{
+				Files:    files,
+				RootPath: "/music/Hi Infidelity",
+			}}, nil
+		},
+	}
+
+	var identifiedGroups []ports.ScannedFileGroup
+	groupID := &mockGroupIdentifier{
+		contentTypes: []domain.ContentType{domain.ContentTypeMusic},
+		identifyFn: func(_ context.Context, group ports.ScannedFileGroup) error {
+			identifiedGroups = append(identifiedGroups, group)
+			return nil
+		},
+	}
+
+	svc := scan.New(
+		scanner, nil,
+		nil, nil,
+		[]ports.FileGrouper{grouper},
+		[]ports.GroupIdentifier{groupID},
+		newItemRepo(), newMediaFileRepo(), newUnmatchedRepo(),
+		&mockNotifier{}, 0.85,
+		nil, nil, nil, nil, nil,
+	)
+
+	if err := svc.ScanRoots(context.Background(), []string{"/music"}, ports.ScanFilter{}); err != nil {
+		t.Fatalf("ScanRoots: %v", err)
+	}
+
+	if len(grouperReceived) != 2 {
+		t.Errorf("grouper received %d files, want 2", len(grouperReceived))
+	}
+	if len(identifiedGroups) != 1 {
+		t.Errorf("group identifier received %d groups, want 1", len(identifiedGroups))
+	}
+	if len(identifiedGroups) > 0 && identifiedGroups[0].RootPath != "/music/Hi Infidelity" {
+		t.Errorf("group RootPath = %q, want %q", identifiedGroups[0].RootPath, "/music/Hi Infidelity")
 	}
 }

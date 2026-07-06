@@ -521,6 +521,7 @@ func TestE2E_ImportAndCreate_FullFlow(t *testing.T) {
 		scanner, nil,
 		[]ports.FileFingerprinter{fp},
 		[]ports.FileIdentifier{ider},
+		nil, nil,
 		items, mfRepo, unmatched, notifier,
 		0.85, nil, entries, groups, nil, nil,
 	)

@@ -3393,6 +3393,7 @@ func newHandlerWithScan(t *testing.T) (http.Handler, *sql.DB) {
 	scanSvc := appscan.New(
 		noopScanner{}, nil,
 		nil, nil,
+		nil, nil,
 		itemRepo, mfRepo, unmatchedRepo, &notifyadapter.NoopDispatcher{}, 0.85,
 		jobQueue, entryRepo, groupRepo, nil, nil,
 	)

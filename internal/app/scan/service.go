@@ -28,20 +28,22 @@ type Module struct {
 // Service orchestrates fingerprinting, identification, and the auto-import decision.
 // It contains zero content-type switches and zero adapter name strings.
 type Service struct {
-	scanner        ports.FileScanner
-	watcher        ports.FileWatcher
-	fingerprinters []ports.FileFingerprinter
-	identifiers    []ports.FileIdentifier
-	items          ports.ItemRepository
-	mediaFiles     ports.MediaFileRepository
-	unmatched      ports.UnmatchedFileRepository
-	notifier       ports.NotificationDispatcher
-	threshold      float64
-	jobs           ports.JobQueue
-	entries        ports.LibraryEntryRepository
-	groups         ports.GroupRepository
-	thumbnailCache ports.ThumbnailCache
-	upgradeMode    map[domain.ContentType]string
+	scanner          ports.FileScanner
+	watcher          ports.FileWatcher
+	fingerprinters   []ports.FileFingerprinter
+	identifiers      []ports.FileIdentifier
+	groupers         []ports.FileGrouper
+	groupIdentifiers []ports.GroupIdentifier
+	items            ports.ItemRepository
+	mediaFiles       ports.MediaFileRepository
+	unmatched        ports.UnmatchedFileRepository
+	notifier         ports.NotificationDispatcher
+	threshold        float64
+	jobs             ports.JobQueue
+	entries          ports.LibraryEntryRepository
+	groups           ports.GroupRepository
+	thumbnailCache   ports.ThumbnailCache
+	upgradeMode      map[domain.ContentType]string
 }
 
 // New constructs a scan Service wired to the given ports.
@@ -51,6 +53,8 @@ func New(
 	watcher ports.FileWatcher,
 	fingerprinters []ports.FileFingerprinter,
 	identifiers []ports.FileIdentifier,
+	groupers []ports.FileGrouper,
+	groupIdentifiers []ports.GroupIdentifier,
 	items ports.ItemRepository,
 	mediaFiles ports.MediaFileRepository,
 	unmatched ports.UnmatchedFileRepository,
@@ -63,24 +67,28 @@ func New(
 	upgradeMode map[domain.ContentType]string,
 ) *Service {
 	return &Service{
-		scanner:        scanner,
-		watcher:        watcher,
-		fingerprinters: fingerprinters,
-		identifiers:    identifiers,
-		items:          items,
-		mediaFiles:     mediaFiles,
-		unmatched:      unmatched,
-		notifier:       notifier,
-		threshold:      threshold,
-		jobs:           jobs,
-		entries:        entries,
-		groups:         groups,
-		thumbnailCache: thumbnailCache,
-		upgradeMode:    upgradeMode,
+		scanner:          scanner,
+		watcher:          watcher,
+		fingerprinters:   fingerprinters,
+		identifiers:      identifiers,
+		groupers:         groupers,
+		groupIdentifiers: groupIdentifiers,
+		items:            items,
+		mediaFiles:       mediaFiles,
+		unmatched:        unmatched,
+		notifier:         notifier,
+		threshold:        threshold,
+		jobs:             jobs,
+		entries:          entries,
+		groups:           groups,
+		thumbnailCache:   thumbnailCache,
+		upgradeMode:      upgradeMode,
 	}
 }
 
 // ScanRoots walks roots through the scanner and runs the full pipeline on each discovered file.
+// Files whose content type is handled by a registered FileGrouper are fingerprinted and buffered
+// for album-level identification; all other files go through the per-file pipeline immediately.
 func (s *Service) ScanRoots(ctx context.Context, roots []string, filter ports.ScanFilter) error {
 	_ = s.notifier.Dispatch(ctx, domain.NotificationEvent{Type: domain.NotifyScanStarted})
 
@@ -91,12 +99,33 @@ func (s *Service) ScanRoots(ctx context.Context, roots []string, filter ports.Sc
 		return fmt.Errorf("start scan: %w", err)
 	}
 
-	var discovered int
+	groupedTypes := s.groupedContentTypes()
+
+	var (
+		forGrouping []domain.ScannedFile
+		discovered  int
+	)
+
 	for f := range ch {
 		discovered++
+		if len(groupedTypes) > 0 {
+			if _, ok := groupedTypes[f.ContentType]; ok {
+				f.Fingerprint = s.collectFingerprints(ctx, f)
+				_ = s.notifier.Dispatch(ctx, domain.NotificationEvent{
+					Type:    domain.NotifyFileDiscovered,
+					Payload: f.Path,
+				})
+				forGrouping = append(forGrouping, f)
+				continue
+			}
+		}
 		if err := s.processFile(ctx, f); err != nil {
 			slog.WarnContext(ctx, "process file failed", "path", f.Path, "err", err)
 		}
+	}
+
+	if len(forGrouping) > 0 {
+		s.fanOutToGroupers(ctx, forGrouping)
 	}
 
 	_ = s.notifier.Dispatch(ctx, domain.NotificationEvent{
@@ -104,6 +133,47 @@ func (s *Service) ScanRoots(ctx context.Context, roots []string, filter ports.Sc
 		Payload: map[string]int{"discovered": discovered},
 	})
 	return nil
+}
+
+// groupedContentTypes returns the set of content types that have at least one registered FileGrouper.
+// Returns nil when no groupers are registered, so the caller can skip the map lookup entirely.
+func (s *Service) groupedContentTypes() map[domain.ContentType]struct{} {
+	if len(s.groupers) == 0 {
+		return nil
+	}
+	m := make(map[domain.ContentType]struct{})
+	for _, gr := range s.groupers {
+		for _, ct := range gr.ContentTypes() {
+			m[ct] = struct{}{}
+		}
+	}
+	return m
+}
+
+// fanOutToGroupers calls each registered FileGrouper with the buffered files, then routes
+// the resulting ScannedFileGroups to all GroupIdentifiers that handle the group's content type.
+func (s *Service) fanOutToGroupers(ctx context.Context, files []domain.ScannedFile) {
+	for _, gr := range s.groupers {
+		groups, err := gr.Group(ctx, files)
+		if err != nil {
+			slog.WarnContext(ctx, "grouper failed", "err", err)
+			continue
+		}
+		for _, group := range groups {
+			if len(group.Files) == 0 {
+				continue
+			}
+			ct := group.Files[0].ContentType
+			for _, gi := range s.groupIdentifiers {
+				if !slices.Contains(gi.ContentTypes(), ct) {
+					continue
+				}
+				if err := gi.Identify(ctx, group); err != nil {
+					slog.WarnContext(ctx, "group identifier failed", "root", group.RootPath, "err", err)
+				}
+			}
+		}
+	}
 }
 
 // StartWatching watches module roots for filesystem events and runs the pipeline
