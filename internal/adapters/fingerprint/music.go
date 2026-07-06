@@ -29,7 +29,7 @@ func NewMusicFingerprinter() ports.FileFingerprinter {
 	_, err := exec.LookPath("fpcalc")
 	avail := err == nil
 	if !avail {
-		slog.Warn("fpcalc not found; AcoustID computation will be skipped for music files")
+		slog.Warn("fpcalc not found, acoustid disabled")
 	}
 	return &musicFingerprinter{fpcalcAvail: avail}
 }
@@ -55,7 +55,22 @@ func (m *musicFingerprinter) Fingerprint(ctx context.Context, f domain.ScannedFi
 		}
 	}
 
+	slog.DebugContext(ctx, "music fingerprint",
+		"path", f.Path,
+		"barcode", tagOrNotSet(fp.EmbeddedTags, "barcode"),
+		"isrc", tagOrNotSet(fp.EmbeddedTags, "isrc"),
+		"mbz_album_id", tagOrNotSet(fp.EmbeddedTags, "musicbrainz_album_id"),
+		"tag_count", len(fp.EmbeddedTags),
+	)
+
 	return fp, nil
+}
+
+func tagOrNotSet(tags map[string]string, key string) string {
+	if v := tags[key]; v != "" {
+		return v
+	}
+	return "not_set"
 }
 
 func (m *musicFingerprinter) readTags(path string, fp *domain.Fingerprint) error {
@@ -81,26 +96,41 @@ func (m *musicFingerprinter) readTags(path string, fp *domain.Fingerprint) error
 	setTag("album", meta.Album())
 	setTag("title", meta.Title())
 
-	if n, _ := meta.Track(); n > 0 {
-		fp.EmbeddedTags["track_number"] = strconv.Itoa(n)
+	trackNum, trackTotal := meta.Track()
+	if trackNum > 0 {
+		fp.EmbeddedTags["track_number"] = strconv.Itoa(trackNum)
 	}
-	if n, _ := meta.Disc(); n > 0 {
-		fp.EmbeddedTags["disc_number"] = strconv.Itoa(n)
+	if trackTotal > 0 {
+		fp.EmbeddedTags["track_total"] = strconv.Itoa(trackTotal)
 	}
+
+	discNum, discTotal := meta.Disc()
+	if discNum > 0 {
+		fp.EmbeddedTags["disc_number"] = strconv.Itoa(discNum)
+	}
+	if discTotal > 0 {
+		fp.EmbeddedTags["disc_total"] = strconv.Itoa(discTotal)
+	}
+
 	if y := meta.Year(); y > 0 {
 		fp.EmbeddedTags["date"] = strconv.Itoa(y)
 	}
 
-	for rawKey, rawVal := range meta.Raw() {
+	m.applyRawTags(meta.Raw(), fp)
+	return nil
+}
+
+func (m *musicFingerprinter) applyRawTags(raw map[string]interface{}, fp *domain.Fingerprint) {
+	for rawKey, rawVal := range raw {
 		switch v := rawVal.(type) {
 		case *tag.Comm:
 			// ID3v2 TXXX frame: the user-defined description is the semantic key
-			if norm, ok := normalizeMBZKey(v.Description); ok {
+			if norm, ok := normalizeRawKey(v.Description); ok {
 				fp.EmbeddedTags[norm] = v.Text
 			}
 		case string:
 			// VORBISCOMMENT keys are lowercased by dhowden/tag; ID3v2 standard frame IDs are uppercase
-			if norm, ok := normalizeMBZKey(rawKey); ok {
+			if norm, ok := normalizeRawKey(rawKey); ok {
 				fp.EmbeddedTags[norm] = v
 			}
 			// Duration in milliseconds: TLEN (ID3v2) or length (VORBISCOMMENT, lowercased)
@@ -109,24 +139,43 @@ func (m *musicFingerprinter) readTags(path string, fp *domain.Fingerprint) error
 			}
 		}
 	}
-
-	return nil
 }
 
-// mbzKeyMap maps normalised MusicBrainz tag names to canonical EmbeddedTags keys.
-// Covers both ID3v2 TXXX descriptions and VORBISCOMMENT keys (lowercased by dhowden/tag).
-var mbzKeyMap = map[string]string{
-	"musicbrainz track id":        "musicbrainz_track_id",
-	"musicbrainz album id":        "musicbrainz_album_id",
-	"musicbrainz album artist id": "musicbrainz_artist_id",
-	"musicbrainz_trackid":         "musicbrainz_track_id",
-	"musicbrainz_albumid":         "musicbrainz_album_id",
-	"musicbrainz_artistid":        "musicbrainz_artist_id",
+// rawTagKeyMap maps normalised tag names to canonical EmbeddedTags keys.
+// Covers ID3v2 TXXX frame descriptions, ID3v2 standard frame IDs (e.g. TSRC, TPUB),
+// and VORBISCOMMENT keys (lowercased by dhowden/tag). Lookup is case-insensitive via normalizeRawKey.
+var rawTagKeyMap = map[string]string{
+	// MusicBrainz IDs — TXXX descriptions and VORBISCOMMENT keys
+	"musicbrainz track id":         "musicbrainz_track_id",
+	"musicbrainz album id":         "musicbrainz_album_id",
+	"musicbrainz release group id": "musicbrainz_release_group_id",
+	"musicbrainz album artist id":  "musicbrainz_album_artist_id",
+	"musicbrainz_trackid":          "musicbrainz_track_id",
+	"musicbrainz_albumid":          "musicbrainz_album_id",
+	"musicbrainz_releasegroupid":   "musicbrainz_release_group_id",
+	"musicbrainz_albumartistid":    "musicbrainz_album_artist_id",
+	// Barcode — UPC and BARCODE are synonyms
+	"barcode": "barcode",
+	"upc":     "barcode",
+	// Recording identifier
+	"isrc": "isrc",
+	"tsrc": "isrc", // ID3v2 standard ISRC frame
+	// Label / publisher
+	"label": "label",
+	"tpub":  "label", // ID3v2 publisher frame
+	// Catalog number
+	"catalognumber":  "catalog_number",
+	"catalog_number": "catalog_number",
+	// Track / disc totals (VORBISCOMMENT — also handled via meta.Track()/Disc() for ID3v2 N/total format)
+	"tracktotal":  "track_total",
+	"totaltracks": "track_total",
+	"disctotal":   "disc_total",
+	"totaldiscs":  "disc_total",
 }
 
-func normalizeMBZKey(key string) (string, bool) {
+func normalizeRawKey(key string) (string, bool) {
 	k := strings.ToLower(strings.TrimSpace(key))
-	mapped, ok := mbzKeyMap[k]
+	mapped, ok := rawTagKeyMap[k]
 	return mapped, ok
 }
 

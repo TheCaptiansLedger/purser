@@ -187,3 +187,22 @@ func minimalPDFBytes(title, author string) []byte {
 
 	return []byte(body.String())
 }
+
+// readTagsWithMetaflac runs metaflac --export-tags-to=- on path and returns the tags as a
+// map of uppercase key → value. Used as a ground-truth oracle in fingerprinter integration tests.
+func readTagsWithMetaflac(t *testing.T, path string) map[string]string {
+	t.Helper()
+	out, err := exec.Command("metaflac", "--export-tags-to=-", path).Output() //nolint:gosec // path is a test fixture
+	if err != nil {
+		t.Fatalf("metaflac: %v", err)
+	}
+	tags := make(map[string]string)
+	for _, line := range strings.Split(string(out), "\n") {
+		k, v, ok := strings.Cut(line, "=")
+		if !ok {
+			continue
+		}
+		tags[strings.ToUpper(strings.TrimSpace(k))] = strings.TrimSpace(v)
+	}
+	return tags
+}

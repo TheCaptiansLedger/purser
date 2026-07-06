@@ -192,7 +192,7 @@ func (m *musicIdentifier) Identify(ctx context.Context, f domain.ScannedFile) ([
 func enrichFromTags(candidates []domain.MatchCandidate, fp *domain.Fingerprint) {
 	durMS, _ := strconv.Atoi(fp.EmbeddedTags["duration_ms"])
 	artist := fp.EmbeddedTags["artist"]
-	artistID := fp.EmbeddedTags["musicbrainz_artist_id"]
+	artistID := fp.EmbeddedTags["musicbrainz_album_artist_id"]
 
 	for i := range candidates {
 		ext := candidates[i].ExternalItem

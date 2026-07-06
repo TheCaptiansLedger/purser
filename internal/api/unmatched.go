@@ -172,7 +172,7 @@ func candidatesToResponse(cs []domain.MatchCandidate, fp *domain.Fingerprint) []
 			} else if fp != nil && c.ExternalItem.ContentType == domain.ContentTypeMusic {
 				// Synthesise a parent from embedded tags if the stub has no artist.
 				artist := fp.EmbeddedTags["artist"]
-				artistID := fp.EmbeddedTags["musicbrainz_artist_id"]
+				artistID := fp.EmbeddedTags["musicbrainz_album_artist_id"]
 				if artist != "" && artistID != "" {
 					ext.Parent = &externalParentResponse{
 						Source:     string(domain.SourceMusicBrainz),

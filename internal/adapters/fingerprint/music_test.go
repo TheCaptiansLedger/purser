@@ -213,6 +213,188 @@ func TestApplyFpcalcOutput_ZeroDurationIgnored(t *testing.T) {
 	}
 }
 
+func TestMusicFingerprinter_TagTable(t *testing.T) {
+	const (
+		wantISRC      = "TSTEST00001"
+		wantBarcode   = "012345678901"
+		wantLabel     = "Test Label"
+		wantCatalog   = "CAT-001"
+		wantRGID      = "aaaabbbb-cccc-dddd-eeee-ffffffffffff"
+		wantAArtistID = "11112222-3333-4444-5555-666677778888"
+	)
+
+	tests := []struct {
+		name      string
+		buildFile func(t *testing.T) string
+		wantKey   string
+		wantVal   string
+	}{
+		// VORBISCOMMENT (FLAC) — new extraction keys
+		{
+			name: "FLAC ISRC",
+			buildFile: func(t *testing.T) string {
+				return writeTempFile(t, ".flac", buildFLACWithVorbisComment(map[string]string{"ISRC": wantISRC}))
+			},
+			wantKey: "isrc", wantVal: wantISRC,
+		},
+		{
+			name: "FLAC UPC maps to barcode",
+			buildFile: func(t *testing.T) string {
+				return writeTempFile(t, ".flac", buildFLACWithVorbisComment(map[string]string{"UPC": wantBarcode}))
+			},
+			wantKey: "barcode", wantVal: wantBarcode,
+		},
+		{
+			name: "FLAC BARCODE",
+			buildFile: func(t *testing.T) string {
+				return writeTempFile(t, ".flac", buildFLACWithVorbisComment(map[string]string{"BARCODE": wantBarcode}))
+			},
+			wantKey: "barcode", wantVal: wantBarcode,
+		},
+		{
+			name: "FLAC LABEL",
+			buildFile: func(t *testing.T) string {
+				return writeTempFile(t, ".flac", buildFLACWithVorbisComment(map[string]string{"LABEL": wantLabel}))
+			},
+			wantKey: "label", wantVal: wantLabel,
+		},
+		{
+			name: "FLAC CATALOGNUMBER",
+			buildFile: func(t *testing.T) string {
+				return writeTempFile(t, ".flac", buildFLACWithVorbisComment(map[string]string{"CATALOGNUMBER": wantCatalog}))
+			},
+			wantKey: "catalog_number", wantVal: wantCatalog,
+		},
+		{
+			name: "FLAC TRACKTOTAL",
+			buildFile: func(t *testing.T) string {
+				return writeTempFile(t, ".flac", buildFLACWithVorbisComment(map[string]string{"TRACKTOTAL": "12"}))
+			},
+			wantKey: "track_total", wantVal: "12",
+		},
+		{
+			name: "FLAC TOTALTRACKS",
+			buildFile: func(t *testing.T) string {
+				return writeTempFile(t, ".flac", buildFLACWithVorbisComment(map[string]string{"TOTALTRACKS": "8"}))
+			},
+			wantKey: "track_total", wantVal: "8",
+		},
+		{
+			name: "FLAC DISCTOTAL",
+			buildFile: func(t *testing.T) string {
+				return writeTempFile(t, ".flac", buildFLACWithVorbisComment(map[string]string{"DISCTOTAL": "2"}))
+			},
+			wantKey: "disc_total", wantVal: "2",
+		},
+		{
+			name: "FLAC TOTALDISCS",
+			buildFile: func(t *testing.T) string {
+				return writeTempFile(t, ".flac", buildFLACWithVorbisComment(map[string]string{"TOTALDISCS": "3"}))
+			},
+			wantKey: "disc_total", wantVal: "3",
+		},
+		{
+			name: "FLAC MUSICBRAINZ_RELEASEGROUPID",
+			buildFile: func(t *testing.T) string {
+				return writeTempFile(t, ".flac", buildFLACWithVorbisComment(map[string]string{"MUSICBRAINZ_RELEASEGROUPID": wantRGID}))
+			},
+			wantKey: "musicbrainz_release_group_id", wantVal: wantRGID,
+		},
+		{
+			name: "FLAC MUSICBRAINZ_ALBUMARTISTID",
+			buildFile: func(t *testing.T) string {
+				return writeTempFile(t, ".flac", buildFLACWithVorbisComment(map[string]string{"MUSICBRAINZ_ALBUMARTISTID": wantAArtistID}))
+			},
+			wantKey: "musicbrainz_album_artist_id", wantVal: wantAArtistID,
+		},
+		// ID3v2 standard frames
+		{
+			name: "ID3v2 TSRC → isrc",
+			buildFile: func(t *testing.T) string {
+				var f bytes.Buffer
+				f.Write(buildTextFrame("TSRC", wantISRC))
+				return writeTempFile(t, ".mp3", buildID3v2MP3(f.Bytes()))
+			},
+			wantKey: "isrc", wantVal: wantISRC,
+		},
+		{
+			name: "ID3v2 TPUB → label",
+			buildFile: func(t *testing.T) string {
+				var f bytes.Buffer
+				f.Write(buildTextFrame("TPUB", wantLabel))
+				return writeTempFile(t, ".mp3", buildID3v2MP3(f.Bytes()))
+			},
+			wantKey: "label", wantVal: wantLabel,
+		},
+		{
+			name: "ID3v2 TRCK N/total → track_total",
+			buildFile: func(t *testing.T) string {
+				var f bytes.Buffer
+				f.Write(buildTextFrame("TRCK", "3/10"))
+				return writeTempFile(t, ".mp3", buildID3v2MP3(f.Bytes()))
+			},
+			wantKey: "track_total", wantVal: "10",
+		},
+		{
+			name: "ID3v2 TPOS N/total → disc_total",
+			buildFile: func(t *testing.T) string {
+				var f bytes.Buffer
+				f.Write(buildTextFrame("TPOS", "1/2"))
+				return writeTempFile(t, ".mp3", buildID3v2MP3(f.Bytes()))
+			},
+			wantKey: "disc_total", wantVal: "2",
+		},
+		// ID3v2 TXXX frames
+		{
+			name: "ID3v2 TXXX BARCODE → barcode",
+			buildFile: func(t *testing.T) string {
+				var f bytes.Buffer
+				f.Write(buildTXXXFrame("BARCODE", wantBarcode))
+				return writeTempFile(t, ".mp3", buildID3v2MP3(f.Bytes()))
+			},
+			wantKey: "barcode", wantVal: wantBarcode,
+		},
+		{
+			name: "ID3v2 TXXX MusicBrainz Release Group Id",
+			buildFile: func(t *testing.T) string {
+				var f bytes.Buffer
+				f.Write(buildTXXXFrame("MusicBrainz Release Group Id", wantRGID))
+				return writeTempFile(t, ".mp3", buildID3v2MP3(f.Bytes()))
+			},
+			wantKey: "musicbrainz_release_group_id", wantVal: wantRGID,
+		},
+		{
+			name: "ID3v2 TXXX MusicBrainz Album Artist Id",
+			buildFile: func(t *testing.T) string {
+				var f bytes.Buffer
+				f.Write(buildTXXXFrame("MusicBrainz Album Artist Id", wantAArtistID))
+				return writeTempFile(t, ".mp3", buildID3v2MP3(f.Bytes()))
+			},
+			wantKey: "musicbrainz_album_artist_id", wantVal: wantAArtistID,
+		},
+	}
+
+	fp := fingerprint.NewMusicFingerprinter()
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			path := tc.buildFile(t)
+			result, err := fp.Fingerprint(context.Background(), domain.ScannedFile{
+				Path:        path,
+				ContentType: domain.ContentTypeMusic,
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if result == nil {
+				t.Fatal("expected non-nil Fingerprint")
+			}
+			if got := result.EmbeddedTags[tc.wantKey]; got != tc.wantVal {
+				t.Errorf("EmbeddedTags[%q] = %q, want %q", tc.wantKey, got, tc.wantVal)
+			}
+		})
+	}
+}
+
 func TestMusicFingerprinter_FLACVorbisComment(t *testing.T) {
 	const wantTitle = "FLAC Test Track"
 	const wantArtist = "FLAC Test Artist"

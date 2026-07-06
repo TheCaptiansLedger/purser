@@ -39,13 +39,13 @@ type(scope): description
 
 Rules:
 
-- Subject line under 72 characters
+- Subject line under 80 characters
 - Present tense, imperative mood (`add` not `added`, `fix` not `fixed`)
 - No period at the end of the subject line
+- No commas in the subject line — if you reach for a comma it is too long or trying to say two things
 - Do not add Co-Authored-By AI attribution
-- Body should contain a small paragraph on the WHY not the WHAT. WHY is this code going in? what does it add for the user or project? 
-- footers must use GitHub's exact auto-close syntax — `Closes #xxx` or `Resolves #xxx` (no "issue" between the keyword and the number; that word breaks GitHub's parser and prevents auto-close)
-- use `Part-Of: #xxx` when the commit only partially resolves an issue
+- Body explains the WHY: what does this change enable or fix? Not implementation mechanics, not renamed files, not a list of what changed
+- Footers: `Closes: #xxx` to close an issue, `Part-Of: #xxx` when the commit only partially resolves an issue
 
 ```
 
