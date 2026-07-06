@@ -110,9 +110,10 @@ func TestAlbumTagSimilarity(t *testing.T) {
 	}{
 		{"exact match", "Hi Infidelity", "Hi Infidelity", 1.00},
 		{"exact case insensitive", "hi infidelity", "Hi Infidelity", 1.00},
-		{"prefix — remaster paren", "Hi Infidelity", "Hi Infidelity (2024 Remaster)", 0.85},
-		{"prefix — deluxe paren", "Thriller", "Thriller (Deluxe Edition)", 0.85},
-		{"prefix — bracket remaster", "Dark Side", "Dark Side [2023 Remaster]", 0.85},
+		{"prefix — remaster paren", "Hi Infidelity", "Hi Infidelity (2024 Remaster)", 0.90},
+		{"prefix — deluxe paren", "Thriller", "Thriller (Deluxe Edition)", 0.90},
+		{"prefix — bracket remaster", "Dark Side", "Dark Side [2023 Remaster]", 0.90},
+		{"normalizeAlbum — embedded has edition", "Hi Infidelity (2024 Remaster)", "Hi Infidelity", 0.90},
 		{"contains — compilation", "Hi Infidelity", "The Best of Hi Infidelity", 0.60},
 		{"no overlap", "Hi Infidelity", "Find Your Own Way Home", 0.00},
 		{"empty embedded", "", "Hi Infidelity", 0.00},

@@ -136,38 +136,32 @@ func pickRelease(releases []mbzRecordingRelease, albumHint string) *mbzRecording
 }
 
 func toExternalRecording(ctx context.Context, r *mbzRecording, albumHint string) *domain.ExternalItem {
-	item := &domain.ExternalItem{
-		Source:      domain.SourceMusicBrainz,
-		ExternalID:  r.ID,
-		ContentType: domain.ContentTypeMusic,
-		Title:       r.Title,
-		RuntimeSecs: r.Length / 1000,
-	}
-	// Top-level ArtistCredit is present on direct lookup; fall back to releases for search results.
-	var credits []mbzArtistCredit
-	if len(r.ArtistCredit) > 0 {
-		credits = r.ArtistCredit
-	} else if len(r.Releases) > 0 {
-		credits = r.Releases[0].ArtistCredit
-	}
-	if len(credits) > 0 {
-		ac := &credits[0]
-		item.Studio = &domain.ExternalStudio{
-			Source:     domain.SourceMusicBrainz,
-			ExternalID: ac.Artist.ID,
-			Name:       ac.Name,
-		}
-	}
 	// Prefer the release whose title matches albumHint (embedded album tag); fall
-	// back to first. Cover Art Archive URLs are deterministic — no HTTP fetch needed.
-	// GroupExternalID is the release group MBID (the conceptual album), not the
-	// release MBID (the specific pressing), so scanned files can be matched to
+	// back to first. GroupExternalID is the release group MBID (the conceptual album),
+	// not the release MBID (the specific pressing), so scanned files can be matched to
 	// albums imported via discography which also uses release group MBIDs.
 	rel := pickRelease(r.Releases, albumHint)
 	// A release without an ID is a stub (e.g. embedded in a search response for
 	// artist-credit extraction only). Treat it as absent so we don't set an empty
 	// GroupExternalID or emit a misleading WARN.
 	if rel == nil || rel.ID == "" {
+		item := &domain.ExternalItem{
+			Source:      domain.SourceMusicBrainz,
+			ExternalID:  r.ID,
+			ContentType: domain.ContentTypeMusic,
+			Title:       r.Title,
+			RuntimeSecs: r.Length / 1000,
+		}
+		var credits []mbzArtistCredit
+		if len(r.ArtistCredit) > 0 {
+			credits = r.ArtistCredit
+		} else if len(r.Releases) > 0 {
+			credits = r.Releases[0].ArtistCredit
+		}
+		if len(credits) > 0 {
+			ac := &credits[0]
+			item.Studio = &domain.ExternalStudio{Source: domain.SourceMusicBrainz, ExternalID: ac.Artist.ID, Name: ac.Name}
+		}
 		return item
 	}
 	if rel.ReleaseGroup.ID == "" {
@@ -177,19 +171,75 @@ func toExternalRecording(ctx context.Context, r *mbzRecording, albumHint string)
 			"release_title", rel.Title,
 		)
 	}
-	item.GroupExternalID = rel.ReleaseGroup.ID
-	item.GroupTitle = rel.ReleaseGroup.Title
-	item.ImageURL = "https://coverartarchive.org/release/" + rel.ID + "/front-250"
-	item.ReleaseDetail = &domain.ExternalReleaseDetail{
-		ReleaseMBID:    rel.ID,
-		ReleaseTitle:   rel.Title,
-		ReleaseDate:    rel.Date,
-		ReleaseLabel:   releaseLabel(rel),
-		ReleaseCountry: rel.Country,
-		ReleaseCatalog: releaseCatalog(rel),
-		ReleaseBarcode: rel.Barcode,
+	return toExternalItemForRelease(r, rel)
+}
+
+// toExternalItemForRelease builds one ExternalItem for a specific release of a recording.
+// r provides recording-level fields; rel provides the edition-specific fields.
+func toExternalItemForRelease(r *mbzRecording, rel *mbzRecordingRelease) *domain.ExternalItem {
+	item := &domain.ExternalItem{
+		Source:          domain.SourceMusicBrainz,
+		ExternalID:      r.ID,
+		ContentType:     domain.ContentTypeMusic,
+		Title:           r.Title,
+		RuntimeSecs:     r.Length / 1000,
+		GroupExternalID: rel.ReleaseGroup.ID,
+		GroupTitle:      rel.ReleaseGroup.Title,
+		ImageURL:        "https://coverartarchive.org/release/" + rel.ID + "/front-250",
+		ReleaseDetail: &domain.ExternalReleaseDetail{
+			ReleaseMBID:    rel.ID,
+			ReleaseTitle:   rel.Title,
+			ReleaseDate:    rel.Date,
+			ReleaseLabel:   releaseLabel(rel),
+			ReleaseCountry: rel.Country,
+			ReleaseCatalog: releaseCatalog(rel),
+			ReleaseBarcode: rel.Barcode,
+		},
+	}
+	credits := r.ArtistCredit
+	if len(credits) == 0 {
+		credits = rel.ArtistCredit
+	}
+	if len(credits) > 0 {
+		ac := &credits[0]
+		item.Studio = &domain.ExternalStudio{
+			Source:     domain.SourceMusicBrainz,
+			ExternalID: ac.Artist.ID,
+			Name:       ac.Name,
+		}
 	}
 	return item
+}
+
+// FetchAllRecordingReleases fetches all releases for a recording and returns one
+// ExternalItem per release. Releases without a release-group ID are skipped with
+// a WARN log. Used by the multi-candidate identifier strategy.
+func (a *Adapter) FetchAllRecordingReleases(ctx context.Context, mbid string) ([]*domain.ExternalItem, error) {
+	u := fmt.Sprintf("%srecording/%s?inc=artist-credits+releases+release-groups&fmt=json", a.baseURL, mbid)
+	var r mbzRecording
+	if err := a.get(ctx, u, &r); err != nil {
+		return nil, err
+	}
+	if r.ID == "" {
+		return nil, fmt.Errorf("mbz recording not found: %s", mbid)
+	}
+	items := make([]*domain.ExternalItem, 0, len(r.Releases))
+	for i := range r.Releases {
+		rel := &r.Releases[i]
+		if rel.ID == "" {
+			continue
+		}
+		if rel.ReleaseGroup.ID == "" {
+			slog.WarnContext(ctx, "mbz: release has no release-group",
+				"recording_mbid", mbid,
+				"release_mbid", rel.ID,
+				"release_title", rel.Title,
+			)
+			continue
+		}
+		items = append(items, toExternalItemForRelease(&r, rel))
+	}
+	return items, nil
 }
 
 func releaseLabel(rel *mbzRecordingRelease) string {

@@ -48,9 +48,14 @@ func normalizeAlbum(s string) string {
 }
 
 // albumTagSimilarity scores how well an embedded album tag matches a candidate
-// release title. Uses albumTagNormalize (strips paren/bracket chars but keeps
-// content) so "Hi Infidelity" is a word-boundary prefix of
-// "Hi Infidelity (2024 Remaster)" → 0.85, not an exact match → 1.00.
+// release title. Score ladder:
+//
+//	1.00 — verbatim content match (albumTagNormalize)
+//	0.90 — same album after stripping edition qualifiers (normalizeAlbum)
+//	       e.g. "Hi Infidelity (2024 Remaster)" vs "Hi Infidelity"
+//	0.85 — word-boundary prefix in either direction
+//	0.60 — substring containment in either direction
+//	0.00 — no meaningful overlap
 func albumTagSimilarity(embedded, releaseTitle string) float64 {
 	ne := albumTagNormalize(embedded)
 	nr := albumTagNormalize(releaseTitle)
@@ -60,10 +65,16 @@ func albumTagSimilarity(embedded, releaseTitle string) float64 {
 	if ne == nr {
 		return 1.00
 	}
+	if na, nb := normalizeAlbum(embedded), normalizeAlbum(releaseTitle); na != "" && nb != "" && na == nb {
+		return 0.90
+	}
 	if strings.HasPrefix(nr, ne) && len(nr) > len(ne) && nr[len(ne)] == ' ' {
 		return 0.85
 	}
-	if strings.Contains(nr, ne) {
+	if strings.HasPrefix(ne, nr) && len(ne) > len(nr) && ne[len(nr)] == ' ' {
+		return 0.85
+	}
+	if strings.Contains(nr, ne) || strings.Contains(ne, nr) {
 		return 0.60
 	}
 	return 0.00

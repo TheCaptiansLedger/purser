@@ -61,8 +61,11 @@ func TestMusicIdentifier_EmbeddedMBZTrackID(t *testing.T) {
 	if len(candidates) != 1 {
 		t.Fatalf("expected 1 candidate, got %d", len(candidates))
 	}
-	if candidates[0].Confidence < 0.95 || candidates[0].Confidence > 1.0 {
-		t.Errorf("confidence = %.2f, want in [0.95, 1.0]", candidates[0].Confidence)
+	// RecordingConfidence must be ≥ baseMBZTrackID (0.95) — T6 invariant.
+	// Combined confidence is lower when no metadata source can return release data
+	// (the stub ext has no ReleaseDetail), so we test the component, not the combined.
+	if candidates[0].RecordingConfidence < 0.95 {
+		t.Errorf("recording confidence = %.2f, want >= 0.95 (T6)", candidates[0].RecordingConfidence)
 	}
 	if candidates[0].Source != "musicbrainz_track_id" {
 		t.Errorf("source = %q, want musicbrainz_track_id", candidates[0].Source)
