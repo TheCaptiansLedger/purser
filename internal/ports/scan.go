@@ -91,3 +91,29 @@ type NotificationDispatcher interface {
 type ThumbnailCache interface {
 	Store(ctx context.Context, url, key string) string
 }
+
+// ScannedFileGroup is a set of ScannedFiles that belong to the same album folder.
+// RootPath is the common ancestor directory; for multi-disc albums it is the
+// parent of the CD1/CD2 sub-folders rather than any individual disc folder.
+type ScannedFileGroup struct {
+	Files    []domain.ScannedFile
+	RootPath string
+}
+
+// FileGrouper groups a flat list of ScannedFiles into album-level ScannedFileGroups.
+// ContentTypes declares which content types this grouper handles; the scan service
+// fans out only to groupers whose declared types overlap the scanned file set.
+type FileGrouper interface {
+	ContentTypes() []domain.ContentType
+	Group(ctx context.Context, files []domain.ScannedFile) ([]ScannedFileGroup, error)
+}
+
+// GroupIdentifier identifies an entire ScannedFileGroup as a single album.
+// ContentTypes declares which content types this identifier handles.
+// Implementations write a MusicScanGroup to the queue when overall confidence
+// falls below the auto-import threshold, or trigger album import directly when
+// confidence meets the threshold.
+type GroupIdentifier interface {
+	ContentTypes() []domain.ContentType
+	Identify(ctx context.Context, group ScannedFileGroup) error
+}

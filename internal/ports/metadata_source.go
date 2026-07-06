@@ -106,3 +106,33 @@ type PersonImageSource interface {
 type StudioThumbSource interface {
 	FetchStudioThumb(ctx context.Context, externalID string) (string, error)
 }
+
+// ExternalMusicRelease is a data-transfer type for a single pressing or edition
+// returned by ReleaseGroupContentSource.FetchReleaseGroupReleases.
+type ExternalMusicRelease struct {
+	MBID          string
+	Title         string
+	Country       string
+	Date          string
+	Label         string
+	CatalogNumber string
+	Barcode       string
+	Format        string
+	MediumCount   int
+	TrackCount    int
+	IsDefault     bool
+}
+
+// ReleaseGroupContentSource is an optional sub-interface implemented by sources
+// that can enumerate all known releases for a Release Group. Type-asserted by
+// the aggregator — sources that do not implement it are skipped silently.
+type ReleaseGroupContentSource interface {
+	FetchReleaseGroupReleases(ctx context.Context, rgMBID string) ([]*ExternalMusicRelease, error)
+}
+
+// ISRCLookupSource is an optional sub-interface implemented by sources that can
+// resolve a recording ISRC to a Release Group MBID. Type-asserted by the album
+// identifier when ISRC tags are present in the scanned files.
+type ISRCLookupSource interface {
+	LookupISRC(ctx context.Context, isrc string) (rgMBID string, err error)
+}
