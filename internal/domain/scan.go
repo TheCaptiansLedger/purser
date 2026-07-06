@@ -105,19 +105,20 @@ func (s MatchSource) Description() string {
 // MusicMatchDetail carries the three-tier confidence evidence for a music file.
 // Stored as MediaFile.MatchDetail for music content; nil for other content types.
 type MusicMatchDetail struct {
-	RecordingMBID       string       `json:"recording_mbid,omitempty"`
-	RecordingTitle      string       `json:"recording_title,omitempty"`
-	RecordingConfidence float64      `json:"recording_confidence"`
-	ReleaseGroupMBID    string       `json:"release_group_mbid,omitempty"`
-	ReleaseMBID         string       `json:"release_mbid,omitempty"`
-	ReleaseTitle        string       `json:"release_title,omitempty"`
-	ReleaseDate         string       `json:"release_date,omitempty"`
-	ReleaseLabel        string       `json:"release_label,omitempty"`
-	ReleaseCountry      string       `json:"release_country,omitempty"`
-	ReleaseCatalog      string       `json:"release_catalog,omitempty"`
-	ReleaseBarcode      string       `json:"release_barcode,omitempty"`
-	ReleaseConfidence   float64      `json:"release_confidence"`
-	MatchReasons        MatchReasons `json:"match_reasons"`
+	RecordingMBID       string                 `json:"recording_mbid,omitempty"`
+	RecordingTitle      string                 `json:"recording_title,omitempty"`
+	RecordingConfidence float64                `json:"recording_confidence"`
+	ReleaseGroupMBID    string                 `json:"release_group_mbid,omitempty"`
+	ReleaseMBID         string                 `json:"release_mbid,omitempty"`
+	ReleaseTitle        string                 `json:"release_title,omitempty"`
+	ReleaseDate         string                 `json:"release_date,omitempty"`
+	ReleaseLabel        string                 `json:"release_label,omitempty"`
+	ReleaseCountry      string                 `json:"release_country,omitempty"`
+	ReleaseCatalog      string                 `json:"release_catalog,omitempty"`
+	ReleaseBarcode      string                 `json:"release_barcode,omitempty"`
+	ReleaseConfidence   float64                `json:"release_confidence"`
+	MatchReasons        MatchReasons           `json:"match_reasons"`
+	Signals             MusicConfidenceSignals `json:"signals"`
 }
 
 // MatchReasons records the individual signal contributions to a match score.
@@ -129,6 +130,70 @@ type MatchReasons struct {
 	ArtistTag    float64 `json:"artist_tag,omitempty"`
 	AlbumTag     float64 `json:"album_tag,omitempty"`
 	AlbumContext float64 `json:"album_context,omitempty"`
+}
+
+// MusicConfidenceSignals carries the album-level identification signal scores.
+// All values are 0.0–1.0; zero means the signal was unavailable or did not fire.
+type MusicConfidenceSignals struct {
+	Barcode       float64 `json:"barcode"`
+	ISRC          float64 `json:"isrc"`
+	RGNameFuzzy   float64 `json:"rgNameFuzzy"`
+	TrackCount    float64 `json:"trackCount"`
+	TrackTitleSet float64 `json:"trackTitleSet"`
+	Duration      float64 `json:"duration"`
+	AcoustID      float64 `json:"acoustid"`
+}
+
+// MusicTagSummary holds consensus tag values extracted from all files in a scan group.
+// Where tags disagree across files, the majority value wins.
+type MusicTagSummary struct {
+	AlbumArtist    string
+	AlbumTitle     string
+	Year           int
+	Barcode        string
+	Label          string
+	CatalogNumber  string
+	TotalTracks    int
+	TotalDiscs     int
+	MBZReleaseID   string
+	TrackTitles    []string
+	TrackDurations []time.Duration
+	ISRCs          []string
+}
+
+// MusicReleaseCandidate is one candidate produced by the album identification pipeline,
+// ranked by OverallConfidence descending.
+type MusicReleaseCandidate struct {
+	ArtistMBID         string
+	ArtistName         string
+	ReleaseGroupMBID   string
+	ReleaseGroupTitle  string
+	ReleaseGroupType   string
+	ReleaseMBID        string
+	ReleaseTitle       string
+	ReleaseDate        string
+	ReleaseLabel       string
+	ReleaseCountry     string
+	ReleaseBarcode     string
+	ReleaseFormat      string
+	ReleaseMediumCount int
+	ReleaseTrackCount  int
+	OverallConfidence  float64
+	Signals            MusicConfidenceSignals
+}
+
+// MusicScanGroup is a queue entry for one folder of music files pending identification.
+// It reuses UnmatchedStatus for its resolution state.
+type MusicScanGroup struct {
+	ID           string
+	FolderPath   string
+	Files        []ScannedFile
+	TotalTracks  int
+	TotalDiscs   int
+	Tags         MusicTagSummary
+	Candidates   []MusicReleaseCandidate
+	Status       UnmatchedStatus
+	DiscoveredAt time.Time
 }
 
 // MatchCandidate is a potential match for a scanned file. Item is the local

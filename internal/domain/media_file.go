@@ -16,5 +16,7 @@ type MediaFile struct {
 	Container       string
 	MatchConfidence MatchConfidence
 	MatchDetail     map[string]any // content-type-specific match evidence; nil when absent
+	SHA1            string
+	Metadata        map[string]string // content-type-specific file attributes; nil for non-music
 	AddedAt         time.Time
 }
