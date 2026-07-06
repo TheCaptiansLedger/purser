@@ -193,7 +193,6 @@ func runMediaFileContract(t *testing.T, s BackendSuite) { //nolint:cyclop
 	})
 
 	t.Run("SHA1RoundTrip", func(t *testing.T) {
-		t.Skip("not implemented yet")
 		ctx := context.Background()
 		item := newTestItem(ctx, t, s, "MF SHA1 Test")
 		mf := &domain.MediaFile{
@@ -216,7 +215,6 @@ func runMediaFileContract(t *testing.T, s BackendSuite) { //nolint:cyclop
 	})
 
 	t.Run("MetadataRoundTrip", func(t *testing.T) {
-		t.Skip("not implemented yet")
 		ctx := context.Background()
 		item := newTestItem(ctx, t, s, "MF Metadata Test")
 		meta := map[string]string{

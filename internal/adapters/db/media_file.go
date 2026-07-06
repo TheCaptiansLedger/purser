@@ -20,7 +20,7 @@ func NewMediaFileRepo(db *sql.DB) ports.MediaFileRepository {
 }
 
 const mediaFileSelectCols = `
-	id, item_id, path, size, oshash, md5, quality, resolution, codec, container, added_at, match_confidence, match_detail
+	id, item_id, path, size, oshash, md5, quality, resolution, codec, container, added_at, match_confidence, match_detail, sha1, metadata
 `
 
 func scanMediaFile(row interface{ Scan(...any) error }) (*domain.MediaFile, error) {
@@ -30,11 +30,13 @@ func scanMediaFile(row interface{ Scan(...any) error }) (*domain.MediaFile, erro
 		addedAt         string
 		matchConfidence string
 		matchDetailJSON sql.NullString
+		metadataJSON    string
 	)
 	if err := row.Scan(
 		&mf.ID, &mf.ItemID, &mf.Path, &mf.Size,
 		&mf.OSHash, &mf.MD5, &quality, &mf.Resolution,
 		&mf.Codec, &mf.Container, &addedAt, &matchConfidence, &matchDetailJSON,
+		&mf.SHA1, &metadataJSON,
 	); err != nil {
 		return nil, err
 	}
@@ -54,6 +56,12 @@ func scanMediaFile(row interface{ Scan(...any) error }) (*domain.MediaFile, erro
 			)
 		} else {
 			mf.MatchDetail = md
+		}
+	}
+	if metadataJSON != "" && metadataJSON != "{}" {
+		var meta map[string]string
+		if err := json.Unmarshal([]byte(metadataJSON), &meta); err == nil {
+			mf.Metadata = meta
 		}
 	}
 	slog.Debug("storage: loaded media file match detail",
@@ -112,12 +120,19 @@ func (r *mediaFileRepo) Save(ctx context.Context, mf *domain.MediaFile) error {
 		matchDetailJSON = string(b)
 	}
 
+	metadataJSON := "{}"
+	if len(mf.Metadata) > 0 {
+		b, _ := json.Marshal(mf.Metadata)
+		metadataJSON = string(b)
+	}
+
 	_, err := r.db.ExecContext(
 		ctx, `
 		INSERT INTO media_files(
 			id, item_id, path, size, oshash, md5,
-			quality, resolution, codec, container, added_at, match_confidence, match_detail
-		) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)
+			quality, resolution, codec, container, added_at, match_confidence, match_detail,
+			sha1, metadata
+		) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
 		ON CONFLICT(id) DO UPDATE SET
 			item_id          = excluded.item_id,
 			path             = excluded.path,
@@ -129,10 +144,13 @@ func (r *mediaFileRepo) Save(ctx context.Context, mf *domain.MediaFile) error {
 			codec            = excluded.codec,
 			container        = excluded.container,
 			match_confidence = excluded.match_confidence,
-			match_detail     = excluded.match_detail`,
+			match_detail     = excluded.match_detail,
+			sha1             = excluded.sha1,
+			metadata         = excluded.metadata`,
 		mf.ID, mf.ItemID, mf.Path, mf.Size,
 		mf.OSHash, mf.MD5, string(mf.Quality), mf.Resolution,
 		mf.Codec, mf.Container, timeToStr(mf.AddedAt), string(mc), matchDetailJSON,
+		mf.SHA1, metadataJSON,
 	)
 	if err != nil {
 		return fmt.Errorf("save media file: %w", err)

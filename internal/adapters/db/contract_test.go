@@ -8,14 +8,16 @@ import (
 func TestSQLBackend_Contract(t *testing.T) {
 	database := setupTestDB(t)
 	contract.RunAll(t, contract.BackendSuite{
-		LibraryEntries: NewLibraryEntryRepo(database),
-		Groups:         NewGroupRepo(database),
-		Items:          NewItemRepo(database),
-		MediaFiles:     NewMediaFileRepo(database),
-		People:         NewPersonRepo(database),
-		Tags:           NewTagRepo(database),
-		ExternalIDs:    NewExternalIDRepo(database),
-		Settings:       NewSettingsRepo(database),
-		Unmatched:      NewUnmatchedFileRepo(database),
+		LibraryEntries:  NewLibraryEntryRepo(database),
+		Groups:          NewGroupRepo(database),
+		Items:           NewItemRepo(database),
+		MediaFiles:      NewMediaFileRepo(database),
+		People:          NewPersonRepo(database),
+		Tags:            NewTagRepo(database),
+		ExternalIDs:     NewExternalIDRepo(database),
+		Settings:        NewSettingsRepo(database),
+		Unmatched:       NewUnmatchedFileRepo(database),
+		MusicReleases:   NewMusicReleaseRepo(database),
+		MusicScanGroups: NewMusicScanGroupRepo(database),
 	})
 }

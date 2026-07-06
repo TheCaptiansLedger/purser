@@ -277,19 +277,21 @@ type tagRecord struct {
 }
 
 type mediaFileRecord struct {
-	ID              string         `json:"id"`
-	ItemID          string         `json:"item_id"`
-	Path            string         `json:"path"`
-	Size            int64          `json:"size"`
-	OSHash          string         `json:"oshash,omitempty"`
-	MD5             string         `json:"md5,omitempty"`
-	Quality         string         `json:"quality,omitempty"`
-	Resolution      string         `json:"resolution,omitempty"`
-	Codec           string         `json:"codec,omitempty"`
-	Container       string         `json:"container,omitempty"`
-	MatchConfidence string         `json:"match_confidence,omitempty"`
-	MatchDetail     map[string]any `json:"match_detail,omitempty"`
-	AddedAt         string         `json:"added_at"`
+	ID              string            `json:"id"`
+	ItemID          string            `json:"item_id"`
+	Path            string            `json:"path"`
+	Size            int64             `json:"size"`
+	OSHash          string            `json:"oshash,omitempty"`
+	MD5             string            `json:"md5,omitempty"`
+	SHA1            string            `json:"sha1,omitempty"`
+	Quality         string            `json:"quality,omitempty"`
+	Resolution      string            `json:"resolution,omitempty"`
+	Codec           string            `json:"codec,omitempty"`
+	Container       string            `json:"container,omitempty"`
+	MatchConfidence string            `json:"match_confidence,omitempty"`
+	MatchDetail     map[string]any    `json:"match_detail,omitempty"`
+	Metadata        map[string]string `json:"metadata,omitempty"`
+	AddedAt         string            `json:"added_at"`
 }
 
 type fingerprintRecord struct {
@@ -513,6 +515,54 @@ func collectIDsForTagFilter(txn *badgerdb.Txn, key, value string, pfxFn func(str
 		})
 	}
 	return ids
+}
+
+// MusicRelease record key and secondary indexes
+func kMREL(id string) []byte               { return []byte("mrel:" + id) }
+func kMRELMBID(mbid string) []byte         { return []byte("mrel:mbid:" + mbid) }
+func kMRELBarcode(bc string) []byte        { return []byte("mrel:barcode:" + bc) }
+func kMRELGrp(groupID, id string) []byte   { return []byte("mrel:grp:" + groupID + ":" + id) }
+func kMRELEntry(entryID, id string) []byte { return []byte("mrel:entry:" + entryID + ":" + id) }
+func pfxMRELGrp(groupID string) []byte     { return []byte("mrel:grp:" + groupID + ":") }
+func pfxMRELEntry(entryID string) []byte   { return []byte("mrel:entry:" + entryID + ":") }
+
+// MusicScanGroup record key and status index
+func kMSG(id string) []byte               { return []byte("msg:" + id) }
+func kMSGStatus(status, id string) []byte { return []byte("msg:status:" + status + ":" + id) }
+func pfxMSGStatus(status string) []byte   { return []byte("msg:status:" + status + ":") }
+
+// ── Music storage structs ─────────────────────────────────────────────────────
+
+type musicReleaseRecord struct {
+	ID             string        `json:"id"`
+	GroupID        string        `json:"group_id"`
+	LibraryEntryID string        `json:"library_entry_id"`
+	Title          string        `json:"title"`
+	Country        string        `json:"country,omitempty"`
+	Date           string        `json:"date,omitempty"`
+	Label          string        `json:"label,omitempty"`
+	CatalogNumber  string        `json:"catalog_number,omitempty"`
+	Barcode        string        `json:"barcode,omitempty"`
+	Format         string        `json:"format,omitempty"`
+	MediumCount    int           `json:"medium_count"`
+	TrackCount     int           `json:"track_count"`
+	IsDefault      bool          `json:"is_default"`
+	Monitored      bool          `json:"monitored"`
+	Status         string        `json:"status"`
+	ExternalIDs    []extIDRecord `json:"external_ids,omitempty"`
+	CoverPath      string        `json:"cover_path,omitempty"`
+	AddedAt        string        `json:"added_at"`
+	UpdatedAt      string        `json:"updated_at"`
+}
+
+type musicScanGroupRecord struct {
+	ID           string                         `json:"id"`
+	FolderPath   string                         `json:"folder_path"`
+	TotalTracks  int                            `json:"total_tracks"`
+	TotalDiscs   int                            `json:"total_discs"`
+	Status       string                         `json:"status"`
+	Candidates   []domain.MusicReleaseCandidate `json:"candidates,omitempty"`
+	DiscoveredAt string                         `json:"discovered_at"`
 }
 
 // ── Person stub loader ────────────────────────────────────────────────────────

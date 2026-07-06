@@ -30,8 +30,8 @@ func TestOpen_CreatesSchema(t *testing.T) {
 	if err := database.QueryRow(`SELECT COUNT(*) FROM schema_migrations`).Scan(&count); err != nil {
 		t.Fatalf("schema_migrations missing: %v", err)
 	}
-	if count != 5 {
-		t.Errorf("migration count = %d, want 5", count)
+	if count != 8 {
+		t.Errorf("migration count = %d, want 8", count)
 	}
 
 	tables := []string{
@@ -40,7 +40,7 @@ func TestOpen_CreatesSchema(t *testing.T) {
 		"external_ids", "tags", "item_tags", "entry_tags",
 		"media_files", "releases", "downloads",
 		"entry_people", "settings", "group_tags",
-		"unmatched_files",
+		"unmatched_files", "music_releases", "music_scan_groups",
 	}
 	for _, table := range tables {
 		var n int
