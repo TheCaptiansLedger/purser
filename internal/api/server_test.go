@@ -122,7 +122,9 @@ func newHandlerWithConfigSvc(t *testing.T, cfgSvc ports.ConfigService) http.Hand
 		Log:      config.LogConfig{Level: "info", Format: "text"},
 	}
 	return api.New(0, "", cfg, dbadapter.NewStorageAdmin(database, dbPath), libSvc, peopleSvc, metaSvc, nil, tagRepo, jobQueue,
-		cfgSvc, nil, uiFS, nil, nil, nil, func() {}).Handler()
+		cfgSvc, nil, uiFS, nil, nil, nil,
+		dbadapter.NewMusicReleaseRepo(database), dbadapter.NewMusicScanGroupRepo(database),
+		func() {}).Handler()
 }
 
 // newHandlerWithDB builds a full server backed by a temp-file SQLite database
@@ -167,7 +169,9 @@ func newHandlerWithDB(t *testing.T) (http.Handler, *sql.DB) {
 		},
 		Log: config.LogConfig{Level: "info", Format: "text"},
 	}
-	return api.New(0, "", cfg, dbadapter.NewStorageAdmin(database, dbPath), libSvc, peopleSvc, metaSvc, nil, tagRepo, jobQueue, noopConfigSvc{}, nil, uiFS, nil, nil, nil, func() {}).Handler(), database
+	return api.New(0, "", cfg, dbadapter.NewStorageAdmin(database, dbPath), libSvc, peopleSvc, metaSvc, nil, tagRepo, jobQueue, noopConfigSvc{}, nil, uiFS, nil, nil, nil,
+		dbadapter.NewMusicReleaseRepo(database), dbadapter.NewMusicScanGroupRepo(database),
+		func() {}).Handler(), database
 }
 
 // newHandler builds a full server backed by a temp-file SQLite database.
@@ -224,7 +228,9 @@ func newHandlerWithMedia(t *testing.T, mediaPath string) http.Handler {
 		},
 		Log: config.LogConfig{Level: "info", Format: "text"},
 	}
-	return api.New(0, mediaPath, cfg, dbadapter.NewStorageAdmin(database, dbPath), libSvc, peopleSvc, metaSvc, nil, tagRepo, jobQueue, noopConfigSvc{}, nil, uiFS, fspkg.NewImageDownloader(mediaPath), nil, nil, func() {}).Handler()
+	return api.New(0, mediaPath, cfg, dbadapter.NewStorageAdmin(database, dbPath), libSvc, peopleSvc, metaSvc, nil, tagRepo, jobQueue, noopConfigSvc{}, nil, uiFS, fspkg.NewImageDownloader(mediaPath), nil, nil,
+		dbadapter.NewMusicReleaseRepo(database), dbadapter.NewMusicScanGroupRepo(database),
+		func() {}).Handler()
 }
 
 func do(t *testing.T, h http.Handler, method, path string, body any) *httptest.ResponseRecorder {
@@ -383,7 +389,9 @@ func TestConfig_Get_Sources_KeysMasked(t *testing.T) {
 		},
 		Log: config.LogConfig{Level: "info", Format: "text"},
 	}
-	h := api.New(0, "", cfg, dbadapter.NewStorageAdmin(database, dbPath), libSvc, peopleSvc, metaSvc, nil, tagRepo, jobQueue, noopConfigSvc{}, nil, uiFS, nil, nil, nil, func() {}).Handler()
+	h := api.New(0, "", cfg, dbadapter.NewStorageAdmin(database, dbPath), libSvc, peopleSvc, metaSvc, nil, tagRepo, jobQueue, noopConfigSvc{}, nil, uiFS, nil, nil, nil,
+		dbadapter.NewMusicReleaseRepo(database), dbadapter.NewMusicScanGroupRepo(database),
+		func() {}).Handler()
 
 	w := do(t, h, http.MethodGet, "/api/v1/config", nil)
 	if w.Code != http.StatusOK {
@@ -2458,7 +2466,9 @@ func TestJobs_Cancel_SetsStatus(t *testing.T) {
 		Database: config.DatabaseConfig{Driver: "sqlite", DSN: dbPath},
 		Log:      config.LogConfig{Level: "info", Format: "text"},
 	}
-	h := api.New(0, "", cfg, dbadapter.NewStorageAdmin(database, dbPath), libSvc, peopleSvc, metaSvc, nil, tagRepo, jobQueue, noopConfigSvc{}, nil, uiFS, nil, nil, nil, func() {}).Handler()
+	h := api.New(0, "", cfg, dbadapter.NewStorageAdmin(database, dbPath), libSvc, peopleSvc, metaSvc, nil, tagRepo, jobQueue, noopConfigSvc{}, nil, uiFS, nil, nil, nil,
+		dbadapter.NewMusicReleaseRepo(database), dbadapter.NewMusicScanGroupRepo(database),
+		func() {}).Handler()
 
 	// DELETE /api/v1/jobs/:id should cancel it.
 	w := do(t, h, http.MethodDelete, "/api/v1/jobs/"+submitted.ID, nil)
@@ -3122,7 +3132,9 @@ func newHandlerWithSources(t *testing.T, sources []ports.MetadataSource) http.Ha
 		Database: config.DatabaseConfig{Driver: "sqlite", DSN: dbPath},
 		Log:      config.LogConfig{Level: "info", Format: "text"},
 	}
-	return api.New(0, "", cfg, dbadapter.NewStorageAdmin(database, dbPath), libSvc, peopleSvc, metaSvc, nil, tagRepo, jobQueue, noopConfigSvc{}, sources, uiFS, nil, nil, nil, func() {}).Handler()
+	return api.New(0, "", cfg, dbadapter.NewStorageAdmin(database, dbPath), libSvc, peopleSvc, metaSvc, nil, tagRepo, jobQueue, noopConfigSvc{}, sources, uiFS, nil, nil, nil,
+		dbadapter.NewMusicReleaseRepo(database), dbadapter.NewMusicScanGroupRepo(database),
+		func() {}).Handler()
 }
 
 func TestVerify_BadJSON(t *testing.T) {
@@ -3261,6 +3273,7 @@ func TestDatabase_Restore_CallsShutdown(t *testing.T) {
 	shutdownCalled := make(chan struct{}, 1)
 	h := api.New(0, "", cfg, dbadapter.NewStorageAdmin(database, dbPath), libSvc, peopleSvc, metaSvc, nil, tagRepo, jobQueue,
 		noopConfigSvc{}, nil, uiFS, nil, nil, nil,
+		dbadapter.NewMusicReleaseRepo(database), dbadapter.NewMusicScanGroupRepo(database),
 		func() { shutdownCalled <- struct{}{} }).Handler()
 
 	body, ct := multipartDump(t, minimalPurserDump)
@@ -3391,7 +3404,9 @@ func newHandlerWithScan(t *testing.T) (http.Handler, *sql.DB) {
 		Log:      config.LogConfig{Level: "info", Format: "text"},
 	}
 	return api.New(0, "", cfg, dbadapter.NewStorageAdmin(database, dbPath), libSvc, peopleSvc, metaSvc, scanSvc, tagRepo, jobQueue,
-		noopConfigSvc{}, nil, uiFS, nil, nil, nil, func() {}).Handler(), database
+		noopConfigSvc{}, nil, uiFS, nil, nil, nil,
+		dbadapter.NewMusicReleaseRepo(database), dbadapter.NewMusicScanGroupRepo(database),
+		func() {}).Handler(), database
 }
 
 // ── Unmatched-files handler tests ─────────────────────────────────────────────
@@ -3636,7 +3651,9 @@ func newHandlerWithItemSource(t *testing.T, src *stubItemSource) (http.Handler, 
 		Log:      config.LogConfig{Level: "info", Format: "text"},
 	}
 	h := api.New(0, "", cfg, dbadapter.NewStorageAdmin(database, dbPath), libSvc, peopleSvc, metaSvc, nil, tagRepo, jobQueue,
-		noopConfigSvc{}, nil, uiFS, nil, nil, nil, func() {}).Handler()
+		noopConfigSvc{}, nil, uiFS, nil, nil, nil,
+		dbadapter.NewMusicReleaseRepo(database), dbadapter.NewMusicScanGroupRepo(database),
+		func() {}).Handler()
 	return h, jobQueue
 }
 
@@ -3695,5 +3712,407 @@ func TestImportItem_Async_Returns202WithJobID(t *testing.T) {
 	}
 	if completed.Result["item_id"] == "" {
 		t.Errorf("job Result[item_id] is empty")
+	}
+}
+
+// ── Music Release ─────────────────────────────────────────────────────────────
+
+// createMusicEntry creates a music artist library entry and returns its ID.
+func createMusicEntry(t *testing.T, h http.Handler) string {
+	t.Helper()
+	w := do(t, h, http.MethodPost, "/api/v1/library-entries", map[string]any{
+		"contentType": "music",
+		"kind":        "artist",
+		"name":        "Test Artist",
+	})
+	if w.Code != http.StatusCreated {
+		t.Fatalf("create entry: status %d, body: %s", w.Code, w.Body.String())
+	}
+	var resp struct {
+		ID string `json:"id"`
+	}
+	decodeJSON(t, w, &resp)
+	return resp.ID
+}
+
+// createMusicGroup creates a music release group (album) and returns its ID.
+func createMusicGroup(t *testing.T, h http.Handler, entryID string) string {
+	t.Helper()
+	w := do(t, h, http.MethodPost, "/api/v1/groups", map[string]any{
+		"libraryEntryId": entryID,
+		"title":          "Test Album",
+		"year":           1980,
+	})
+	if w.Code != http.StatusCreated {
+		t.Fatalf("create group: status %d, body: %s", w.Code, w.Body.String())
+	}
+	var resp struct {
+		ID string `json:"id"`
+	}
+	decodeJSON(t, w, &resp)
+	return resp.ID
+}
+
+func TestAPI_MusicRelease_CreateAndGet(t *testing.T) {
+	h := newHandler(t)
+	entryID := createMusicEntry(t, h)
+	groupID := createMusicGroup(t, h, entryID)
+
+	w := do(t, h, http.MethodPost, "/api/v1/music/releases", map[string]any{
+		"groupId":        groupID,
+		"libraryEntryId": entryID,
+		"title":          "Hi Infidelity",
+		"country":        "US",
+		"date":           "1980-01-01",
+		"barcode":        "074646161425",
+		"format":         "CD",
+		"mediumCount":    1,
+		"trackCount":     10,
+		"isDefault":      true,
+		"status":         "stub",
+	})
+	if w.Code != http.StatusCreated {
+		t.Fatalf("create: status %d, body: %s", w.Code, w.Body.String())
+	}
+	var created struct {
+		ID      string `json:"id"`
+		Title   string `json:"title"`
+		Barcode string `json:"barcode"`
+		Status  string `json:"status"`
+	}
+	decodeJSON(t, w, &created)
+	if created.Title != "Hi Infidelity" {
+		t.Errorf("title = %q, want Hi Infidelity", created.Title)
+	}
+	if created.Barcode != "074646161425" {
+		t.Errorf("barcode = %q, want 074646161425", created.Barcode)
+	}
+	if created.Status != "stub" {
+		t.Errorf("status = %q, want stub", created.Status)
+	}
+
+	w = do(t, h, http.MethodGet, "/api/v1/music/releases/"+created.ID, nil)
+	if w.Code != http.StatusOK {
+		t.Fatalf("get: status %d", w.Code)
+	}
+	var got struct {
+		ID          string `json:"id"`
+		GroupID     string `json:"groupId"`
+		Title       string `json:"title"`
+		Country     string `json:"country"`
+		Barcode     string `json:"barcode"`
+		Format      string `json:"format"`
+		MediumCount int    `json:"mediumCount"`
+		TrackCount  int    `json:"trackCount"`
+		IsDefault   bool   `json:"isDefault"`
+		Status      string `json:"status"`
+	}
+	decodeJSON(t, w, &got)
+	if got.ID != created.ID {
+		t.Errorf("id mismatch: got %q", got.ID)
+	}
+	if got.GroupID != groupID {
+		t.Errorf("groupId = %q, want %q", got.GroupID, groupID)
+	}
+	if got.Country != "US" {
+		t.Errorf("country = %q, want US", got.Country)
+	}
+	if got.Format != "CD" {
+		t.Errorf("format = %q, want CD", got.Format)
+	}
+	if got.MediumCount != 1 {
+		t.Errorf("mediumCount = %d, want 1", got.MediumCount)
+	}
+	if got.TrackCount != 10 {
+		t.Errorf("trackCount = %d, want 10", got.TrackCount)
+	}
+	if !got.IsDefault {
+		t.Error("isDefault should be true")
+	}
+}
+
+func TestAPI_MusicRelease_NotFound_Returns404(t *testing.T) {
+	h := newHandler(t)
+	w := do(t, h, http.MethodGet, "/api/v1/music/releases/no-such-id", nil)
+	if w.Code != http.StatusNotFound {
+		t.Errorf("status = %d, want 404", w.Code)
+	}
+}
+
+func TestAPI_MusicRelease_PatchStatus(t *testing.T) {
+	h := newHandler(t)
+	entryID := createMusicEntry(t, h)
+	groupID := createMusicGroup(t, h, entryID)
+
+	w := do(t, h, http.MethodPost, "/api/v1/music/releases", map[string]any{
+		"groupId": groupID, "libraryEntryId": entryID, "title": "Patch Status Test",
+	})
+	var created struct {
+		ID string `json:"id"`
+	}
+	decodeJSON(t, w, &created)
+
+	w = do(t, h, http.MethodPatch, "/api/v1/music/releases/"+created.ID, map[string]any{
+		"status": "imported",
+	})
+	if w.Code != http.StatusOK {
+		t.Fatalf("patch: status %d, body: %s", w.Code, w.Body.String())
+	}
+	var patched struct {
+		Status string `json:"status"`
+	}
+	decodeJSON(t, w, &patched)
+	if patched.Status != "imported" {
+		t.Errorf("status = %q, want imported", patched.Status)
+	}
+}
+
+func TestAPI_MusicRelease_PatchMonitored(t *testing.T) {
+	h := newHandler(t)
+	entryID := createMusicEntry(t, h)
+	groupID := createMusicGroup(t, h, entryID)
+
+	w := do(t, h, http.MethodPost, "/api/v1/music/releases", map[string]any{
+		"groupId": groupID, "libraryEntryId": entryID, "title": "Patch Monitored Test",
+	})
+	var created struct {
+		ID string `json:"id"`
+	}
+	decodeJSON(t, w, &created)
+
+	w = do(t, h, http.MethodPatch, "/api/v1/music/releases/"+created.ID, map[string]any{
+		"monitored": true,
+	})
+	if w.Code != http.StatusOK {
+		t.Fatalf("patch: status %d, body: %s", w.Code, w.Body.String())
+	}
+	var patched struct {
+		Monitored bool `json:"monitored"`
+	}
+	decodeJSON(t, w, &patched)
+	if !patched.Monitored {
+		t.Error("monitored should be true after patch")
+	}
+}
+
+func TestAPI_MusicRelease_Delete(t *testing.T) {
+	h := newHandler(t)
+	entryID := createMusicEntry(t, h)
+	groupID := createMusicGroup(t, h, entryID)
+
+	w := do(t, h, http.MethodPost, "/api/v1/music/releases", map[string]any{
+		"groupId": groupID, "libraryEntryId": entryID, "title": "Delete Me",
+	})
+	var created struct {
+		ID string `json:"id"`
+	}
+	decodeJSON(t, w, &created)
+
+	w = do(t, h, http.MethodDelete, "/api/v1/music/releases/"+created.ID, nil)
+	if w.Code != http.StatusNoContent {
+		t.Fatalf("delete: status %d, body: %s", w.Code, w.Body.String())
+	}
+
+	w = do(t, h, http.MethodGet, "/api/v1/music/releases/"+created.ID, nil)
+	if w.Code != http.StatusNotFound {
+		t.Errorf("get after delete: status %d, want 404", w.Code)
+	}
+}
+
+// ── Music Queue ───────────────────────────────────────────────────────────────
+
+func TestAPI_MusicQueue_CreateAndGet(t *testing.T) {
+	h := newHandler(t)
+
+	w := do(t, h, http.MethodPost, "/api/v1/music/queue", map[string]any{
+		"folderPath":  "/music/test-album",
+		"totalTracks": 10,
+		"totalDiscs":  1,
+		"status":      "pending",
+		"candidates":  []any{},
+	})
+	if w.Code != http.StatusCreated {
+		t.Fatalf("create: status %d, body: %s", w.Code, w.Body.String())
+	}
+	var created struct {
+		ID          string `json:"id"`
+		FolderPath  string `json:"folderPath"`
+		TotalTracks int    `json:"totalTracks"`
+		Status      string `json:"status"`
+	}
+	decodeJSON(t, w, &created)
+	if created.FolderPath != "/music/test-album" {
+		t.Errorf("folderPath = %q, want /music/test-album", created.FolderPath)
+	}
+	if created.TotalTracks != 10 {
+		t.Errorf("totalTracks = %d, want 10", created.TotalTracks)
+	}
+	if created.Status != "pending" {
+		t.Errorf("status = %q, want pending", created.Status)
+	}
+
+	w = do(t, h, http.MethodGet, "/api/v1/music/queue/"+created.ID, nil)
+	if w.Code != http.StatusOK {
+		t.Fatalf("get: status %d", w.Code)
+	}
+	var got struct {
+		ID         string `json:"id"`
+		FolderPath string `json:"folderPath"`
+	}
+	decodeJSON(t, w, &got)
+	if got.ID != created.ID {
+		t.Errorf("id mismatch: got %q", got.ID)
+	}
+	if got.FolderPath != "/music/test-album" {
+		t.Errorf("folderPath = %q", got.FolderPath)
+	}
+}
+
+func TestAPI_MusicQueue_ListByStatus(t *testing.T) {
+	h := newHandler(t)
+
+	w := do(t, h, http.MethodPost, "/api/v1/music/queue", map[string]any{
+		"folderPath": "/music/pending-album", "totalTracks": 5, "status": "pending",
+	})
+	if w.Code != http.StatusCreated {
+		t.Fatalf("create: status %d", w.Code)
+	}
+
+	w = do(t, h, http.MethodGet, "/api/v1/music/queue?status=pending", nil)
+	if w.Code != http.StatusOK {
+		t.Fatalf("list pending: status %d", w.Code)
+	}
+	var pending []struct {
+		ID string `json:"id"`
+	}
+	decodeJSON(t, w, &pending)
+	if len(pending) != 1 {
+		t.Errorf("pending count = %d, want 1", len(pending))
+	}
+
+	w = do(t, h, http.MethodGet, "/api/v1/music/queue?status=matched", nil)
+	if w.Code != http.StatusOK {
+		t.Fatalf("list matched: status %d", w.Code)
+	}
+	var matched []struct {
+		ID string `json:"id"`
+	}
+	decodeJSON(t, w, &matched)
+	if len(matched) != 0 {
+		t.Errorf("matched count = %d, want 0", len(matched))
+	}
+}
+
+func TestAPI_MusicQueue_Detail_AllSevenSignalFieldsPresent(t *testing.T) {
+	h := newHandler(t)
+
+	w := do(t, h, http.MethodPost, "/api/v1/music/queue", map[string]any{
+		"folderPath":  "/music/hi-infidelity",
+		"totalTracks": 10,
+		"totalDiscs":  1,
+		"status":      "pending",
+		"candidates": []any{
+			map[string]any{
+				"artistName":        "REO Speedwagon",
+				"releaseGroupTitle": "Hi Infidelity",
+				"releaseTitle":      "Hi Infidelity (Original)",
+				"overallConfidence": 0.72,
+				"signals": map[string]any{
+					"barcode":       0.0,
+					"isrc":          0.95,
+					"rgNameFuzzy":   0.62,
+					"trackCount":    0.20,
+					"trackTitleSet": 0.45,
+					"duration":      0.88,
+					"acoustid":      0.0,
+				},
+			},
+		},
+	})
+	if w.Code != http.StatusCreated {
+		t.Fatalf("create: status %d, body: %s", w.Code, w.Body.String())
+	}
+	var created struct {
+		ID string `json:"id"`
+	}
+	decodeJSON(t, w, &created)
+
+	w = do(t, h, http.MethodGet, "/api/v1/music/queue/"+created.ID, nil)
+	if w.Code != http.StatusOK {
+		t.Fatalf("get: status %d", w.Code)
+	}
+
+	var got struct {
+		Candidates []struct {
+			OverallConfidence float64 `json:"overallConfidence"`
+			Signals           struct {
+				Barcode       *float64 `json:"barcode"`
+				ISRC          *float64 `json:"isrc"`
+				RGNameFuzzy   *float64 `json:"rgNameFuzzy"`
+				TrackCount    *float64 `json:"trackCount"`
+				TrackTitleSet *float64 `json:"trackTitleSet"`
+				Duration      *float64 `json:"duration"`
+				AcoustID      *float64 `json:"acoustid"`
+			} `json:"signals"`
+		} `json:"candidates"`
+	}
+	decodeJSON(t, w, &got)
+
+	if len(got.Candidates) != 1 {
+		t.Fatalf("candidates count = %d, want 1", len(got.Candidates))
+	}
+	s := got.Candidates[0].Signals
+	if s.Barcode == nil {
+		t.Error("signals.barcode is null/missing")
+	}
+	if s.ISRC == nil {
+		t.Error("signals.isrc is null/missing")
+	}
+	if s.RGNameFuzzy == nil {
+		t.Error("signals.rgNameFuzzy is null/missing")
+	}
+	if s.TrackCount == nil {
+		t.Error("signals.trackCount is null/missing")
+	}
+	if s.TrackTitleSet == nil {
+		t.Error("signals.trackTitleSet is null/missing")
+	}
+	if s.Duration == nil {
+		t.Error("signals.duration is null/missing")
+	}
+	if s.AcoustID == nil {
+		t.Error("signals.acoustid is null/missing")
+	}
+}
+
+func TestAPI_MusicQueue_Dismiss(t *testing.T) {
+	h := newHandler(t)
+
+	w := do(t, h, http.MethodPost, "/api/v1/music/queue", map[string]any{
+		"folderPath": "/music/dismiss-me", "totalTracks": 3, "status": "pending",
+	})
+	if w.Code != http.StatusCreated {
+		t.Fatalf("create: status %d", w.Code)
+	}
+	var created struct {
+		ID string `json:"id"`
+	}
+	decodeJSON(t, w, &created)
+
+	w = do(t, h, http.MethodDelete, "/api/v1/music/queue/"+created.ID, nil)
+	if w.Code != http.StatusNoContent {
+		t.Fatalf("dismiss: status %d, body: %s", w.Code, w.Body.String())
+	}
+
+	w = do(t, h, http.MethodGet, "/api/v1/music/queue/"+created.ID, nil)
+	if w.Code != http.StatusOK {
+		t.Fatalf("get after dismiss: status %d", w.Code)
+	}
+	var got struct {
+		Status string `json:"status"`
+	}
+	decodeJSON(t, w, &got)
+	if got.Status != "dismissed" {
+		t.Errorf("status = %q, want dismissed", got.Status)
 	}
 }

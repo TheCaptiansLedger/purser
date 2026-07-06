@@ -42,12 +42,14 @@ func New(
 	imgDownloader ports.ImageDownloader,
 	gh ports.GitHubProxy,
 	caches []*cache.Cache,
+	musicReleases ports.MusicReleaseRepository,
+	musicScanGroups ports.MusicScanGroupRepository,
 	shutdownFn func(),
 ) *Server {
 	s := &Server{
 		router: chi.NewRouter(),
 	}
-	s.mount(mediaPath, cfg, store, libSvc, peopleSvc, metaSvc, scanSvc, tagRepo, jobQueue, cfgSvc, sources, uiFS, imgDownloader, gh, caches, shutdownFn)
+	s.mount(mediaPath, cfg, store, libSvc, peopleSvc, metaSvc, scanSvc, tagRepo, jobQueue, cfgSvc, sources, uiFS, imgDownloader, gh, caches, musicReleases, musicScanGroups, shutdownFn)
 	s.httpServer = &http.Server{
 		Addr:         fmt.Sprintf(":%d", port),
 		Handler:      s.router,
@@ -74,6 +76,8 @@ func (s *Server) mount(
 	imgDownloader ports.ImageDownloader,
 	gh ports.GitHubProxy,
 	caches []*cache.Cache,
+	musicReleases ports.MusicReleaseRepository,
+	musicScanGroups ports.MusicScanGroupRepository,
 	shutdownFn func(),
 ) {
 	r := s.router
@@ -103,13 +107,20 @@ func (s *Server) mount(
 			r.Delete("/{id}/banner", imgSetH.clearEntryBanner)
 		})
 
+		musicReleaseH := &musicReleaseHandler{releases: musicReleases}
+		musicQueueH := &musicQueueHandler{queue: musicScanGroups}
+
 		groupH := &groupHandler{svc: libSvc}
 		r.Route("/groups", func(r chi.Router) {
 			groupH.routes(r)
 			r.Get("/{id}/provider-images", providerImagesH.forGroup)
 			r.Post("/{id}/image", imgSetH.setGroupImage)
 			r.Delete("/{id}/image", imgSetH.clearGroupImage)
+			r.Get("/{id}/releases", musicReleaseH.listByGroup)
 		})
+
+		r.Route("/music/releases", musicReleaseH.routes)
+		r.Route("/music/queue", musicQueueH.routes)
 
 		itemH := &itemHandler{svc: libSvc}
 		r.Route("/items", func(r chi.Router) {

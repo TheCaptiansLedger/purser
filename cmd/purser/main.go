@@ -75,7 +75,7 @@ func run(cfgPath string) error {
 		return fmt.Errorf("ensure media dirs: %w", err)
 	}
 
-	entryRepo, groupRepo, itemRepo, personRepo, tagRepo, extIDRepo, settingsRepo, storageAdmin, mediaFileRepo, unmatchedRepo, closeStorage, err := openStorage(cfg)
+	entryRepo, groupRepo, itemRepo, personRepo, tagRepo, extIDRepo, settingsRepo, storageAdmin, mediaFileRepo, unmatchedRepo, musicReleaseRepo, musicScanGroupRepo, closeStorage, err := openStorage(cfg)
 	if err != nil {
 		return fmt.Errorf("open storage: %w", err)
 	}
@@ -135,7 +135,7 @@ func run(cfgPath string) error {
 		shutdown()
 	}()
 
-	srv := api.New(cfg.Server.Port, cfg.Media.Path, cfg, storageAdmin, libSvc, peopleSvc, metaSvc, scanSvc, tagRepo, jobQueue, cfgSvc, sources, uiFS, imgDownloader, ghAdapter, caches.all(), shutdown)
+	srv := api.New(cfg.Server.Port, cfg.Media.Path, cfg, storageAdmin, libSvc, peopleSvc, metaSvc, scanSvc, tagRepo, jobQueue, cfgSvc, sources, uiFS, imgDownloader, ghAdapter, caches.all(), musicReleaseRepo, musicScanGroupRepo, shutdown)
 
 	go func() {
 		if err := scanSvc.StartWatching(lifecycleCtx, modulesFromConfig(cfg)); err != nil {
@@ -172,6 +172,8 @@ func openStorage(cfg *config.Config) (
 	ports.StorageAdminPort,
 	ports.MediaFileRepository,
 	ports.UnmatchedFileRepository,
+	ports.MusicReleaseRepository,
+	ports.MusicScanGroupRepository,
 	func(),
 	error,
 ) {
@@ -179,7 +181,7 @@ func openStorage(cfg *config.Config) (
 	case "badger":
 		bdb, err := badgeradapter.Open(cfg.Database.Badger)
 		if err != nil {
-			return nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, fmt.Errorf("open badger: %w", err)
+			return nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, fmt.Errorf("open badger: %w", err)
 		}
 		return badgeradapter.NewLibraryEntryRepo(bdb),
 			badgeradapter.NewGroupRepo(bdb),
@@ -191,12 +193,14 @@ func openStorage(cfg *config.Config) (
 			badgeradapter.NewStorageAdmin(bdb, cfg.Database.Badger.DataDir),
 			badgeradapter.NewMediaFileRepo(bdb),
 			badgeradapter.NewUnmatchedFileRepo(bdb),
+			badgeradapter.NewMusicReleaseRepo(bdb),
+			badgeradapter.NewMusicScanGroupRepo(bdb),
 			func() { _ = bdb.Close() },
 			nil
 	default: // "sqlite"
 		sqldb, err := db.Open(cfg.Database.DSN)
 		if err != nil {
-			return nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, fmt.Errorf("open sqlite: %w", err)
+			return nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, fmt.Errorf("open sqlite: %w", err)
 		}
 		return db.NewLibraryEntryRepo(sqldb),
 			db.NewGroupRepo(sqldb),
@@ -208,6 +212,8 @@ func openStorage(cfg *config.Config) (
 			db.NewStorageAdmin(sqldb, cfg.Database.DSN),
 			db.NewMediaFileRepo(sqldb),
 			db.NewUnmatchedFileRepo(sqldb),
+			db.NewMusicReleaseRepo(sqldb),
+			db.NewMusicScanGroupRepo(sqldb),
 			func() { _ = sqldb.Close() },
 			nil
 	}

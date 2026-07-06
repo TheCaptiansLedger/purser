@@ -102,6 +102,50 @@ go test -tags integration -timeout 300s ./internal/adapters/...
 | `lastfm` | `PURSER_SOURCES_LASTFM_API_KEY` | |
 | `theaudiodb` | `PURSER_SOURCES_THEAUDIODB_API_KEY` | Free tier uses key `123` |
 
+## k6 API Tests
+
+End-to-end API tests live in `tests/k6/`. They require a running server (`make up`) and k6 installed (`brew install k6`).
+
+```
+tests/k6/
+  config.js              # shared base URL, options, and helpers
+  endpoints/             # one file per endpoint group — verify each route works correctly
+  flows/                 # multi-step scenarios — verify complete user-facing workflows
+```
+
+### Running
+
+```bash
+# Single endpoint group
+k6 run tests/k6/endpoints/music-releases.js
+k6 run tests/k6/endpoints/music-queue.js
+
+# Complete flow
+k6 run tests/k6/flows/music-import-flow.js
+
+# All endpoint tests
+k6 run tests/k6/endpoints/*.js
+
+# Override the base URL (e.g. staging)
+BASE_URL=http://staging:7474/api/v1 k6 run tests/k6/flows/music-import-flow.js
+```
+
+### Load testing
+
+The same scripts double as load tests — pass `--vus` and `--duration` to override the default single-iteration run:
+
+```bash
+k6 run --vus 20 --duration 30s tests/k6/endpoints/music-releases.js
+k6 run --vus 10 --duration 60s tests/k6/flows/music-import-flow.js
+```
+
+### Conventions
+
+- `config.js` sets `vus: 1, iterations: 1` so the default run is a functional smoke test.
+- Each endpoint file tests one logical group of routes (create, read, patch, delete, list).
+- Each flow file tests a complete user-facing scenario using `group()` blocks.
+- When a new endpoint is added, add or update the corresponding file in `endpoints/`. When a new user flow is implemented, add a file in `flows/`.
+
 ## Frontend Rules
 
 The frontend must include unit tests. No shipping frontend code without test coverage.

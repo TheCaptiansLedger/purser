@@ -15,6 +15,9 @@ data/
 # Dev data directory (writable DB used by compose.dev.yml)
 data/
 
+# BadgerDB data directory created when running the server locally outside Docker
+purser-data/
+
 # Env with real secrets
 .env
 .envrc
