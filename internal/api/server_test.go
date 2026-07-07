@@ -3125,7 +3125,7 @@ func newHandlerWithSources(t *testing.T, sources []ports.MetadataSource) http.Ha
 	tagRepo := dbadapter.NewTagRepo(database)
 	jobQueue := jobsadapter.New(1)
 	t.Cleanup(jobQueue.Close)
-	metaSvc := metadata.New(nil, jobQueue, dbadapter.NewLibraryEntryRepo(database), dbadapter.NewGroupRepo(database), dbadapter.NewItemRepo(database), dbadapter.NewPersonRepo(database), dbadapter.NewTagRepo(database), dbadapter.NewExternalIDRepo(database), nil)
+	metaSvc := metadata.New(sources, jobQueue, dbadapter.NewLibraryEntryRepo(database), dbadapter.NewGroupRepo(database), dbadapter.NewItemRepo(database), dbadapter.NewPersonRepo(database), dbadapter.NewTagRepo(database), dbadapter.NewExternalIDRepo(database), nil)
 	uiFS, _ := fs.Sub(web.Dist, "dist")
 	cfg := &config.Config{
 		Server:   config.ServerConfig{Port: 0, Workers: 1},
@@ -3180,6 +3180,106 @@ func TestVerify_Source_OK(t *testing.T) {
 	}
 	if resp.Error != "" {
 		t.Errorf("error = %q, want empty", resp.Error)
+	}
+}
+
+// ── GET /api/v1/metadata/entries/enrich ──────────────────────────────────────
+
+// stubEnrichSource is a MetadataSource that also implements EntryMetadataSource.
+type stubEnrichSource struct {
+	stubSource
+	meta map[string]any
+	err  error
+}
+
+func (s *stubEnrichSource) FetchEntryMetadata(_ context.Context, _ domain.ContentType, _ string) (map[string]any, error) {
+	return s.meta, s.err
+}
+
+func TestAPI_Enrich_MissingParams(t *testing.T) {
+	h := newHandler(t)
+	cases := []string{
+		"/api/v1/metadata/entries/enrich",
+		"/api/v1/metadata/entries/enrich?source=musicbrainz&contentType=music",
+		"/api/v1/metadata/entries/enrich?source=musicbrainz&externalId=abc",
+		"/api/v1/metadata/entries/enrich?externalId=abc&contentType=music",
+	}
+	for _, path := range cases {
+		w := do(t, h, http.MethodGet, path, nil)
+		if w.Code != http.StatusBadRequest {
+			t.Errorf("path %q: status = %d, want 400", path, w.Code)
+		}
+	}
+}
+
+func TestAPI_Enrich_UnknownSource(t *testing.T) {
+	h := newHandler(t)
+	w := do(t, h, http.MethodGet, "/api/v1/metadata/entries/enrich?source=bogus&externalId=abc&contentType=music", nil)
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want 400", w.Code)
+	}
+	var resp struct {
+		Code string `json:"code"`
+	}
+	decodeJSON(t, w, &resp)
+	if resp.Code != "UNKNOWN_SOURCE" {
+		t.Errorf("code = %q, want UNKNOWN_SOURCE", resp.Code)
+	}
+}
+
+func TestAPI_Enrich_SourceNotSupported(t *testing.T) {
+	stub := &stubSource{name: "nosupport"}
+	h := newHandlerWithSources(t, []ports.MetadataSource{stub})
+	w := do(t, h, http.MethodGet, "/api/v1/metadata/entries/enrich?source=nosupport&externalId=abc&contentType=music", nil)
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want 400", w.Code)
+	}
+	var resp struct {
+		Code string `json:"code"`
+	}
+	decodeJSON(t, w, &resp)
+	if resp.Code != "NOT_SUPPORTED" {
+		t.Errorf("code = %q, want NOT_SUPPORTED", resp.Code)
+	}
+}
+
+func TestAPI_Enrich_NotFound(t *testing.T) {
+	stub := &stubEnrichSource{
+		stubSource: stubSource{name: "teststub"},
+		err:        ports.ErrNotFound,
+	}
+	h := newHandlerWithSources(t, []ports.MetadataSource{stub})
+	w := do(t, h, http.MethodGet, "/api/v1/metadata/entries/enrich?source=teststub&externalId=bad&contentType=music", nil)
+	if w.Code != http.StatusNotFound {
+		t.Fatalf("status = %d, want 404", w.Code)
+	}
+}
+
+func TestAPI_Enrich_Success(t *testing.T) {
+	stub := &stubEnrichSource{
+		stubSource: stubSource{name: "teststub"},
+		meta: map[string]any{
+			"artist_type":  "group",
+			"founded_date": "1967",
+			"aliases":      []string{"REO Speedwagon", "Reo Speedwagon"},
+			"official_url": "https://reospeedwagon.com",
+		},
+	}
+	h := newHandlerWithSources(t, []ports.MetadataSource{stub})
+	w := do(t, h, http.MethodGet, "/api/v1/metadata/entries/enrich?source=teststub&externalId=reo-mbid&contentType=music", nil)
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200 — body: %s", w.Code, w.Body.String())
+	}
+	var meta map[string]any
+	decodeJSON(t, w, &meta)
+	if meta["artist_type"] != "group" {
+		t.Errorf("artist_type = %q, want group", meta["artist_type"])
+	}
+	if meta["founded_date"] != "1967" {
+		t.Errorf("founded_date = %q, want 1967", meta["founded_date"])
+	}
+	if meta["official_url"] != "https://reospeedwagon.com" {
+		t.Errorf("official_url = %q, want https://reospeedwagon.com", meta["official_url"])
 	}
 }
 

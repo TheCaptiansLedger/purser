@@ -136,3 +136,11 @@ type ReleaseGroupContentSource interface {
 type ISRCLookupSource interface {
 	LookupISRC(ctx context.Context, isrc string) (rgMBID string, err error)
 }
+
+// EntryMetadataSource is an optional sub-interface implemented by sources that
+// return key-value metadata for a single entry. MusicBrainz implements this to
+// expose artist enrichment keys (artist_type, aliases, founded_date, etc.) that
+// do not fit the ExternalItem or ExternalStudio shapes.
+type EntryMetadataSource interface {
+	FetchEntryMetadata(ctx context.Context, contentType domain.ContentType, externalID string) (map[string]any, error)
+}

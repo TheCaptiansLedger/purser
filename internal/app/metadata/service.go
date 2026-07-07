@@ -105,6 +105,21 @@ func (s *Service) FetchArtistDiscography(
 	return groups, total, nil
 }
 
+// FetchEntryMetadata fetches enrichment key-value metadata for a single entry
+// from the named source. Returns a ValidationError when the source is unknown
+// and ErrNotSupported when the source does not implement EntryMetadataSource.
+func (s *Service) FetchEntryMetadata(ctx context.Context, source domain.ExternalIDSource, contentType domain.ContentType, externalID string) (map[string]any, error) {
+	src := s.sourceByName(string(source))
+	if src == nil {
+		return nil, errs.Validation(fmt.Sprintf("unknown metadata source %q", source))
+	}
+	ems, ok := src.(ports.EntryMetadataSource)
+	if !ok {
+		return nil, ports.ErrNotSupported
+	}
+	return ems.FetchEntryMetadata(ctx, contentType, externalID)
+}
+
 // SearchTracksRequest carries the parameters for a metadata-backed track lookup.
 type SearchTracksRequest struct {
 	Source      domain.ExternalIDSource

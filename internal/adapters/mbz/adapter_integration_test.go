@@ -17,6 +17,11 @@ import (
 // Stable since MBZ inception; used as an anchor for all integration tests.
 const beatlesMBID = "b10bbbfc-cf9e-42e0-be17-e2c3e1d2600d"
 
+// reoSpeedwagonMBID is REO Speedwagon's canonical MusicBrainz identifier.
+// Used as the anchor for artist enrichment tests — their metadata is stable
+// and all enrichment fields (aliases, ISNI, URL relations) are well-populated.
+const reoSpeedwagonMBID = "bdc70372-7e8a-4cb9-8d33-f036b3b7cdc1"
+
 func newIntegrationAdapter() *mbz.Adapter {
 	return mbz.New(config.MetadataSourceConfig{}, nil)
 }
@@ -24,6 +29,43 @@ func newIntegrationAdapter() *mbz.Adapter {
 func integrationCtx(t *testing.T) (context.Context, context.CancelFunc) {
 	t.Helper()
 	return context.WithTimeout(context.Background(), 30*time.Second)
+}
+
+// TestMBZAdapter_Integration_REOSpeedwagon_Enrichment verifies that
+// FetchEntryMetadata populates all enrichment keys for a known group artist.
+func TestMBZAdapter_Integration_REOSpeedwagon_Enrichment(t *testing.T) {
+	a := newIntegrationAdapter()
+	ctx, cancel := integrationCtx(t)
+	defer cancel()
+
+	meta, err := a.FetchEntryMetadata(ctx, domain.ContentTypeMusic, reoSpeedwagonMBID)
+	if err != nil {
+		t.Fatalf("FetchEntryMetadata: %v", err)
+	}
+
+	t.Logf("enrichment metadata: %v", meta)
+
+	if meta["artist_type"] != "group" {
+		t.Errorf("artist_type = %q, want group", meta["artist_type"])
+	}
+	if v, _ := meta["founded_date"].(string); v == "" {
+		t.Errorf("founded_date is empty, want non-empty string")
+	}
+	if v, _ := meta["founded_location"].(string); v == "" {
+		t.Errorf("founded_location is empty, want non-empty string")
+	}
+	if _, ok := meta["aliases"]; !ok {
+		t.Error("aliases key must be present")
+	}
+	if v, _ := meta["official_url"].(string); v == "" {
+		t.Errorf("official_url is empty, want non-empty string")
+	}
+	if v, _ := meta["lastfm_url"].(string); v == "" {
+		t.Errorf("lastfm_url is empty, want non-empty string")
+	}
+	if _, ok := meta["born_date"]; ok {
+		t.Error("born_date must not be set for a group artist")
+	}
 }
 
 // TestMBZ_SearchStudios verifies the artist search returns both groups and solo

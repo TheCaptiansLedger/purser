@@ -1,6 +1,7 @@
 package api
 
 import (
+	"errors"
 	"net/http"
 	"purser/internal/app/errs"
 	"purser/internal/app/metadata"
@@ -19,6 +20,7 @@ type metadataHandler struct {
 func (h *metadataHandler) routes(r chi.Router) {
 	r.Get("/search", h.search)
 	r.Get("/discography", h.discography)
+	r.Get("/entries/enrich", h.enrich)
 	r.Post("/entries/import", h.importEntry)
 	r.Post("/people/import", h.importPerson)
 	r.Post("/albums/import", h.importAlbum)
@@ -96,6 +98,38 @@ func (h *metadataHandler) search(w http.ResponseWriter, r *http.Request) {
 	default:
 		writeError(w, http.StatusBadRequest, "INVALID_KIND", "kind must be studio, person, or track")
 	}
+}
+
+// ── Enrich ────────────────────────────────────────────────────────────────────
+
+// GET /api/v1/metadata/entries/enrich?source=musicbrainz&externalId={id}&contentType=music
+func (h *metadataHandler) enrich(w http.ResponseWriter, r *http.Request) {
+	q := r.URL.Query()
+	source := domain.ExternalIDSource(q.Get("source"))
+	externalID := q.Get("externalId")
+	contentType := domain.ContentType(q.Get("contentType"))
+	if source == "" || externalID == "" || contentType == "" {
+		writeError(w, http.StatusBadRequest, "MISSING_PARAMS", "source, externalId, and contentType are required")
+		return
+	}
+	meta, err := h.svc.FetchEntryMetadata(r.Context(), source, contentType, externalID)
+	if err != nil {
+		if errs.IsValidation(err) {
+			writeError(w, http.StatusBadRequest, "UNKNOWN_SOURCE", err.Error())
+			return
+		}
+		if errors.Is(err, ports.ErrNotSupported) {
+			writeError(w, http.StatusBadRequest, "NOT_SUPPORTED", "source does not support metadata enrichment")
+			return
+		}
+		if errors.Is(err, ports.ErrNotFound) {
+			writeError(w, http.StatusNotFound, "NOT_FOUND", "external ID not found in source")
+			return
+		}
+		writeError(w, http.StatusInternalServerError, "FETCH_ERROR", "failed to fetch enrichment metadata")
+		return
+	}
+	writeJSON(w, http.StatusOK, meta)
 }
 
 // ── Import entry ──────────────────────────────────────────────────────────────
