@@ -24,3 +24,13 @@ type MusicScanGroupRepository interface {
 	Save(ctx context.Context, g *domain.MusicScanGroup) error
 	Delete(ctx context.Context, id string) error
 }
+
+// AlbumImporter imports an identified release when the album identifier's overall
+// confidence meets the auto-import threshold. Implementations create the Release,
+// its Tracks, MediaFiles, and write MBZ IDs back to file tags. The album
+// identifier depends only on this seam so that the identification and import
+// concerns stay decoupled — the concrete importer is supplied by the music
+// import service.
+type AlbumImporter interface {
+	ImportRelease(ctx context.Context, candidate domain.MusicReleaseCandidate, group ScannedFileGroup) error
+}

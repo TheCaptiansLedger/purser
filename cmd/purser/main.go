@@ -110,12 +110,16 @@ func run(cfgPath string) error {
 	thumbnailCache := fsadapter.NewThumbnailCache(cfg.Media.Path)
 	musicGrouper := identifier.NewMusicFolderGrouper()
 	musicGroupQueueWriter := identifier.NewMusicGroupQueueWriter(musicScanGroupRepo)
+	musicAlbumID := identifier.NewMusicAlbumIdentifier(
+		musicScanGroupRepo, musicReleaseRepo, sources,
+		identifier.NewNoopAlbumImporter(), 0.85,
+	)
 	scanSvc := appscan.New(
 		scanner, watcher,
 		[]ports.FileFingerprinter{videoFP, musicFP, bookFP},
 		[]ports.FileIdentifier{adultID, musicID, videoID, bookID},
 		[]ports.FileGrouper{musicGrouper},
-		[]ports.GroupIdentifier{musicGroupQueueWriter},
+		[]ports.GroupIdentifier{musicGroupQueueWriter, musicAlbumID},
 		itemRepo, mediaFileRepo, unmatchedRepo, noopNotifier, 0.85,
 		jobQueue, entryRepo, groupRepo,
 		thumbnailCache, buildUpgradeMode(cfg),
