@@ -217,4 +217,56 @@ export default function () {
 
     http.del(`${BASE_URL}/music/queue/${id}`);
   });
+
+  // ── FLOW 5: rg signal scores — round-trip integrity ────────────────────────
+  // ScoreBarcodeSignal, ScoreISRCSignal, ScoreFuzzyNameSignal, FilterByTrackCount
+  // produce MusicConfidenceSignals values stored on each candidate.
+  // This flow verifies all seven signal fields survive the storage round-trip
+  // as numbers — not null, not string.
+
+  group('rg signal scores: all seven present and typed correctly after round-trip', () => {
+    const signals = {
+      barcode:       0.0,
+      isrc:          0.0,
+      rgNameFuzzy:   0.75,
+      trackCount:    0.20,
+      trackTitleSet: 0.60,
+      duration:      0.0,
+      acoustid:      0.0,
+    };
+
+    const createRes = http.post(`${BASE_URL}/music/queue`,
+      JSON.stringify({
+        folderPath:  '/music/rg-signals-round-trip',
+        totalTracks: 10,
+        totalDiscs:  1,
+        status:      'pending',
+        candidates:  [{
+          artistName:        'REO Speedwagon',
+          releaseGroupTitle: 'Hi Infidelity',
+          releaseTitle:      'Hi Infidelity',
+          overallConfidence: 0.55,
+          signals:           signals,
+        }],
+      }),
+      { headers: JSON_HEADERS });
+    check(createRes, { 'created 201': r => r.status === 201 });
+    const id = createRes.json('id');
+
+    const getRes = http.get(`${BASE_URL}/music/queue/${id}`);
+    const gotSignals = getRes.json('candidates.0.signals');
+    check(getRes, {
+      'get 200':                            r => r.status === 200,
+      'all seven signal fields present':    () => Object.keys(gotSignals).length === 7,
+      'no null signal values':              () => Object.values(gotSignals).every(v => v !== null),
+      'all signal values are numbers':      () => Object.values(gotSignals).every(v => typeof v === 'number'),
+      'rgNameFuzzy round-trips correctly':  () => gotSignals.rgNameFuzzy === 0.75,
+      'barcode zero as number not null':    () => gotSignals.barcode === 0.0,
+      'isrc zero as number not null':       () => gotSignals.isrc === 0.0,
+      'duration zero as number not null':   () => gotSignals.duration === 0.0,
+      'acoustid zero as number not null':   () => gotSignals.acoustid === 0.0,
+    });
+
+    http.del(`${BASE_URL}/music/queue/${id}`);
+  });
 }
