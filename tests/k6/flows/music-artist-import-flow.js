@@ -6,12 +6,15 @@
 //
 // Stevie Nicks (solo/Person): artist_type=person, born_date, born_location.
 //
+// Also verifies that the releases-by-group endpoint returns barcode and
+// isDefault fields correctly when releases are created directly.
+//
 // Functional: k6 run tests/k6/flows/music-artist-import-flow.js
 // Load:       k6 run --vus 10 --duration 60s tests/k6/flows/music-artist-import-flow.js
 
 import http from 'k6/http';
 import { check, group } from 'k6';
-import { BASE_URL, options } from '../config.js';
+import { BASE_URL, options, JSON_HEADERS } from '../config.js';
 
 export { options };
 
@@ -53,5 +56,49 @@ export default function () {
       });
     });
 
+  });
+
+  group('barcode lookup: releases endpoint returns barcode and isDefault fields', () => {
+    // Create a group with multiple releases, one carrying the Hi Infidelity
+    // 2024 Digital barcode. Verifies the releases-by-group endpoint correctly
+    // round-trips barcode and isDefault, decoupled from the import pipeline.
+    //
+    // Full pipeline verification (import REO Speedwagon → FetchReleaseGroupReleases
+    // populates releases automatically) requires Task 15 (#407).
+    const entryRes = http.post(`${BASE_URL}/library-entries`,
+      JSON.stringify({ kind: 'artist', contentType: 'music', name: 'REO Speedwagon' }),
+      { headers: JSON_HEADERS });
+    check(entryRes, { 'create entry 201': r => r.status === 201 });
+    const entryId = entryRes.json('id');
+
+    const groupRes = http.post(`${BASE_URL}/groups`,
+      JSON.stringify({ libraryEntryId: entryId, title: 'Hi Infidelity', year: 1980 }),
+      { headers: JSON_HEADERS });
+    check(groupRes, { 'create group 201': r => r.status === 201 });
+    const groupId = groupRes.json('id');
+
+    const targetBarcode = '074646161425';
+    const editionCount  = 5;
+    for (let i = 0; i < editionCount; i++) {
+      const rr = http.post(`${BASE_URL}/music/releases`,
+        JSON.stringify({
+          groupId,
+          libraryEntryId: entryId,
+          title:    `Hi Infidelity Edition ${i + 1}`,
+          barcode:  i === 0 ? targetBarcode : `0000000000${i}`,
+          isDefault: i === 0,
+          status:   'stub',
+        }),
+        { headers: JSON_HEADERS });
+      check(rr, { [`create release ${i + 1} 201`]: r => r.status === 201 });
+    }
+
+    const listRes = http.get(`${BASE_URL}/groups/${groupId}/releases`);
+    check(listRes, {
+      'list 200':                           r => r.status === 200,
+      'list: has 5 releases':               r => r.json().length === editionCount,
+      'list: barcode 074646161425 present': r => r.json().some(rel => rel.barcode === targetBarcode),
+      'list: exactly one isDefault=true':   r => r.json().filter(rel => rel.isDefault).length === 1,
+    });
   });
 }

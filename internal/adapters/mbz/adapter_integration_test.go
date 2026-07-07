@@ -9,6 +9,7 @@ import (
 	"purser/internal/config"
 	"purser/internal/domain"
 	"purser/internal/ports"
+	"strings"
 	"testing"
 	"time"
 )
@@ -359,6 +360,109 @@ func TestIntegrationRecordingGroupMBID(t *testing.T) {
 		t.Errorf("ReleaseDetail.ReleaseMBID (%q) == GroupExternalID (%q); release and release group are different MBZ entities",
 			item.ReleaseDetail.ReleaseMBID, item.GroupExternalID)
 	}
+}
+
+// TestMBZAdapter_Integration_HiInfidelity_AllReleases verifies that
+// FetchReleaseGroupReleases returns all known pressings for REO Speedwagon's
+// "Hi Infidelity" release group: ≥5 releases, the 2024 Digital edition with
+// barcode 074646161425 must be present, and exactly one release is IsDefault.
+func TestMBZAdapter_Integration_HiInfidelity_AllReleases(t *testing.T) {
+	a := newIntegrationAdapter()
+
+	// Step 1 — locate the Hi Infidelity release group in REO Speedwagon's discography.
+	var hiInfMBID string
+	for page := 1; page <= 5 && hiInfMBID == ""; page++ {
+		ctx, cancel := integrationCtx(t)
+		groups, _, _, err := a.FetchEntryContent(ctx, domain.ContentTypeMusic, reoSpeedwagonMBID, page, 20)
+		cancel()
+		if err != nil {
+			t.Fatalf("FetchEntryContent (page %d): %v", page, err)
+		}
+		for _, g := range groups {
+			if containsFold(g.Title, "hi infidelity") {
+				hiInfMBID = g.ExternalID
+				break
+			}
+		}
+		if len(groups) == 0 {
+			break
+		}
+	}
+	if hiInfMBID == "" {
+		t.Skip("Hi Infidelity release group not found in REO Speedwagon discography")
+	}
+
+	// Step 2 — fetch all known releases for Hi Infidelity.
+	ctx, cancel := integrationCtx(t)
+	defer cancel()
+
+	releases, err := a.FetchReleaseGroupReleases(ctx, hiInfMBID)
+	if err != nil {
+		t.Fatalf("FetchReleaseGroupReleases: %v", err)
+	}
+
+	t.Logf("Hi Infidelity: %d releases (rg=%s)", len(releases), hiInfMBID)
+	for _, r := range releases {
+		t.Logf("  %s %q country=%s date=%s barcode=%q is_default=%v",
+			r.MBID, r.Title, r.Country, r.Date, r.Barcode, r.IsDefault)
+	}
+
+	if len(releases) < 5 {
+		t.Errorf("expected ≥5 releases, got %d", len(releases))
+	}
+
+	hasExpectedBarcode := false
+	for _, r := range releases {
+		if r.Barcode == "074646161425" {
+			hasExpectedBarcode = true
+			break
+		}
+	}
+	if !hasExpectedBarcode {
+		t.Error("barcode 074646161425 (2024 Digital edition) not found in releases")
+	}
+
+	defaultCount := 0
+	for _, r := range releases {
+		if r.IsDefault {
+			defaultCount++
+		}
+	}
+	if defaultCount != 1 {
+		t.Errorf("expected exactly 1 IsDefault release, got %d", defaultCount)
+	}
+}
+
+// TestMBZAdapter_Integration_BarcodeToRelease verifies that barcode 074646161425
+// resolves to a Hi Infidelity release. Multiple pressings share this barcode;
+// the test asserts the barcode is echoed back and the title matches rather than
+// pinning a specific MBID (which varies by MBZ search ranking).
+func TestMBZAdapter_Integration_BarcodeToRelease(t *testing.T) {
+	a := newIntegrationAdapter()
+	ctx, cancel := integrationCtx(t)
+	defer cancel()
+
+	rel, err := a.GetReleaseByBarcode(ctx, "074646161425")
+	if err != nil {
+		t.Fatalf("GetReleaseByBarcode: %v", err)
+	}
+	if rel == nil {
+		t.Fatal("GetReleaseByBarcode returned nil for barcode 074646161425")
+	}
+
+	t.Logf("release: %s %q country=%s date=%s barcode=%s", rel.MBID, rel.Title, rel.Country, rel.Date, rel.Barcode)
+
+	if rel.MBID == "" {
+		t.Error("MBID is empty")
+	}
+	if !containsFold(rel.Title, "hi infidelity") {
+		t.Errorf("Title = %q, expected to contain 'Hi Infidelity'", rel.Title)
+	}
+}
+
+// containsFold is a case-insensitive substring check used in integration tests.
+func containsFold(s, substr string) bool {
+	return strings.Contains(strings.ToLower(s), strings.ToLower(substr))
 }
 
 // TestMBZ_FetchGroupContent verifies that tracks for a release-group can be

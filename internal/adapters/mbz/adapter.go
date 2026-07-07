@@ -22,16 +22,19 @@ const cacheTTL = 24 * time.Hour
 
 // Compile-time interface assertions.
 var (
-	_ ports.MetadataSource      = (*Adapter)(nil)
-	_ ports.StudioSearchSource  = (*Adapter)(nil)
-	_ ports.PeopleSearchSource  = (*Adapter)(nil)
-	_ ports.PersonRoleSource    = (*Adapter)(nil)
-	_ ports.ItemSearchSource    = (*Adapter)(nil)
-	_ ports.ExternalIDSource    = (*Adapter)(nil)
-	_ ports.EntryContentSource  = (*Adapter)(nil)
-	_ ports.GroupContentSource  = (*Adapter)(nil)
-	_ ports.EntryPeopleSource   = (*Adapter)(nil)
-	_ ports.EntryMetadataSource = (*Adapter)(nil)
+	_ ports.MetadataSource            = (*Adapter)(nil)
+	_ ports.StudioSearchSource        = (*Adapter)(nil)
+	_ ports.PeopleSearchSource        = (*Adapter)(nil)
+	_ ports.PersonRoleSource          = (*Adapter)(nil)
+	_ ports.ItemSearchSource          = (*Adapter)(nil)
+	_ ports.ExternalIDSource          = (*Adapter)(nil)
+	_ ports.EntryContentSource        = (*Adapter)(nil)
+	_ ports.GroupContentSource        = (*Adapter)(nil)
+	_ ports.EntryPeopleSource         = (*Adapter)(nil)
+	_ ports.EntryMetadataSource       = (*Adapter)(nil)
+	_ ports.ReleaseGroupContentSource = (*Adapter)(nil)
+	_ ports.BarcodeLookupSource       = (*Adapter)(nil)
+	_ ports.ISRCLookupSource          = (*Adapter)(nil)
 )
 
 // ImagePriority returns 0 — MusicBrainz does not provide images.

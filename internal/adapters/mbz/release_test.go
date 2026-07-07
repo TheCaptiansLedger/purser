@@ -2,13 +2,283 @@ package mbz_test
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"purser/internal/adapters/mbz"
 	"purser/internal/config"
 	"purser/internal/domain"
+	"purser/internal/ports"
 	"testing"
 )
+
+// ── FetchReleaseGroupReleases unit tests ──────────────────────────────────────
+
+const rgReleasesJSON = `{
+	"releases": [
+		{
+			"id":      "rel-us-1980",
+			"title":   "Hi Infidelity",
+			"status":  "Official",
+			"country": "US",
+			"date":    "1980-11-01",
+			"barcode": "074643374120",
+			"label-info": [{"label":{"name":"Epic"},"catalog-number":"FE 36844"}],
+			"media": [{"format":"Vinyl","track-count":10}]
+		},
+		{
+			"id":      "rel-uk-1980",
+			"title":   "Hi Infidelity",
+			"status":  "Official",
+			"country": "GB",
+			"date":    "1980-11-21",
+			"barcode": "",
+			"label-info": [{"label":{"name":"Epic"},"catalog-number":"EPC 84700"}],
+			"media": [{"format":"Vinyl","track-count":10}]
+		},
+		{
+			"id":      "rel-promo",
+			"title":   "Hi Infidelity (Promo)",
+			"status":  "Promotional",
+			"country": "US",
+			"date":    "1980-10-01",
+			"barcode": "",
+			"label-info": [],
+			"media": [{"format":"CD","track-count":10}]
+		},
+		{
+			"id":      "rel-digital-2024",
+			"title":   "Hi Infidelity",
+			"status":  "Official",
+			"country": "XW",
+			"date":    "2024-01-01",
+			"barcode": "074646161425",
+			"label-info": [{"label":{"name":"Legacy"},"catalog-number":""}],
+			"media": [{"format":"Digital Media","track-count":10}]
+		},
+		{
+			"id":      "rel-nodateof",
+			"title":   "Hi Infidelity",
+			"status":  "Official",
+			"country": "US",
+			"date":    "",
+			"barcode": "",
+			"label-info": [],
+			"media": [{"format":"CD","track-count":10},{"format":"CD","track-count":2}]
+		}
+	]
+}`
+
+func newRGReleasesServer(releasesJSON string) *httptest.Server {
+	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(releasesJSON)) //nolint:errcheck
+	}))
+}
+
+func TestMBZRelease_ParsesAllEditions(t *testing.T) {
+	srv := newRGReleasesServer(rgReleasesJSON)
+	defer srv.Close()
+
+	a := mbz.New(config.MetadataSourceConfig{URL: srv.URL}, nil)
+	releases, err := a.FetchReleaseGroupReleases(context.Background(), "rg-001")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(releases) != 5 {
+		t.Fatalf("len(releases) = %d, want 5", len(releases))
+	}
+
+	us := releases[0]
+	if us.MBID != "rel-us-1980" {
+		t.Errorf("MBID = %q, want rel-us-1980", us.MBID)
+	}
+	if us.Title != "Hi Infidelity" {
+		t.Errorf("Title = %q, want Hi Infidelity", us.Title)
+	}
+	if us.Country != "US" {
+		t.Errorf("Country = %q, want US", us.Country)
+	}
+	if us.Date != "1980-11-01" {
+		t.Errorf("Date = %q, want 1980-11-01", us.Date)
+	}
+	if us.Barcode != "074643374120" {
+		t.Errorf("Barcode = %q, want 074643374120", us.Barcode)
+	}
+	if us.Label != "Epic" {
+		t.Errorf("Label = %q, want Epic", us.Label)
+	}
+	if us.CatalogNumber != "FE 36844" {
+		t.Errorf("CatalogNumber = %q, want FE 36844", us.CatalogNumber)
+	}
+	if us.Format != "Vinyl" {
+		t.Errorf("Format = %q, want Vinyl", us.Format)
+	}
+	if us.MediumCount != 1 {
+		t.Errorf("MediumCount = %d, want 1", us.MediumCount)
+	}
+	if us.TrackCount != 10 {
+		t.Errorf("TrackCount = %d, want 10", us.TrackCount)
+	}
+
+	// Two-medium release: track count must be the sum across all media.
+	noDate := releases[4]
+	if noDate.TrackCount != 12 {
+		t.Errorf("noDate.TrackCount = %d, want 12 (10+2 across two media)", noDate.TrackCount)
+	}
+	if noDate.MediumCount != 2 {
+		t.Errorf("noDate.MediumCount = %d, want 2", noDate.MediumCount)
+	}
+}
+
+func TestMBZRelease_IsDefaultEarliestOfficial(t *testing.T) {
+	srv := newRGReleasesServer(rgReleasesJSON)
+	defer srv.Close()
+
+	a := mbz.New(config.MetadataSourceConfig{URL: srv.URL}, nil)
+	releases, err := a.FetchReleaseGroupReleases(context.Background(), "rg-001")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	defaults := 0
+	for _, r := range releases {
+		if r.IsDefault {
+			defaults++
+			if r.MBID != "rel-us-1980" {
+				t.Errorf("IsDefault=true on %q, want rel-us-1980 (earliest Official)", r.MBID)
+			}
+		}
+	}
+	if defaults != 1 {
+		t.Errorf("exactly one release must have IsDefault=true, got %d", defaults)
+	}
+
+	// Promotional release must never be default.
+	for _, r := range releases {
+		if r.MBID == "rel-promo" && r.IsDefault {
+			t.Error("Promotional release must not be IsDefault")
+		}
+	}
+}
+
+// ── GetReleaseByBarcode unit tests ────────────────────────────────────────────
+
+const barcodeSearchJSON = `{
+	"count": 1,
+	"releases": [
+		{
+			"id":      "1e639bf3-6b4c-4e1a-9d15-c61511804c8f",
+			"title":   "Hi Infidelity",
+			"status":  "Official",
+			"country": "XW",
+			"date":    "2024-01-01",
+			"barcode": "074646161425",
+			"label-info": [{"label":{"name":"Legacy"},"catalog-number":""}],
+			"media": [{"format":"Digital Media","track-count":10}]
+		}
+	]
+}`
+
+func newBarcodeSearchServer(json string) *httptest.Server {
+	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(json)) //nolint:errcheck
+	}))
+}
+
+func TestMBZRelease_BarcodeReturnsRelease(t *testing.T) {
+	srv := newBarcodeSearchServer(barcodeSearchJSON)
+	defer srv.Close()
+
+	a := mbz.New(config.MetadataSourceConfig{URL: srv.URL}, nil)
+	rel, err := a.GetReleaseByBarcode(context.Background(), "074646161425")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if rel == nil {
+		t.Fatal("expected a release, got nil")
+	}
+	if rel.MBID != "1e639bf3-6b4c-4e1a-9d15-c61511804c8f" {
+		t.Errorf("MBID = %q, want 1e639bf3-6b4c-4e1a-9d15-c61511804c8f", rel.MBID)
+	}
+	if rel.Barcode != "074646161425" {
+		t.Errorf("Barcode = %q, want 074646161425", rel.Barcode)
+	}
+	if rel.Format != "Digital Media" {
+		t.Errorf("Format = %q, want Digital Media", rel.Format)
+	}
+	if rel.TrackCount != 10 {
+		t.Errorf("TrackCount = %d, want 10", rel.TrackCount)
+	}
+}
+
+func TestMBZRelease_BarcodeNoHit(t *testing.T) {
+	srv := newBarcodeSearchServer(`{"count":0,"releases":[]}`)
+	defer srv.Close()
+
+	a := mbz.New(config.MetadataSourceConfig{URL: srv.URL}, nil)
+	_, err := a.GetReleaseByBarcode(context.Background(), "000000000000")
+	if !errors.Is(err, ports.ErrNotFound) {
+		t.Errorf("expected ports.ErrNotFound for empty search result, got %v", err)
+	}
+}
+
+// ── LookupISRC unit tests ─────────────────────────────────────────────────────
+
+const isrcResponseJSON = `{
+	"isrc": "USEE18000007",
+	"recordings": [
+		{
+			"id": "rec-001",
+			"releases": [
+				{"id": "rel-001", "release-group": {"id": "rg-hi-inf", "title": "Hi Infidelity", "first-release-date": "1980-11-01", "primary-type": "Album"}},
+				{"id": "rel-002", "release-group": {"id": "rg-hi-inf", "title": "Hi Infidelity", "first-release-date": "1980-11-01", "primary-type": "Album"}}
+			]
+		},
+		{
+			"id": "rec-002",
+			"releases": [
+				{"id": "rel-003", "release-group": {"id": "rg-hi-inf", "title": "Hi Infidelity", "first-release-date": "1980-11-01", "primary-type": "Album"}}
+			]
+		}
+	]
+}`
+
+func newISRCServer(json string) *httptest.Server {
+	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(json)) //nolint:errcheck
+	}))
+}
+
+func TestMBZISRC_ReturnsReleaseGroupMBID(t *testing.T) {
+	srv := newISRCServer(isrcResponseJSON)
+	defer srv.Close()
+
+	a := mbz.New(config.MetadataSourceConfig{URL: srv.URL}, nil)
+	rgMBID, err := a.LookupISRC(context.Background(), "USEE18000007")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if rgMBID != "rg-hi-inf" {
+		t.Errorf("rgMBID = %q, want rg-hi-inf", rgMBID)
+	}
+}
+
+func TestMBZISRC_NoReleaseGroup(t *testing.T) {
+	srv := newISRCServer(`{"isrc":"USXX0000000","recordings":[{"id":"rec-001","releases":[{"id":"rel-001","release-group":{"id":"","title":"","first-release-date":"","primary-type":""}}]}]}`)
+	defer srv.Close()
+
+	a := mbz.New(config.MetadataSourceConfig{URL: srv.URL}, nil)
+	rgMBID, err := a.LookupISRC(context.Background(), "USXX0000000")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if rgMBID != "" {
+		t.Errorf("expected empty rgMBID when release-group id is empty, got %q", rgMBID)
+	}
+}
 
 const twoDiscRelease = `{
 	"media": [

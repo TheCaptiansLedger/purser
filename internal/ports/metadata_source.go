@@ -130,6 +130,14 @@ type ReleaseGroupContentSource interface {
 	FetchReleaseGroupReleases(ctx context.Context, rgMBID string) ([]*ExternalMusicRelease, error)
 }
 
+// BarcodeLookupSource is an optional sub-interface implemented by sources that
+// can resolve a barcode to a specific release. Type-asserted by the album
+// identifier when a barcode tag is present in the scanned files.
+// Returns ErrNotFound if no release matches the barcode.
+type BarcodeLookupSource interface {
+	GetReleaseByBarcode(ctx context.Context, barcode string) (*ExternalMusicRelease, error)
+}
+
 // ISRCLookupSource is an optional sub-interface implemented by sources that can
 // resolve a recording ISRC to a Release Group MBID. Type-asserted by the album
 // identifier when ISRC tags are present in the scanned files.
