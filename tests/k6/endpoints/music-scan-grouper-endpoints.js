@@ -61,4 +61,48 @@ export default function () {
   // DELETE — cleanup
   const delRes = http.del(`${BASE_URL}/music/queue/${queueId}`);
   check(delRes, { 'DELETE /music/queue/{id} 204': r => r.status === 204 });
+
+  // POST — non-zero duration signal round-trip (release signal score)
+  const durCreateRes = http.post(`${BASE_URL}/music/queue`,
+    JSON.stringify({
+      folderPath:  '/music/release-signal-duration-check',
+      totalTracks: 10,
+      totalDiscs:  1,
+      status:      'pending',
+      candidates:  [{
+        artistName:        'REO Speedwagon',
+        releaseGroupTitle: 'Hi Infidelity',
+        releaseTitle:      'Hi Infidelity (Original)',
+        overallConfidence: 0.82,
+        signals: {
+          barcode:       0.0,
+          isrc:          0.0,
+          rgNameFuzzy:   0.62,
+          trackCount:    0.20,
+          trackTitleSet: 0.45,
+          duration:      0.95,
+          acoustid:      0.0,
+        },
+      }],
+    }),
+    { headers: JSON_HEADERS });
+  check(durCreateRes, {
+    'POST /music/queue with duration=0.95: 201': r => r.status === 201,
+    'create duration: id present':              r => r.json('id') !== '',
+  });
+  const durQueueId = durCreateRes.json('id');
+
+  // GET — assert non-zero duration round-trips as number
+  const durGetRes = http.get(`${BASE_URL}/music/queue/${durQueueId}`);
+  const durSignals = durGetRes.json('candidates.0.signals');
+  check(durGetRes, {
+    'GET duration round-trip 200':              r => r.status === 200,
+    'signals.duration >= 0.90':                () => durSignals.duration >= 0.90,
+    'signals.duration is a number not null':   () => typeof durSignals.duration === 'number',
+    'signals.duration not string':             () => typeof durSignals.duration !== 'string',
+  });
+
+  // DELETE — cleanup
+  const durDelRes = http.del(`${BASE_URL}/music/queue/${durQueueId}`);
+  check(durDelRes, { 'DELETE duration entry 204': r => r.status === 204 });
 }

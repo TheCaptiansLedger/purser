@@ -218,7 +218,54 @@ export default function () {
     http.del(`${BASE_URL}/music/queue/${id}`);
   });
 
-  // ── FLOW 5: rg signal scores — round-trip integrity ────────────────────────
+  // ── FLOW 5: release signal scores — duration value round-trips as number ──────
+  // ScoreReleaseDurationSignal produces a non-zero duration score when file
+  // durations match the MBZ tracklist. This flow verifies that a non-zero
+  // duration score (0.95) survives the queue storage round-trip as a number.
+
+  group('release signal scores: duration value round-trips as number', () => {
+    const signals = {
+      barcode:       0.0,
+      isrc:          0.0,
+      rgNameFuzzy:   0.62,
+      trackCount:    0.20,
+      trackTitleSet: 0.45,
+      duration:      0.95,
+      acoustid:      0.0,
+    };
+
+    const createRes = http.post(`${BASE_URL}/music/queue`,
+      JSON.stringify({
+        folderPath:  '/music/release-signal-duration-round-trip',
+        totalTracks: 10,
+        totalDiscs:  1,
+        status:      'pending',
+        candidates:  [{
+          artistName:        'REO Speedwagon',
+          releaseGroupTitle: 'Hi Infidelity',
+          releaseTitle:      'Hi Infidelity (Original)',
+          overallConfidence: 0.82,
+          signals:           signals,
+        }],
+      }),
+      { headers: JSON_HEADERS });
+    check(createRes, { 'created 201': r => r.status === 201 });
+    const id = createRes.json('id');
+
+    const getRes = http.get(`${BASE_URL}/music/queue/${id}`);
+    const gotSignals = getRes.json('candidates.0.signals');
+    check(getRes, {
+      'get 200':                                     r => r.status === 200,
+      'signals.duration === 0.95 (exact round-trip)': () => gotSignals.duration === 0.95,
+      'all 7 signal fields present':                 () => Object.keys(gotSignals).length === 7,
+      'all signal values are numbers':               () => Object.values(gotSignals).every(v => typeof v === 'number'),
+      'no null signal values':                       () => Object.values(gotSignals).every(v => v !== null),
+    });
+
+    http.del(`${BASE_URL}/music/queue/${id}`);
+  });
+
+  // ── FLOW 6 (formerly 5): rg signal scores — round-trip integrity ─────────────
   // ScoreBarcodeSignal, ScoreISRCSignal, ScoreFuzzyNameSignal, FilterByTrackCount
   // produce MusicConfidenceSignals values stored on each candidate.
   // This flow verifies all seven signal fields survive the storage round-trip
