@@ -22,16 +22,17 @@ var ErrUnknownJob = errors.New("unknown refresh job")
 // Service fans out metadata searches to all registered sources and handles
 // importing search results into the library as domain entities.
 type Service struct {
-	sources     []ports.MetadataSource
-	agg         *Aggregator
-	jobs        ports.JobQueue
-	entries     ports.LibraryEntryRepository
-	groups      ports.GroupRepository
-	items       ports.ItemRepository
-	people      ports.PersonRepository
-	tags        ports.TagRepository
-	externalIDs ports.ExternalIDRepository
-	downloader  ports.ImageDownloader
+	sources       []ports.MetadataSource
+	agg           *Aggregator
+	jobs          ports.JobQueue
+	entries       ports.LibraryEntryRepository
+	groups        ports.GroupRepository
+	items         ports.ItemRepository
+	people        ports.PersonRepository
+	tags          ports.TagRepository
+	externalIDs   ports.ExternalIDRepository
+	downloader    ports.ImageDownloader
+	musicReleases ports.MusicReleaseRepository
 }
 
 // New constructs a metadata Service wired to the given sources and repositories.
@@ -45,18 +46,20 @@ func New(
 	tags ports.TagRepository,
 	externalIDs ports.ExternalIDRepository,
 	downloader ports.ImageDownloader,
+	musicReleases ports.MusicReleaseRepository,
 ) *Service {
 	return &Service{
-		sources:     sources,
-		agg:         NewAggregator(sources),
-		jobs:        jobs,
-		entries:     entries,
-		groups:      groups,
-		items:       items,
-		people:      people,
-		tags:        tags,
-		externalIDs: externalIDs,
-		downloader:  downloader,
+		sources:       sources,
+		agg:           NewAggregator(sources),
+		jobs:          jobs,
+		entries:       entries,
+		groups:        groups,
+		items:         items,
+		people:        people,
+		tags:          tags,
+		externalIDs:   externalIDs,
+		downloader:    downloader,
+		musicReleases: musicReleases,
 	}
 }
 
@@ -667,6 +670,10 @@ func (s *Service) ImportEntry(ctx context.Context, req *ImportEntryRequest) (*Im
 	}
 	res.Entry = entry
 
+	if kind.SupportsImportEnrichment() {
+		s.enrichOnImport(ctx, entry, req)
+	}
+
 	if req.AutoImport && s.jobs != nil {
 		if _, err := s.SubmitRefreshJob(ctx, kind.RefreshJobName(), entry.ID); err != nil {
 			slog.Warn("auto-import: failed to enqueue refresh", "entry_id", entry.ID, "error", err)
@@ -942,7 +949,7 @@ func (s *Service) RefreshArtist(ctx context.Context, entryID string, p ports.Pro
 		return err
 	}
 
-	s.importArtistPeople(ctx, src, entryID, srcExtID)
+	_ = s.importArtistPeople(ctx, src, entryID, srcExtID)
 	s.fetchArtistHeroImage(ctx, entry, srcExtID)
 	s.fetchAlbumCovers(ctx, entry.ContentType, srcExtID, albums)
 
@@ -1010,21 +1017,26 @@ func (s *Service) RefreshArtist(ctx context.Context, entryID string, p ports.Pro
 }
 
 // importArtistPeople fetches band members from the metadata source and saves
-// them as Person records linked to the artist entry via entry_people. Errors
-// are logged and suppressed — people import is best-effort and must not block
-// the rest of the refresh.
-func (s *Service) importArtistPeople(ctx context.Context, src ports.MetadataSource, entryID, srcExtID string) {
+// them as Person records linked to the artist entry via entry_people. Returns
+// the number of members successfully linked. Errors are logged and suppressed —
+// people import is best-effort and must not block the rest of the refresh.
+func (s *Service) importArtistPeople(ctx context.Context, src ports.MetadataSource, entryID, srcExtID string) int {
 	ep, ok := src.(ports.EntryPeopleSource)
 	if !ok {
-		return
+		return 0
 	}
 	members, err := ep.FetchEntryPeople(ctx, srcExtID)
 	if err != nil {
 		slog.Warn("refresh artist: fetch members", "entry_id", entryID, "error", err)
-		return
+		return 0
 	}
 	personCache := map[string]string{}
+	linked := 0
 	for _, ep := range members {
+		alreadyExists := false
+		if _, findErr := s.externalIDs.FindEntity(ctx, "person", string(ep.Source), ep.ExternalID); findErr == nil {
+			alreadyExists = true
+		}
 		personID := s.resolveOrCreatePerson(ctx, ep, personCache)
 		if personID == "" {
 			continue
@@ -1037,8 +1049,16 @@ func (s *Service) importArtistPeople(ctx context.Context, src ports.MetadataSour
 			Role:     string(ep.Role),
 		}); saveErr != nil {
 			slog.Warn("refresh artist: link member", "entry_id", entryID, "person_id", personID, "error", saveErr)
+			continue
 		}
+		if alreadyExists {
+			slog.Warn("member already exists", "name", ep.Name, "person_id", personID)
+		} else {
+			slog.Info("member linked", "name", ep.Name, "role", string(ep.Role), "person_id", personID)
+		}
+		linked++
 	}
+	return linked
 }
 
 // fetchArtistHeroImage calls the aggregator for artist-level images and
@@ -1312,8 +1332,13 @@ func buildEntryMeta(req *ImportEntryRequest, kind domain.Kind) map[string]any {
 
 // albumMetadata builds the metadata map persisted with a Group record so that
 // the UI can section the discography by release type without re-querying MusicBrainz.
+// album_type is the Purser token used by the UI; primary_type and secondary_types
+// preserve the raw MBZ values for round-trip fidelity.
 func albumMetadata(eg *domain.ExternalGroup) map[string]any {
-	m := map[string]any{"primary_type": eg.PrimaryType}
+	m := map[string]any{
+		"primary_type": eg.PrimaryType,
+		"album_type":   eg.AlbumFilterToken(),
+	}
 	if len(eg.SecondaryTypes) > 0 {
 		m["secondary_types"] = eg.SecondaryTypes
 	}
@@ -1646,6 +1671,185 @@ func (s *Service) collectImages(ctx context.Context, contentType domain.ContentT
 	}
 
 	return all
+}
+
+// ── Import enrichment ─────────────────────────────────────────────────────────
+
+// enrichOnImport performs full enrichment for entry kinds that declare
+// SupportsImportEnrichment. Currently only KindArtist (music) qualifies.
+// It writes metadata keys, creates all release group stubs and their releases,
+// imports band members with roles, and links solo artists to a Person record.
+// All steps are best-effort: errors are logged and do not abort the import.
+func (s *Service) enrichOnImport(ctx context.Context, entry *domain.LibraryEntry, req *ImportEntryRequest) {
+	src := s.sourceByName(string(req.Source))
+	if src == nil {
+		return
+	}
+
+	// Step 1: fetch and merge all artist metadata keys.
+	artistType := s.mergeEntryMetadata(ctx, src, entry, req)
+
+	// Step 2: create all release groups and their release stubs.
+	albums, err := s.resolveArtistAlbums(ctx, src, entry, req.ExternalID)
+	if err != nil {
+		slog.Warn("artist import: resolve albums", "entry_id", entry.ID, "error", err)
+	}
+	totalStubs := s.createReleaseStubs(ctx, src, entry.ID, albums)
+
+	// Step 3: import band members.
+	memberCount := s.importArtistPeople(ctx, src, entry.ID, req.ExternalID)
+
+	// Step 4: solo artist — create Person from life-span metadata and link.
+	if artistType == "person" {
+		s.createSoloArtistPerson(ctx, entry, req)
+		memberCount++
+	}
+
+	slog.Info("artist import",
+		"name", entry.Name, "mbid", req.ExternalID,
+		"type", artistType, "rg_count", len(albums),
+		"release_stubs", totalStubs, "member_count", memberCount,
+	)
+}
+
+// mergeEntryMetadata fetches enrichment metadata from the source (if it
+// implements EntryMetadataSource) and merges it into entry.Metadata, then
+// re-saves the entry. Returns the artist_type value if present.
+func (s *Service) mergeEntryMetadata(ctx context.Context, src ports.MetadataSource, entry *domain.LibraryEntry, req *ImportEntryRequest) string {
+	ems, ok := src.(ports.EntryMetadataSource)
+	if !ok {
+		return ""
+	}
+	meta, err := ems.FetchEntryMetadata(ctx, req.ContentType, req.ExternalID)
+	if err != nil {
+		slog.Warn("artist import: fetch metadata", "entry_id", entry.ID, "error", err)
+		return ""
+	}
+	if entry.Metadata == nil {
+		entry.Metadata = make(map[string]any)
+	}
+	for k, v := range meta {
+		entry.Metadata[k] = v
+	}
+	if err := s.entries.Save(ctx, entry); err != nil {
+		slog.Warn("artist import: save metadata", "entry_id", entry.ID, "error", err)
+	}
+	if v, ok := meta["artist_type"].(string); ok {
+		return v
+	}
+	return ""
+}
+
+// createReleaseStubs fetches all releases for each release group from the
+// source (if it implements ReleaseGroupContentSource) and persists them as
+// MusicRelease records with status=stub. Returns the total stubs created.
+func (s *Service) createReleaseStubs(ctx context.Context, src ports.MetadataSource, entryID string, albums []artistAlbum) int {
+	if s.musicReleases == nil {
+		return 0
+	}
+	rgcs, ok := src.(ports.ReleaseGroupContentSource)
+	if !ok {
+		return 0
+	}
+	total := 0
+	for _, album := range albums {
+		rgMBID := album.extGroup.ExternalID
+		if rgMBID == "" {
+			continue
+		}
+		releases, err := rgcs.FetchReleaseGroupReleases(ctx, rgMBID)
+		if err != nil {
+			slog.Warn("artist import: fetch releases", "rg_mbid", rgMBID, "error", err)
+			continue
+		}
+		g, err := s.groups.Get(ctx, album.internalID)
+		if err != nil {
+			slog.Warn("artist import: load group for releases", "group_id", album.internalID, "error", err)
+			continue
+		}
+		for _, ext := range releases {
+			rel := &domain.MusicRelease{
+				ID:             uuid.New().String(),
+				GroupID:        album.internalID,
+				LibraryEntryID: entryID,
+				Title:          ext.Title,
+				Country:        ext.Country,
+				Label:          ext.Label,
+				CatalogNumber:  ext.CatalogNumber,
+				Barcode:        ext.Barcode,
+				Format:         ext.Format,
+				MediumCount:    ext.MediumCount,
+				TrackCount:     ext.TrackCount,
+				IsDefault:      ext.IsDefault,
+				Monitored:      ext.IsDefault && g.Monitored,
+				Status:         domain.ReleaseStatusStub,
+			}
+			if ext.Date != "" {
+				if t, parseErr := time.Parse("2006-01-02", ext.Date); parseErr == nil {
+					rel.Date = t.UTC()
+				}
+			}
+			if ext.MBID != "" {
+				rel.ExternalIDs = []domain.ExternalID{{Source: domain.SourceMusicBrainz, Value: ext.MBID}}
+			}
+			rel.ApplyDefaults()
+			if saveErr := s.musicReleases.Save(ctx, rel); saveErr != nil {
+				slog.Warn("artist import: save release stub", "rg_mbid", rgMBID, "error", saveErr)
+				continue
+			}
+			total++
+		}
+		slog.Info("release group created",
+			"rg_mbid", rgMBID, "title", album.extGroup.Title, "release_stubs", len(releases),
+		)
+	}
+	return total
+}
+
+// createSoloArtistPerson creates a Person record for a solo artist using the
+// life-span metadata already stored on entry, then links it via EntryPerson
+// with role "member". Idempotent: if the person's external ID already exists,
+// the link is created without re-creating the Person.
+func (s *Service) createSoloArtistPerson(ctx context.Context, entry *domain.LibraryEntry, req *ImportEntryRequest) {
+	if id, err := s.externalIDs.FindEntity(ctx, "person", string(req.Source), req.ExternalID); err == nil {
+		slog.Warn("member already exists", "name", entry.Name, "person_id", id)
+		_ = s.entries.SavePerson(ctx, entry.ID, domain.EntryPerson{PersonID: id, Role: "member"})
+		return
+	}
+	meta := map[string]any{}
+	for _, k := range []string{"born_date", "born_location", "died_date"} {
+		if v, ok := entry.Metadata[k]; ok {
+			meta[k] = v
+		}
+	}
+	var aliases []string
+	if raw, ok := entry.Metadata["aliases"]; ok {
+		if sl, ok := raw.([]string); ok {
+			aliases = sl
+		}
+	}
+	personID := uuid.New().String()
+	p := &domain.Person{
+		ID:          personID,
+		Name:        entry.Name,
+		SortName:    entry.Name,
+		Aliases:     aliases,
+		Monitored:   false,
+		MonitorMode: domain.MonitorNone,
+		Metadata:    meta,
+		ExternalIDs: []domain.ExternalID{{Source: req.Source, Value: req.ExternalID}},
+	}
+	p.ApplyDefaults()
+	if err := s.people.Save(ctx, p); err != nil {
+		slog.Warn("artist import: save solo person", "entry_id", entry.ID, "error", err)
+		return
+	}
+	if err := s.entries.SavePerson(ctx, entry.ID, domain.EntryPerson{PersonID: personID, Role: "member"}); err != nil {
+		slog.Warn("artist import: link solo person", "entry_id", entry.ID, "person_id", personID, "error", err)
+		return
+	}
+	s.fetchPersonHeroImage(ctx, personID, req.ExternalID)
+	slog.Info("member linked", "name", entry.Name, "role", "member", "person_id", personID)
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────

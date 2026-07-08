@@ -15,6 +15,10 @@ import (
 	"time"
 )
 
+// reoSpeedwagonMBID is REO Speedwagon's canonical MusicBrainz artist identifier.
+// Used for full import enrichment integration testing (Task 15 / issue #407).
+const reoSpeedwagonMBID = "bdc70372-7e8a-4cb9-8d33-f036b3b7cdc1"
+
 // radioheadMBID is Radiohead's canonical MusicBrainz artist identifier.
 // Specified in issue #73 as the integration test fixture.
 const radioheadMBID = "a74b1b7f-71a5-4011-9441-d0b5e4122711"
@@ -65,5 +69,77 @@ func TestMetadataAggregator_FindByExternalID_Music(t *testing.T) {
 	}
 	if len(imageTypes) < 2 {
 		t.Errorf("Images contain only %d distinct ImageType value(s); want >= 2", len(imageTypes))
+	}
+}
+
+func TestMetadataService_Integration_ImportREOSpeedwagon(t *testing.T) {
+	src := mbz.New(config.MetadataSourceConfig{}, nil)
+	entryRepo := newStubEntryRepo()
+	groupRepo := &stubGroupRepo{}
+	personRepo := &stubPersonRepo{}
+	releaseRepo := &stubMusicReleaseRepo{}
+
+	svc := metadata.New(
+		[]ports.MetadataSource{src},
+		nil,
+		entryRepo,
+		groupRepo,
+		nil,
+		personRepo,
+		&stubTagRepo{},
+		&stubExternalIDRepo{},
+		nil,
+		releaseRepo,
+	)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+
+	res, err := svc.ImportEntry(ctx, &metadata.ImportEntryRequest{
+		Source:      domain.SourceMusicBrainz,
+		ExternalID:  reoSpeedwagonMBID,
+		Name:        "REO Speedwagon",
+		ContentType: domain.ContentTypeMusic,
+	})
+	if err != nil {
+		t.Fatalf("ImportEntry: %v", err)
+	}
+
+	// Entry kind and name
+	if res.Entry.Kind != domain.KindArtist {
+		t.Errorf("Kind = %q, want artist", res.Entry.Kind)
+	}
+
+	// Metadata keys: artist_type (MBZ returns "group" for bands)
+	if res.Entry.Metadata["artist_type"] != "group" {
+		t.Errorf("artist_type = %v, want group", res.Entry.Metadata["artist_type"])
+	}
+	if _, ok := res.Entry.Metadata["founded_date"]; !ok {
+		t.Error("founded_date is missing from entry metadata")
+	}
+
+	// Release groups created
+	if len(groupRepo.groups) == 0 {
+		t.Error("no release groups created during import")
+	}
+	for _, g := range groupRepo.groups {
+		if g.Metadata["album_type"] == nil || g.Metadata["album_type"] == "" {
+			t.Errorf("group %q has no album_type metadata", g.Title)
+		}
+	}
+
+	// Release stubs created (MBZ returns releases for release groups)
+	if len(releaseRepo.saved) == 0 {
+		t.Error("no release stubs created during import")
+	}
+	for _, rel := range releaseRepo.saved {
+		if rel.Status != domain.ReleaseStatusStub {
+			t.Errorf("release %q status = %q, want stub", rel.Title, rel.Status)
+		}
+	}
+
+	// Band members created (REO Speedwagon is a band, should have members)
+	if len(personRepo.saved) == 0 {
+		t.Error("no band members created during import")
 	}
 }

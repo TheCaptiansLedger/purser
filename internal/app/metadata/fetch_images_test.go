@@ -20,6 +20,7 @@ func newServiceWithSources(sources ...ports.MetadataSource) *metadata.Service {
 		&stubTagRepo{},
 		&stubExternalIDRepo{},
 		nil,
+		nil, // no music release repo
 	)
 }
 

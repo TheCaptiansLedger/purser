@@ -66,6 +66,13 @@ func (k Kind) SupportsMemberRelationships() bool {
 	return k == KindArtist
 }
 
+// SupportsImportEnrichment reports whether entries of this kind should be
+// fully enriched on first import: metadata keys, release group and release
+// stubs, and member people fetched inline so the entry is immediately browsable.
+func (k Kind) SupportsImportEnrichment() bool {
+	return k == KindArtist
+}
+
 // ContentTypes returns all known content types in a stable order.
 func ContentTypes() []ContentType {
 	return []ContentType{ContentTypeMovie, ContentTypeTV, ContentTypeMusic, ContentTypeAdult, ContentTypeJAV, ContentTypeBook}

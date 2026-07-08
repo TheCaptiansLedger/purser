@@ -282,12 +282,14 @@ func (s *stubSource) FetchEntryContent(_ context.Context, _ domain.ContentType, 
 // stubMusicSource returns albums via FetchEntryContent and per-album tracks via
 // FetchGroupContent. Name() returns "mbz" to match artist entry external IDs.
 type stubMusicSource struct {
-	albums        []*domain.ExternalGroup
-	tracks        map[string][]*domain.ExternalItem // groupExternalID → tracks
-	findItem      *domain.ExternalItem              // if non-nil, returned by FindByExternalID
-	groupItem     *domain.ExternalItem              // if non-nil, returned by FindGroupImages
-	people        []*domain.ExternalPerson          // if non-nil, returned by FetchEntryPeople
-	imagePriority int
+	albums         []*domain.ExternalGroup
+	tracks         map[string][]*domain.ExternalItem        // groupExternalID → tracks
+	findItem       *domain.ExternalItem                     // if non-nil, returned by FindByExternalID
+	groupItem      *domain.ExternalItem                     // if non-nil, returned by FindGroupImages
+	people         []*domain.ExternalPerson                 // if non-nil, returned by FetchEntryPeople
+	metadataFields map[string]any                           // if non-nil, returned by FetchEntryMetadata
+	releases       map[string][]*ports.ExternalMusicRelease // rgMBID → releases, for FetchReleaseGroupReleases
+	imagePriority  int
 }
 
 func (s *stubMusicSource) Name() string       { return "mbz" }
@@ -339,6 +341,76 @@ func (s *stubMusicSource) FindGroupImages(_ context.Context, _ domain.ContentTyp
 	}
 	return nil, ports.ErrNotFound
 }
+
+func (s *stubMusicSource) FetchEntryMetadata(_ context.Context, _ domain.ContentType, _ string) (map[string]any, error) {
+	if s.metadataFields != nil {
+		return s.metadataFields, nil
+	}
+	return map[string]any{}, nil
+}
+
+func (s *stubMusicSource) FetchReleaseGroupReleases(_ context.Context, rgMBID string) ([]*ports.ExternalMusicRelease, error) {
+	if s.releases != nil {
+		if r, ok := s.releases[rgMBID]; ok {
+			return r, nil
+		}
+	}
+	return nil, nil
+}
+
+// ── Music release repo stub ───────────────────────────────────────────────────
+
+type stubMusicReleaseRepo struct {
+	saved []*domain.MusicRelease
+}
+
+func (r *stubMusicReleaseRepo) Get(_ context.Context, id string) (*domain.MusicRelease, error) {
+	for _, rel := range r.saved {
+		if rel.ID == id {
+			return rel, nil
+		}
+	}
+	return nil, fmt.Errorf("not found: %w", errs.ErrNotFound)
+}
+
+func (r *stubMusicReleaseRepo) GetByMBID(_ context.Context, _ string) (*domain.MusicRelease, error) {
+	return nil, fmt.Errorf("not found: %w", errs.ErrNotFound)
+}
+
+func (r *stubMusicReleaseRepo) GetByBarcode(_ context.Context, _ string) (*domain.MusicRelease, error) {
+	return nil, fmt.Errorf("not found: %w", errs.ErrNotFound)
+}
+
+func (r *stubMusicReleaseRepo) ListByGroup(_ context.Context, groupID string) ([]*domain.MusicRelease, error) {
+	var out []*domain.MusicRelease
+	for _, rel := range r.saved {
+		if rel.GroupID == groupID {
+			out = append(out, rel)
+		}
+	}
+	return out, nil
+}
+
+func (r *stubMusicReleaseRepo) ListByEntry(_ context.Context, entryID string) ([]*domain.MusicRelease, error) {
+	var out []*domain.MusicRelease
+	for _, rel := range r.saved {
+		if rel.LibraryEntryID == entryID {
+			out = append(out, rel)
+		}
+	}
+	return out, nil
+}
+
+func (r *stubMusicReleaseRepo) ListTracksByRelease(_ context.Context, _ string) ([]*domain.Item, error) {
+	return nil, nil
+}
+
+func (r *stubMusicReleaseRepo) Save(_ context.Context, rel *domain.MusicRelease) error {
+	r.saved = append(r.saved, rel)
+	return nil
+}
+
+func (r *stubMusicReleaseRepo) Delete(_ context.Context, _ string) error { return nil }
 
 // ── Image downloader stub ─────────────────────────────────────────────────────
 

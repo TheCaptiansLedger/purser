@@ -25,6 +25,7 @@ func newService() *metadata.Service {
 		&stubTagRepo{},
 		&stubExternalIDRepo{},
 		&stubImageDownloader{ext: ".jpg"},
+		nil, // no music release repo
 	)
 }
 
@@ -103,7 +104,7 @@ func TestImportEntry_MusicKindIsArtist(t *testing.T) {
 
 func TestImportEntry_Idempotent(t *testing.T) {
 	entryRepo := newStubEntryRepo()
-	svc := metadata.New(nil, nil, entryRepo, nil, &stubItemRepo{}, &stubPersonRepo{}, &stubTagRepo{}, &stubExternalIDRepo{}, nil)
+	svc := metadata.New(nil, nil, entryRepo, nil, &stubItemRepo{}, &stubPersonRepo{}, &stubTagRepo{}, &stubExternalIDRepo{}, nil, nil)
 
 	req := &metadata.ImportEntryRequest{
 		Source:      domain.SourceStashDB,
@@ -119,7 +120,7 @@ func TestImportEntry_Idempotent(t *testing.T) {
 
 	// Seed the external ID repo with the saved entry so the second call finds it.
 	seededRepo := &seededExternalIDRepo{id: res1.Entry.ID}
-	svc2 := metadata.New(nil, nil, entryRepo, nil, &stubItemRepo{}, &stubPersonRepo{}, &stubTagRepo{}, seededRepo, nil)
+	svc2 := metadata.New(nil, nil, entryRepo, nil, &stubItemRepo{}, &stubPersonRepo{}, &stubTagRepo{}, seededRepo, nil, nil)
 
 	res2, err := svc2.ImportEntry(context.Background(), req)
 	if err != nil {
@@ -160,6 +161,7 @@ func refreshSvc(scenes []*domain.ExternalItem, entryRepo *stubEntryRepo, itemRep
 		&stubTagRepo{},
 		&stubExternalIDRepo{},
 		&stubImageDownloader{ext: ".jpg"},
+		nil, // no music release repo
 	)
 }
 
@@ -255,6 +257,7 @@ func TestImportEntry_AutoImport_EnqueuesJob(t *testing.T) {
 		&stubTagRepo{},
 		&stubExternalIDRepo{},
 		nil,
+		nil, // no music release repo
 	)
 
 	_, err := svc.ImportEntry(context.Background(), &metadata.ImportEntryRequest{
@@ -287,6 +290,7 @@ func TestImportEntry_MusicAutoImport_EnqueuesRefreshArtist(t *testing.T) {
 		&stubTagRepo{},
 		&stubExternalIDRepo{},
 		nil,
+		nil, // no music release repo
 	)
 
 	_, err := svc.ImportEntry(context.Background(), &metadata.ImportEntryRequest{
@@ -319,6 +323,7 @@ func TestImportEntry_AutoImport_False_NoJob(t *testing.T) {
 		&stubTagRepo{},
 		&stubExternalIDRepo{},
 		nil,
+		nil, // no music release repo
 	)
 
 	_, err := svc.ImportEntry(context.Background(), &metadata.ImportEntryRequest{
@@ -414,7 +419,7 @@ func TestRefreshStudio_ImportsPerformers(t *testing.T) {
 	entryRepo.data[entry.ID] = entry
 
 	src := &stubSource{scenes: scenesWithPeopleAndTags(), total: 2}
-	svc := metadata.New([]ports.MetadataSource{src}, nil, entryRepo, nil, itemRepo, personRepo, &stubTagRepo{}, &stubExternalIDRepo{}, nil)
+	svc := metadata.New([]ports.MetadataSource{src}, nil, entryRepo, nil, itemRepo, personRepo, &stubTagRepo{}, &stubExternalIDRepo{}, nil, nil)
 
 	if err := svc.RefreshStudio(context.Background(), entry.ID, nil); err != nil {
 		t.Fatalf("RefreshStudio: %v", err)
@@ -455,7 +460,7 @@ func TestRefreshStudio_PersonRecordCarriesRole(t *testing.T) {
 	}}
 
 	src := &stubSource{scenes: scenes, total: 1}
-	svc := metadata.New([]ports.MetadataSource{src}, nil, entryRepo, nil, &stubItemRepo{}, personRepo, &stubTagRepo{}, &stubExternalIDRepo{}, nil)
+	svc := metadata.New([]ports.MetadataSource{src}, nil, entryRepo, nil, &stubItemRepo{}, personRepo, &stubTagRepo{}, &stubExternalIDRepo{}, nil, nil)
 
 	if err := svc.RefreshStudio(context.Background(), entry.ID, nil); err != nil {
 		t.Fatalf("RefreshStudio: %v", err)
@@ -478,7 +483,7 @@ func TestRefreshStudio_ImportsTags(t *testing.T) {
 	entryRepo.data[entry.ID] = entry
 
 	src := &stubSource{scenes: scenesWithPeopleAndTags(), total: 2}
-	svc := metadata.New([]ports.MetadataSource{src}, nil, entryRepo, nil, itemRepo, &stubPersonRepo{}, tagRepo, &stubExternalIDRepo{}, nil)
+	svc := metadata.New([]ports.MetadataSource{src}, nil, entryRepo, nil, itemRepo, &stubPersonRepo{}, tagRepo, &stubExternalIDRepo{}, nil, nil)
 
 	if err := svc.RefreshStudio(context.Background(), entry.ID, nil); err != nil {
 		t.Fatalf("RefreshStudio: %v", err)
@@ -539,6 +544,7 @@ func artistRefreshSvc(src *stubMusicSource, entryRepo *stubEntryRepo, groupRepo 
 		&stubTagRepo{},
 		&stubExternalIDRepo{},
 		nil,
+		nil, // no music release repo
 	)
 }
 
@@ -687,7 +693,7 @@ func TestRefreshArtist_SkipsDuplicates(t *testing.T) {
 	for _, it := range itemRepo.items {
 		seeded.itemIDs["mbz:"+it.ExternalIDs[0].Value] = it.ID
 	}
-	svc2 := metadata.New([]ports.MetadataSource{src}, nil, entryRepo, groupRepo, itemRepo, &stubPersonRepo{}, &stubTagRepo{}, seeded, nil)
+	svc2 := metadata.New([]ports.MetadataSource{src}, nil, entryRepo, groupRepo, itemRepo, &stubPersonRepo{}, &stubTagRepo{}, seeded, nil, nil)
 
 	if err := svc2.RefreshArtist(context.Background(), entry.ID, nil); err != nil {
 		t.Fatalf("second RefreshArtist: %v", err)
@@ -704,7 +710,7 @@ func TestRefreshArtist_SkipsDuplicates(t *testing.T) {
 
 func TestFetchArtistDiscography_ReturnsGroups(t *testing.T) {
 	src, albums, _ := twoAlbumsWithTracks()
-	svc := metadata.New([]ports.MetadataSource{src}, nil, newStubEntryRepo(), nil, &stubItemRepo{}, &stubPersonRepo{}, &stubTagRepo{}, &stubExternalIDRepo{}, nil)
+	svc := metadata.New([]ports.MetadataSource{src}, nil, newStubEntryRepo(), nil, &stubItemRepo{}, &stubPersonRepo{}, &stubTagRepo{}, &stubExternalIDRepo{}, nil, nil)
 
 	groups, total, err := svc.FetchArtistDiscography(context.Background(), domain.SourceMusicBrainz, domain.ContentTypeMusic, "artist-mbz-1", 1, 50)
 	if err != nil {
@@ -742,6 +748,7 @@ func importAlbumSvc(src *stubMusicSource, entryRepo *stubEntryRepo, groupRepo *s
 		&stubTagRepo{},
 		&stubExternalIDRepo{},
 		nil,
+		nil, // no music release repo
 	)
 }
 
@@ -816,7 +823,7 @@ func TestImportAlbum_Idempotent(t *testing.T) {
 		groupIDs: map[string]string{"mbz:" + albums[0].ExternalID: g1.ID},
 		itemIDs:  make(map[string]string),
 	}
-	svc2 := metadata.New([]ports.MetadataSource{src}, nil, entryRepo, groupRepo, itemRepo, &stubPersonRepo{}, &stubTagRepo{}, seeded, nil)
+	svc2 := metadata.New([]ports.MetadataSource{src}, nil, entryRepo, groupRepo, itemRepo, &stubPersonRepo{}, &stubTagRepo{}, seeded, nil, nil)
 
 	g2, err := svc2.ImportAlbum(context.Background(), req)
 	if err != nil {
@@ -842,7 +849,7 @@ func TestImportAlbum_AttachesLabelTag(t *testing.T) {
 	entryRepo.data[entry.ID] = entry
 
 	src, albums, _ := twoAlbumsWithTracks()
-	svc := metadata.New([]ports.MetadataSource{src}, nil, entryRepo, groupRepo, itemRepo, &stubPersonRepo{}, tagRepo, &stubExternalIDRepo{}, nil)
+	svc := metadata.New([]ports.MetadataSource{src}, nil, entryRepo, groupRepo, itemRepo, &stubPersonRepo{}, tagRepo, &stubExternalIDRepo{}, nil, nil)
 
 	g, err := svc.ImportAlbum(context.Background(), &metadata.ImportAlbumRequest{
 		Source:         domain.SourceMusicBrainz,
@@ -879,7 +886,7 @@ func TestImportAlbum_LabelTagHasUUID(t *testing.T) {
 	entryRepo.data[entry.ID] = entry
 
 	src, albums, _ := twoAlbumsWithTracks()
-	svc := metadata.New([]ports.MetadataSource{src}, nil, entryRepo, groupRepo, &stubItemRepo{}, &stubPersonRepo{}, tagRepo, &stubExternalIDRepo{}, nil)
+	svc := metadata.New([]ports.MetadataSource{src}, nil, entryRepo, groupRepo, &stubItemRepo{}, &stubPersonRepo{}, tagRepo, &stubExternalIDRepo{}, nil, nil)
 
 	_, err := svc.ImportAlbum(context.Background(), &metadata.ImportAlbumRequest{
 		Source:         domain.SourceMusicBrainz,
@@ -928,7 +935,7 @@ func TestSaveItems_AttachesGenreTags(t *testing.T) {
 		},
 	}
 	src := &stubMusicSource{albums: albums, tracks: tracks}
-	svc := metadata.New([]ports.MetadataSource{src}, nil, entryRepo, groupRepo, itemRepo, &stubPersonRepo{}, tagRepo, &stubExternalIDRepo{}, nil)
+	svc := metadata.New([]ports.MetadataSource{src}, nil, entryRepo, groupRepo, itemRepo, &stubPersonRepo{}, tagRepo, &stubExternalIDRepo{}, nil, nil)
 
 	_, err := svc.ImportAlbum(context.Background(), &metadata.ImportAlbumRequest{
 		Source:         domain.SourceMusicBrainz,
@@ -993,6 +1000,239 @@ func TestImportAlbum_UnknownSource(t *testing.T) {
 	}
 }
 
+// ── ImportEntry: music artist enrichment on import ────────────────────────────
+
+func artistImportSvc(src *stubMusicSource, entryRepo *stubEntryRepo, groupRepo *stubGroupRepo, personRepo *stubPersonRepo, releaseRepo *stubMusicReleaseRepo) *metadata.Service {
+	return metadata.New(
+		[]ports.MetadataSource{src},
+		nil,
+		entryRepo,
+		groupRepo,
+		nil,
+		personRepo,
+		&stubTagRepo{},
+		&stubExternalIDRepo{},
+		nil,
+		releaseRepo,
+	)
+}
+
+func TestImportEntry_Music_EnrichOnImport_MergesMetadataKeys(t *testing.T) {
+	entryRepo := newStubEntryRepo()
+	groupRepo := &stubGroupRepo{}
+	personRepo := &stubPersonRepo{}
+
+	src := &stubMusicSource{
+		albums: []*domain.ExternalGroup{},
+		tracks: map[string][]*domain.ExternalItem{},
+		metadataFields: map[string]any{
+			"artist_type":      "group",
+			"founded_date":     "1967-01-01",
+			"founded_location": "Champaign, IL",
+		},
+	}
+	svc := artistImportSvc(src, entryRepo, groupRepo, personRepo, nil)
+
+	res, err := svc.ImportEntry(context.Background(), &metadata.ImportEntryRequest{
+		Source:      domain.SourceMusicBrainz,
+		ExternalID:  "artist-mbz-1",
+		Name:        "REO Speedwagon",
+		ContentType: domain.ContentTypeMusic,
+	})
+	if err != nil {
+		t.Fatalf("ImportEntry: %v", err)
+	}
+	if res.Entry.Metadata["artist_type"] != "group" {
+		t.Errorf("artist_type = %v, want group", res.Entry.Metadata["artist_type"])
+	}
+	if res.Entry.Metadata["founded_date"] != "1967-01-01" {
+		t.Errorf("founded_date = %v, want 1967-01-01", res.Entry.Metadata["founded_date"])
+	}
+	if res.Entry.Metadata["founded_location"] != "Champaign, IL" {
+		t.Errorf("founded_location = %v, want Champaign, IL", res.Entry.Metadata["founded_location"])
+	}
+}
+
+func TestImportEntry_Music_CreatesReleaseGroupsWithAlbumType(t *testing.T) {
+	entryRepo := newStubEntryRepo()
+	groupRepo := &stubGroupRepo{}
+	personRepo := &stubPersonRepo{}
+
+	album := &domain.ExternalGroup{
+		Source: domain.SourceMusicBrainz, ExternalID: "rg-1",
+		Title: "Hi Infidelity", Year: 1980, PrimaryType: "Album",
+	}
+	src := &stubMusicSource{
+		albums: []*domain.ExternalGroup{album},
+		tracks: map[string][]*domain.ExternalItem{},
+	}
+	svc := artistImportSvc(src, entryRepo, groupRepo, personRepo, nil)
+
+	_, err := svc.ImportEntry(context.Background(), &metadata.ImportEntryRequest{
+		Source:      domain.SourceMusicBrainz,
+		ExternalID:  "artist-mbz-1",
+		Name:        "REO Speedwagon",
+		ContentType: domain.ContentTypeMusic,
+	})
+	if err != nil {
+		t.Fatalf("ImportEntry: %v", err)
+	}
+	if len(groupRepo.groups) == 0 {
+		t.Fatal("no release groups created")
+	}
+	g := groupRepo.groups[0]
+	if g.Metadata["album_type"] != "studio" {
+		t.Errorf("album_type = %v, want studio (Album → no secondary types)", g.Metadata["album_type"])
+	}
+	if g.Metadata["primary_type"] != "Album" {
+		t.Errorf("primary_type = %v, want Album", g.Metadata["primary_type"])
+	}
+}
+
+func TestImportEntry_Music_EnrichOnImport_CreatesReleaseStubs(t *testing.T) {
+	entryRepo := newStubEntryRepo()
+	groupRepo := &stubGroupRepo{}
+	personRepo := &stubPersonRepo{}
+	releaseRepo := &stubMusicReleaseRepo{}
+
+	album := &domain.ExternalGroup{
+		Source: domain.SourceMusicBrainz, ExternalID: "rg-1",
+		Title: "Hi Infidelity", Year: 1980, PrimaryType: "Album",
+	}
+	src := &stubMusicSource{
+		albums: []*domain.ExternalGroup{album},
+		tracks: map[string][]*domain.ExternalItem{},
+		releases: map[string][]*ports.ExternalMusicRelease{
+			"rg-1": {
+				{MBID: "rel-1", Title: "Hi Infidelity (US)", Country: "US", Date: "1980-11-01", IsDefault: true},
+				{MBID: "rel-2", Title: "Hi Infidelity (UK)", Country: "GB", Date: "1980-11-15"},
+			},
+		},
+	}
+	svc := artistImportSvc(src, entryRepo, groupRepo, personRepo, releaseRepo)
+
+	_, err := svc.ImportEntry(context.Background(), &metadata.ImportEntryRequest{
+		Source:      domain.SourceMusicBrainz,
+		ExternalID:  "artist-mbz-1",
+		Name:        "REO Speedwagon",
+		ContentType: domain.ContentTypeMusic,
+	})
+	if err != nil {
+		t.Fatalf("ImportEntry: %v", err)
+	}
+	if len(releaseRepo.saved) != 2 {
+		t.Errorf("release stubs = %d, want 2", len(releaseRepo.saved))
+	}
+}
+
+func TestImportEntry_Music_ReleaseStubs_HaveStatusStub(t *testing.T) {
+	entryRepo := newStubEntryRepo()
+	groupRepo := &stubGroupRepo{}
+	personRepo := &stubPersonRepo{}
+	releaseRepo := &stubMusicReleaseRepo{}
+
+	album := &domain.ExternalGroup{
+		Source: domain.SourceMusicBrainz, ExternalID: "rg-1",
+		Title: "Hi Infidelity", Year: 1980, PrimaryType: "Album",
+	}
+	src := &stubMusicSource{
+		albums: []*domain.ExternalGroup{album},
+		tracks: map[string][]*domain.ExternalItem{},
+		releases: map[string][]*ports.ExternalMusicRelease{
+			"rg-1": {
+				{MBID: "rel-1", Title: "Hi Infidelity (US)", Country: "US", Date: "1980-11-01", IsDefault: true},
+			},
+		},
+	}
+	svc := artistImportSvc(src, entryRepo, groupRepo, personRepo, releaseRepo)
+
+	_, err := svc.ImportEntry(context.Background(), &metadata.ImportEntryRequest{
+		Source:      domain.SourceMusicBrainz,
+		ExternalID:  "artist-mbz-1",
+		Name:        "REO Speedwagon",
+		ContentType: domain.ContentTypeMusic,
+	})
+	if err != nil {
+		t.Fatalf("ImportEntry: %v", err)
+	}
+	if len(releaseRepo.saved) == 0 {
+		t.Fatal("no release stubs created")
+	}
+	for _, rel := range releaseRepo.saved {
+		if rel.Status != domain.ReleaseStatusStub {
+			t.Errorf("release %q status = %q, want %q", rel.Title, rel.Status, domain.ReleaseStatusStub)
+		}
+	}
+}
+
+func TestImportEntry_Music_EnrichOnImport_LinksBandMembers(t *testing.T) {
+	entryRepo := newStubEntryRepo()
+	groupRepo := &stubGroupRepo{}
+	personRepo := &stubPersonRepo{}
+
+	src := &stubMusicSource{
+		albums: []*domain.ExternalGroup{},
+		tracks: map[string][]*domain.ExternalItem{},
+		people: []*domain.ExternalPerson{
+			{Source: domain.SourceMusicBrainz, ExternalID: "person-mbid-1", Name: "Kevin Cronin", Role: domain.RoleArtist},
+			{Source: domain.SourceMusicBrainz, ExternalID: "person-mbid-2", Name: "Gary Richrath", Role: domain.RoleArtist},
+		},
+	}
+	svc := artistImportSvc(src, entryRepo, groupRepo, personRepo, nil)
+
+	_, err := svc.ImportEntry(context.Background(), &metadata.ImportEntryRequest{
+		Source:      domain.SourceMusicBrainz,
+		ExternalID:  "artist-mbz-1",
+		Name:        "REO Speedwagon",
+		ContentType: domain.ContentTypeMusic,
+	})
+	if err != nil {
+		t.Fatalf("ImportEntry: %v", err)
+	}
+	if len(personRepo.saved) != 2 {
+		t.Errorf("persons saved = %d, want 2", len(personRepo.saved))
+	}
+}
+
+func TestImportEntry_Music_SoloArtist_CreatesPerson(t *testing.T) {
+	entryRepo := newStubEntryRepo()
+	groupRepo := &stubGroupRepo{}
+	personRepo := &stubPersonRepo{}
+
+	src := &stubMusicSource{
+		albums: []*domain.ExternalGroup{},
+		tracks: map[string][]*domain.ExternalItem{},
+		metadataFields: map[string]any{
+			"artist_type":   "person",
+			"born_date":     "1948-05-26",
+			"born_location": "Phoenix, AZ",
+		},
+	}
+	svc := artistImportSvc(src, entryRepo, groupRepo, personRepo, nil)
+
+	res, err := svc.ImportEntry(context.Background(), &metadata.ImportEntryRequest{
+		Source:      domain.SourceMusicBrainz,
+		ExternalID:  "stevie-mbid-1",
+		Name:        "Stevie Nicks",
+		ContentType: domain.ContentTypeMusic,
+	})
+	if err != nil {
+		t.Fatalf("ImportEntry: %v", err)
+	}
+	if len(personRepo.saved) != 1 {
+		t.Errorf("persons saved = %d, want 1 (solo artist Person)", len(personRepo.saved))
+	}
+	if personRepo.saved[0].Name != "Stevie Nicks" {
+		t.Errorf("person name = %q, want Stevie Nicks", personRepo.saved[0].Name)
+	}
+	if personRepo.saved[0].Metadata["born_date"] != "1948-05-26" {
+		t.Errorf("born_date = %v, want 1948-05-26", personRepo.saved[0].Metadata["born_date"])
+	}
+	if res.Entry.Metadata["artist_type"] != "person" {
+		t.Errorf("artist_type = %v, want person", res.Entry.Metadata["artist_type"])
+	}
+}
+
 // ── RefreshStudio image downloader ────────────────────────────────────────────
 
 func TestRefreshStudio_FetchesImageForItemsWithURL(t *testing.T) {
@@ -1009,7 +1249,7 @@ func TestRefreshStudio_FetchesImageForItemsWithURL(t *testing.T) {
 	}
 	dl := &stubImageDownloader{ext: ".jpg"}
 	src := &stubSource{scenes: scenes, total: 1}
-	svc := metadata.New([]ports.MetadataSource{src}, nil, entryRepo, nil, itemRepo, &stubPersonRepo{}, &stubTagRepo{}, &stubExternalIDRepo{}, dl)
+	svc := metadata.New([]ports.MetadataSource{src}, nil, entryRepo, nil, itemRepo, &stubPersonRepo{}, &stubTagRepo{}, &stubExternalIDRepo{}, dl, nil)
 
 	if err := svc.RefreshStudio(context.Background(), entry.ID, nil); err != nil {
 		t.Fatalf("RefreshStudio: %v", err)
@@ -1030,7 +1270,7 @@ func TestRefreshStudio_SkipsImageForItemsWithoutURL(t *testing.T) {
 
 	dl := &stubImageDownloader{ext: ".jpg"}
 	src := &stubSource{scenes: threeScenes(), total: 3}
-	svc := metadata.New([]ports.MetadataSource{src}, nil, entryRepo, nil, itemRepo, &stubPersonRepo{}, &stubTagRepo{}, &stubExternalIDRepo{}, dl)
+	svc := metadata.New([]ports.MetadataSource{src}, nil, entryRepo, nil, itemRepo, &stubPersonRepo{}, &stubTagRepo{}, &stubExternalIDRepo{}, dl, nil)
 
 	if err := svc.RefreshStudio(context.Background(), entry.ID, nil); err != nil {
 		t.Fatalf("RefreshStudio: %v", err)
@@ -1054,7 +1294,7 @@ func TestRefreshStudio_ImageDownloaderFailure(t *testing.T) {
 	}
 	dl := &stubImageDownloader{ext: ""}
 	src := &stubSource{scenes: scenes, total: 1}
-	svc := metadata.New([]ports.MetadataSource{src}, nil, entryRepo, nil, itemRepo, &stubPersonRepo{}, &stubTagRepo{}, &stubExternalIDRepo{}, dl)
+	svc := metadata.New([]ports.MetadataSource{src}, nil, entryRepo, nil, itemRepo, &stubPersonRepo{}, &stubTagRepo{}, &stubExternalIDRepo{}, dl, nil)
 
 	if err := svc.RefreshStudio(context.Background(), entry.ID, nil); err != nil {
 		t.Fatalf("RefreshStudio failed on downloader error: %v", err)
@@ -1116,6 +1356,7 @@ func TestRefreshArtist_HeroImagePrefersAudioDB(t *testing.T) {
 		&stubTagRepo{},
 		&stubExternalIDRepo{},
 		dl,
+		nil, // no music release repo
 	)
 
 	if err := svc.RefreshArtist(context.Background(), entry.ID, nil); err != nil {
@@ -1182,6 +1423,7 @@ func TestRefreshArtist_PersonImagePrefersAudioDB(t *testing.T) {
 		&stubTagRepo{},
 		&stubExternalIDRepo{},
 		dl,
+		nil, // no music release repo
 	)
 
 	if err := svc.RefreshArtist(context.Background(), entry.ID, nil); err != nil {
@@ -1231,7 +1473,7 @@ func TestImportEntry_MovieKindIsMovie(t *testing.T) {
 
 func TestImportEntry_MovieWithParent_SetsParentID(t *testing.T) {
 	entryRepo := newStubEntryRepo()
-	svc := metadata.New(nil, nil, entryRepo, nil, &stubItemRepo{}, &stubPersonRepo{}, &stubTagRepo{}, &stubExternalIDRepo{}, nil)
+	svc := metadata.New(nil, nil, entryRepo, nil, &stubItemRepo{}, &stubPersonRepo{}, &stubTagRepo{}, &stubExternalIDRepo{}, nil, nil)
 
 	parentRes, err := svc.ImportEntry(context.Background(), &metadata.ImportEntryRequest{
 		Source:      "tmdb",
@@ -1248,7 +1490,7 @@ func TestImportEntry_MovieWithParent_SetsParentID(t *testing.T) {
 	extIDs := &mapExternalIDRepo{entries: map[string]string{
 		"library_entry:tmdb:tmdb-movie-420": parentRes.Entry.ID,
 	}}
-	svc2 := metadata.New(nil, nil, entryRepo, nil, &stubItemRepo{}, &stubPersonRepo{}, &stubTagRepo{}, extIDs, nil)
+	svc2 := metadata.New(nil, nil, entryRepo, nil, &stubItemRepo{}, &stubPersonRepo{}, &stubTagRepo{}, extIDs, nil, nil)
 
 	childRes, err := svc2.ImportEntry(context.Background(), &metadata.ImportEntryRequest{
 		Source:           "tmdb",
@@ -1284,7 +1526,7 @@ func tracksForAlbum() *stubMusicSource {
 }
 
 func TestSearchTracks_ReturnsAll(t *testing.T) {
-	svc := metadata.New([]ports.MetadataSource{tracksForAlbum()}, nil, newStubEntryRepo(), nil, &stubItemRepo{}, &stubPersonRepo{}, &stubTagRepo{}, &stubExternalIDRepo{}, nil)
+	svc := metadata.New([]ports.MetadataSource{tracksForAlbum()}, nil, newStubEntryRepo(), nil, &stubItemRepo{}, &stubPersonRepo{}, &stubTagRepo{}, &stubExternalIDRepo{}, nil, nil)
 	tracks, err := svc.SearchTracks(context.Background(), &metadata.SearchTracksRequest{
 		Source:      domain.SourceMusicBrainz,
 		ContentType: domain.ContentTypeMusic,
@@ -1299,7 +1541,7 @@ func TestSearchTracks_ReturnsAll(t *testing.T) {
 }
 
 func TestSearchTracks_FilterByQuery(t *testing.T) {
-	svc := metadata.New([]ports.MetadataSource{tracksForAlbum()}, nil, newStubEntryRepo(), nil, &stubItemRepo{}, &stubPersonRepo{}, &stubTagRepo{}, &stubExternalIDRepo{}, nil)
+	svc := metadata.New([]ports.MetadataSource{tracksForAlbum()}, nil, newStubEntryRepo(), nil, &stubItemRepo{}, &stubPersonRepo{}, &stubTagRepo{}, &stubExternalIDRepo{}, nil, nil)
 	tracks, err := svc.SearchTracks(context.Background(), &metadata.SearchTracksRequest{
 		Source:      domain.SourceMusicBrainz,
 		ContentType: domain.ContentTypeMusic,
@@ -1318,7 +1560,7 @@ func TestSearchTracks_FilterByQuery(t *testing.T) {
 }
 
 func TestSearchTracks_UnknownSource(t *testing.T) {
-	svc := metadata.New(nil, nil, newStubEntryRepo(), nil, &stubItemRepo{}, &stubPersonRepo{}, &stubTagRepo{}, &stubExternalIDRepo{}, nil)
+	svc := metadata.New(nil, nil, newStubEntryRepo(), nil, &stubItemRepo{}, &stubPersonRepo{}, &stubTagRepo{}, &stubExternalIDRepo{}, nil, nil)
 	_, err := svc.SearchTracks(context.Background(), &metadata.SearchTracksRequest{
 		Source:      "nonexistent",
 		ContentType: domain.ContentTypeMusic,
@@ -1333,7 +1575,7 @@ func TestSearchTracks_UnknownSource(t *testing.T) {
 }
 
 func TestSearchTracks_PreservesSequence(t *testing.T) {
-	svc := metadata.New([]ports.MetadataSource{tracksForAlbum()}, nil, newStubEntryRepo(), nil, &stubItemRepo{}, &stubPersonRepo{}, &stubTagRepo{}, &stubExternalIDRepo{}, nil)
+	svc := metadata.New([]ports.MetadataSource{tracksForAlbum()}, nil, newStubEntryRepo(), nil, &stubItemRepo{}, &stubPersonRepo{}, &stubTagRepo{}, &stubExternalIDRepo{}, nil, nil)
 	tracks, err := svc.SearchTracks(context.Background(), &metadata.SearchTracksRequest{
 		Source:      domain.SourceMusicBrainz,
 		ContentType: domain.ContentTypeMusic,
@@ -1360,6 +1602,7 @@ func importItemSvc(src ports.MetadataSource, entryRepo *stubEntryRepo, itemRepo 
 		tagRepo,
 		&stubExternalIDRepo{},
 		nil,
+		nil, // no music release repo
 	)
 }
 
@@ -1505,7 +1748,7 @@ func TestImportItem_Idempotent(t *testing.T) {
 			},
 		},
 	}
-	svc := metadata.New([]ports.MetadataSource{src}, nil, newStubEntryRepo(), nil, seeded, &stubPersonRepo{}, &stubTagRepo{}, seeded, nil)
+	svc := metadata.New([]ports.MetadataSource{src}, nil, newStubEntryRepo(), nil, seeded, &stubPersonRepo{}, &stubTagRepo{}, seeded, nil, nil)
 
 	result, err := svc.ImportItem(context.Background(), &metadata.ImportItemRequest{
 		Source:      domain.SourceMusicBrainz,
@@ -1596,7 +1839,7 @@ func TestImportItem_NeverTriggersAutoImport(t *testing.T) {
 			},
 		},
 	}
-	svc := metadata.New([]ports.MetadataSource{src}, jobQueue, entryRepo, nil, &stubItemRepo{}, &stubPersonRepo{}, &stubTagRepo{}, &stubExternalIDRepo{}, nil)
+	svc := metadata.New([]ports.MetadataSource{src}, jobQueue, entryRepo, nil, &stubItemRepo{}, &stubPersonRepo{}, &stubTagRepo{}, &stubExternalIDRepo{}, nil, nil)
 
 	_, err := svc.ImportItem(context.Background(), &metadata.ImportItemRequest{
 		Source:      domain.SourceMusicBrainz,
@@ -1615,7 +1858,7 @@ func TestImportItem_NeverTriggersAutoImport(t *testing.T) {
 // ── SubmitRefreshJob ──────────────────────────────────────────────────────────
 
 func TestSubmitRefreshJob_EmptyEntityID(t *testing.T) {
-	svc := metadata.New(nil, &stubJobQueue{}, newStubEntryRepo(), nil, &stubItemRepo{}, &stubPersonRepo{}, &stubTagRepo{}, &stubExternalIDRepo{}, nil)
+	svc := metadata.New(nil, &stubJobQueue{}, newStubEntryRepo(), nil, &stubItemRepo{}, &stubPersonRepo{}, &stubTagRepo{}, &stubExternalIDRepo{}, nil, nil)
 	_, err := svc.SubmitRefreshJob(context.Background(), "RefreshStudio", "")
 	if err == nil {
 		t.Fatal("expected error, got nil")
@@ -1626,7 +1869,7 @@ func TestSubmitRefreshJob_EmptyEntityID(t *testing.T) {
 }
 
 func TestSubmitRefreshJob_UnknownJob(t *testing.T) {
-	svc := metadata.New(nil, &stubJobQueue{}, newStubEntryRepo(), nil, &stubItemRepo{}, &stubPersonRepo{}, &stubTagRepo{}, &stubExternalIDRepo{}, nil)
+	svc := metadata.New(nil, &stubJobQueue{}, newStubEntryRepo(), nil, &stubItemRepo{}, &stubPersonRepo{}, &stubTagRepo{}, &stubExternalIDRepo{}, nil, nil)
 	_, err := svc.SubmitRefreshJob(context.Background(), "RefreshNonExistent", "some-id")
 	if !errors.Is(err, metadata.ErrUnknownJob) {
 		t.Errorf("err = %v, want ErrUnknownJob", err)
@@ -1635,7 +1878,7 @@ func TestSubmitRefreshJob_UnknownJob(t *testing.T) {
 
 func TestSubmitRefreshJob_RefreshArtist_EnqueuesJob(t *testing.T) {
 	q := &stubJobQueue{}
-	svc := metadata.New(nil, q, newStubEntryRepo(), nil, &stubItemRepo{}, &stubPersonRepo{}, &stubTagRepo{}, &stubExternalIDRepo{}, nil)
+	svc := metadata.New(nil, q, newStubEntryRepo(), nil, &stubItemRepo{}, &stubPersonRepo{}, &stubTagRepo{}, &stubExternalIDRepo{}, nil, nil)
 	job, err := svc.SubmitRefreshJob(context.Background(), "RefreshArtist", "some-id")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -1647,7 +1890,7 @@ func TestSubmitRefreshJob_RefreshArtist_EnqueuesJob(t *testing.T) {
 
 func TestSubmitRefreshJob_RefreshStudio_EnqueuesJob(t *testing.T) {
 	q := &stubJobQueue{}
-	svc := metadata.New(nil, q, newStubEntryRepo(), nil, &stubItemRepo{}, &stubPersonRepo{}, &stubTagRepo{}, &stubExternalIDRepo{}, nil)
+	svc := metadata.New(nil, q, newStubEntryRepo(), nil, &stubItemRepo{}, &stubPersonRepo{}, &stubTagRepo{}, &stubExternalIDRepo{}, nil, nil)
 	job, err := svc.SubmitRefreshJob(context.Background(), "RefreshStudio", "some-id")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -1705,7 +1948,7 @@ func TestSubmitImportItemJob_EnqueuesAndSetsResult(t *testing.T) {
 			},
 		},
 	}
-	svc := metadata.New([]ports.MetadataSource{src}, q, newStubEntryRepo(), nil, &stubItemRepo{}, &stubPersonRepo{}, &stubTagRepo{}, &stubExternalIDRepo{}, nil)
+	svc := metadata.New([]ports.MetadataSource{src}, q, newStubEntryRepo(), nil, &stubItemRepo{}, &stubPersonRepo{}, &stubTagRepo{}, &stubExternalIDRepo{}, nil, nil)
 
 	job, err := svc.SubmitImportItemJob(context.Background(), &metadata.ImportItemRequest{
 		Source:      domain.SourceMusicBrainz,

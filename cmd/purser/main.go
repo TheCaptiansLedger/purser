@@ -124,7 +124,7 @@ func run(cfgPath string) error {
 		jobQueue, entryRepo, groupRepo,
 		thumbnailCache, buildUpgradeMode(cfg),
 	)
-	metaSvc := metadata.New(sources, jobQueue, entryRepo, groupRepo, itemRepo, personRepo, tagRepo, extIDRepo, imgDownloader)
+	metaSvc := metadata.New(sources, jobQueue, entryRepo, groupRepo, itemRepo, personRepo, tagRepo, extIDRepo, imgDownloader, musicReleaseRepo)
 	ghAdapter := githubadapter.New(githubadapter.Config{
 		Repo:  cfg.GitHub.Repo,
 		Token: cfg.GitHub.Token,

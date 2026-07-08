@@ -18,6 +18,7 @@ func (h *musicReleaseHandler) routes(r chi.Router) {
 	r.Get("/{id}", h.get)
 	r.Patch("/{id}", h.update)
 	r.Delete("/{id}", h.delete)
+	r.Get("/{id}/tracks", h.listTracksByRelease)
 }
 
 func toMusicReleaseResponse(r *domain.MusicRelease) *musicReleaseResponse {
@@ -156,6 +157,12 @@ func (h *musicReleaseHandler) delete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
+}
+
+// listTracksByRelease is a stub — full track loading is implemented in Task 18 (#410).
+// Returns an empty array so callers get a valid response rather than 404.
+func (h *musicReleaseHandler) listTracksByRelease(w http.ResponseWriter, _ *http.Request) {
+	writeJSON(w, http.StatusOK, []*domain.Item{})
 }
 
 func (h *musicReleaseHandler) listByGroup(w http.ResponseWriter, r *http.Request) {

@@ -114,7 +114,7 @@ func newHandlerWithConfigSvc(t *testing.T, cfgSvc ports.ConfigService) http.Hand
 	metaSvc := metadata.New(nil, jobQueue,
 		dbadapter.NewLibraryEntryRepo(database), dbadapter.NewGroupRepo(database),
 		dbadapter.NewItemRepo(database), dbadapter.NewPersonRepo(database),
-		dbadapter.NewTagRepo(database), dbadapter.NewExternalIDRepo(database), nil)
+		dbadapter.NewTagRepo(database), dbadapter.NewExternalIDRepo(database), nil, nil)
 	uiFS, _ := fs.Sub(web.Dist, "dist")
 	cfg := &config.Config{
 		Server:   config.ServerConfig{Port: 0, Workers: 1},
@@ -152,7 +152,7 @@ func newHandlerWithDB(t *testing.T) (http.Handler, *sql.DB) {
 	jobQueue := jobsadapter.New(1)
 	t.Cleanup(jobQueue.Close)
 
-	metaSvc := metadata.New(nil, jobQueue, dbadapter.NewLibraryEntryRepo(database), dbadapter.NewGroupRepo(database), dbadapter.NewItemRepo(database), dbadapter.NewPersonRepo(database), dbadapter.NewTagRepo(database), dbadapter.NewExternalIDRepo(database), nil)
+	metaSvc := metadata.New(nil, jobQueue, dbadapter.NewLibraryEntryRepo(database), dbadapter.NewGroupRepo(database), dbadapter.NewItemRepo(database), dbadapter.NewPersonRepo(database), dbadapter.NewTagRepo(database), dbadapter.NewExternalIDRepo(database), nil, nil)
 
 	uiFS, _ := fs.Sub(web.Dist, "dist")
 	cfg := &config.Config{
@@ -211,7 +211,7 @@ func newHandlerWithMedia(t *testing.T, mediaPath string) http.Handler {
 	metaSvc := metadata.New(nil, jobQueue,
 		dbadapter.NewLibraryEntryRepo(database), dbadapter.NewGroupRepo(database),
 		dbadapter.NewItemRepo(database), dbadapter.NewPersonRepo(database),
-		dbadapter.NewTagRepo(database), dbadapter.NewExternalIDRepo(database), nil)
+		dbadapter.NewTagRepo(database), dbadapter.NewExternalIDRepo(database), nil, nil)
 
 	uiFS, _ := fs.Sub(web.Dist, "dist")
 	cfg := &config.Config{
@@ -372,7 +372,7 @@ func TestConfig_Get_Sources_KeysMasked(t *testing.T) {
 	peopleSvc := people.New(personRepo)
 	jobQueue := jobsadapter.New(1)
 	t.Cleanup(jobQueue.Close)
-	metaSvc := metadata.New(nil, jobQueue, dbadapter.NewLibraryEntryRepo(database), dbadapter.NewGroupRepo(database), dbadapter.NewItemRepo(database), dbadapter.NewPersonRepo(database), dbadapter.NewTagRepo(database), dbadapter.NewExternalIDRepo(database), nil)
+	metaSvc := metadata.New(nil, jobQueue, dbadapter.NewLibraryEntryRepo(database), dbadapter.NewGroupRepo(database), dbadapter.NewItemRepo(database), dbadapter.NewPersonRepo(database), dbadapter.NewTagRepo(database), dbadapter.NewExternalIDRepo(database), nil, nil)
 	uiFS, _ := fs.Sub(web.Dist, "dist")
 
 	cfg := &config.Config{
@@ -2459,7 +2459,7 @@ func TestJobs_Cancel_SetsStatus(t *testing.T) {
 	)
 	peopleSvc := people.New(dbadapter.NewPersonRepo(database))
 	tagRepo := dbadapter.NewTagRepo(database)
-	metaSvc := metadata.New(nil, nil, dbadapter.NewLibraryEntryRepo(database), dbadapter.NewGroupRepo(database), dbadapter.NewItemRepo(database), dbadapter.NewPersonRepo(database), dbadapter.NewTagRepo(database), dbadapter.NewExternalIDRepo(database), nil)
+	metaSvc := metadata.New(nil, nil, dbadapter.NewLibraryEntryRepo(database), dbadapter.NewGroupRepo(database), dbadapter.NewItemRepo(database), dbadapter.NewPersonRepo(database), dbadapter.NewTagRepo(database), dbadapter.NewExternalIDRepo(database), nil, nil)
 	uiFS, _ := fs.Sub(web.Dist, "dist")
 	cfg := &config.Config{
 		Server:   config.ServerConfig{Port: 0, Workers: 1},
@@ -3125,7 +3125,7 @@ func newHandlerWithSources(t *testing.T, sources []ports.MetadataSource) http.Ha
 	tagRepo := dbadapter.NewTagRepo(database)
 	jobQueue := jobsadapter.New(1)
 	t.Cleanup(jobQueue.Close)
-	metaSvc := metadata.New(sources, jobQueue, dbadapter.NewLibraryEntryRepo(database), dbadapter.NewGroupRepo(database), dbadapter.NewItemRepo(database), dbadapter.NewPersonRepo(database), dbadapter.NewTagRepo(database), dbadapter.NewExternalIDRepo(database), nil)
+	metaSvc := metadata.New(sources, jobQueue, dbadapter.NewLibraryEntryRepo(database), dbadapter.NewGroupRepo(database), dbadapter.NewItemRepo(database), dbadapter.NewPersonRepo(database), dbadapter.NewTagRepo(database), dbadapter.NewExternalIDRepo(database), nil, nil)
 	uiFS, _ := fs.Sub(web.Dist, "dist")
 	cfg := &config.Config{
 		Server:   config.ServerConfig{Port: 0, Workers: 1},
@@ -3362,7 +3362,7 @@ func TestDatabase_Restore_CallsShutdown(t *testing.T) {
 	metaSvc := metadata.New(nil, jobQueue,
 		dbadapter.NewLibraryEntryRepo(database), dbadapter.NewGroupRepo(database),
 		dbadapter.NewItemRepo(database), dbadapter.NewPersonRepo(database),
-		dbadapter.NewTagRepo(database), dbadapter.NewExternalIDRepo(database), nil)
+		dbadapter.NewTagRepo(database), dbadapter.NewExternalIDRepo(database), nil, nil)
 	uiFS, _ := fs.Sub(web.Dist, "dist")
 	cfg := &config.Config{
 		Server:   config.ServerConfig{Port: 0, Workers: 1},
@@ -3488,7 +3488,7 @@ func newHandlerWithScan(t *testing.T) (http.Handler, *sql.DB) {
 	jobQueue := jobsadapter.New(1)
 	t.Cleanup(jobQueue.Close)
 
-	metaSvc := metadata.New(nil, jobQueue, entryRepo, groupRepo, itemRepo, personRepo, tagRepo, dbadapter.NewExternalIDRepo(database), nil)
+	metaSvc := metadata.New(nil, jobQueue, entryRepo, groupRepo, itemRepo, personRepo, tagRepo, dbadapter.NewExternalIDRepo(database), nil, nil)
 
 	scanSvc := appscan.New(
 		noopScanner{}, nil,
@@ -3744,7 +3744,7 @@ func newHandlerWithItemSource(t *testing.T, src *stubItemSource) (http.Handler, 
 	metaSvc := metadata.New([]ports.MetadataSource{src}, jobQueue,
 		dbadapter.NewLibraryEntryRepo(database), dbadapter.NewGroupRepo(database),
 		dbadapter.NewItemRepo(database), dbadapter.NewPersonRepo(database),
-		dbadapter.NewTagRepo(database), dbadapter.NewExternalIDRepo(database), nil)
+		dbadapter.NewTagRepo(database), dbadapter.NewExternalIDRepo(database), nil, nil)
 	uiFS, _ := fs.Sub(web.Dist, "dist")
 	cfg := &config.Config{
 		Server:   config.ServerConfig{Port: 0, Workers: 1},

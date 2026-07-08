@@ -352,6 +352,7 @@ func newMetaSvc(
 		&e2eTagRepo{},
 		extIDs,
 		&noopImageDownloader{},
+		nil, // no music release repo
 	)
 }
 

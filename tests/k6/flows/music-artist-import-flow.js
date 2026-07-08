@@ -9,6 +9,11 @@
 // Also verifies that the releases-by-group endpoint returns barcode and
 // isDefault fields correctly when releases are created directly.
 //
+// Full artist import flow (Task 15 / #407): POST /metadata/entries/import for
+// REO Speedwagon creates the entry, release groups with album_type metadata,
+// release stubs with status=stub, band members as Person records, and the
+// GET /music/releases/{id}/tracks stub returns [].
+//
 // Functional: k6 run tests/k6/flows/music-artist-import-flow.js
 // Load:       k6 run --vus 10 --duration 60s tests/k6/flows/music-artist-import-flow.js
 
@@ -56,6 +61,61 @@ export default function () {
       });
     });
 
+  });
+
+  group('full artist import: POST /metadata/entries/import enriches artist inline', () => {
+    // Import REO Speedwagon via the import endpoint. The service fetches metadata
+    // keys, creates release group stubs, creates release stubs (status=stub), and
+    // imports band members as Person records — all in the same request.
+    const importRes = http.post(`${BASE_URL}/metadata/entries/import`,
+      JSON.stringify({
+        source: 'mbz',
+        externalId: reoMBID,
+        name: 'REO Speedwagon',
+        contentType: 'music',
+        monitored: false,
+        monitorMode: 'none',
+      }),
+      { headers: JSON_HEADERS });
+    check(importRes, {
+      'import 201':              r => r.status === 201,
+      'import: kind == artist':  r => r.json('kind') === 'artist',
+      'import: contentType':     r => r.json('contentType') === 'music',
+    });
+    const artistId = importRes.json('id');
+
+    // Release groups (albums) are created inline
+    const groupsRes = http.get(`${BASE_URL}/groups?libraryEntryId=${artistId}`);
+    check(groupsRes, {
+      'groups 200':               r => r.status === 200,
+      'groups: at least 1 rg':    r => (r.json('data') || r.json() || []).length > 0,
+    });
+
+    // People (band members) are created inline
+    const peopleRes = http.get(`${BASE_URL}/library-entries/${artistId}/people`);
+    check(peopleRes, {
+      'people 200':               r => r.status === 200,
+      'people: at least 1 member': r => r.json().length > 0,
+    });
+
+    // Tracks stub endpoint returns [] for any release belonging to this artist
+    // (full track loading is Task 18 / #410)
+    if (groupsRes.status === 200) {
+      const groups = groupsRes.json('data') || groupsRes.json() || [];
+      if (groups.length > 0) {
+        const releasesRes = http.get(`${BASE_URL}/groups/${groups[0].id}/releases`);
+        if (releasesRes.status === 200) {
+          const releases = releasesRes.json();
+          if (releases.length > 0) {
+            const tracksRes = http.get(`${BASE_URL}/music/releases/${releases[0].id}/tracks`);
+            check(tracksRes, {
+              'tracks stub 200':       r => r.status === 200,
+              'tracks stub is array':  r => Array.isArray(r.json()),
+            });
+          }
+        }
+      }
+    }
   });
 
   group('barcode lookup: releases endpoint returns barcode and isDefault fields', () => {
