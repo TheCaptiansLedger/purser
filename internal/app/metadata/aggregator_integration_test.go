@@ -73,11 +73,12 @@ func TestMetadataAggregator_FindByExternalID_Music(t *testing.T) {
 }
 
 func TestMetadataService_Integration_ImportREOSpeedwagon(t *testing.T) {
+	// Import makes O(1) API calls — metadata fetch, album listing, member fetch.
+	// Release edition stubs are deferred to RefreshArtist (see below).
 	src := mbz.New(config.MetadataSourceConfig{}, nil)
 	entryRepo := newStubEntryRepo()
 	groupRepo := &stubGroupRepo{}
 	personRepo := &stubPersonRepo{}
-	releaseRepo := &stubMusicReleaseRepo{}
 
 	svc := metadata.New(
 		[]ports.MetadataSource{src},
@@ -89,10 +90,10 @@ func TestMetadataService_Integration_ImportREOSpeedwagon(t *testing.T) {
 		&stubTagRepo{},
 		&stubExternalIDRepo{},
 		nil,
-		releaseRepo,
+		nil, // release repo not needed for import
 	)
 
-	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
 	res, err := svc.ImportEntry(ctx, &metadata.ImportEntryRequest{
@@ -105,20 +106,15 @@ func TestMetadataService_Integration_ImportREOSpeedwagon(t *testing.T) {
 		t.Fatalf("ImportEntry: %v", err)
 	}
 
-	// Entry kind and name
 	if res.Entry.Kind != domain.KindArtist {
 		t.Errorf("Kind = %q, want artist", res.Entry.Kind)
 	}
-
-	// Metadata keys: artist_type (MBZ returns "group" for bands)
 	if res.Entry.Metadata["artist_type"] != "group" {
 		t.Errorf("artist_type = %v, want group", res.Entry.Metadata["artist_type"])
 	}
 	if _, ok := res.Entry.Metadata["founded_date"]; !ok {
-		t.Error("founded_date is missing from entry metadata")
+		t.Error("founded_date missing from entry metadata")
 	}
-
-	// Release groups created
 	if len(groupRepo.groups) == 0 {
 		t.Error("no release groups created during import")
 	}
@@ -127,19 +123,8 @@ func TestMetadataService_Integration_ImportREOSpeedwagon(t *testing.T) {
 			t.Errorf("group %q has no album_type metadata", g.Title)
 		}
 	}
-
-	// Release stubs created (MBZ returns releases for release groups)
-	if len(releaseRepo.saved) == 0 {
-		t.Error("no release stubs created during import")
-	}
-	for _, rel := range releaseRepo.saved {
-		if rel.Status != domain.ReleaseStatusStub {
-			t.Errorf("release %q status = %q, want stub", rel.Title, rel.Status)
-		}
-	}
-
-	// Band members created (REO Speedwagon is a band, should have members)
 	if len(personRepo.saved) == 0 {
 		t.Error("no band members created during import")
 	}
 }
+

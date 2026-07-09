@@ -706,6 +706,143 @@ func TestRefreshArtist_SkipsDuplicates(t *testing.T) {
 	}
 }
 
+func TestRefreshArtist_CreatesReleaseStubs(t *testing.T) {
+	entryRepo := newStubEntryRepo()
+	groupRepo := &stubGroupRepo{}
+	itemRepo := &stubItemRepo{}
+	releaseRepo := &stubMusicReleaseRepo{}
+	entry := artistEntry(domain.MonitorAll, time.Date(2020, 1, 1, 0, 0, 0, 0, time.UTC))
+	entryRepo.data[entry.ID] = entry
+
+	album := &domain.ExternalGroup{
+		Source: domain.SourceMusicBrainz, ExternalID: "rg-1",
+		Title: "Hi Infidelity", Year: 1980, PrimaryType: "Album",
+	}
+	src := &stubMusicSource{
+		albums: []*domain.ExternalGroup{album},
+		tracks: map[string][]*domain.ExternalItem{},
+		releases: map[string][]*ports.ExternalMusicRelease{
+			"rg-1": {
+				{MBID: "rel-1", Title: "Hi Infidelity (US)", Country: "US", Date: "1980-11-01", IsDefault: true},
+				{MBID: "rel-2", Title: "Hi Infidelity (UK)", Country: "GB", Date: "1980-11-15"},
+			},
+		},
+	}
+	svc := metadata.New(
+		[]ports.MetadataSource{src},
+		nil,
+		entryRepo,
+		groupRepo,
+		itemRepo,
+		&stubPersonRepo{},
+		&stubTagRepo{},
+		&stubExternalIDRepo{},
+		nil,
+		releaseRepo,
+	)
+
+	if err := svc.RefreshArtist(context.Background(), entry.ID, nil); err != nil {
+		t.Fatalf("RefreshArtist: %v", err)
+	}
+	if len(releaseRepo.saved) != 2 {
+		t.Errorf("release stubs = %d, want 2", len(releaseRepo.saved))
+	}
+}
+
+func TestRefreshArtist_ReleaseStubs_HaveStatusStub(t *testing.T) {
+	entryRepo := newStubEntryRepo()
+	groupRepo := &stubGroupRepo{}
+	itemRepo := &stubItemRepo{}
+	releaseRepo := &stubMusicReleaseRepo{}
+	entry := artistEntry(domain.MonitorAll, time.Date(2020, 1, 1, 0, 0, 0, 0, time.UTC))
+	entryRepo.data[entry.ID] = entry
+
+	album := &domain.ExternalGroup{
+		Source: domain.SourceMusicBrainz, ExternalID: "rg-1",
+		Title: "Hi Infidelity", Year: 1980, PrimaryType: "Album",
+	}
+	src := &stubMusicSource{
+		albums: []*domain.ExternalGroup{album},
+		tracks: map[string][]*domain.ExternalItem{},
+		releases: map[string][]*ports.ExternalMusicRelease{
+			"rg-1": {
+				{MBID: "rel-1", Title: "Hi Infidelity (US)", Country: "US", Date: "1980-11-01", IsDefault: true},
+			},
+		},
+	}
+	svc := metadata.New(
+		[]ports.MetadataSource{src},
+		nil,
+		entryRepo,
+		groupRepo,
+		itemRepo,
+		&stubPersonRepo{},
+		&stubTagRepo{},
+		&stubExternalIDRepo{},
+		nil,
+		releaseRepo,
+	)
+
+	if err := svc.RefreshArtist(context.Background(), entry.ID, nil); err != nil {
+		t.Fatalf("RefreshArtist: %v", err)
+	}
+	if len(releaseRepo.saved) == 0 {
+		t.Fatal("no release stubs created by RefreshArtist")
+	}
+	for _, rel := range releaseRepo.saved {
+		if rel.Status != domain.ReleaseStatusStub {
+			t.Errorf("release %q status = %q, want stub", rel.Title, rel.Status)
+		}
+	}
+}
+
+func TestRefreshArtist_ReleaseStubs_Idempotent(t *testing.T) {
+	// Second call to RefreshArtist must not duplicate release stubs that
+	// already exist (GetByMBID check guards each release before save).
+	entryRepo := newStubEntryRepo()
+	groupRepo := &stubGroupRepo{}
+	itemRepo := &stubItemRepo{}
+	releaseRepo := &stubMusicReleaseRepo{}
+	entry := artistEntry(domain.MonitorAll, time.Date(2020, 1, 1, 0, 0, 0, 0, time.UTC))
+	entryRepo.data[entry.ID] = entry
+
+	album := &domain.ExternalGroup{
+		Source: domain.SourceMusicBrainz, ExternalID: "rg-1",
+		Title: "Hi Infidelity", Year: 1980, PrimaryType: "Album",
+	}
+	src := &stubMusicSource{
+		albums: []*domain.ExternalGroup{album},
+		tracks: map[string][]*domain.ExternalItem{},
+		releases: map[string][]*ports.ExternalMusicRelease{
+			"rg-1": {
+				{MBID: "rel-1", Title: "Hi Infidelity (US)", Country: "US", Date: "1980-11-01", IsDefault: true},
+			},
+		},
+	}
+	svc := metadata.New(
+		[]ports.MetadataSource{src},
+		nil,
+		entryRepo,
+		groupRepo,
+		itemRepo,
+		&stubPersonRepo{},
+		&stubTagRepo{},
+		&stubExternalIDRepo{},
+		nil,
+		releaseRepo,
+	)
+
+	if err := svc.RefreshArtist(context.Background(), entry.ID, nil); err != nil {
+		t.Fatalf("first RefreshArtist: %v", err)
+	}
+	if err := svc.RefreshArtist(context.Background(), entry.ID, nil); err != nil {
+		t.Fatalf("second RefreshArtist: %v", err)
+	}
+	if len(releaseRepo.saved) != 1 {
+		t.Errorf("after 2 refreshes: release stubs = %d, want 1 (idempotent)", len(releaseRepo.saved))
+	}
+}
+
 // ── FetchArtistDiscography ────────────────────────────────────────────────────
 
 func TestFetchArtistDiscography_ReturnsGroups(t *testing.T) {
@@ -1089,43 +1226,10 @@ func TestImportEntry_Music_CreatesReleaseGroupsWithAlbumType(t *testing.T) {
 	}
 }
 
-func TestImportEntry_Music_EnrichOnImport_CreatesReleaseStubs(t *testing.T) {
-	entryRepo := newStubEntryRepo()
-	groupRepo := &stubGroupRepo{}
-	personRepo := &stubPersonRepo{}
-	releaseRepo := &stubMusicReleaseRepo{}
-
-	album := &domain.ExternalGroup{
-		Source: domain.SourceMusicBrainz, ExternalID: "rg-1",
-		Title: "Hi Infidelity", Year: 1980, PrimaryType: "Album",
-	}
-	src := &stubMusicSource{
-		albums: []*domain.ExternalGroup{album},
-		tracks: map[string][]*domain.ExternalItem{},
-		releases: map[string][]*ports.ExternalMusicRelease{
-			"rg-1": {
-				{MBID: "rel-1", Title: "Hi Infidelity (US)", Country: "US", Date: "1980-11-01", IsDefault: true},
-				{MBID: "rel-2", Title: "Hi Infidelity (UK)", Country: "GB", Date: "1980-11-15"},
-			},
-		},
-	}
-	svc := artistImportSvc(src, entryRepo, groupRepo, personRepo, releaseRepo)
-
-	_, err := svc.ImportEntry(context.Background(), &metadata.ImportEntryRequest{
-		Source:      domain.SourceMusicBrainz,
-		ExternalID:  "artist-mbz-1",
-		Name:        "REO Speedwagon",
-		ContentType: domain.ContentTypeMusic,
-	})
-	if err != nil {
-		t.Fatalf("ImportEntry: %v", err)
-	}
-	if len(releaseRepo.saved) != 2 {
-		t.Errorf("release stubs = %d, want 2", len(releaseRepo.saved))
-	}
-}
-
-func TestImportEntry_Music_ReleaseStubs_HaveStatusStub(t *testing.T) {
+func TestImportEntry_Music_EnrichOnImport_NoReleaseStubsCreated(t *testing.T) {
+	// Release stubs are created by RefreshArtist (background), not by ImportEntry.
+	// Import makes O(1) API calls; creating stubs (N calls, one per release group)
+	// would stall the import endpoint for large artists.
 	entryRepo := newStubEntryRepo()
 	groupRepo := &stubGroupRepo{}
 	personRepo := &stubPersonRepo{}
@@ -1155,13 +1259,8 @@ func TestImportEntry_Music_ReleaseStubs_HaveStatusStub(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ImportEntry: %v", err)
 	}
-	if len(releaseRepo.saved) == 0 {
-		t.Fatal("no release stubs created")
-	}
-	for _, rel := range releaseRepo.saved {
-		if rel.Status != domain.ReleaseStatusStub {
-			t.Errorf("release %q status = %q, want %q", rel.Title, rel.Status, domain.ReleaseStatusStub)
-		}
+	if len(releaseRepo.saved) != 0 {
+		t.Errorf("import created %d release stubs, want 0 (deferred to RefreshArtist)", len(releaseRepo.saved))
 	}
 }
 

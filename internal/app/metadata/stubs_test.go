@@ -373,7 +373,14 @@ func (r *stubMusicReleaseRepo) Get(_ context.Context, id string) (*domain.MusicR
 	return nil, fmt.Errorf("not found: %w", errs.ErrNotFound)
 }
 
-func (r *stubMusicReleaseRepo) GetByMBID(_ context.Context, _ string) (*domain.MusicRelease, error) {
+func (r *stubMusicReleaseRepo) GetByMBID(_ context.Context, mbid string) (*domain.MusicRelease, error) {
+	for _, rel := range r.saved {
+		for _, extID := range rel.ExternalIDs {
+			if string(extID.Source) == "mbz" && extID.Value == mbid {
+				return rel, nil
+			}
+		}
+	}
 	return nil, fmt.Errorf("not found: %w", errs.ErrNotFound)
 }
 

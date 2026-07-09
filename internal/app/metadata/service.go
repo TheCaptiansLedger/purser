@@ -949,6 +949,11 @@ func (s *Service) RefreshArtist(ctx context.Context, entryID string, p ports.Pro
 		return err
 	}
 
+	// Populate release edition stubs for every release group. This is N API
+	// calls (one per release group) so it lives here in the background refresh
+	// job rather than in ImportEntry.
+	_ = s.createReleaseStubs(ctx, src, entryID, albums)
+
 	_ = s.importArtistPeople(ctx, src, entryID, srcExtID)
 	s.fetchArtistHeroImage(ctx, entry, srcExtID)
 	s.fetchAlbumCovers(ctx, entry.ContentType, srcExtID, albums)
@@ -1675,28 +1680,31 @@ func (s *Service) collectImages(ctx context.Context, contentType domain.ContentT
 
 // ── Import enrichment ─────────────────────────────────────────────────────────
 
-// enrichOnImport performs full enrichment for entry kinds that declare
+// enrichOnImport performs fast inline enrichment for entry kinds that declare
 // SupportsImportEnrichment. Currently only KindArtist (music) qualifies.
-// It writes metadata keys, creates all release group stubs and their releases,
-// imports band members with roles, and links solo artists to a Person record.
-// All steps are best-effort: errors are logged and do not abort the import.
+// It makes O(1) API calls so that ImportEntry returns quickly:
+//   - mergeEntryMetadata: 1 call to fetch artist metadata keys
+//   - resolveArtistAlbums: 1 paginated call to create release group records
+//   - importArtistPeople: 1 call to fetch and link band members
+//
+// Release edition stubs (one HTTP call per release group) are deferred to
+// RefreshArtist, which runs as a background job and can afford N API calls.
 func (s *Service) enrichOnImport(ctx context.Context, entry *domain.LibraryEntry, req *ImportEntryRequest) {
 	src := s.sourceByName(string(req.Source))
 	if src == nil {
 		return
 	}
 
-	// Step 1: fetch and merge all artist metadata keys.
+	// Step 1: fetch and merge all artist metadata keys (1 API call).
 	artistType := s.mergeEntryMetadata(ctx, src, entry, req)
 
-	// Step 2: create all release groups and their release stubs.
+	// Step 2: create all release group records (1 paginated call).
 	albums, err := s.resolveArtistAlbums(ctx, src, entry, req.ExternalID)
 	if err != nil {
 		slog.Warn("artist import: resolve albums", "entry_id", entry.ID, "error", err)
 	}
-	totalStubs := s.createReleaseStubs(ctx, src, entry.ID, albums)
 
-	// Step 3: import band members.
+	// Step 3: import band members (1 API call).
 	memberCount := s.importArtistPeople(ctx, src, entry.ID, req.ExternalID)
 
 	// Step 4: solo artist — create Person from life-span metadata and link.
@@ -1708,7 +1716,7 @@ func (s *Service) enrichOnImport(ctx context.Context, entry *domain.LibraryEntry
 	slog.Info("artist import",
 		"name", entry.Name, "mbid", req.ExternalID,
 		"type", artistType, "rg_count", len(albums),
-		"release_stubs", totalStubs, "member_count", memberCount,
+		"member_count", memberCount,
 	)
 }
 
@@ -1768,6 +1776,13 @@ func (s *Service) createReleaseStubs(ctx context.Context, src ports.MetadataSour
 			continue
 		}
 		for _, ext := range releases {
+			// Skip releases already in the library so repeated refreshes are
+			// idempotent and don't produce duplicate MusicRelease records.
+			if ext.MBID != "" {
+				if _, err := s.musicReleases.GetByMBID(ctx, ext.MBID); err == nil {
+					continue
+				}
+			}
 			rel := &domain.MusicRelease{
 				ID:             uuid.New().String(),
 				GroupID:        album.internalID,
@@ -1794,7 +1809,7 @@ func (s *Service) createReleaseStubs(ctx context.Context, src ports.MetadataSour
 			}
 			rel.ApplyDefaults()
 			if saveErr := s.musicReleases.Save(ctx, rel); saveErr != nil {
-				slog.Warn("artist import: save release stub", "rg_mbid", rgMBID, "error", saveErr)
+				slog.Warn("refresh artist: save release stub", "rg_mbid", rgMBID, "error", saveErr)
 				continue
 			}
 			total++
