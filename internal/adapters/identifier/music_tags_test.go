@@ -144,6 +144,32 @@ func TestExtractMusicTagSummary_Consensus(t *testing.T) {
 	}
 }
 
+func TestExtractMusicTagSummary_AlbumArtist_FallsBackToArtistTag(t *testing.T) {
+	group := ports.ScannedFileGroup{
+		RootPath: "/music/Hi Infidelity",
+		Files: []domain.ScannedFile{
+			musicFileWithFP("/music/Hi Infidelity/01.flac", map[string]string{
+				"artist":       "REO Speedwagon",
+				"album":        "Hi Infidelity",
+				"track_number": "1",
+				"title":        "Don't Let Him Go",
+			}),
+			musicFileWithFP("/music/Hi Infidelity/02.flac", map[string]string{
+				"artist":       "REO Speedwagon",
+				"album":        "Hi Infidelity",
+				"track_number": "2",
+				"title":        "Keep on Loving You",
+			}),
+		},
+	}
+
+	summary := identifier.ExtractMusicTagSummary(context.Background(), group)
+
+	if summary.AlbumArtist != "REO Speedwagon" {
+		t.Errorf("AlbumArtist = %q, want %q (fallback from artist tag)", summary.AlbumArtist, "REO Speedwagon")
+	}
+}
+
 func TestExtractMusicTagSummary_OutlierIgnored(t *testing.T) {
 	files := make([]domain.ScannedFile, 10)
 	for i := range files {

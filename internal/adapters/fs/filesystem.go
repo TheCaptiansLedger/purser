@@ -2,7 +2,9 @@ package fs
 
 import (
 	"context"
+	"crypto/sha1" //nolint:gosec // content identity hash, not used for security
 	"encoding/binary"
+	"encoding/hex"
 	"fmt"
 	"io"
 	"os"
@@ -73,6 +75,20 @@ func (f *osFileSystem) OSHash(_ context.Context, path string) (string, error) {
 		}
 	}
 	return fmt.Sprintf("%016x", hash), nil
+}
+
+func (f *osFileSystem) SHA1(_ context.Context, path string) (string, error) {
+	file, err := os.Open(path) //nolint:gosec // path comes from library scan
+	if err != nil {
+		return "", fmt.Errorf("open %s: %w", path, err)
+	}
+	defer func() { _ = file.Close() }()
+
+	h := sha1.New() //nolint:gosec // content identity hash, not used for security
+	if _, err := io.Copy(h, file); err != nil {
+		return "", fmt.Errorf("hash %s: %w", path, err)
+	}
+	return hex.EncodeToString(h.Sum(nil)), nil
 }
 
 func (f *osFileSystem) Walk(_ context.Context, root string, fn func(ports.FileInfo) error) error {

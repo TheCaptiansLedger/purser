@@ -27,6 +27,10 @@ func (r *realFS) OSHash(_ context.Context, path string) (string, error) {
 	return computeOSHash(path)
 }
 
+func (r *realFS) SHA1(_ context.Context, _ string) (string, error) {
+	return "", nil
+}
+
 func (r *realFS) Stat(_ context.Context, _ string) (*ports.FileInfo, error) {
 	return nil, errs.ErrNotFound
 }

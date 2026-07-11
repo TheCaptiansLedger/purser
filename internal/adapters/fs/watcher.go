@@ -136,7 +136,7 @@ func (w *watcher) handleEvent(
 			if err := addRecursive(fw, event.Name); err != nil {
 				slog.Warn("watcher: failed to watch new directory", "path", event.Name, "err", err)
 			}
-			go w.emitExistingFiles(ctx, event.Name, ch)
+			go w.emitExistingFiles(ctx, event.Name, ch, mu, timers)
 			return
 		}
 	}
@@ -161,38 +161,52 @@ func (w *watcher) handleEvent(
 		return
 	}
 
-	path := event.Name
+	w.schedule(ctx, ch, event.Name, eventOp, mu, timers)
+}
+
+// schedule registers or refreshes the pending debounce entry for path. Shared by
+// handleEvent (live fsnotify events) and walkAndEmit (pre-existing files found
+// when a new directory is dropped in) so a file discovered by the directory walk
+// and then written to by a real fsnotify event debounces as a single pending
+// entry instead of each path independently emitting its own event.
+func (w *watcher) schedule(
+	ctx context.Context,
+	ch chan<- ports.WatchEvent,
+	path string,
+	op ports.WatchOp,
+	mu *sync.Mutex,
+	timers map[string]*pendingEntry,
+) {
 	mu.Lock()
+	defer mu.Unlock()
 	if entry, exists := timers[path]; exists {
 		entry.timer.Stop()
 		// Preserve WatchCreated if it was the first event; Create beats Write.
-		if eventOp == ports.WatchCreated {
+		if op == ports.WatchCreated {
 			entry.op = ports.WatchCreated
 		}
 		entry.timer = time.AfterFunc(w.debounce, func() {
 			w.fire(ctx, ch, path, mu, timers)
 		})
-		mu.Unlock()
 		return
 	}
-	p := &pendingEntry{op: eventOp}
+	p := &pendingEntry{op: op}
 	p.timer = time.AfterFunc(w.debounce, func() {
 		w.fire(ctx, ch, path, mu, timers)
 	})
 	timers[path] = p
-	mu.Unlock()
 }
 
-// emitExistingFiles walks dir and sends a WatchCreated event for every media
+// emitExistingFiles walks dir and schedules a WatchCreated entry for every media
 // file already present. Called in a goroutine when a new directory is detected
-// so that the fsnotify event loop is never blocked on channel sends.
+// so that the fsnotify event loop is never blocked.
 //
 // Docker on macOS (VirtioFS): a directory rename arrives as a single Create on
 // the parent; VirtioFS may write the directory files in as separate events
 // *after* the parent Create. If the first walk finds nothing, we retry after
 // a short delay so copy-in files are still caught.
-func (w *watcher) emitExistingFiles(ctx context.Context, dir string, ch chan<- ports.WatchEvent) {
-	count := w.walkAndEmit(ctx, dir, ch)
+func (w *watcher) emitExistingFiles(ctx context.Context, dir string, ch chan<- ports.WatchEvent, mu *sync.Mutex, timers map[string]*pendingEntry) {
+	count := w.walkAndEmit(ctx, dir, ch, mu, timers)
 	slog.InfoContext(ctx, "watcher: finished scanning new directory", "dir", dir, "files_emitted", count)
 
 	if count == 0 {
@@ -207,14 +221,15 @@ func (w *watcher) emitExistingFiles(ctx context.Context, dir string, ch chan<- p
 		case <-ctx.Done():
 			return
 		}
-		count = w.walkAndEmit(ctx, dir, ch)
+		count = w.walkAndEmit(ctx, dir, ch, mu, timers)
 		slog.InfoContext(ctx, "watcher: deferred scan of new directory", "dir", dir, "files_emitted", count)
 	}
 }
 
-// walkAndEmit performs a single recursive walk of dir, emitting a WatchCreated
-// event for each media file. It returns the number of events emitted.
-func (w *watcher) walkAndEmit(ctx context.Context, dir string, ch chan<- ports.WatchEvent) int {
+// walkAndEmit performs a single recursive walk of dir, scheduling a WatchCreated
+// entry for each media file through the same debounce bookkeeping live fsnotify
+// events use. It returns the number of files scheduled.
+func (w *watcher) walkAndEmit(ctx context.Context, dir string, ch chan<- ports.WatchEvent, mu *sync.Mutex, timers map[string]*pendingEntry) int {
 	var count, skippedExt, skippedHidden int
 	_ = filepath.WalkDir(dir, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
@@ -234,18 +249,9 @@ func (w *watcher) walkAndEmit(ctx context.Context, dir string, ch chan<- ports.W
 			skippedHidden++
 			return nil
 		}
-		fi, statErr := os.Stat(path)
-		if statErr != nil {
-			slog.WarnContext(ctx, "watcher: scan: stat failed", "path", path, "err", statErr)
-			return nil //nolint:nilerr // file may have vanished between walk and stat
-		}
-		slog.InfoContext(ctx, "watcher: emitting event for pre-existing file", "path", path)
-		select {
-		case ch <- ports.WatchEvent{Path: path, Size: fi.Size(), Op: ports.WatchCreated}:
-			count++
-		case <-ctx.Done():
-			return filepath.SkipAll
-		}
+		slog.InfoContext(ctx, "watcher: scheduling pre-existing file", "path", path)
+		w.schedule(ctx, ch, path, ports.WatchCreated, mu, timers)
+		count++
 		return nil
 	})
 	if skippedExt > 0 {

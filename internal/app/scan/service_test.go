@@ -1334,6 +1334,138 @@ func TestService_StartWatching_ConcurrentProcessing(t *testing.T) {
 	}
 }
 
+// TestService_StartWatching_GroupedContentType_DebouncesThenGroups verifies that
+// files of a content type with a registered FileGrouper are buffered and routed
+// through fanOutToGroupers — the same path ScanRoots uses — instead of the flat
+// per-file pipeline, even when discovered one event at a time via the watcher.
+func TestService_StartWatching_GroupedContentType_DebouncesThenGroups(t *testing.T) {
+	watcher := &mockWatcher{events: []ports.WatchEvent{
+		{Op: ports.WatchCreated, Path: "/music/Hi Infidelity/01.flac", Size: 1000},
+		{Op: ports.WatchCreated, Path: "/music/Hi Infidelity/02.flac", Size: 1000},
+	}}
+	unmatchedRepo := newUnmatchedRepo()
+
+	var grouperReceived []domain.ScannedFile
+	grouper := &mockGrouper{
+		contentTypes: []domain.ContentType{domain.ContentTypeMusic},
+		groupFn: func(_ context.Context, files []domain.ScannedFile) ([]ports.ScannedFileGroup, error) {
+			grouperReceived = files
+			return []ports.ScannedFileGroup{{Files: files, RootPath: "/music/Hi Infidelity"}}, nil
+		},
+	}
+	identified := make(chan ports.ScannedFileGroup, 1)
+	groupID := &mockGroupIdentifier{
+		contentTypes: []domain.ContentType{domain.ContentTypeMusic},
+		identifyFn: func(_ context.Context, group ports.ScannedFileGroup) error {
+			identified <- group
+			return nil
+		},
+	}
+
+	svc := scan.New(
+		nil, watcher,
+		nil, nil,
+		[]ports.FileGrouper{grouper},
+		[]ports.GroupIdentifier{groupID},
+		newItemRepo(), newMediaFileRepo(), unmatchedRepo,
+		&mockNotifier{}, 0.85,
+		nil, nil, nil, nil, nil,
+	)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+
+	if err := svc.StartWatching(ctx, []scan.Module{
+		{ContentType: domain.ContentTypeMusic, Roots: []string{"/music"}},
+	}); err != nil {
+		t.Fatalf("StartWatching: %v", err)
+	}
+
+	select {
+	case group := <-identified:
+		if len(grouperReceived) != 2 {
+			t.Errorf("grouper received %d files, want 2", len(grouperReceived))
+		}
+		if group.RootPath != "/music/Hi Infidelity" {
+			t.Errorf("RootPath = %q, want %q", group.RootPath, "/music/Hi Infidelity")
+		}
+	case <-time.After(18 * time.Second):
+		t.Fatal("group identifier was not invoked within the debounce window")
+	}
+
+	if len(unmatchedRepo.saved) != 0 {
+		t.Errorf("unmatched queue got %d entries, want 0 — grouped content must not use the per-file path", len(unmatchedRepo.saved))
+	}
+}
+
+// TestService_StartWatching_GroupedContentType_DuplicateEventsCollapse reproduces
+// fsnotify firing WatchCreated then WatchModified for the same path as a copied
+// file grows to its final size. Without path-based dedup in bufferForGrouping,
+// each track would be counted twice in the resulting group.
+func TestService_StartWatching_GroupedContentType_DuplicateEventsCollapse(t *testing.T) {
+	watcher := &mockWatcher{events: []ports.WatchEvent{
+		{Op: ports.WatchCreated, Path: "/music/Hi Infidelity/01.flac", Size: 0},
+		{Op: ports.WatchCreated, Path: "/music/Hi Infidelity/02.flac", Size: 0},
+		{Op: ports.WatchModified, Path: "/music/Hi Infidelity/01.flac", Size: 1000},
+		{Op: ports.WatchModified, Path: "/music/Hi Infidelity/02.flac", Size: 1000},
+	}}
+
+	var grouperReceived []domain.ScannedFile
+	grouper := &mockGrouper{
+		contentTypes: []domain.ContentType{domain.ContentTypeMusic},
+		groupFn: func(_ context.Context, files []domain.ScannedFile) ([]ports.ScannedFileGroup, error) {
+			grouperReceived = files
+			return []ports.ScannedFileGroup{{Files: files, RootPath: "/music/Hi Infidelity"}}, nil
+		},
+	}
+	identified := make(chan ports.ScannedFileGroup, 1)
+	groupID := &mockGroupIdentifier{
+		contentTypes: []domain.ContentType{domain.ContentTypeMusic},
+		identifyFn: func(_ context.Context, group ports.ScannedFileGroup) error {
+			identified <- group
+			return nil
+		},
+	}
+
+	svc := scan.New(
+		nil, watcher,
+		nil, nil,
+		[]ports.FileGrouper{grouper},
+		[]ports.GroupIdentifier{groupID},
+		newItemRepo(), newMediaFileRepo(), newUnmatchedRepo(),
+		&mockNotifier{}, 0.85,
+		nil, nil, nil, nil, nil,
+	)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+
+	if err := svc.StartWatching(ctx, []scan.Module{
+		{ContentType: domain.ContentTypeMusic, Roots: []string{"/music"}},
+	}); err != nil {
+		t.Fatalf("StartWatching: %v", err)
+	}
+
+	select {
+	case <-identified:
+		if len(grouperReceived) != 2 {
+			t.Fatalf("grouper received %d files, want 2 (duplicate create+modify events must collapse to one file per path)", len(grouperReceived))
+		}
+		sizes := make(map[string]int64, len(grouperReceived))
+		for _, f := range grouperReceived {
+			sizes[f.Path] = f.Size
+		}
+		if sizes["/music/Hi Infidelity/01.flac"] != 1000 {
+			t.Errorf("01.flac size = %d, want 1000 (should reflect the latest event, not the stale create)", sizes["/music/Hi Infidelity/01.flac"])
+		}
+		if sizes["/music/Hi Infidelity/02.flac"] != 1000 {
+			t.Errorf("02.flac size = %d, want 1000 (should reflect the latest event, not the stale create)", sizes["/music/Hi Infidelity/02.flac"])
+		}
+	case <-time.After(18 * time.Second):
+		t.Fatal("group identifier was not invoked within the debounce window")
+	}
+}
+
 func TestService_SubmitScanAllRootsJob_EnqueuesJob(t *testing.T) {
 	jobs := &mockJobQueue{}
 	svc := newSvc(nil, nil, nil, nil, newItemRepo(), newMediaFileRepo(), newUnmatchedRepo(), &mockNotifier{}, 0.85, jobs, nil, nil)

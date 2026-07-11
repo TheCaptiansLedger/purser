@@ -28,6 +28,7 @@ func (m *mockFS) Stat(_ context.Context, _ string) (*ports.FileInfo, error) {
 }
 func (m *mockFS) Move(_ context.Context, _, _ string) error          { return nil }
 func (m *mockFS) OSHash(_ context.Context, _ string) (string, error) { return "", nil }
+func (m *mockFS) SHA1(_ context.Context, _ string) (string, error)   { return "", nil }
 
 // mockMediaFileRepo implements ports.MediaFileRepository for scanner tests.
 type mockMediaFileRepo struct {

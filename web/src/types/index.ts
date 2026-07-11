@@ -128,10 +128,12 @@ export interface MediaFile {
   size: number
   osHash: string
   md5?: string
+  sha1?: string
   quality: string
   resolution: string
   codec: string
   container: string
+  metadata?: Record<string, string>
   addedAt: string
 }
 

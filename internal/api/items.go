@@ -112,10 +112,12 @@ func toItemResponse(item *domain.Item) *itemResponse {
 			Size:       mf.Size,
 			OSHash:     mf.OSHash,
 			MD5:        mf.MD5,
+			SHA1:       mf.SHA1,
 			Quality:    string(mf.Quality),
 			Resolution: mf.Resolution,
 			Codec:      mf.Codec,
 			Container:  mf.Container,
+			Metadata:   mf.Metadata,
 			AddedAt:    mf.AddedAt,
 		}
 	}

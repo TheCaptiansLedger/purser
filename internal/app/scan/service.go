@@ -44,6 +44,11 @@ type Service struct {
 	groups           ports.GroupRepository
 	thumbnailCache   ports.ThumbnailCache
 	upgradeMode      map[domain.ContentType]string
+
+	groupBufMu  sync.Mutex
+	groupBuffer []domain.ScannedFile
+	groupBufSeq map[string]int
+	groupTimer  *time.Timer
 }
 
 // New constructs a scan Service wired to the given ports.
@@ -196,6 +201,7 @@ func (s *Service) StartWatching(ctx context.Context, modules []Module) error {
 	var wg sync.WaitGroup
 	defer wg.Wait()
 
+	var seq int
 	for {
 		select {
 		case <-ctx.Done():
@@ -204,11 +210,12 @@ func (s *Service) StartWatching(ctx context.Context, modules []Module) error {
 			if !ok {
 				return nil
 			}
+			seq++
 			wg.Add(1)
-			go func(e ports.WatchEvent) {
+			go func(e ports.WatchEvent, seq int) {
 				defer wg.Done()
-				s.handleWatchEvent(ctx, e, rootTypes)
-			}(event)
+				s.handleWatchEvent(ctx, e, rootTypes, seq)
+			}(event, seq)
 		}
 	}
 }
@@ -245,7 +252,21 @@ func contentTypeForPath(path string, rootTypes map[string]domain.ContentType) do
 // Network-backed identifiers (AcoustID, MusicBrainz, StashDB) can hang without this bound.
 const watchFileTimeout = 5 * time.Minute
 
-func (s *Service) handleWatchEvent(ctx context.Context, event ports.WatchEvent, rootTypes map[string]domain.ContentType) {
+// watchGroupDebounce bounds how long the watcher waits for more files to land
+// before running the buffered set through the grouper/group-identifier pipeline.
+// Grouped content arrives one file at a time over the watcher; without this
+// window each track would be grouped alone before its album-mates arrive.
+const watchGroupDebounce = 15 * time.Second
+
+// watchGroupTimeout caps how long album-level identification may take once the
+// debounce window elapses.
+const watchGroupTimeout = 5 * time.Minute
+
+// handleWatchEvent processes one watch event. seq is this event's position in
+// the order the watcher emitted it (assigned by StartWatching's single-threaded
+// receive loop before spawning this call's goroutine) — see bufferForGrouping
+// for why grouped content needs it.
+func (s *Service) handleWatchEvent(ctx context.Context, event ports.WatchEvent, rootTypes map[string]domain.ContentType, seq int) {
 	switch event.Op {
 	case ports.WatchCreated, ports.WatchModified:
 		ct := contentTypeForPath(event.Path, rootTypes)
@@ -262,12 +283,82 @@ func (s *Service) handleWatchEvent(ctx context.Context, event ports.WatchEvent, 
 		}
 		fileCtx, cancel := context.WithTimeout(ctx, watchFileTimeout)
 		defer cancel()
+
+		if _, grouped := s.groupedContentTypes()[ct]; grouped {
+			f.Fingerprint = s.collectFingerprints(fileCtx, f)
+			_ = s.notifier.Dispatch(ctx, domain.NotificationEvent{
+				Type:    domain.NotifyFileDiscovered,
+				Payload: f.Path,
+			})
+			s.bufferForGrouping(ctx, f, seq)
+			return
+		}
 		if err := s.processFile(fileCtx, f); err != nil {
 			slog.WarnContext(ctx, "watcher: process file failed", "path", event.Path, "err", err)
 		}
 	case ports.WatchRemoved:
 		s.handleRemoved(ctx, event.Path)
 	}
+}
+
+// bufferForGrouping accumulates a fingerprinted file and (re)starts the shared
+// debounce timer. ctx is the long-lived watch-loop context — it must outlive the
+// individual event since the timer fires later, asynchronously.
+//
+// fsnotify fires WatchCreated and then WatchModified as a copied file grows to
+// its final size, so the same path arrives more than once; an existing entry
+// for the same path is replaced in place rather than appended, mirroring the
+// path+size idempotency check processFile applies on the non-grouped path.
+// Each event runs fingerprinting in its own goroutine (see StartWatching), so
+// completion order does not match emission order — seq (the original emission
+// order) rather than goroutine completion order decides which event wins, so a
+// slow-to-finish stale event can never overwrite a fresher one that finished first.
+func (s *Service) bufferForGrouping(ctx context.Context, f domain.ScannedFile, seq int) {
+	s.groupBufMu.Lock()
+	defer s.groupBufMu.Unlock()
+	if s.groupBufSeq == nil {
+		s.groupBufSeq = make(map[string]int)
+	}
+	if prevSeq, exists := s.groupBufSeq[f.Path]; exists && seq < prevSeq {
+		return
+	}
+	s.groupBufSeq[f.Path] = seq
+
+	replaced := false
+	for i, existing := range s.groupBuffer {
+		if existing.Path == f.Path {
+			s.groupBuffer[i] = f
+			replaced = true
+			break
+		}
+	}
+	if !replaced {
+		s.groupBuffer = append(s.groupBuffer, f)
+	}
+	if s.groupTimer != nil {
+		s.groupTimer.Stop()
+	}
+	s.groupTimer = time.AfterFunc(watchGroupDebounce, func() {
+		s.flushGroupBuffer(ctx)
+	})
+}
+
+// flushGroupBuffer runs every file buffered since the last flush through the
+// grouper/group-identifier pipeline, once the debounce window elapses with no
+// new arrivals.
+func (s *Service) flushGroupBuffer(ctx context.Context) {
+	s.groupBufMu.Lock()
+	files := s.groupBuffer
+	s.groupBuffer = nil
+	s.groupBufSeq = nil
+	s.groupTimer = nil
+	s.groupBufMu.Unlock()
+	if len(files) == 0 {
+		return
+	}
+	groupCtx, cancel := context.WithTimeout(ctx, watchGroupTimeout)
+	defer cancel()
+	s.fanOutToGroupers(groupCtx, files)
 }
 
 // processFile is the single pipeline entry point for both ScanRoots and StartWatching.

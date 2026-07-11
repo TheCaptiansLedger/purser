@@ -25,6 +25,7 @@ import (
 	appconfig "purser/internal/app/config"
 	"purser/internal/app/library"
 	"purser/internal/app/metadata"
+	appmusic "purser/internal/app/music"
 	"purser/internal/app/people"
 	appscan "purser/internal/app/scan"
 	"purser/internal/config"
@@ -110,9 +111,11 @@ func run(cfgPath string) error {
 	thumbnailCache := fsadapter.NewThumbnailCache(cfg.Media.Path)
 	musicGrouper := identifier.NewMusicFolderGrouper()
 	musicGroupQueueWriter := identifier.NewMusicGroupQueueWriter(musicScanGroupRepo)
+	musicTagWriter := fsadapter.NewMusicTagWriter()
+	releaseImporter := appmusic.NewReleaseImporter(musicReleaseRepo, itemRepo, mediaFileRepo, osFS, musicTagWriter)
 	musicAlbumID := identifier.NewMusicAlbumIdentifier(
 		musicScanGroupRepo, musicReleaseRepo, sources,
-		identifier.NewNoopAlbumImporter(), 0.85,
+		releaseImporter, 0.85,
 	)
 	scanSvc := appscan.New(
 		scanner, watcher,

@@ -3,9 +3,12 @@ module purser
 go 1.26.4
 
 require (
+	github.com/bogem/id3v2/v2 v2.1.4
 	github.com/dgraph-io/badger/v4 v4.9.3
 	github.com/fsnotify/fsnotify v1.10.1
 	github.com/go-chi/chi/v5 v5.3.1
+	github.com/go-flac/flacvorbis/v2 v2.0.2
+	github.com/go-flac/go-flac/v2 v2.0.4
 	github.com/google/uuid v1.6.0
 	github.com/hashicorp/golang-lru/v2 v2.0.7
 	github.com/spf13/cobra v1.10.2

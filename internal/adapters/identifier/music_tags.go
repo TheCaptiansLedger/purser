@@ -39,7 +39,13 @@ func ExtractMusicTagSummary(ctx context.Context, group ports.ScannedFileGroup) d
 		}
 		tags := f.Fingerprint.EmbeddedTags
 
-		albumArtistVals = append(albumArtistVals, tags["album_artist"])
+		// Fall back to the plain "artist" tag when "album_artist" is absent —
+		// most single-artist rips never set album_artist separately.
+		albumArtist := tags["album_artist"]
+		if albumArtist == "" {
+			albumArtist = tags["artist"]
+		}
+		albumArtistVals = append(albumArtistVals, albumArtist)
 		albumTitleVals = append(albumTitleVals, tags["album"])
 		yearVals = append(yearVals, tags["date"]) // fingerprinter stores year under "date"
 		barcodeVals = append(barcodeVals, tags["barcode"])

@@ -38,16 +38,18 @@ type entryPersonResponse struct {
 }
 
 type mediaFileResponse struct {
-	ID         string    `json:"id"`
-	Path       string    `json:"path"`
-	Size       int64     `json:"size"`
-	OSHash     string    `json:"osHash"`
-	MD5        string    `json:"md5,omitempty"`
-	Quality    string    `json:"quality"`
-	Resolution string    `json:"resolution"`
-	Codec      string    `json:"codec"`
-	Container  string    `json:"container"`
-	AddedAt    time.Time `json:"addedAt"`
+	ID         string            `json:"id"`
+	Path       string            `json:"path"`
+	Size       int64             `json:"size"`
+	OSHash     string            `json:"osHash"`
+	MD5        string            `json:"md5,omitempty"`
+	SHA1       string            `json:"sha1,omitempty"`
+	Quality    string            `json:"quality"`
+	Resolution string            `json:"resolution"`
+	Codec      string            `json:"codec"`
+	Container  string            `json:"container"`
+	Metadata   map[string]string `json:"metadata,omitempty"`
+	AddedAt    time.Time         `json:"addedAt"`
 }
 
 type musicConfidenceSignalsResponse struct {

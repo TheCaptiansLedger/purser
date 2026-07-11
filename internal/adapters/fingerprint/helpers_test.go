@@ -14,6 +14,7 @@ type stubFS struct {
 }
 
 func (s *stubFS) OSHash(_ context.Context, _ string) (string, error) { return s.hash, s.err }
+func (s *stubFS) SHA1(_ context.Context, _ string) (string, error)   { return "", nil }
 func (s *stubFS) Stat(_ context.Context, _ string) (*ports.FileInfo, error) {
 	return nil, errs.ErrNotFound
 }
