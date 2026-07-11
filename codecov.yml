@@ -41,3 +41,10 @@ component_management:
       statuses:
         - type: project
           target: 50%
+    - component_id: pkg
+      name: Pkg
+      paths:
+        - pkg/**
+      statuses:
+        - type: project
+          target: 80%

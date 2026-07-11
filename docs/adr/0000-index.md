@@ -25,6 +25,10 @@ ADR wins.
 | [0004](0004-typescript-react-testing-standards.md) | TypeScript/React Testing Standards | Accepted |
 | [0005](0005-github-issue-format.md) | GitHub Issue Format & Labels | Accepted |
 | [0006](0006-commit-conventions.md) | Commit Message Conventions | Accepted |
+| [0007](0007-telemetry.md) | Telemetry: OpenTelemetry Tracing and Metrics | Accepted |
+| [0008](0008-structured-logging.md) | Structured Logging with slog | Accepted |
+| [0009](0009-cli-stack.md) | CLI Stack: Cobra, pterm, and Bubble Tea | Accepted |
+| [0010](0010-configuration.md) | Configuration: Viper | Accepted |
 
 ## Adding a new ADR
 

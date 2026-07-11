@@ -20,6 +20,7 @@ Coverage targets (enforced by `codecov.yml`, component-scoped):
 | Adapters | `internal/adapters/**` | 80% |
 | API | `internal/api/**` | 80% |
 | CMD | `cmd/**` | 50% |
+| Pkg | `pkg/**` | 80% |
 
 Test style per layer:
 
@@ -50,6 +51,13 @@ Test style per layer:
 - **CMD** (`cmd/**`): lowest bar (50%) — mostly wiring/composition root. Test
   what's testable (flag parsing, config loading) without demanding coverage
   of `main()` glue that a compile already proves is wired correctly.
+- **Pkg** (`pkg/**`): shared infrastructure libraries used across the
+  codebase (HTTP client, cache, etc.), held to the same bar as adapters
+  (80%) for the same reason — they're the thing everything else depends on.
+  Where a `pkg/**` package defines its own port/adapter pair for
+  swappability (e.g. a cache interface with an in-memory and, later, a Redis
+  implementation), it follows the same shared contract-test convention as
+  `internal/adapters/**` above, even though it lives outside `internal/`.
 
 Mocks are only for ports. Never mock a concrete struct — if you need to fake
 something that isn't behind a port yet, that's a signal a port is missing
@@ -74,5 +82,5 @@ something that isn't behind a port yet, that's a signal a port is missing
 3. Does any service test construct a real adapter instead of a fake port
    implementation? If yes — fix the test, not the coverage number.
 4. Are coverage targets in `codecov.yml` still matched to the actual package
-   layout (`internal/domain`, `internal/adapters`, `internal/api`, `cmd`)? If
-   the layout changed and the config didn't, fix the config.
+   layout (`internal/domain`, `internal/adapters`, `internal/api`, `cmd`,
+   `pkg`)? If the layout changed and the config didn't, fix the config.

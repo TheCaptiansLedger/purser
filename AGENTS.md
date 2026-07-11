@@ -23,6 +23,10 @@ Do not read all project documentation. Determine what the task touches, then loa
 - [docs/adr/0004-typescript-react-testing-standards.md](docs/adr/0004-typescript-react-testing-standards.md) — required for any `web/` component, page, or hook
 - [docs/adr/0005-github-issue-format.md](docs/adr/0005-github-issue-format.md) — required before creating or labeling a GitHub issue
 - [docs/adr/0006-commit-conventions.md](docs/adr/0006-commit-conventions.md) — required whenever producing commit message text (subject format, body style, `Closes`/`Part-Of` footers)
+- [docs/adr/0007-telemetry.md](docs/adr/0007-telemetry.md) — OpenTelemetry tracing/metrics; required for any code that instruments a request, cache, or adapter, or touches `cmd/`'s SDK/exporter wiring
+- [docs/adr/0008-structured-logging.md](docs/adr/0008-structured-logging.md) — slog usage; required for any code that logs anything
+- [docs/adr/0009-cli-stack.md](docs/adr/0009-cli-stack.md) — Cobra/pterm/Bubble Tea; required for any `cmd/**` command or interactive output
+- [docs/adr/0010-configuration.md](docs/adr/0010-configuration.md) — Viper configuration; required for any new configurable component or `internal/config` change
 
 **After finishing any ask/task/session:** run the self-audit checklist in [0001](docs/adr/0001-hexagonal-architecture.md) and [0002](docs/adr/0002-solid-design-principles.md) (and [0003](docs/adr/0003-go-testing-standards.md)/[0004](docs/adr/0004-typescript-react-testing-standards.md) if tests were written) and state the result explicitly — do not skip this silently.
 
@@ -51,6 +55,21 @@ Documentation under `docs/` (architecture overview, development guides, technica
 - [docs/adr/0001-hexagonal-architecture.md](docs/adr/0001-hexagonal-architecture.md)
 - [docs/adr/0002-solid-design-principles.md](docs/adr/0002-solid-design-principles.md)
 - [docs/adr/0003-go-testing-standards.md](docs/adr/0003-go-testing-standards.md)
+- [docs/adr/0007-telemetry.md](docs/adr/0007-telemetry.md) — if the code makes a network call, caches anything, or otherwise merits tracing/metrics
+- [docs/adr/0008-structured-logging.md](docs/adr/0008-structured-logging.md) — if the code logs anything
+
+### Building a shared/reusable package in `pkg/`
+- [docs/adr/0001-hexagonal-architecture.md](docs/adr/0001-hexagonal-architecture.md)
+- [docs/adr/0002-solid-design-principles.md](docs/adr/0002-solid-design-principles.md)
+- [docs/adr/0003-go-testing-standards.md](docs/adr/0003-go-testing-standards.md) — `pkg/**` targets 80%, same as adapters
+- [docs/adr/0007-telemetry.md](docs/adr/0007-telemetry.md)
+- [docs/adr/0008-structured-logging.md](docs/adr/0008-structured-logging.md)
+
+### Writing a CLI command
+- [docs/adr/0009-cli-stack.md](docs/adr/0009-cli-stack.md)
+
+### Adding or changing configuration
+- [docs/adr/0010-configuration.md](docs/adr/0010-configuration.md)
 
 ### Writing TypeScript or React
 - [docs/adr/0002-solid-design-principles.md](docs/adr/0002-solid-design-principles.md)
