@@ -15,9 +15,9 @@ repos:
         pass_filenames: false
         always_run: true
 
-#      - id: web-tests
-#        name: web tests (vitest)
-#        language: system
-#        entry: npm --prefix web run test
-#        pass_filenames: false
-#        always_run: true
+      - id: web-tests
+        name: web tests (vitest)
+        language: system
+        entry: npm --prefix web run test
+        pass_filenames: false
+        always_run: true
