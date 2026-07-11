@@ -1,2 +1,0 @@
-ALTER TABLE media_files ADD COLUMN sha1     TEXT NOT NULL DEFAULT '';
-ALTER TABLE media_files ADD COLUMN metadata TEXT NOT NULL DEFAULT '{}';

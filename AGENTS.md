@@ -9,65 +9,62 @@ The user runs git themselves. Claude produces the commit message as text and sto
 
 Do not read all project documentation. Determine what the task touches, then load only the required files listed below.
 
-## Always Load
+---
 
-- [docs/project/vision.md](docs/project/vision.md)
+## Architecture Decision Records — read before writing any code
 
-## Never Load
+- [docs/adr/0000-index.md](docs/adr/0000-index.md) — ADR index, template, and the standing rules below
 
-- docs/user/
+**Before writing any code:** read the ADR(s) relevant to the change and state whether the planned approach conforms.
+
+- [docs/adr/0001-hexagonal-architecture.md](docs/adr/0001-hexagonal-architecture.md) — port/adapter/domain boundaries; required for any change touching `internal/domain`, `internal/ports`, `internal/adapters`, or `internal/service`
+- [docs/adr/0002-solid-design-principles.md](docs/adr/0002-solid-design-principles.md) — SOLID as applied in this codebase; required for any new service, port, or adapter
+- [docs/adr/0003-go-testing-standards.md](docs/adr/0003-go-testing-standards.md) — required for any Go test written or Go coverage question
+- [docs/adr/0004-typescript-react-testing-standards.md](docs/adr/0004-typescript-react-testing-standards.md) — required for any `web/` component, page, or hook
+- [docs/adr/0005-github-issue-format.md](docs/adr/0005-github-issue-format.md) — required before creating or labeling a GitHub issue
+- [docs/adr/0006-commit-conventions.md](docs/adr/0006-commit-conventions.md) — required whenever producing commit message text (subject format, body style, `Closes`/`Part-Of` footers)
+
+**After finishing any ask/task/session:** run the self-audit checklist in [0001](docs/adr/0001-hexagonal-architecture.md) and [0002](docs/adr/0002-solid-design-principles.md) (and [0003](docs/adr/0003-go-testing-standards.md)/[0004](docs/adr/0004-typescript-react-testing-standards.md) if tests were written) and state the result explicitly — do not skip this silently.
+
+---
+
+## Plan before you act
+
+Before doing any non-trivial work, present a plan and get explicit permission before executing. Frame the plan in terms of:
+
+1. **Scope** — exactly what changes and what doesn't.
+2. **Hexagonal architecture** — which ports/adapters/domain boundaries are touched (see [0001](docs/adr/0001-hexagonal-architecture.md)).
+3. **SOLID** — which principles apply and how the approach satisfies them (see [0002](docs/adr/0002-solid-design-principles.md)).
+
+Do not go down an open-ended investigation or implementation spiral that wasn't part of the approved plan.
 
 ---
 
 ## Load by Task
 
-### When making any change that will be committed to the repository
-- [docs/development/process.md](docs/development/process.md)
+Documentation under `docs/` (architecture overview, development guides, technical references, project vision) was reset and is being rebuilt incrementally, one area at a time. Until a given doc exists, treat its absence as a gap to flag, not something to silently reconstruct from scratch. This table will be filled in as each area is rebuilt:
 
 ### Starting a new feature or issue
-- [docs/development/process.md](docs/development/process.md)
-- [docs/version-control/workflow.md](docs/version-control/workflow.md)
+- [docs/adr/0005-github-issue-format.md](docs/adr/0005-github-issue-format.md)
 
 ### Writing Go code
-- [docs/development/go.md](docs/development/go.md)
-- [docs/development/testing.md](docs/development/testing.md)
-- [docs/architecture/overview.md](docs/architecture/overview.md)
-- [docs/architecture/principles.md](docs/architecture/principles.md)
+- [docs/adr/0001-hexagonal-architecture.md](docs/adr/0001-hexagonal-architecture.md)
+- [docs/adr/0002-solid-design-principles.md](docs/adr/0002-solid-design-principles.md)
+- [docs/adr/0003-go-testing-standards.md](docs/adr/0003-go-testing-standards.md)
 
 ### Writing TypeScript or React
-- [docs/development/typescript.md](docs/development/typescript.md)
-- [docs/development/testing.md](docs/development/testing.md)
-- [docs/architecture/principles.md](docs/architecture/principles.md)
-
-### Designing a new feature (any content type)
-- [docs/architecture/feature-design.md](docs/architecture/feature-design.md)
-- [docs/architecture/principles.md](docs/architecture/principles.md)
-
-### Changing domain model or storage schemas (SQL or BadgerDB)
-- [docs/technical/data-model.md](docs/technical/data-model.md)
-- [docs/architecture/overview.md](docs/architecture/overview.md)
+- [docs/adr/0002-solid-design-principles.md](docs/adr/0002-solid-design-principles.md)
+- [docs/adr/0004-typescript-react-testing-standards.md](docs/adr/0004-typescript-react-testing-standards.md)
 
 ### Changing ports or adapters
-- [docs/technical/ports.md](docs/technical/ports.md)
-- [docs/architecture/overview.md](docs/architecture/overview.md)
-- [docs/architecture/principles.md](docs/architecture/principles.md)
-
-### Changing API behavior or routes
-- [docs/technical/api.md](docs/technical/api.md)
+- [docs/adr/0001-hexagonal-architecture.md](docs/adr/0001-hexagonal-architecture.md)
 
 ### Committing or creating a PR
-- [docs/version-control/workflow.md](docs/version-control/workflow.md)
+- Hard ban above still applies: produce the message, do not run the command.
+- [docs/adr/0006-commit-conventions.md](docs/adr/0006-commit-conventions.md)
 
-### Working with external metadata sources
-- [docs/technical/external-sources.md](docs/technical/external-sources.md)
-
-### Working with person/people data or metadata
-- [docs/technical/person-metadata-keys.md](docs/technical/person-metadata-keys.md)
-
-### Working on the acquisition pipeline (Phase 2)
-- [docs/technical/acquisition-pipeline.md](docs/technical/acquisition-pipeline.md)
-- [docs/technical/ports.md](docs/technical/ports.md)
-- [docs/architecture/overview.md](docs/architecture/overview.md)
+### Creating or labeling a GitHub issue
+- [docs/adr/0005-github-issue-format.md](docs/adr/0005-github-issue-format.md)
 
 ---
 
@@ -83,34 +80,4 @@ Start in the UI layer. The first tool call must be against a UI file — compone
 "Nothing displayed" is a UI bug until the network response proves otherwise.
 
 ### API response / TypeScript type parity (code review step)
-Every field the Go API returns must exist on the corresponding TypeScript interface in `web/src/types/index.ts`. When reviewing or writing a change that adds a field to a Go response struct, verify the matching TypeScript interface has that field. When a field is missing from the TypeScript type, the compiler gives no error unless a component actually tries to use it — so the gap is invisible until runtime.
-
-### Component-First gate (run before writing any TypeScript or React code)
-
-Before writing or proposing any new page, component, or hook, answer these questions. This is a required check, not a style suggestion.
-
-1. **Does an equivalent pattern already exist for another content type?**
-   Grep `web/src/pages/` for the pattern (tag cloud pages, genre pages, detail editors, add-entity dialogs). If found: extract first, then use. Never add a third copy.
-
-2. **Is this abstraction already in `web/src/components/`?**
-   Known shared components that must be used instead of re-implementing:
-   - `TagCloudPage` — tag browsing pages (any content type)
-   - `GenreListPage` / `GenreFilteredPage` — genre browsing pages
-   - `ImportDialog` — add-entity multi-step search/import dialog
-   - `EditButton` — the inline edit button on detail pages
-   - `AlbumCard` — album/group card in music contexts
-   - `useImageVersion` — cache-busting for editable entity images
-   - `components/edit/editors/` — all entity edit drawers
-   - `Toggle` — boolean on/off switch (`components/edit/fields/Toggle.tsx`)
-   - `RuntimeInput` — h/m/s runtime compound field (`components/edit/fields/RuntimeInput.tsx`)
-   If the component doesn't exist yet but the pattern already appears elsewhere in page files, extract it first.
-
-3. **Does the proposed component branch on content type, kind, or module name?**
-   If yes: do not write it. Fix the design — behavior must come from props/config, never from inline string comparisons.
-
-4. **Am I about to duplicate state management logic?**
-   - Image version counter → `useImageVersion`
-   - localStorage ↔ React state sync → lift state, pass as props
-   - Dual paginated queries merged client-side → single server-side combined query
-
-Writing an inline page-level implementation when a shared component should exist is a defect. The audit will find it and the refactor will happen anyway — do it before, not after.
+Every field the Go API returns must exist on the corresponding TypeScript interface in `web/src/types/index.ts`. See [0004](docs/adr/0004-typescript-react-testing-standards.md).
