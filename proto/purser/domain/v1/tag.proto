@@ -1,0 +1,73 @@
+syntax = "proto3";
+
+package purser.domain.v1;
+
+import "google/protobuf/field_mask.proto";
+import "purser/domain/v1/common.proto";
+
+option go_package = "purser/gen/go/purser/domain/v1;domainv1";
+
+// Tag is the wire shape of internal/domain.Tag. This service covers only
+// the tag catalog's own CRUD in this pass — polymorphic attach/detach to
+// an entity (item_tags/entry_tags/group_tags) is deferred: no
+// internal/domain type for that join exists yet, and inventing one here
+// would be scope creep beyond what docs/technical/shared-domain-model.md
+// specifies. Flagged as a follow-up, not silently dropped.
+message Tag {
+  string id = 1;
+  string key = 2;
+  string value = 3;
+  TagScope scope = 4;
+  string category = 5;
+}
+
+message CreateTagRequest {
+  Tag tag = 1;
+}
+
+message CreateTagResponse {
+  Tag tag = 1;
+}
+
+message GetTagRequest {
+  string id = 1;
+}
+
+message GetTagResponse {
+  Tag tag = 1;
+}
+
+message UpdateTagRequest {
+  Tag tag = 1;
+  google.protobuf.FieldMask update_mask = 2;
+}
+
+message UpdateTagResponse {
+  Tag tag = 1;
+}
+
+message DeleteTagRequest {
+  string id = 1;
+}
+
+message DeleteTagResponse {}
+
+message ListTagsRequest {
+  int32 page_size = 1;
+  string page_token = 2;
+}
+
+message ListTagsResponse {
+  repeated Tag tags = 1;
+  string next_page_token = 2;
+}
+
+// TagService owns exactly one entity — Tag — per
+// docs/adr/0011-api-design.md's SRP-per-entity rule.
+service TagService {
+  rpc CreateTag(CreateTagRequest) returns (CreateTagResponse);
+  rpc GetTag(GetTagRequest) returns (GetTagResponse);
+  rpc UpdateTag(UpdateTagRequest) returns (UpdateTagResponse);
+  rpc DeleteTag(DeleteTagRequest) returns (DeleteTagResponse);
+  rpc ListTags(ListTagsRequest) returns (ListTagsResponse);
+}

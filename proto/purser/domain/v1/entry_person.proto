@@ -1,0 +1,85 @@
+syntax = "proto3";
+
+package purser.domain.v1;
+
+import "google/protobuf/field_mask.proto";
+import "google/protobuf/timestamp.proto";
+
+option go_package = "purser/gen/go/purser/domain/v1;domainv1";
+
+// EntryPerson is the wire shape of internal/domain.EntryPerson — a join
+// row with no independent ID. Its identity is the composite
+// (library_entry_id, person_id, role): the same person can hold more than
+// one distinct role-credit on the same entry (e.g. director and writer),
+// but not the same role twice.
+message EntryPerson {
+  string library_entry_id = 1;
+  string person_id = 2;
+  string role = 3;
+  string credited_as = 4;
+  string character = 5;
+  google.protobuf.Timestamp start_date = 6;
+  google.protobuf.Timestamp end_date = 7;
+}
+
+message CreateEntryPersonRequest {
+  EntryPerson entry_person = 1;
+}
+
+message CreateEntryPersonResponse {
+  EntryPerson entry_person = 1;
+}
+
+message GetEntryPersonRequest {
+  string library_entry_id = 1;
+  string person_id = 2;
+  string role = 3;
+}
+
+message GetEntryPersonResponse {
+  EntryPerson entry_person = 1;
+}
+
+message UpdateEntryPersonRequest {
+  // library_entry_id, person_id, and role identify the row and are not
+  // mutable via update_mask — only credited_as/character/start_date/
+  // end_date are.
+  EntryPerson entry_person = 1;
+  google.protobuf.FieldMask update_mask = 2;
+}
+
+message UpdateEntryPersonResponse {
+  EntryPerson entry_person = 1;
+}
+
+message DeleteEntryPersonRequest {
+  string library_entry_id = 1;
+  string person_id = 2;
+  string role = 3;
+}
+
+message DeleteEntryPersonResponse {}
+
+message ListEntryPeopleRequest {
+  // library_entry_id and person_id are independent, optional filters —
+  // set one, both, or neither (unfiltered list).
+  string library_entry_id = 1;
+  string person_id = 2;
+  int32 page_size = 3;
+  string page_token = 4;
+}
+
+message ListEntryPeopleResponse {
+  repeated EntryPerson entry_people = 1;
+  string next_page_token = 2;
+}
+
+// EntryPersonService owns exactly one entity — EntryPerson — per
+// docs/adr/0011-api-design.md's SRP-per-entity rule.
+service EntryPersonService {
+  rpc CreateEntryPerson(CreateEntryPersonRequest) returns (CreateEntryPersonResponse);
+  rpc GetEntryPerson(GetEntryPersonRequest) returns (GetEntryPersonResponse);
+  rpc UpdateEntryPerson(UpdateEntryPersonRequest) returns (UpdateEntryPersonResponse);
+  rpc DeleteEntryPerson(DeleteEntryPersonRequest) returns (DeleteEntryPersonResponse);
+  rpc ListEntryPeople(ListEntryPeopleRequest) returns (ListEntryPeopleResponse);
+}

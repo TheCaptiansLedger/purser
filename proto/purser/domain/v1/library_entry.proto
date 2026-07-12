@@ -1,0 +1,84 @@
+syntax = "proto3";
+
+package purser.domain.v1;
+
+import "google/protobuf/field_mask.proto";
+import "google/protobuf/struct.proto";
+import "purser/domain/v1/common.proto";
+
+option go_package = "purser/gen/go/purser/domain/v1;domainv1";
+
+// LibraryEntry is the wire shape of internal/domain.LibraryEntry.
+// content_type and kind are plain strings, not proto enums — both are
+// deliberately open vocabularies (internal/domain.ContentType/Kind), and a
+// closed proto enum would force a regeneration to add a content type,
+// which is exactly what ADR 0001 rule 4 forbids. status is likewise a
+// plain string: domain.LibraryEntry.Status has no validated enum, unlike
+// Item.Status.
+message LibraryEntry {
+  string id = 1;
+  string content_type = 2;
+  string kind = 3;
+  string name = 4;
+  string sort_name = 5;
+  string overview = 6;
+  string parent_id = 7;
+  bool monitored = 8;
+  MonitorMode monitor_mode = 9;
+  string status = 10;
+  string quality_profile_id = 11;
+  string metadata_profile_id = 12;
+  string path = 13;
+  google.protobuf.Struct metadata = 14;
+}
+
+message CreateLibraryEntryRequest {
+  LibraryEntry library_entry = 1;
+}
+
+message CreateLibraryEntryResponse {
+  LibraryEntry library_entry = 1;
+}
+
+message GetLibraryEntryRequest {
+  string id = 1;
+}
+
+message GetLibraryEntryResponse {
+  LibraryEntry library_entry = 1;
+}
+
+message UpdateLibraryEntryRequest {
+  LibraryEntry library_entry = 1;
+  google.protobuf.FieldMask update_mask = 2;
+}
+
+message UpdateLibraryEntryResponse {
+  LibraryEntry library_entry = 1;
+}
+
+message DeleteLibraryEntryRequest {
+  string id = 1;
+}
+
+message DeleteLibraryEntryResponse {}
+
+message ListLibraryEntriesRequest {
+  int32 page_size = 1;
+  string page_token = 2;
+}
+
+message ListLibraryEntriesResponse {
+  repeated LibraryEntry library_entries = 1;
+  string next_page_token = 2;
+}
+
+// LibraryEntryService owns exactly one entity — LibraryEntry — per
+// docs/adr/0011-api-design.md's SRP-per-entity rule.
+service LibraryEntryService {
+  rpc CreateLibraryEntry(CreateLibraryEntryRequest) returns (CreateLibraryEntryResponse);
+  rpc GetLibraryEntry(GetLibraryEntryRequest) returns (GetLibraryEntryResponse);
+  rpc UpdateLibraryEntry(UpdateLibraryEntryRequest) returns (UpdateLibraryEntryResponse);
+  rpc DeleteLibraryEntry(DeleteLibraryEntryRequest) returns (DeleteLibraryEntryResponse);
+  rpc ListLibraryEntries(ListLibraryEntriesRequest) returns (ListLibraryEntriesResponse);
+}

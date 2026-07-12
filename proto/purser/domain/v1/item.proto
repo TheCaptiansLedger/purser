@@ -1,0 +1,80 @@
+syntax = "proto3";
+
+package purser.domain.v1;
+
+import "google/protobuf/field_mask.proto";
+import "google/protobuf/struct.proto";
+import "google/protobuf/timestamp.proto";
+import "purser/domain/v1/common.proto";
+
+option go_package = "purser/gen/go/purser/domain/v1;domainv1";
+
+// Item is the wire shape of internal/domain.Item. content_type stays a
+// plain string (open vocabulary, see library_entry.proto); status uses
+// the closed ItemStatus enum since Item.Status is a validated oneof in
+// the domain, unlike LibraryEntry.Status.
+message Item {
+  string id = 1;
+  string content_type = 2;
+  string library_entry_id = 3;
+  string group_id = 4;
+  string title = 5;
+  string overview = 6;
+  google.protobuf.Timestamp date = 7;
+  string sequence = 8;
+  int32 runtime_seconds = 9;
+  bool monitored = 10;
+  ItemStatus status = 11;
+  google.protobuf.Struct metadata = 12;
+}
+
+message CreateItemRequest {
+  Item item = 1;
+}
+
+message CreateItemResponse {
+  Item item = 1;
+}
+
+message GetItemRequest {
+  string id = 1;
+}
+
+message GetItemResponse {
+  Item item = 1;
+}
+
+message UpdateItemRequest {
+  Item item = 1;
+  google.protobuf.FieldMask update_mask = 2;
+}
+
+message UpdateItemResponse {
+  Item item = 1;
+}
+
+message DeleteItemRequest {
+  string id = 1;
+}
+
+message DeleteItemResponse {}
+
+message ListItemsRequest {
+  int32 page_size = 1;
+  string page_token = 2;
+}
+
+message ListItemsResponse {
+  repeated Item items = 1;
+  string next_page_token = 2;
+}
+
+// ItemService owns exactly one entity — Item — per
+// docs/adr/0011-api-design.md's SRP-per-entity rule.
+service ItemService {
+  rpc CreateItem(CreateItemRequest) returns (CreateItemResponse);
+  rpc GetItem(GetItemRequest) returns (GetItemResponse);
+  rpc UpdateItem(UpdateItemRequest) returns (UpdateItemResponse);
+  rpc DeleteItem(DeleteItemRequest) returns (DeleteItemResponse);
+  rpc ListItems(ListItemsRequest) returns (ListItemsResponse);
+}

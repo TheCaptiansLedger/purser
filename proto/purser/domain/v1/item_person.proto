@@ -1,0 +1,79 @@
+syntax = "proto3";
+
+package purser.domain.v1;
+
+import "google/protobuf/field_mask.proto";
+
+option go_package = "purser/gen/go/purser/domain/v1;domainv1";
+
+// ItemPerson is the wire shape of internal/domain.ItemPerson — a join row
+// with no independent ID. Its identity is the composite (item_id,
+// person_id, role), same reasoning as EntryPerson.
+message ItemPerson {
+  string item_id = 1;
+  string person_id = 2;
+  string role = 3;
+  string credited_as = 4;
+  string character = 5;
+}
+
+message CreateItemPersonRequest {
+  ItemPerson item_person = 1;
+}
+
+message CreateItemPersonResponse {
+  ItemPerson item_person = 1;
+}
+
+message GetItemPersonRequest {
+  string item_id = 1;
+  string person_id = 2;
+  string role = 3;
+}
+
+message GetItemPersonResponse {
+  ItemPerson item_person = 1;
+}
+
+message UpdateItemPersonRequest {
+  // item_id, person_id, and role identify the row and are not mutable via
+  // update_mask — only credited_as/character are.
+  ItemPerson item_person = 1;
+  google.protobuf.FieldMask update_mask = 2;
+}
+
+message UpdateItemPersonResponse {
+  ItemPerson item_person = 1;
+}
+
+message DeleteItemPersonRequest {
+  string item_id = 1;
+  string person_id = 2;
+  string role = 3;
+}
+
+message DeleteItemPersonResponse {}
+
+message ListItemPeopleRequest {
+  // item_id and person_id are independent, optional filters — set one,
+  // both, or neither (unfiltered list).
+  string item_id = 1;
+  string person_id = 2;
+  int32 page_size = 3;
+  string page_token = 4;
+}
+
+message ListItemPeopleResponse {
+  repeated ItemPerson item_people = 1;
+  string next_page_token = 2;
+}
+
+// ItemPersonService owns exactly one entity — ItemPerson — per
+// docs/adr/0011-api-design.md's SRP-per-entity rule.
+service ItemPersonService {
+  rpc CreateItemPerson(CreateItemPersonRequest) returns (CreateItemPersonResponse);
+  rpc GetItemPerson(GetItemPersonRequest) returns (GetItemPersonResponse);
+  rpc UpdateItemPerson(UpdateItemPersonRequest) returns (UpdateItemPersonResponse);
+  rpc DeleteItemPerson(DeleteItemPersonRequest) returns (DeleteItemPersonResponse);
+  rpc ListItemPeople(ListItemPeopleRequest) returns (ListItemPeopleResponse);
+}

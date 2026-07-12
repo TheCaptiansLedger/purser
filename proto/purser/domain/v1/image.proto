@@ -1,0 +1,78 @@
+syntax = "proto3";
+
+package purser.domain.v1;
+
+import "google/protobuf/field_mask.proto";
+
+option go_package = "purser/gen/go/purser/domain/v1;domainv1";
+
+// Image is the wire shape of internal/domain.Image. image_type stays a
+// plain string, not a proto enum — deliberately open vocabulary in the
+// domain (a module Profile type may need an image slot the kernel didn't
+// anticipate, per ADR 0001).
+message Image {
+  string id = 1;
+  string owner_type = 2;
+  string owner_id = 3;
+  string image_type = 4;
+  string url = 5;
+  int32 width = 6;
+  int32 height = 7;
+  string source = 8;
+  int32 priority = 9;
+}
+
+message CreateImageRequest {
+  Image image = 1;
+}
+
+message CreateImageResponse {
+  Image image = 1;
+}
+
+message GetImageRequest {
+  string id = 1;
+}
+
+message GetImageResponse {
+  Image image = 1;
+}
+
+message UpdateImageRequest {
+  Image image = 1;
+  google.protobuf.FieldMask update_mask = 2;
+}
+
+message UpdateImageResponse {
+  Image image = 1;
+}
+
+message DeleteImageRequest {
+  string id = 1;
+}
+
+message DeleteImageResponse {}
+
+message ListImagesRequest {
+  // owner_type and owner_id are optional filters, always used together
+  // ("all images for this owner") per docs/adr/0011-api-design.md.
+  string owner_type = 1;
+  string owner_id = 2;
+  int32 page_size = 3;
+  string page_token = 4;
+}
+
+message ListImagesResponse {
+  repeated Image images = 1;
+  string next_page_token = 2;
+}
+
+// ImageService owns exactly one entity — Image — per
+// docs/adr/0011-api-design.md's SRP-per-entity rule.
+service ImageService {
+  rpc CreateImage(CreateImageRequest) returns (CreateImageResponse);
+  rpc GetImage(GetImageRequest) returns (GetImageResponse);
+  rpc UpdateImage(UpdateImageRequest) returns (UpdateImageResponse);
+  rpc DeleteImage(DeleteImageRequest) returns (DeleteImageResponse);
+  rpc ListImages(ListImagesRequest) returns (ListImagesResponse);
+}

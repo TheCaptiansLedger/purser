@@ -4,6 +4,7 @@ package purser.domain.v1;
 
 import "google/protobuf/field_mask.proto";
 import "google/protobuf/timestamp.proto";
+import "purser/domain/v1/common.proto";
 
 option go_package = "purser/gen/go/purser/domain/v1;domainv1";
 
@@ -20,15 +21,6 @@ enum Gender {
   GENDER_INTERSEX = 5;
   GENDER_NON_BINARY = 6;
   GENDER_UNKNOWN = 7;
-}
-
-// MonitorMode mirrors internal/domain.MonitorMode.
-enum MonitorMode {
-  MONITOR_MODE_UNSPECIFIED = 0;
-  MONITOR_MODE_ALL = 1;
-  MONITOR_MODE_FUTURE = 2;
-  MONITOR_MODE_NONE = 3;
-  MONITOR_MODE_LATEST = 4;
 }
 
 // Person is the wire shape of internal/domain.Person. Field-for-field

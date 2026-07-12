@@ -1,0 +1,55 @@
+package service
+
+import (
+	"context"
+	"purser/internal/domain"
+	"purser/internal/ports"
+)
+
+// TagService orchestrates domain.Tag against a ports.TagRepository. See
+// PersonService for the conventions this follows.
+type TagService struct {
+	repo ports.TagRepository
+}
+
+// NewTagService constructs a TagService backed by repo.
+func NewTagService(repo ports.TagRepository) *TagService {
+	return &TagService{repo: repo}
+}
+
+// Create validates t and persists it.
+func (s *TagService) Create(ctx context.Context, t *domain.Tag) (*domain.Tag, error) {
+	if err := t.Validate(); err != nil {
+		return nil, err
+	}
+	if err := s.repo.Create(ctx, t); err != nil {
+		return nil, err
+	}
+	return t, nil
+}
+
+// Get returns the Tag with the given ID, or ports.ErrNotFound.
+func (s *TagService) Get(ctx context.Context, id string) (*domain.Tag, error) {
+	return s.repo.Get(ctx, id)
+}
+
+// Update validates t and persists it in place of the existing record.
+func (s *TagService) Update(ctx context.Context, t *domain.Tag) (*domain.Tag, error) {
+	if err := t.Validate(); err != nil {
+		return nil, err
+	}
+	if err := s.repo.Update(ctx, t); err != nil {
+		return nil, err
+	}
+	return t, nil
+}
+
+// Delete removes the Tag with the given ID, or returns ports.ErrNotFound.
+func (s *TagService) Delete(ctx context.Context, id string) error {
+	return s.repo.Delete(ctx, id)
+}
+
+// List returns a page of Tag records.
+func (s *TagService) List(ctx context.Context, pageSize int, pageToken string) ([]*domain.Tag, string, error) {
+	return s.repo.List(ctx, pageSize, pageToken)
+}

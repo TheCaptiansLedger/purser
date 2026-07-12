@@ -110,6 +110,18 @@ func TestPersonService_Create(t *testing.T) {
 			t.Fatal("Create with invalid person reached the repository")
 		}
 	})
+
+	t.Run("a repository conflict is propagated", func(t *testing.T) {
+		repo := newFakePersonRepository()
+		svc := service.NewPersonService(repo)
+
+		if _, err := svc.Create(context.Background(), validPerson("p1")); err != nil {
+			t.Fatalf("first Create returned error: %v", err)
+		}
+		if _, err := svc.Create(context.Background(), validPerson("p1")); !errors.Is(err, ports.ErrConflict) {
+			t.Fatalf("duplicate Create returned %v, want ErrConflict", err)
+		}
+	})
 }
 
 func TestPersonService_Get(t *testing.T) {

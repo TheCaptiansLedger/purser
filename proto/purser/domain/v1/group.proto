@@ -1,0 +1,74 @@
+syntax = "proto3";
+
+package purser.domain.v1;
+
+import "google/protobuf/field_mask.proto";
+import "google/protobuf/struct.proto";
+import "purser/domain/v1/common.proto";
+
+option go_package = "purser/gen/go/purser/domain/v1;domainv1";
+
+// Group is the wire shape of internal/domain.Group.
+message Group {
+  string id = 1;
+  string library_entry_id = 2;
+  string title = 3;
+  string sort_name = 4;
+  string number = 5;
+  int32 year = 6;
+  string overview = 7;
+  bool monitored = 8;
+  MonitorMode monitor_mode = 9;
+  google.protobuf.Struct metadata = 10;
+}
+
+message CreateGroupRequest {
+  Group group = 1;
+}
+
+message CreateGroupResponse {
+  Group group = 1;
+}
+
+message GetGroupRequest {
+  string id = 1;
+}
+
+message GetGroupResponse {
+  Group group = 1;
+}
+
+message UpdateGroupRequest {
+  Group group = 1;
+  google.protobuf.FieldMask update_mask = 2;
+}
+
+message UpdateGroupResponse {
+  Group group = 1;
+}
+
+message DeleteGroupRequest {
+  string id = 1;
+}
+
+message DeleteGroupResponse {}
+
+message ListGroupsRequest {
+  int32 page_size = 1;
+  string page_token = 2;
+}
+
+message ListGroupsResponse {
+  repeated Group groups = 1;
+  string next_page_token = 2;
+}
+
+// GroupService owns exactly one entity — Group — per
+// docs/adr/0011-api-design.md's SRP-per-entity rule.
+service GroupService {
+  rpc CreateGroup(CreateGroupRequest) returns (CreateGroupResponse);
+  rpc GetGroup(GetGroupRequest) returns (GetGroupResponse);
+  rpc UpdateGroup(UpdateGroupRequest) returns (UpdateGroupResponse);
+  rpc DeleteGroup(DeleteGroupRequest) returns (DeleteGroupResponse);
+  rpc ListGroups(ListGroupsRequest) returns (ListGroupsResponse);
+}

@@ -1,0 +1,80 @@
+syntax = "proto3";
+
+package purser.domain.v1;
+
+import "purser/domain/v1/common.proto";
+
+option go_package = "purser/gen/go/purser/domain/v1;domainv1";
+
+// ExternalID is the wire shape of internal/domain.ExternalID — a join row
+// with no independent ID. Its identity is the composite (entity_type,
+// entity_id, source). source stays a plain string, not a proto enum: it's
+// deliberately an open vocabulary in the domain (a new metadata provider
+// must be addable with zero edits to shared code, per ADR 0001).
+message ExternalID {
+  EntityType entity_type = 1;
+  string entity_id = 2;
+  string source = 3;
+  string value = 4;
+}
+
+message CreateExternalIDRequest {
+  ExternalID external_id = 1;
+}
+
+message CreateExternalIDResponse {
+  ExternalID external_id = 1;
+}
+
+message GetExternalIDRequest {
+  EntityType entity_type = 1;
+  string entity_id = 2;
+  string source = 3;
+}
+
+message GetExternalIDResponse {
+  ExternalID external_id = 1;
+}
+
+message UpdateExternalIDRequest {
+  // entity_type, entity_id, and source identify the row; only value is
+  // mutable.
+  ExternalID external_id = 1;
+}
+
+message UpdateExternalIDResponse {
+  ExternalID external_id = 1;
+}
+
+message DeleteExternalIDRequest {
+  EntityType entity_type = 1;
+  string entity_id = 2;
+  string source = 3;
+}
+
+message DeleteExternalIDResponse {}
+
+message ListExternalIDsRequest {
+  // entity_type and entity_id are optional filters, always used together
+  // ("all external IDs for this entity") — the primary query shape per
+  // docs/technical/shared-domain-model.md.
+  EntityType entity_type = 1;
+  string entity_id = 2;
+  int32 page_size = 3;
+  string page_token = 4;
+}
+
+message ListExternalIDsResponse {
+  repeated ExternalID external_ids = 1;
+  string next_page_token = 2;
+}
+
+// ExternalIDService owns exactly one entity — ExternalID — per
+// docs/adr/0011-api-design.md's SRP-per-entity rule.
+service ExternalIDService {
+  rpc CreateExternalID(CreateExternalIDRequest) returns (CreateExternalIDResponse);
+  rpc GetExternalID(GetExternalIDRequest) returns (GetExternalIDResponse);
+  rpc UpdateExternalID(UpdateExternalIDRequest) returns (UpdateExternalIDResponse);
+  rpc DeleteExternalID(DeleteExternalIDRequest) returns (DeleteExternalIDResponse);
+  rpc ListExternalIDs(ListExternalIDsRequest) returns (ListExternalIDsResponse);
+}

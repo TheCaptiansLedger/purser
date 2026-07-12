@@ -1,0 +1,48 @@
+syntax = "proto3";
+
+package purser.domain.v1;
+
+option go_package = "purser/gen/go/purser/domain/v1;domainv1";
+
+// MonitorMode mirrors internal/domain.MonitorMode. Kernel-owned, closed
+// enum — shared by Person, LibraryEntry, and Group.
+enum MonitorMode {
+  MONITOR_MODE_UNSPECIFIED = 0;
+  MONITOR_MODE_ALL = 1;
+  MONITOR_MODE_FUTURE = 2;
+  MONITOR_MODE_NONE = 3;
+  MONITOR_MODE_LATEST = 4;
+}
+
+// ItemStatus mirrors internal/domain.ItemStatus — acquisition-pipeline
+// state, shared by every content type (the pipeline is the core domain,
+// per project convention).
+enum ItemStatus {
+  ITEM_STATUS_UNSPECIFIED = 0;
+  ITEM_STATUS_WANTED = 1;
+  ITEM_STATUS_GRABBED = 2;
+  ITEM_STATUS_DOWNLOADING = 3;
+  ITEM_STATUS_IMPORTED = 4;
+  ITEM_STATUS_MISSING = 5;
+  ITEM_STATUS_SKIPPED = 6;
+}
+
+// EntityType names which kernel entity a polymorphic reference
+// (ExternalID, CollectionMembership) points at. Closed — a fixed, small
+// set of kernel-structural attach points, not something new content types
+// extend.
+enum EntityType {
+  ENTITY_TYPE_UNSPECIFIED = 0;
+  ENTITY_TYPE_LIBRARY_ENTRY = 1;
+  ENTITY_TYPE_GROUP = 2;
+  ENTITY_TYPE_ITEM = 3;
+  ENTITY_TYPE_PERSON = 4;
+}
+
+// TagScope distinguishes user-applied organizational tags from
+// provider-sourced metadata tags. Closed, kernel-owned.
+enum TagScope {
+  TAG_SCOPE_UNSPECIFIED = 0;
+  TAG_SCOPE_USER = 1;
+  TAG_SCOPE_METADATA = 2;
+}

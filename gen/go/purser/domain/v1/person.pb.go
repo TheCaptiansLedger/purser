@@ -91,62 +91,6 @@ func (Gender) EnumDescriptor() ([]byte, []int) {
 	return file_purser_domain_v1_person_proto_rawDescGZIP(), []int{0}
 }
 
-// MonitorMode mirrors internal/domain.MonitorMode.
-type MonitorMode int32
-
-const (
-	MonitorMode_MONITOR_MODE_UNSPECIFIED MonitorMode = 0
-	MonitorMode_MONITOR_MODE_ALL         MonitorMode = 1
-	MonitorMode_MONITOR_MODE_FUTURE      MonitorMode = 2
-	MonitorMode_MONITOR_MODE_NONE        MonitorMode = 3
-	MonitorMode_MONITOR_MODE_LATEST      MonitorMode = 4
-)
-
-// Enum value maps for MonitorMode.
-var (
-	MonitorMode_name = map[int32]string{
-		0: "MONITOR_MODE_UNSPECIFIED",
-		1: "MONITOR_MODE_ALL",
-		2: "MONITOR_MODE_FUTURE",
-		3: "MONITOR_MODE_NONE",
-		4: "MONITOR_MODE_LATEST",
-	}
-	MonitorMode_value = map[string]int32{
-		"MONITOR_MODE_UNSPECIFIED": 0,
-		"MONITOR_MODE_ALL":         1,
-		"MONITOR_MODE_FUTURE":      2,
-		"MONITOR_MODE_NONE":        3,
-		"MONITOR_MODE_LATEST":      4,
-	}
-)
-
-func (x MonitorMode) Enum() *MonitorMode {
-	p := new(MonitorMode)
-	*p = x
-	return p
-}
-
-func (x MonitorMode) String() string {
-	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
-}
-
-func (MonitorMode) Descriptor() protoreflect.EnumDescriptor {
-	return file_purser_domain_v1_person_proto_enumTypes[1].Descriptor()
-}
-
-func (MonitorMode) Type() protoreflect.EnumType {
-	return &file_purser_domain_v1_person_proto_enumTypes[1]
-}
-
-func (x MonitorMode) Number() protoreflect.EnumNumber {
-	return protoreflect.EnumNumber(x)
-}
-
-// Deprecated: Use MonitorMode.Descriptor instead.
-func (MonitorMode) EnumDescriptor() ([]byte, []int) {
-	return file_purser_domain_v1_person_proto_rawDescGZIP(), []int{1}
-}
-
 // Person is the wire shape of internal/domain.Person. Field-for-field
 // parity is intentional — see docs/adr/0011-api-design.md.
 type Person struct {
@@ -760,7 +704,7 @@ var File_purser_domain_v1_person_proto protoreflect.FileDescriptor
 
 const file_purser_domain_v1_person_proto_rawDesc = "" +
 	"\n" +
-	"\x1dpurser/domain/v1/person.proto\x12\x10purser.domain.v1\x1a google/protobuf/field_mask.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\xb7\x04\n" +
+	"\x1dpurser/domain/v1/person.proto\x12\x10purser.domain.v1\x1a google/protobuf/field_mask.proto\x1a\x1fgoogle/protobuf/timestamp.proto\x1a\x1dpurser/domain/v1/common.proto\"\xb7\x04\n" +
 	"\x06Person\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x1b\n" +
@@ -812,13 +756,7 @@ const file_purser_domain_v1_person_proto_rawDesc = "" +
 	"\x19GENDER_TRANSGENDER_FEMALE\x10\x04\x12\x13\n" +
 	"\x0fGENDER_INTERSEX\x10\x05\x12\x15\n" +
 	"\x11GENDER_NON_BINARY\x10\x06\x12\x12\n" +
-	"\x0eGENDER_UNKNOWN\x10\a*\x8a\x01\n" +
-	"\vMonitorMode\x12\x1c\n" +
-	"\x18MONITOR_MODE_UNSPECIFIED\x10\x00\x12\x14\n" +
-	"\x10MONITOR_MODE_ALL\x10\x01\x12\x17\n" +
-	"\x13MONITOR_MODE_FUTURE\x10\x02\x12\x15\n" +
-	"\x11MONITOR_MODE_NONE\x10\x03\x12\x17\n" +
-	"\x13MONITOR_MODE_LATEST\x10\x042\xdb\x03\n" +
+	"\x0eGENDER_UNKNOWN\x10\a2\xdb\x03\n" +
 	"\rPersonService\x12]\n" +
 	"\fCreatePerson\x12%.purser.domain.v1.CreatePersonRequest\x1a&.purser.domain.v1.CreatePersonResponse\x12T\n" +
 	"\tGetPerson\x12\".purser.domain.v1.GetPersonRequest\x1a#.purser.domain.v1.GetPersonResponse\x12]\n" +
@@ -839,49 +777,49 @@ func file_purser_domain_v1_person_proto_rawDescGZIP() []byte {
 	return file_purser_domain_v1_person_proto_rawDescData
 }
 
-var file_purser_domain_v1_person_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
+var file_purser_domain_v1_person_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
 var file_purser_domain_v1_person_proto_msgTypes = make([]protoimpl.MessageInfo, 11)
 var file_purser_domain_v1_person_proto_goTypes = []any{
 	(Gender)(0),                   // 0: purser.domain.v1.Gender
-	(MonitorMode)(0),              // 1: purser.domain.v1.MonitorMode
-	(*Person)(nil),                // 2: purser.domain.v1.Person
-	(*CreatePersonRequest)(nil),   // 3: purser.domain.v1.CreatePersonRequest
-	(*CreatePersonResponse)(nil),  // 4: purser.domain.v1.CreatePersonResponse
-	(*GetPersonRequest)(nil),      // 5: purser.domain.v1.GetPersonRequest
-	(*GetPersonResponse)(nil),     // 6: purser.domain.v1.GetPersonResponse
-	(*UpdatePersonRequest)(nil),   // 7: purser.domain.v1.UpdatePersonRequest
-	(*UpdatePersonResponse)(nil),  // 8: purser.domain.v1.UpdatePersonResponse
-	(*DeletePersonRequest)(nil),   // 9: purser.domain.v1.DeletePersonRequest
-	(*DeletePersonResponse)(nil),  // 10: purser.domain.v1.DeletePersonResponse
-	(*ListPeopleRequest)(nil),     // 11: purser.domain.v1.ListPeopleRequest
-	(*ListPeopleResponse)(nil),    // 12: purser.domain.v1.ListPeopleResponse
-	(*timestamppb.Timestamp)(nil), // 13: google.protobuf.Timestamp
+	(*Person)(nil),                // 1: purser.domain.v1.Person
+	(*CreatePersonRequest)(nil),   // 2: purser.domain.v1.CreatePersonRequest
+	(*CreatePersonResponse)(nil),  // 3: purser.domain.v1.CreatePersonResponse
+	(*GetPersonRequest)(nil),      // 4: purser.domain.v1.GetPersonRequest
+	(*GetPersonResponse)(nil),     // 5: purser.domain.v1.GetPersonResponse
+	(*UpdatePersonRequest)(nil),   // 6: purser.domain.v1.UpdatePersonRequest
+	(*UpdatePersonResponse)(nil),  // 7: purser.domain.v1.UpdatePersonResponse
+	(*DeletePersonRequest)(nil),   // 8: purser.domain.v1.DeletePersonRequest
+	(*DeletePersonResponse)(nil),  // 9: purser.domain.v1.DeletePersonResponse
+	(*ListPeopleRequest)(nil),     // 10: purser.domain.v1.ListPeopleRequest
+	(*ListPeopleResponse)(nil),    // 11: purser.domain.v1.ListPeopleResponse
+	(*timestamppb.Timestamp)(nil), // 12: google.protobuf.Timestamp
+	(MonitorMode)(0),              // 13: purser.domain.v1.MonitorMode
 	(*fieldmaskpb.FieldMask)(nil), // 14: google.protobuf.FieldMask
 }
 var file_purser_domain_v1_person_proto_depIdxs = []int32{
 	0,  // 0: purser.domain.v1.Person.gender:type_name -> purser.domain.v1.Gender
-	13, // 1: purser.domain.v1.Person.birth_date:type_name -> google.protobuf.Timestamp
-	13, // 2: purser.domain.v1.Person.death_date:type_name -> google.protobuf.Timestamp
-	1,  // 3: purser.domain.v1.Person.monitor_mode:type_name -> purser.domain.v1.MonitorMode
-	13, // 4: purser.domain.v1.Person.added_at:type_name -> google.protobuf.Timestamp
-	13, // 5: purser.domain.v1.Person.updated_at:type_name -> google.protobuf.Timestamp
-	2,  // 6: purser.domain.v1.CreatePersonRequest.person:type_name -> purser.domain.v1.Person
-	2,  // 7: purser.domain.v1.CreatePersonResponse.person:type_name -> purser.domain.v1.Person
-	2,  // 8: purser.domain.v1.GetPersonResponse.person:type_name -> purser.domain.v1.Person
-	2,  // 9: purser.domain.v1.UpdatePersonRequest.person:type_name -> purser.domain.v1.Person
+	12, // 1: purser.domain.v1.Person.birth_date:type_name -> google.protobuf.Timestamp
+	12, // 2: purser.domain.v1.Person.death_date:type_name -> google.protobuf.Timestamp
+	13, // 3: purser.domain.v1.Person.monitor_mode:type_name -> purser.domain.v1.MonitorMode
+	12, // 4: purser.domain.v1.Person.added_at:type_name -> google.protobuf.Timestamp
+	12, // 5: purser.domain.v1.Person.updated_at:type_name -> google.protobuf.Timestamp
+	1,  // 6: purser.domain.v1.CreatePersonRequest.person:type_name -> purser.domain.v1.Person
+	1,  // 7: purser.domain.v1.CreatePersonResponse.person:type_name -> purser.domain.v1.Person
+	1,  // 8: purser.domain.v1.GetPersonResponse.person:type_name -> purser.domain.v1.Person
+	1,  // 9: purser.domain.v1.UpdatePersonRequest.person:type_name -> purser.domain.v1.Person
 	14, // 10: purser.domain.v1.UpdatePersonRequest.update_mask:type_name -> google.protobuf.FieldMask
-	2,  // 11: purser.domain.v1.UpdatePersonResponse.person:type_name -> purser.domain.v1.Person
-	2,  // 12: purser.domain.v1.ListPeopleResponse.people:type_name -> purser.domain.v1.Person
-	3,  // 13: purser.domain.v1.PersonService.CreatePerson:input_type -> purser.domain.v1.CreatePersonRequest
-	5,  // 14: purser.domain.v1.PersonService.GetPerson:input_type -> purser.domain.v1.GetPersonRequest
-	7,  // 15: purser.domain.v1.PersonService.UpdatePerson:input_type -> purser.domain.v1.UpdatePersonRequest
-	9,  // 16: purser.domain.v1.PersonService.DeletePerson:input_type -> purser.domain.v1.DeletePersonRequest
-	11, // 17: purser.domain.v1.PersonService.ListPeople:input_type -> purser.domain.v1.ListPeopleRequest
-	4,  // 18: purser.domain.v1.PersonService.CreatePerson:output_type -> purser.domain.v1.CreatePersonResponse
-	6,  // 19: purser.domain.v1.PersonService.GetPerson:output_type -> purser.domain.v1.GetPersonResponse
-	8,  // 20: purser.domain.v1.PersonService.UpdatePerson:output_type -> purser.domain.v1.UpdatePersonResponse
-	10, // 21: purser.domain.v1.PersonService.DeletePerson:output_type -> purser.domain.v1.DeletePersonResponse
-	12, // 22: purser.domain.v1.PersonService.ListPeople:output_type -> purser.domain.v1.ListPeopleResponse
+	1,  // 11: purser.domain.v1.UpdatePersonResponse.person:type_name -> purser.domain.v1.Person
+	1,  // 12: purser.domain.v1.ListPeopleResponse.people:type_name -> purser.domain.v1.Person
+	2,  // 13: purser.domain.v1.PersonService.CreatePerson:input_type -> purser.domain.v1.CreatePersonRequest
+	4,  // 14: purser.domain.v1.PersonService.GetPerson:input_type -> purser.domain.v1.GetPersonRequest
+	6,  // 15: purser.domain.v1.PersonService.UpdatePerson:input_type -> purser.domain.v1.UpdatePersonRequest
+	8,  // 16: purser.domain.v1.PersonService.DeletePerson:input_type -> purser.domain.v1.DeletePersonRequest
+	10, // 17: purser.domain.v1.PersonService.ListPeople:input_type -> purser.domain.v1.ListPeopleRequest
+	3,  // 18: purser.domain.v1.PersonService.CreatePerson:output_type -> purser.domain.v1.CreatePersonResponse
+	5,  // 19: purser.domain.v1.PersonService.GetPerson:output_type -> purser.domain.v1.GetPersonResponse
+	7,  // 20: purser.domain.v1.PersonService.UpdatePerson:output_type -> purser.domain.v1.UpdatePersonResponse
+	9,  // 21: purser.domain.v1.PersonService.DeletePerson:output_type -> purser.domain.v1.DeletePersonResponse
+	11, // 22: purser.domain.v1.PersonService.ListPeople:output_type -> purser.domain.v1.ListPeopleResponse
 	18, // [18:23] is the sub-list for method output_type
 	13, // [13:18] is the sub-list for method input_type
 	13, // [13:13] is the sub-list for extension type_name
@@ -894,12 +832,13 @@ func file_purser_domain_v1_person_proto_init() {
 	if File_purser_domain_v1_person_proto != nil {
 		return
 	}
+	file_purser_domain_v1_common_proto_init()
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_purser_domain_v1_person_proto_rawDesc), len(file_purser_domain_v1_person_proto_rawDesc)),
-			NumEnums:      2,
+			NumEnums:      1,
 			NumMessages:   11,
 			NumExtensions: 0,
 			NumServices:   1,

@@ -1,0 +1,167 @@
+// Package itemtest is the shared contract test suite for the
+// ports.ItemRepository port. See internal/ports/persontest for the
+// convention this follows.
+package itemtest
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"purser/internal/domain"
+	"purser/internal/ports"
+	"testing"
+)
+
+// NewRepositoryFunc returns a fresh, empty ItemRepository for the
+// duration of a single subtest.
+type NewRepositoryFunc func(t *testing.T) ports.ItemRepository
+
+// TestItemRepository runs the shared ItemRepository contract against
+// newRepo.
+func TestItemRepository(t *testing.T, newRepo NewRepositoryFunc) {
+	t.Helper()
+
+	t.Run("get on empty repository returns ErrNotFound", func(t *testing.T) { testGetOnEmptyNotFound(t, newRepo) })
+	t.Run("create then get round-trips the item", func(t *testing.T) { testCreateThenGet(t, newRepo) })
+	t.Run("create with a duplicate ID returns ErrConflict", func(t *testing.T) { testCreateDuplicate(t, newRepo) })
+	t.Run("update replaces an existing item", func(t *testing.T) { testUpdate(t, newRepo) })
+	t.Run("update on a missing item returns ErrNotFound", func(t *testing.T) { testUpdateMissing(t, newRepo) })
+	t.Run("delete removes an item", func(t *testing.T) { testDelete(t, newRepo) })
+	t.Run("delete on a missing item returns ErrNotFound", func(t *testing.T) { testDeleteMissing(t, newRepo) })
+	t.Run("list returns every created item across pages", func(t *testing.T) { testListPaginates(t, newRepo) })
+}
+
+func mustCreate(t *testing.T, r ports.ItemRepository, i *domain.Item) {
+	t.Helper()
+	if err := r.Create(context.Background(), i); err != nil {
+		t.Fatalf("Create returned error: %v", err)
+	}
+}
+
+func testGetOnEmptyNotFound(t *testing.T, newRepo NewRepositoryFunc) {
+	r := newRepo(t)
+	_, err := r.Get(context.Background(), "missing")
+	if !errors.Is(err, ports.ErrNotFound) {
+		t.Fatalf("Get on empty repository returned %v, want ErrNotFound", err)
+	}
+}
+
+func testCreateThenGet(t *testing.T, newRepo NewRepositoryFunc) {
+	r := newRepo(t)
+	i := sampleItem("i1")
+	mustCreate(t, r, i)
+
+	got, err := r.Get(context.Background(), "i1")
+	if err != nil {
+		t.Fatalf("Get returned error: %v", err)
+	}
+	if got.Title != i.Title {
+		t.Fatalf("Get returned Title %q, want %q", got.Title, i.Title)
+	}
+}
+
+func testCreateDuplicate(t *testing.T, newRepo NewRepositoryFunc) {
+	r := newRepo(t)
+	mustCreate(t, r, sampleItem("i1"))
+
+	err := r.Create(context.Background(), sampleItem("i1"))
+	if !errors.Is(err, ports.ErrConflict) {
+		t.Fatalf("Create with duplicate ID returned %v, want ErrConflict", err)
+	}
+}
+
+func testUpdate(t *testing.T, newRepo NewRepositoryFunc) {
+	r := newRepo(t)
+	i := sampleItem("i1")
+	mustCreate(t, r, i)
+
+	i.Title = "Updated Title"
+	if err := r.Update(context.Background(), i); err != nil {
+		t.Fatalf("Update returned error: %v", err)
+	}
+
+	got, err := r.Get(context.Background(), "i1")
+	if err != nil {
+		t.Fatalf("Get returned error: %v", err)
+	}
+	if got.Title != "Updated Title" {
+		t.Fatalf("Get after Update returned Title %q, want %q", got.Title, "Updated Title")
+	}
+}
+
+func testUpdateMissing(t *testing.T, newRepo NewRepositoryFunc) {
+	r := newRepo(t)
+	err := r.Update(context.Background(), sampleItem("missing"))
+	if !errors.Is(err, ports.ErrNotFound) {
+		t.Fatalf("Update on missing item returned %v, want ErrNotFound", err)
+	}
+}
+
+func testDelete(t *testing.T, newRepo NewRepositoryFunc) {
+	r := newRepo(t)
+	mustCreate(t, r, sampleItem("i1"))
+
+	if err := r.Delete(context.Background(), "i1"); err != nil {
+		t.Fatalf("Delete returned error: %v", err)
+	}
+
+	_, err := r.Get(context.Background(), "i1")
+	if !errors.Is(err, ports.ErrNotFound) {
+		t.Fatalf("Get after Delete returned %v, want ErrNotFound", err)
+	}
+}
+
+func testDeleteMissing(t *testing.T, newRepo NewRepositoryFunc) {
+	r := newRepo(t)
+	err := r.Delete(context.Background(), "missing")
+	if !errors.Is(err, ports.ErrNotFound) {
+		t.Fatalf("Delete on missing item returned %v, want ErrNotFound", err)
+	}
+}
+
+func testListPaginates(t *testing.T, newRepo NewRepositoryFunc) {
+	r := newRepo(t)
+	ctx := context.Background()
+
+	want := map[string]bool{}
+	for i := range 5 {
+		id := fmt.Sprintf("i%d", i)
+		mustCreate(t, r, sampleItem(id))
+		want[id] = true
+	}
+
+	got := map[string]bool{}
+	pageToken := ""
+	for {
+		items, next, err := r.List(ctx, 2, pageToken)
+		if err != nil {
+			t.Fatalf("List returned error: %v", err)
+		}
+		for _, i := range items {
+			got[i.ID] = true
+		}
+		if next == "" {
+			break
+		}
+		pageToken = next
+	}
+
+	if len(got) != len(want) {
+		t.Fatalf("List across pages returned %d items, want %d", len(got), len(want))
+	}
+	for id := range want {
+		if !got[id] {
+			t.Errorf("List across pages missing item %q", id)
+		}
+	}
+}
+
+func sampleItem(id string) *domain.Item {
+	return &domain.Item{
+		ID:             id,
+		ContentType:    domain.ContentTypeAdult,
+		LibraryEntryID: "entry1",
+		Title:          "Test Item",
+		Status:         domain.ItemStatusWanted,
+	}
+}

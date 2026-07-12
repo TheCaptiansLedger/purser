@@ -1,0 +1,46 @@
+// k6 HTTP/JSON suite for MediaFileService. See test/k6/http/person_test.js
+// for the pattern this follows.
+import http from 'k6/http';
+import { check } from 'k6';
+
+const BASE_URL = __ENV.PURSER_HTTP_URL || 'http://localhost:8080';
+const SERVICE = `${BASE_URL}/purser.domain.v1.MediaFileService`;
+const HEADERS = { headers: { 'Content-Type': 'application/json' } };
+
+export default () => {
+  const id = `k6-http-${__VU}-${__ITER}-${Date.now()}`;
+
+  let res = http.post(`${SERVICE}/CreateMediaFile`, JSON.stringify({ mediaFile: { id: id, itemId: 'item1', path: '/media/k6.mkv' } }), HEADERS);
+  check(res, {
+    'CreateMediaFile status is 200': (r) => r.status === 200,
+    'CreateMediaFile returns the id': (r) => r.json('mediaFile.id') === id,
+  });
+
+  res = http.post(`${SERVICE}/GetMediaFile`, JSON.stringify({ id: id }), HEADERS);
+  check(res, {
+    'GetMediaFile status is 200': (r) => r.status === 200,
+    'GetMediaFile returns the created path': (r) => r.json('mediaFile.path') === '/media/k6.mkv',
+  });
+
+  res = http.post(
+    `${SERVICE}/UpdateMediaFile`,
+    JSON.stringify({ mediaFile: { id: id, path: '/media/k6-updated.mkv' }, updateMask: 'path' }),
+    HEADERS
+  );
+  check(res, {
+    'UpdateMediaFile status is 200': (r) => r.status === 200,
+    'UpdateMediaFile applied the field-masked path': (r) => r.json('mediaFile.path') === '/media/k6-updated.mkv',
+  });
+
+  res = http.post(`${SERVICE}/ListMediaFiles`, JSON.stringify({ pageSize: 10 }), HEADERS);
+  check(res, {
+    'ListMediaFiles status is 200': (r) => r.status === 200,
+    'ListMediaFiles includes the created file': (r) => (r.json('mediaFiles') || []).some((m) => m.id === id),
+  });
+
+  res = http.post(`${SERVICE}/DeleteMediaFile`, JSON.stringify({ id: id }), HEADERS);
+  check(res, { 'DeleteMediaFile status is 200': (r) => r.status === 200 });
+
+  res = http.post(`${SERVICE}/GetMediaFile`, JSON.stringify({ id: id }), HEADERS);
+  check(res, { 'GetMediaFile after Delete is 404 (NotFound)': (r) => r.status === 404 });
+};

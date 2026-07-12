@@ -1,0 +1,77 @@
+syntax = "proto3";
+
+package purser.domain.v1;
+
+import "google/protobuf/field_mask.proto";
+
+option go_package = "purser/gen/go/purser/domain/v1;domainv1";
+
+// MediaFile is the wire shape of internal/domain.MediaFile. metadata is a
+// plain string map (domain.MediaFile.Metadata is map[string]string, not
+// map[string]any like LibraryEntry/Group/Item) — no google.protobuf.Struct
+// needed here.
+message MediaFile {
+  string id = 1;
+  string item_id = 2;
+  string path = 3;
+  int64 size = 4;
+  string os_hash = 5;
+  string md5 = 6;
+  string sha1 = 7;
+  string quality = 8;
+  string resolution = 9;
+  string codec = 10;
+  string container = 11;
+  map<string, string> metadata = 12;
+}
+
+message CreateMediaFileRequest {
+  MediaFile media_file = 1;
+}
+
+message CreateMediaFileResponse {
+  MediaFile media_file = 1;
+}
+
+message GetMediaFileRequest {
+  string id = 1;
+}
+
+message GetMediaFileResponse {
+  MediaFile media_file = 1;
+}
+
+message UpdateMediaFileRequest {
+  MediaFile media_file = 1;
+  google.protobuf.FieldMask update_mask = 2;
+}
+
+message UpdateMediaFileResponse {
+  MediaFile media_file = 1;
+}
+
+message DeleteMediaFileRequest {
+  string id = 1;
+}
+
+message DeleteMediaFileResponse {}
+
+message ListMediaFilesRequest {
+  int32 page_size = 1;
+  string page_token = 2;
+}
+
+message ListMediaFilesResponse {
+  repeated MediaFile media_files = 1;
+  string next_page_token = 2;
+}
+
+// MediaFileService owns exactly one entity — MediaFile — per
+// docs/adr/0011-api-design.md's SRP-per-entity rule.
+service MediaFileService {
+  rpc CreateMediaFile(CreateMediaFileRequest) returns (CreateMediaFileResponse);
+  rpc GetMediaFile(GetMediaFileRequest) returns (GetMediaFileResponse);
+  rpc UpdateMediaFile(UpdateMediaFileRequest) returns (UpdateMediaFileResponse);
+  rpc DeleteMediaFile(DeleteMediaFileRequest) returns (DeleteMediaFileResponse);
+  rpc ListMediaFiles(ListMediaFilesRequest) returns (ListMediaFilesResponse);
+}

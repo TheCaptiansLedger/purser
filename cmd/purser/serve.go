@@ -19,7 +19,16 @@ import (
 	"github.com/spf13/viper"
 
 	domainv1connect "purser/gen/go/purser/domain/v1/domainv1connect"
+	preentryperson "purser/internal/adapters/memory/entryperson"
+	memexternalid "purser/internal/adapters/memory/externalid"
+	memgroup "purser/internal/adapters/memory/group"
+	memimage "purser/internal/adapters/memory/image"
+	memitem "purser/internal/adapters/memory/item"
+	memitemperson "purser/internal/adapters/memory/itemperson"
+	memlibraryentry "purser/internal/adapters/memory/libraryentry"
+	memmediafile "purser/internal/adapters/memory/mediafile"
 	memperson "purser/internal/adapters/memory/person"
+	memtag "purser/internal/adapters/memory/tag"
 	apiconnect "purser/internal/api/connect"
 )
 
@@ -107,8 +116,9 @@ func runServe(ctx context.Context, configPath string) error {
 
 // newServeMux wires every entity's adapter -> service -> Connect handler
 // and mounts it, plus gRPC reflection for grpcurl/buf curl debugging (see
-// ADR-0011). One entity today (Person); Phase 2 adds the rest the same
-// way.
+// ADR-0011). Every shared-kernel entity in this pass follows the exact
+// same four-line shape; that repetition is intentional (SRP per entity)
+// rather than a signal to collapse it into a generic helper.
 func newServeMux(logger *slog.Logger) (*http.ServeMux, error) {
 	mux := http.NewServeMux()
 	interceptors := connect.WithInterceptors(apiconnect.NewLoggingInterceptor(logger))
@@ -117,12 +127,94 @@ func newServeMux(logger *slog.Logger) (*http.ServeMux, error) {
 	if err != nil {
 		return nil, fmt.Errorf("cmd/purser: constructing person repository: %w", err)
 	}
-	personSvc := service.NewPersonService(personRepo)
-	personHandler := apiconnect.NewPersonHandler(personSvc, logger)
+	personHandler := apiconnect.NewPersonHandler(service.NewPersonService(personRepo), logger)
 	personPath, personConnectHandler := domainv1connect.NewPersonServiceHandler(personHandler, interceptors)
 	mux.Handle(personPath, personConnectHandler)
 
-	reflector := grpcreflect.NewStaticReflector(domainv1connect.PersonServiceName)
+	libraryEntryRepo, err := memlibraryentry.New("library_entry", memlibraryentry.WithLogger(logger))
+	if err != nil {
+		return nil, fmt.Errorf("cmd/purser: constructing library entry repository: %w", err)
+	}
+	libraryEntryHandler := apiconnect.NewLibraryEntryHandler(service.NewLibraryEntryService(libraryEntryRepo), logger)
+	libraryEntryPath, libraryEntryConnectHandler := domainv1connect.NewLibraryEntryServiceHandler(libraryEntryHandler, interceptors)
+	mux.Handle(libraryEntryPath, libraryEntryConnectHandler)
+
+	groupRepo, err := memgroup.New("group", memgroup.WithLogger(logger))
+	if err != nil {
+		return nil, fmt.Errorf("cmd/purser: constructing group repository: %w", err)
+	}
+	groupHandler := apiconnect.NewGroupHandler(service.NewGroupService(groupRepo), logger)
+	groupPath, groupConnectHandler := domainv1connect.NewGroupServiceHandler(groupHandler, interceptors)
+	mux.Handle(groupPath, groupConnectHandler)
+
+	itemRepo, err := memitem.New("item", memitem.WithLogger(logger))
+	if err != nil {
+		return nil, fmt.Errorf("cmd/purser: constructing item repository: %w", err)
+	}
+	itemHandler := apiconnect.NewItemHandler(service.NewItemService(itemRepo), logger)
+	itemPath, itemConnectHandler := domainv1connect.NewItemServiceHandler(itemHandler, interceptors)
+	mux.Handle(itemPath, itemConnectHandler)
+
+	entryPersonRepo, err := preentryperson.New("entry_person", preentryperson.WithLogger(logger))
+	if err != nil {
+		return nil, fmt.Errorf("cmd/purser: constructing entry person repository: %w", err)
+	}
+	entryPersonHandler := apiconnect.NewEntryPersonHandler(service.NewEntryPersonService(entryPersonRepo), logger)
+	entryPersonPath, entryPersonConnectHandler := domainv1connect.NewEntryPersonServiceHandler(entryPersonHandler, interceptors)
+	mux.Handle(entryPersonPath, entryPersonConnectHandler)
+
+	itemPersonRepo, err := memitemperson.New("item_person", memitemperson.WithLogger(logger))
+	if err != nil {
+		return nil, fmt.Errorf("cmd/purser: constructing item person repository: %w", err)
+	}
+	itemPersonHandler := apiconnect.NewItemPersonHandler(service.NewItemPersonService(itemPersonRepo), logger)
+	itemPersonPath, itemPersonConnectHandler := domainv1connect.NewItemPersonServiceHandler(itemPersonHandler, interceptors)
+	mux.Handle(itemPersonPath, itemPersonConnectHandler)
+
+	tagRepo, err := memtag.New("tag", memtag.WithLogger(logger))
+	if err != nil {
+		return nil, fmt.Errorf("cmd/purser: constructing tag repository: %w", err)
+	}
+	tagHandler := apiconnect.NewTagHandler(service.NewTagService(tagRepo), logger)
+	tagPath, tagConnectHandler := domainv1connect.NewTagServiceHandler(tagHandler, interceptors)
+	mux.Handle(tagPath, tagConnectHandler)
+
+	externalIDRepo, err := memexternalid.New("external_id", memexternalid.WithLogger(logger))
+	if err != nil {
+		return nil, fmt.Errorf("cmd/purser: constructing external id repository: %w", err)
+	}
+	externalIDHandler := apiconnect.NewExternalIDHandler(service.NewExternalIDService(externalIDRepo), logger)
+	externalIDPath, externalIDConnectHandler := domainv1connect.NewExternalIDServiceHandler(externalIDHandler, interceptors)
+	mux.Handle(externalIDPath, externalIDConnectHandler)
+
+	imageRepo, err := memimage.New("image", memimage.WithLogger(logger))
+	if err != nil {
+		return nil, fmt.Errorf("cmd/purser: constructing image repository: %w", err)
+	}
+	imageHandler := apiconnect.NewImageHandler(service.NewImageService(imageRepo), logger)
+	imagePath, imageConnectHandler := domainv1connect.NewImageServiceHandler(imageHandler, interceptors)
+	mux.Handle(imagePath, imageConnectHandler)
+
+	mediaFileRepo, err := memmediafile.New("media_file", memmediafile.WithLogger(logger))
+	if err != nil {
+		return nil, fmt.Errorf("cmd/purser: constructing media file repository: %w", err)
+	}
+	mediaFileHandler := apiconnect.NewMediaFileHandler(service.NewMediaFileService(mediaFileRepo), logger)
+	mediaFilePath, mediaFileConnectHandler := domainv1connect.NewMediaFileServiceHandler(mediaFileHandler, interceptors)
+	mux.Handle(mediaFilePath, mediaFileConnectHandler)
+
+	reflector := grpcreflect.NewStaticReflector(
+		domainv1connect.PersonServiceName,
+		domainv1connect.LibraryEntryServiceName,
+		domainv1connect.GroupServiceName,
+		domainv1connect.ItemServiceName,
+		domainv1connect.EntryPersonServiceName,
+		domainv1connect.ItemPersonServiceName,
+		domainv1connect.TagServiceName,
+		domainv1connect.ExternalIDServiceName,
+		domainv1connect.ImageServiceName,
+		domainv1connect.MediaFileServiceName,
+	)
 	mux.Handle(grpcreflect.NewHandlerV1(reflector))
 	mux.Handle(grpcreflect.NewHandlerV1Alpha(reflector))
 
