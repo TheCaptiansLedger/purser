@@ -1,0 +1,85 @@
+syntax = "proto3";
+
+package purser.afterdark.v1;
+
+import "google/protobuf/field_mask.proto";
+
+option go_package = "purser/gen/go/purser/afterdark/v1;afterdarkv1";
+
+// BodyMark is the wire shape of internal/domain/afterdark.BodyMark.
+message BodyMark {
+  string location = 1;
+  string description = 2;
+}
+
+// PerformerProfile is the wire shape of
+// internal/domain/afterdark.PerformerProfile — AfterDark's role-specific
+// extension of a kernel Person, identified by person_id alone (no
+// independent ID, same reasoning as purser.domain.v1.ExternalID).
+message PerformerProfile {
+  string person_id = 1;
+  string cup_size = 2;
+  string band_size = 3;
+  string breast_type = 4;
+  repeated BodyMark tattoos = 5;
+  repeated BodyMark piercings = 6;
+  int32 career_start_year = 7;
+  int32 career_end_year = 8;
+}
+
+message CreatePerformerProfileRequest {
+  // Caller supplies a fully-formed PerformerProfile — this RPC persists
+  // what it's given, it never enriches or resolves metadata. See
+  // docs/adr/0011-api-design.md.
+  PerformerProfile performer_profile = 1;
+}
+
+message CreatePerformerProfileResponse {
+  PerformerProfile performer_profile = 1;
+}
+
+message GetPerformerProfileRequest {
+  string person_id = 1;
+}
+
+message GetPerformerProfileResponse {
+  PerformerProfile performer_profile = 1;
+}
+
+message UpdatePerformerProfileRequest {
+  PerformerProfile performer_profile = 1;
+  google.protobuf.FieldMask update_mask = 2;
+}
+
+message UpdatePerformerProfileResponse {
+  PerformerProfile performer_profile = 1;
+}
+
+message DeletePerformerProfileRequest {
+  string person_id = 1;
+}
+
+message DeletePerformerProfileResponse {}
+
+message ListPerformerProfilesRequest {
+  int32 page_size = 1;
+  string page_token = 2;
+}
+
+message ListPerformerProfilesResponse {
+  repeated PerformerProfile performer_profiles = 1;
+  string next_page_token = 2;
+}
+
+// PerformerProfileService owns exactly one entity — PerformerProfile —
+// per docs/adr/0011-api-design.md's SRP-per-entity rule. It is AfterDark's
+// only module-specific service; every other RPC this module needs
+// (Person, LibraryEntry, Item, credits, tags, external IDs, images) is
+// already covered by the shared-kernel services in purser.domain.v1.
+service PerformerProfileService {
+  rpc CreatePerformerProfile(CreatePerformerProfileRequest) returns (CreatePerformerProfileResponse);
+  rpc GetPerformerProfile(GetPerformerProfileRequest) returns (GetPerformerProfileResponse);
+  rpc UpdatePerformerProfile(UpdatePerformerProfileRequest) returns (UpdatePerformerProfileResponse);
+  rpc DeletePerformerProfile(DeletePerformerProfileRequest) returns (DeletePerformerProfileResponse);
+  rpc ListPerformerProfiles(ListPerformerProfilesRequest) returns (ListPerformerProfilesResponse);
+}

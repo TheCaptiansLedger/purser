@@ -18,6 +18,7 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 
+	afterdarkv1connect "purser/gen/go/purser/afterdark/v1/afterdarkv1connect"
 	domainv1connect "purser/gen/go/purser/domain/v1/domainv1connect"
 	preentryperson "purser/internal/adapters/memory/entryperson"
 	memexternalid "purser/internal/adapters/memory/externalid"
@@ -27,6 +28,7 @@ import (
 	memitemperson "purser/internal/adapters/memory/itemperson"
 	memlibraryentry "purser/internal/adapters/memory/libraryentry"
 	memmediafile "purser/internal/adapters/memory/mediafile"
+	memperformerprofile "purser/internal/adapters/memory/performerprofile"
 	memperson "purser/internal/adapters/memory/person"
 	memtag "purser/internal/adapters/memory/tag"
 	apiconnect "purser/internal/api/connect"
@@ -203,6 +205,16 @@ func newServeMux(logger *slog.Logger) (*http.ServeMux, error) {
 	mediaFilePath, mediaFileConnectHandler := domainv1connect.NewMediaFileServiceHandler(mediaFileHandler, interceptors)
 	mux.Handle(mediaFilePath, mediaFileConnectHandler)
 
+	// AfterDark: the first module built on the shared kernel above — every
+	// line here is additive, nothing in the kernel wiring changed to add it.
+	performerProfileRepo, err := memperformerprofile.New("performer_profile", memperformerprofile.WithLogger(logger))
+	if err != nil {
+		return nil, fmt.Errorf("cmd/purser: constructing performer profile repository: %w", err)
+	}
+	performerProfileHandler := apiconnect.NewPerformerProfileHandler(service.NewPerformerProfileService(performerProfileRepo), logger)
+	performerProfilePath, performerProfileConnectHandler := afterdarkv1connect.NewPerformerProfileServiceHandler(performerProfileHandler, interceptors)
+	mux.Handle(performerProfilePath, performerProfileConnectHandler)
+
 	reflector := grpcreflect.NewStaticReflector(
 		domainv1connect.PersonServiceName,
 		domainv1connect.LibraryEntryServiceName,
@@ -214,6 +226,7 @@ func newServeMux(logger *slog.Logger) (*http.ServeMux, error) {
 		domainv1connect.ExternalIDServiceName,
 		domainv1connect.ImageServiceName,
 		domainv1connect.MediaFileServiceName,
+		afterdarkv1connect.PerformerProfileServiceName,
 	)
 	mux.Handle(grpcreflect.NewHandlerV1(reflector))
 	mux.Handle(grpcreflect.NewHandlerV1Alpha(reflector))
