@@ -29,6 +29,7 @@ ADR wins.
 | [0008](0008-structured-logging.md) | Structured Logging with slog | Accepted |
 | [0009](0009-cli-stack.md) | CLI Stack: Cobra, pterm, and Bubble Tea | Accepted |
 | [0010](0010-configuration.md) | Configuration: Viper | Accepted |
+| [0011](0011-api-design.md) | API Design: Connect-Primary RPC API | Accepted |
 
 ## Adding a new ADR
 

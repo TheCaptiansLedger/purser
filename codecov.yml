@@ -20,6 +20,13 @@ component_management:
       statuses:
         - type: project
           target: 95%
+    - component_id: service
+      name: Service
+      paths:
+        - internal/service/**
+      statuses:
+        - type: project
+          target: 90%
     - component_id: adapters
       name: Adapters
       paths:

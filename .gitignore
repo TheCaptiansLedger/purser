@@ -2,6 +2,9 @@
 /purser
 *.exe
 
+# Locally-installed pinned dev tooling (buf, protoc-gen-*) — see Makefile `tools` target
+/.gobin/
+
 # Web build artifacts and dependencies
 web/dist/
 web/node_modules/

@@ -1,6 +1,12 @@
 COMPOSE := docker compose -f ops/compose.yml
 
-.PHONY: build-web build-go test dev up down logs reset reset-data reset-media install-hooks help
+GOBIN := $(CURDIR)/.gobin
+BUF_VERSION := v1.71.0
+PROTOC_GEN_GO_VERSION := v1.36.11
+PROTOC_GEN_CONNECT_GO_VERSION := v1.20.0
+K6_VERSION := v1.8.0
+
+.PHONY: build-web build-go test test-integration install-hooks tools proto-gen k6-grpc k6-http k6 dev up down logs reset reset-data reset-media help
 
 # ── Build ─────────────────────────────────────────────────────────────────────
 
@@ -20,6 +26,35 @@ test-integration: ## Run integration tests (requires adapter credential env vars
 
 install-hooks: ## Install git pre-commit hooks (run once after clone)
 	pre-commit install
+
+# ── API tooling (proto/gRPC/k6) ──────────────────────────────────────────────
+# Pinned dev tools install into ./.gobin, never into go.mod/go.sum — see
+# docs/adr/0011-api-design.md.
+
+$(GOBIN)/buf:
+	GOBIN=$(GOBIN) go install github.com/bufbuild/buf/cmd/buf@$(BUF_VERSION)
+
+$(GOBIN)/protoc-gen-go:
+	GOBIN=$(GOBIN) go install google.golang.org/protobuf/cmd/protoc-gen-go@$(PROTOC_GEN_GO_VERSION)
+
+$(GOBIN)/protoc-gen-connect-go:
+	GOBIN=$(GOBIN) go install connectrpc.com/connect/cmd/protoc-gen-connect-go@$(PROTOC_GEN_CONNECT_GO_VERSION)
+
+$(GOBIN)/k6:
+	GOBIN=$(GOBIN) go install go.k6.io/k6@$(K6_VERSION)
+
+tools: $(GOBIN)/buf $(GOBIN)/protoc-gen-go $(GOBIN)/protoc-gen-connect-go $(GOBIN)/k6 ## Install pinned buf/protoc-gen-*/k6 into .gobin
+
+proto-gen: $(GOBIN)/buf $(GOBIN)/protoc-gen-go $(GOBIN)/protoc-gen-connect-go ## Generate Go code from proto/ via buf
+	PATH="$(GOBIN):$$PATH" $(GOBIN)/buf generate
+
+k6-grpc: $(GOBIN)/k6 ## Run the gRPC k6 suite against a running server (PURSER_GRPC_ADDR)
+	@for f in test/k6/grpc/*.js; do $(GOBIN)/k6 run "$$f" || exit 1; done
+
+k6-http: $(GOBIN)/k6 ## Run the HTTP/JSON (Connect) k6 suite against a running server
+	@for f in test/k6/http/*.js; do $(GOBIN)/k6 run "$$f" || exit 1; done
+
+k6: k6-grpc k6-http ## Run both k6 suites
 
 # ── Dev lifecycle ─────────────────────────────────────────────────────────────
 
