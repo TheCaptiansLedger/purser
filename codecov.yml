@@ -41,6 +41,13 @@ component_management:
       statuses:
         - type: project
           target: 80%
+    - component_id: config
+      name: Config
+      paths:
+        - internal/config/**
+      statuses:
+        - type: project
+          target: 80%
     - component_id: cmd
       name: CMD
       paths:

@@ -1,0 +1,105 @@
+syntax = "proto3";
+
+package purser.domain.v1;
+
+import "google/protobuf/field_mask.proto";
+import "google/protobuf/timestamp.proto";
+
+option go_package = "purser/gen/go/purser/domain/v1;domainv1";
+
+// Gender mirrors internal/domain.Gender exactly. GENDER_UNSPECIFIED means
+// "not set on this request" (a validation error on write paths that
+// require it) — distinct from GENDER_UNKNOWN, the domain's own explicit
+// fallback for a provider value with no confident mapping.
+enum Gender {
+  GENDER_UNSPECIFIED = 0;
+  GENDER_MALE = 1;
+  GENDER_FEMALE = 2;
+  GENDER_TRANSGENDER_MALE = 3;
+  GENDER_TRANSGENDER_FEMALE = 4;
+  GENDER_INTERSEX = 5;
+  GENDER_NON_BINARY = 6;
+  GENDER_UNKNOWN = 7;
+}
+
+// MonitorMode mirrors internal/domain.MonitorMode.
+enum MonitorMode {
+  MONITOR_MODE_UNSPECIFIED = 0;
+  MONITOR_MODE_ALL = 1;
+  MONITOR_MODE_FUTURE = 2;
+  MONITOR_MODE_NONE = 3;
+  MONITOR_MODE_LATEST = 4;
+}
+
+// Person is the wire shape of internal/domain.Person. Field-for-field
+// parity is intentional — see docs/adr/0011-api-design.md.
+message Person {
+  string id = 1;
+  string name = 2;
+  string sort_name = 3;
+  repeated string aliases = 4;
+  Gender gender = 5;
+  string pronouns = 6;
+  google.protobuf.Timestamp birth_date = 7;
+  google.protobuf.Timestamp death_date = 8;
+  string nationality = 9;
+  string overview = 10;
+  bool monitored = 11;
+  MonitorMode monitor_mode = 12;
+  google.protobuf.Timestamp added_at = 13;
+  google.protobuf.Timestamp updated_at = 14;
+}
+
+message CreatePersonRequest {
+  // Caller supplies a fully-formed Person — this RPC persists what it's
+  // given, it never enriches or resolves metadata. See ADR-0011.
+  Person person = 1;
+}
+
+message CreatePersonResponse {
+  Person person = 1;
+}
+
+message GetPersonRequest {
+  string id = 1;
+}
+
+message GetPersonResponse {
+  Person person = 1;
+}
+
+message UpdatePersonRequest {
+  Person person = 1;
+  // Only fields named here are applied; unset fields are left untouched.
+  google.protobuf.FieldMask update_mask = 2;
+}
+
+message UpdatePersonResponse {
+  Person person = 1;
+}
+
+message DeletePersonRequest {
+  string id = 1;
+}
+
+message DeletePersonResponse {}
+
+message ListPeopleRequest {
+  int32 page_size = 1;
+  string page_token = 2;
+}
+
+message ListPeopleResponse {
+  repeated Person people = 1;
+  string next_page_token = 2;
+}
+
+// PersonService owns exactly one entity — Person — and nothing else. It
+// has no knowledge of any other kernel entity or metadata provider.
+service PersonService {
+  rpc CreatePerson(CreatePersonRequest) returns (CreatePersonResponse);
+  rpc GetPerson(GetPersonRequest) returns (GetPersonResponse);
+  rpc UpdatePerson(UpdatePersonRequest) returns (UpdatePersonResponse);
+  rpc DeletePerson(DeletePersonRequest) returns (DeletePersonResponse);
+  rpc ListPeople(ListPeopleRequest) returns (ListPeopleResponse);
+}
