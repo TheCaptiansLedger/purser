@@ -28,6 +28,7 @@ Do not read all project documentation. Determine what the task touches, then loa
 - [docs/adr/0009-cli-stack.md](docs/adr/0009-cli-stack.md) — Cobra/pterm/Bubble Tea; required for any `cmd/**` command or interactive output
 - [docs/adr/0010-configuration.md](docs/adr/0010-configuration.md) — Viper configuration; required for any new configurable component or `internal/config` change
 - [docs/adr/0011-api-design.md](docs/adr/0011-api-design.md) — Connect-primary RPC API design; required for any `proto/**`, `internal/api/connect`, or `internal/service`/`internal/ports` change
+- [docs/adr/0012-datastore-persistence.md](docs/adr/0012-datastore-persistence.md) — generic `Datastore` behind Badger/SQL; required for any `internal/adapters/datastore` or `internal/adapters/store` change
 
 **After finishing any ask/task/session:** run the self-audit checklist in [0001](docs/adr/0001-hexagonal-architecture.md) and [0002](docs/adr/0002-solid-design-principles.md) (and [0003](docs/adr/0003-go-testing-standards.md)/[0004](docs/adr/0004-typescript-react-testing-standards.md) if tests were written) and state the result explicitly — do not skip this silently.
 
@@ -78,6 +79,14 @@ Documentation under `docs/` (architecture overview, development guides, technica
 
 ### Changing ports or adapters
 - [docs/adr/0001-hexagonal-architecture.md](docs/adr/0001-hexagonal-architecture.md)
+
+### Building the persistence layer (`internal/adapters/datastore`, `internal/adapters/store`)
+- [docs/adr/0012-datastore-persistence.md](docs/adr/0012-datastore-persistence.md)
+- [docs/adr/0001-hexagonal-architecture.md](docs/adr/0001-hexagonal-architecture.md)
+- [docs/adr/0002-solid-design-principles.md](docs/adr/0002-solid-design-principles.md)
+- [docs/adr/0003-go-testing-standards.md](docs/adr/0003-go-testing-standards.md)
+- [docs/adr/0007-telemetry.md](docs/adr/0007-telemetry.md)
+- [docs/adr/0008-structured-logging.md](docs/adr/0008-structured-logging.md)
 
 ### Building a proto/Connect (gRPC/HTTP) API service or handler
 - [docs/adr/0011-api-design.md](docs/adr/0011-api-design.md)

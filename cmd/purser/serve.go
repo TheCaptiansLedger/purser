@@ -4,10 +4,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"net/http"
 	"os"
 	"os/signal"
+	"purser/internal/adapters/datastore"
 	"purser/internal/config"
 	"purser/internal/service"
 	"syscall"
@@ -20,6 +22,8 @@ import (
 
 	afterdarkv1connect "purser/gen/go/purser/afterdark/v1/afterdarkv1connect"
 	domainv1connect "purser/gen/go/purser/domain/v1/domainv1connect"
+	dsbadger "purser/internal/adapters/datastore/badger"
+	dssql "purser/internal/adapters/datastore/sql"
 	preentryperson "purser/internal/adapters/memory/entryperson"
 	memexternalid "purser/internal/adapters/memory/externalid"
 	memgroup "purser/internal/adapters/memory/group"
@@ -29,8 +33,8 @@ import (
 	memlibraryentry "purser/internal/adapters/memory/libraryentry"
 	memmediafile "purser/internal/adapters/memory/mediafile"
 	memperformerprofile "purser/internal/adapters/memory/performerprofile"
-	memperson "purser/internal/adapters/memory/person"
 	memtag "purser/internal/adapters/memory/tag"
+	storeperson "purser/internal/adapters/store/person"
 	apiconnect "purser/internal/api/connect"
 )
 
@@ -70,7 +74,17 @@ func runServe(ctx context.Context, configPath string) error {
 	// default, which every instrumented package already supports at zero
 	// cost per ADR 0007's design.
 
-	mux, err := newServeMux(logger)
+	ds, dsCloser, err := openDatastore(cfg.Database)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		if closeErr := dsCloser.Close(); closeErr != nil {
+			logger.Error("closing datastore", "error", closeErr)
+		}
+	}()
+
+	mux, err := newServeMux(logger, ds)
 	if err != nil {
 		return err
 	}
@@ -116,16 +130,63 @@ func runServe(ctx context.Context, configPath string) error {
 	}
 }
 
+// openDatastore opens the datastore.Datastore backend selected by
+// cfg.Driver and returns it alongside the underlying *badger.DB/*sql.DB so
+// the caller can close it on shutdown — see
+// docs/adr/0012-datastore-persistence.md. This is the only place in the
+// codebase that knows both backends exist; everything above the returned
+// datastore.Datastore is backend-agnostic.
+func openDatastore(cfg config.Database) (datastore.Datastore, io.Closer, error) {
+	switch cfg.Driver {
+	case "badger":
+		db, err := dsbadger.Open(dsbadger.Options{
+			DataDir:     cfg.Badger.DataDir,
+			ValueLogDir: cfg.Badger.ValueLogDir,
+			SyncWrites:  cfg.Badger.SyncWrites,
+		})
+		if err != nil {
+			return nil, nil, fmt.Errorf("cmd/purser: opening badger datastore: %w", err)
+		}
+		store, err := dsbadger.New("kernel", db)
+		if err != nil {
+			return nil, nil, fmt.Errorf("cmd/purser: constructing badger datastore: %w", err)
+		}
+		return store, db, nil
+	case "postgres", "mysql", "sqlite":
+		dialect := dssql.Dialect(cfg.Driver)
+		db, err := dssql.Open(dssql.Options{Dialect: dialect, DSN: cfg.SQL.DSN})
+		if err != nil {
+			return nil, nil, fmt.Errorf("cmd/purser: opening sql datastore (%s): %w", cfg.Driver, err)
+		}
+		store, err := dssql.New("kernel", db, dialect)
+		if err != nil {
+			return nil, nil, fmt.Errorf("cmd/purser: constructing sql datastore: %w", err)
+		}
+		return store, db, nil
+	default:
+		// config.Database.Validate already rejects this at Load time —
+		// reachable only if a caller constructs a Database bypassing
+		// Validate, so this is a defensive fallback, not the primary
+		// error path.
+		return nil, nil, fmt.Errorf("cmd/purser: unknown database driver %q", cfg.Driver)
+	}
+}
+
 // newServeMux wires every entity's adapter -> service -> Connect handler
 // and mounts it, plus gRPC reflection for grpcurl/buf curl debugging (see
 // ADR-0011). Every shared-kernel entity in this pass follows the exact
 // same four-line shape; that repetition is intentional (SRP per entity)
 // rather than a signal to collapse it into a generic helper.
-func newServeMux(logger *slog.Logger) (*http.ServeMux, error) {
+//
+// Person is backed by ds (see docs/adr/0012-datastore-persistence.md); the
+// other ten entities are not yet migrated off the in-memory adapters —
+// tracked as a known, intentional gap for a follow-up pass, not a silent
+// regression.
+func newServeMux(logger *slog.Logger, ds datastore.Datastore) (*http.ServeMux, error) {
 	mux := http.NewServeMux()
 	interceptors := connect.WithInterceptors(apiconnect.NewLoggingInterceptor(logger))
 
-	personRepo, err := memperson.New("person", memperson.WithLogger(logger))
+	personRepo, err := storeperson.New("person", ds, storeperson.WithLogger(logger))
 	if err != nil {
 		return nil, fmt.Errorf("cmd/purser: constructing person repository: %w", err)
 	}

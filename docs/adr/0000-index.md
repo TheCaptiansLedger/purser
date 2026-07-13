@@ -30,6 +30,7 @@ ADR wins.
 | [0009](0009-cli-stack.md) | CLI Stack: Cobra, pterm, and Bubble Tea | Accepted |
 | [0010](0010-configuration.md) | Configuration: Viper | Accepted |
 | [0011](0011-api-design.md) | API Design: Connect-Primary RPC API | Accepted |
+| [0012](0012-datastore-persistence.md) | Persistence: A Generic Datastore Behind Badger and SQL | Accepted |
 
 ## Adding a new ADR
 

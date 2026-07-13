@@ -1,0 +1,250 @@
+// Package datastoretest is the shared contract test suite for the
+// datastore.Datastore interface. See internal/ports/persontest for the
+// convention this follows.
+package datastoretest
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"purser/internal/adapters/datastore"
+	"purser/internal/ports"
+	"testing"
+)
+
+// NewDatastoreFunc returns a fresh, empty datastore.Datastore for the
+// duration of a single subtest.
+type NewDatastoreFunc func(t *testing.T) datastore.Datastore
+
+// TestDatastore runs the shared Datastore contract against newDS.
+func TestDatastore(t *testing.T, newDS NewDatastoreFunc) {
+	t.Helper()
+
+	t.Run("get on empty datastore returns ErrNotFound", func(t *testing.T) { testGetOnEmptyNotFound(t, newDS) })
+	t.Run("create then get round-trips the document", func(t *testing.T) { testCreateThenGet(t, newDS) })
+	t.Run("create with a duplicate collection+id returns ErrConflict", func(t *testing.T) { testCreateDuplicate(t, newDS) })
+	t.Run("create with the same id in a different collection succeeds", func(t *testing.T) { testCreateSameIDDifferentCollection(t, newDS) })
+	t.Run("update replaces an existing document", func(t *testing.T) { testUpdate(t, newDS) })
+	t.Run("update on a missing document returns ErrNotFound", func(t *testing.T) { testUpdateMissing(t, newDS) })
+	t.Run("delete removes a document", func(t *testing.T) { testDelete(t, newDS) })
+	t.Run("delete on a missing document returns ErrNotFound", func(t *testing.T) { testDeleteMissing(t, newDS) })
+	t.Run("list paginates across an unfiltered collection", func(t *testing.T) { testListPaginates(t, newDS) })
+	t.Run("list filters by a single index key", func(t *testing.T) { testListFilterSingleKey(t, newDS) })
+	t.Run("list filters by multiple index keys with AND semantics", func(t *testing.T) { testListFilterMultiKey(t, newDS) })
+	t.Run("list filter matching nothing returns an empty page", func(t *testing.T) { testListFilterNoMatch(t, newDS) })
+	t.Run("update replaces stale index entries", func(t *testing.T) { testUpdateReplacesIndex(t, newDS) })
+}
+
+func mustCreate(t *testing.T, ds datastore.Datastore, doc datastore.Document) {
+	t.Helper()
+	if err := ds.Create(context.Background(), doc); err != nil {
+		t.Fatalf("Create returned error: %v", err)
+	}
+}
+
+func doc(collection, id string, index map[string]string) datastore.Document {
+	return datastore.Document{
+		Collection: collection,
+		ID:         id,
+		Data:       []byte(fmt.Sprintf(`{"id":%q}`, id)),
+		Index:      index,
+	}
+}
+
+func testGetOnEmptyNotFound(t *testing.T, newDS NewDatastoreFunc) {
+	ds := newDS(t)
+	_, err := ds.Get(context.Background(), "widget", "missing")
+	if !errors.Is(err, ports.ErrNotFound) {
+		t.Fatalf("Get on empty datastore returned %v, want ErrNotFound", err)
+	}
+}
+
+func testCreateThenGet(t *testing.T, newDS NewDatastoreFunc) {
+	ds := newDS(t)
+	d := doc("widget", "w1", nil)
+	mustCreate(t, ds, d)
+
+	got, err := ds.Get(context.Background(), "widget", "w1")
+	if err != nil {
+		t.Fatalf("Get returned error: %v", err)
+	}
+	if string(got.Data) != string(d.Data) {
+		t.Fatalf("Get returned Data %q, want %q", got.Data, d.Data)
+	}
+}
+
+func testCreateDuplicate(t *testing.T, newDS NewDatastoreFunc) {
+	ds := newDS(t)
+	mustCreate(t, ds, doc("widget", "w1", nil))
+
+	err := ds.Create(context.Background(), doc("widget", "w1", nil))
+	if !errors.Is(err, ports.ErrConflict) {
+		t.Fatalf("Create with duplicate collection+id returned %v, want ErrConflict", err)
+	}
+}
+
+func testCreateSameIDDifferentCollection(t *testing.T, newDS NewDatastoreFunc) {
+	ds := newDS(t)
+	mustCreate(t, ds, doc("widget", "shared", nil))
+
+	if err := ds.Create(context.Background(), doc("gadget", "shared", nil)); err != nil {
+		t.Fatalf("Create with same id in a different collection returned error: %v", err)
+	}
+}
+
+func testUpdate(t *testing.T, newDS NewDatastoreFunc) {
+	ds := newDS(t)
+	mustCreate(t, ds, doc("widget", "w1", nil))
+
+	updated := datastore.Document{Collection: "widget", ID: "w1", Data: []byte(`{"id":"w1","updated":true}`)}
+	if err := ds.Update(context.Background(), updated); err != nil {
+		t.Fatalf("Update returned error: %v", err)
+	}
+
+	got, err := ds.Get(context.Background(), "widget", "w1")
+	if err != nil {
+		t.Fatalf("Get returned error: %v", err)
+	}
+	if string(got.Data) != string(updated.Data) {
+		t.Fatalf("Get after Update returned Data %q, want %q", got.Data, updated.Data)
+	}
+}
+
+func testUpdateMissing(t *testing.T, newDS NewDatastoreFunc) {
+	ds := newDS(t)
+	err := ds.Update(context.Background(), doc("widget", "missing", nil))
+	if !errors.Is(err, ports.ErrNotFound) {
+		t.Fatalf("Update on missing document returned %v, want ErrNotFound", err)
+	}
+}
+
+func testDelete(t *testing.T, newDS NewDatastoreFunc) {
+	ds := newDS(t)
+	mustCreate(t, ds, doc("widget", "w1", nil))
+
+	if err := ds.Delete(context.Background(), "widget", "w1"); err != nil {
+		t.Fatalf("Delete returned error: %v", err)
+	}
+	if _, err := ds.Get(context.Background(), "widget", "w1"); !errors.Is(err, ports.ErrNotFound) {
+		t.Fatalf("Get after Delete returned %v, want ErrNotFound", err)
+	}
+}
+
+func testDeleteMissing(t *testing.T, newDS NewDatastoreFunc) {
+	ds := newDS(t)
+	err := ds.Delete(context.Background(), "widget", "missing")
+	if !errors.Is(err, ports.ErrNotFound) {
+		t.Fatalf("Delete on missing document returned %v, want ErrNotFound", err)
+	}
+}
+
+func testListPaginates(t *testing.T, newDS NewDatastoreFunc) {
+	ds := newDS(t)
+	ctx := context.Background()
+
+	want := 5
+	for i := range want {
+		mustCreate(t, ds, doc("widget", fmt.Sprintf("w%d", i), nil))
+	}
+
+	got := map[string]bool{}
+	pageToken := ""
+	for {
+		docs, next, err := ds.List(ctx, "widget", nil, 2, pageToken)
+		if err != nil {
+			t.Fatalf("List returned error: %v", err)
+		}
+		for _, d := range docs {
+			got[d.ID] = true
+		}
+		if next == "" {
+			break
+		}
+		pageToken = next
+	}
+
+	if len(got) != want {
+		t.Fatalf("List across pages returned %d documents, want %d", len(got), want)
+	}
+}
+
+func testListFilterSingleKey(t *testing.T, newDS NewDatastoreFunc) {
+	ds := newDS(t)
+	ctx := context.Background()
+	mustCreate(t, ds, doc("image", "i1", map[string]string{"owner_type": "person"}))
+	mustCreate(t, ds, doc("image", "i2", map[string]string{"owner_type": "person"}))
+	mustCreate(t, ds, doc("image", "i3", map[string]string{"owner_type": "group"}))
+
+	docs, _, err := ds.List(ctx, "image", map[string]string{"owner_type": "person"}, 10, "")
+	if err != nil {
+		t.Fatalf("List(filter) returned error: %v", err)
+	}
+	if len(docs) != 2 {
+		t.Fatalf("List(owner_type=person) returned %d documents, want 2", len(docs))
+	}
+}
+
+func testListFilterMultiKey(t *testing.T, newDS NewDatastoreFunc) {
+	ds := newDS(t)
+	ctx := context.Background()
+	mustCreate(t, ds, doc("image", "i1", map[string]string{"owner_type": "person", "owner_id": "p1"}))
+	mustCreate(t, ds, doc("image", "i2", map[string]string{"owner_type": "person", "owner_id": "p2"}))
+	mustCreate(t, ds, doc("image", "i3", map[string]string{"owner_type": "person", "owner_id": "p1"}))
+
+	docs, _, err := ds.List(ctx, "image", map[string]string{"owner_type": "person", "owner_id": "p1"}, 10, "")
+	if err != nil {
+		t.Fatalf("List(filter) returned error: %v", err)
+	}
+	if len(docs) != 2 {
+		t.Fatalf("List(owner_type=person,owner_id=p1) returned %d documents, want 2", len(docs))
+	}
+	for _, d := range docs {
+		if d.ID != "i1" && d.ID != "i3" {
+			t.Errorf("List(owner_type=person,owner_id=p1) unexpectedly returned %q", d.ID)
+		}
+	}
+}
+
+func testListFilterNoMatch(t *testing.T, newDS NewDatastoreFunc) {
+	ds := newDS(t)
+	ctx := context.Background()
+	mustCreate(t, ds, doc("image", "i1", map[string]string{"owner_type": "person"}))
+
+	docs, next, err := ds.List(ctx, "image", map[string]string{"owner_type": "group"}, 10, "")
+	if err != nil {
+		t.Fatalf("List(filter) returned error: %v", err)
+	}
+	if len(docs) != 0 {
+		t.Fatalf("List(owner_type=group) returned %d documents, want 0", len(docs))
+	}
+	if next != "" {
+		t.Fatalf("List(owner_type=group) returned next page token %q, want empty", next)
+	}
+}
+
+func testUpdateReplacesIndex(t *testing.T, newDS NewDatastoreFunc) {
+	ds := newDS(t)
+	ctx := context.Background()
+	mustCreate(t, ds, doc("image", "i1", map[string]string{"owner_type": "person"}))
+
+	updated := doc("image", "i1", map[string]string{"owner_type": "group"})
+	if err := ds.Update(ctx, updated); err != nil {
+		t.Fatalf("Update returned error: %v", err)
+	}
+
+	byOldIndex, _, err := ds.List(ctx, "image", map[string]string{"owner_type": "person"}, 10, "")
+	if err != nil {
+		t.Fatalf("List(old index) returned error: %v", err)
+	}
+	if len(byOldIndex) != 0 {
+		t.Fatalf("List(owner_type=person) after Update returned %d documents, want 0 (stale index)", len(byOldIndex))
+	}
+
+	byNewIndex, _, err := ds.List(ctx, "image", map[string]string{"owner_type": "group"}, 10, "")
+	if err != nil {
+		t.Fatalf("List(new index) returned error: %v", err)
+	}
+	if len(byNewIndex) != 1 {
+		t.Fatalf("List(owner_type=group) after Update returned %d documents, want 1", len(byNewIndex))
+	}
+}
