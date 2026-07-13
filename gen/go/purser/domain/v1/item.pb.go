@@ -513,11 +513,16 @@ func (*DeleteItemResponse) Descriptor() ([]byte, []int) {
 }
 
 type ListItemsRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	PageSize      int32                  `protobuf:"varint,1,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
-	PageToken     string                 `protobuf:"bytes,2,opt,name=page_token,json=pageToken,proto3" json:"page_token,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state     protoimpl.MessageState `protogen:"open.v1"`
+	PageSize  int32                  `protobuf:"varint,1,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
+	PageToken string                 `protobuf:"bytes,2,opt,name=page_token,json=pageToken,proto3" json:"page_token,omitempty"`
+	// library_entry_id, content_type, and group_id are independent,
+	// optional filters — leave unset for no filter on that field.
+	LibraryEntryId string `protobuf:"bytes,3,opt,name=library_entry_id,json=libraryEntryId,proto3" json:"library_entry_id,omitempty"`
+	ContentType    string `protobuf:"bytes,4,opt,name=content_type,json=contentType,proto3" json:"content_type,omitempty"`
+	GroupId        string `protobuf:"bytes,5,opt,name=group_id,json=groupId,proto3" json:"group_id,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
 }
 
 func (x *ListItemsRequest) Reset() {
@@ -560,6 +565,27 @@ func (x *ListItemsRequest) GetPageSize() int32 {
 func (x *ListItemsRequest) GetPageToken() string {
 	if x != nil {
 		return x.PageToken
+	}
+	return ""
+}
+
+func (x *ListItemsRequest) GetLibraryEntryId() string {
+	if x != nil {
+		return x.LibraryEntryId
+	}
+	return ""
+}
+
+func (x *ListItemsRequest) GetContentType() string {
+	if x != nil {
+		return x.ContentType
+	}
+	return ""
+}
+
+func (x *ListItemsRequest) GetGroupId() string {
+	if x != nil {
+		return x.GroupId
 	}
 	return ""
 }
@@ -651,11 +677,14 @@ const file_purser_domain_v1_item_proto_rawDesc = "" +
 	"\x04item\x18\x01 \x01(\v2\x16.purser.domain.v1.ItemR\x04item\"#\n" +
 	"\x11DeleteItemRequest\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\"\x14\n" +
-	"\x12DeleteItemResponse\"N\n" +
+	"\x12DeleteItemResponse\"\xb6\x01\n" +
 	"\x10ListItemsRequest\x12\x1b\n" +
 	"\tpage_size\x18\x01 \x01(\x05R\bpageSize\x12\x1d\n" +
 	"\n" +
-	"page_token\x18\x02 \x01(\tR\tpageToken\"i\n" +
+	"page_token\x18\x02 \x01(\tR\tpageToken\x12(\n" +
+	"\x10library_entry_id\x18\x03 \x01(\tR\x0elibraryEntryId\x12!\n" +
+	"\fcontent_type\x18\x04 \x01(\tR\vcontentType\x12\x19\n" +
+	"\bgroup_id\x18\x05 \x01(\tR\agroupId\"i\n" +
 	"\x11ListItemsResponse\x12,\n" +
 	"\x05items\x18\x01 \x03(\v2\x16.purser.domain.v1.ItemR\x05items\x12&\n" +
 	"\x0fnext_page_token\x18\x02 \x01(\tR\rnextPageToken2\xbe\x03\n" +

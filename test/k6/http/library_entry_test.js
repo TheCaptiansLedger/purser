@@ -42,6 +42,18 @@ export default () => {
     'ListLibraryEntries includes the created entry': (r) => (r.json('libraryEntries') || []).some((e) => e.id === id),
   });
 
+  res = http.post(`${SERVICE}/ListLibraryEntries`, JSON.stringify({ kind: 'studio', pageSize: 10 }), HEADERS);
+  check(res, {
+    'ListLibraryEntries filtered by kind status is 200': (r) => r.status === 200,
+    'ListLibraryEntries filtered by kind includes the created entry': (r) => (r.json('libraryEntries') || []).some((e) => e.id === id),
+  });
+
+  res = http.post(`${SERVICE}/ListLibraryEntries`, JSON.stringify({ kind: 'network', pageSize: 10 }), HEADERS);
+  check(res, {
+    'ListLibraryEntries filtered by a non-matching kind excludes the created entry': (r) =>
+      !(r.json('libraryEntries') || []).some((e) => e.id === id),
+  });
+
   res = http.post(`${SERVICE}/DeleteLibraryEntry`, JSON.stringify({ id: id }), HEADERS);
   check(res, { 'DeleteLibraryEntry status is 200': (r) => r.status === 200 });
 

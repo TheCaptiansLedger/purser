@@ -18,7 +18,7 @@ type itemService interface {
 	Get(ctx context.Context, id string) (*domain.Item, error)
 	Update(ctx context.Context, i *domain.Item) (*domain.Item, error)
 	Delete(ctx context.Context, id string) error
-	List(ctx context.Context, pageSize int, pageToken string) ([]*domain.Item, string, error)
+	List(ctx context.Context, libraryEntryID, contentType, groupID string, pageSize int, pageToken string) ([]*domain.Item, string, error)
 }
 
 // ItemHandler implements domainv1connect.ItemServiceHandler.
@@ -81,7 +81,7 @@ func (h *ItemHandler) DeleteItem(ctx context.Context, req *connect.Request[v1.De
 
 // ListItems implements domainv1connect.ItemServiceHandler.
 func (h *ItemHandler) ListItems(ctx context.Context, req *connect.Request[v1.ListItemsRequest]) (*connect.Response[v1.ListItemsResponse], error) {
-	items, next, err := h.svc.List(ctx, int(req.Msg.GetPageSize()), req.Msg.GetPageToken())
+	items, next, err := h.svc.List(ctx, req.Msg.GetLibraryEntryId(), req.Msg.GetContentType(), req.Msg.GetGroupId(), int(req.Msg.GetPageSize()), req.Msg.GetPageToken())
 	if err != nil {
 		return nil, mapError(ctx, h.logger, err)
 	}

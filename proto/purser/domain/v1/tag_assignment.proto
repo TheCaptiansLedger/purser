@@ -1,0 +1,72 @@
+syntax = "proto3";
+
+package purser.domain.v1;
+
+import "purser/domain/v1/common.proto";
+
+option go_package = "purser/gen/go/purser/domain/v1;domainv1";
+
+// TagAssignment is the wire shape of internal/domain.TagAssignment — a
+// polymorphic Tag attachment, a join row with no independent ID. Its
+// identity is the composite (tag_id, entity_type, entity_id). There is no
+// Update RPC: nothing about a TagAssignment is mutable. See
+// docs/technical/tag-assignment.md.
+message TagAssignment {
+  string tag_id = 1;
+  EntityType entity_type = 2;
+  string entity_id = 3;
+}
+
+message CreateTagAssignmentRequest {
+  TagAssignment tag_assignment = 1;
+}
+
+message CreateTagAssignmentResponse {
+  TagAssignment tag_assignment = 1;
+}
+
+message GetTagAssignmentRequest {
+  string tag_id = 1;
+  EntityType entity_type = 2;
+  string entity_id = 3;
+}
+
+message GetTagAssignmentResponse {
+  TagAssignment tag_assignment = 1;
+}
+
+message DeleteTagAssignmentRequest {
+  string tag_id = 1;
+  EntityType entity_type = 2;
+  string entity_id = 3;
+}
+
+message DeleteTagAssignmentResponse {}
+
+message ListTagAssignmentsRequest {
+  // tag_id and (entity_type, entity_id) are independent, optional filter
+  // directions — set tag_id alone for "everything tagged X"
+  // (browse-by-tag), set entity_type+entity_id alone for "this entity's
+  // tags" (show-an-entity's-tags), or all three.
+  string tag_id = 1;
+  EntityType entity_type = 2;
+  string entity_id = 3;
+  int32 page_size = 4;
+  string page_token = 5;
+}
+
+message ListTagAssignmentsResponse {
+  repeated TagAssignment tag_assignments = 1;
+  string next_page_token = 2;
+}
+
+// TagAssignmentService owns exactly one entity — TagAssignment — per
+// docs/adr/0011-api-design.md's SRP-per-entity rule. This is the
+// attach/detach mechanism tag.proto's Tag message deferred — see
+// docs/technical/tag-assignment.md.
+service TagAssignmentService {
+  rpc CreateTagAssignment(CreateTagAssignmentRequest) returns (CreateTagAssignmentResponse);
+  rpc GetTagAssignment(GetTagAssignmentRequest) returns (GetTagAssignmentResponse);
+  rpc DeleteTagAssignment(DeleteTagAssignmentRequest) returns (DeleteTagAssignmentResponse);
+  rpc ListTagAssignments(ListTagAssignmentsRequest) returns (ListTagAssignmentsResponse);
+}

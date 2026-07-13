@@ -18,7 +18,7 @@ type libraryEntryService interface {
 	Get(ctx context.Context, id string) (*domain.LibraryEntry, error)
 	Update(ctx context.Context, e *domain.LibraryEntry) (*domain.LibraryEntry, error)
 	Delete(ctx context.Context, id string) error
-	List(ctx context.Context, pageSize int, pageToken string) ([]*domain.LibraryEntry, string, error)
+	List(ctx context.Context, kind domain.Kind, parentID string, pageSize int, pageToken string) ([]*domain.LibraryEntry, string, error)
 }
 
 // LibraryEntryHandler implements domainv1connect.LibraryEntryServiceHandler.
@@ -81,7 +81,7 @@ func (h *LibraryEntryHandler) DeleteLibraryEntry(ctx context.Context, req *conne
 
 // ListLibraryEntries implements domainv1connect.LibraryEntryServiceHandler.
 func (h *LibraryEntryHandler) ListLibraryEntries(ctx context.Context, req *connect.Request[v1.ListLibraryEntriesRequest]) (*connect.Response[v1.ListLibraryEntriesResponse], error) {
-	entries, next, err := h.svc.List(ctx, int(req.Msg.GetPageSize()), req.Msg.GetPageToken())
+	entries, next, err := h.svc.List(ctx, domain.Kind(req.Msg.GetKind()), req.Msg.GetParentId(), int(req.Msg.GetPageSize()), req.Msg.GetPageToken())
 	if err != nil {
 		return nil, mapError(ctx, h.logger, err)
 	}

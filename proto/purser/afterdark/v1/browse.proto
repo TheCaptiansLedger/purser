@@ -1,0 +1,107 @@
+syntax = "proto3";
+
+package purser.afterdark.v1;
+
+import "purser/afterdark/v1/performer_profile.proto";
+import "purser/domain/v1/item.proto";
+import "purser/domain/v1/person.proto";
+
+option go_package = "purser/gen/go/purser/afterdark/v1;afterdarkv1";
+
+// PerformerView composes a kernel purser.domain.v1.Person with its
+// AfterDark PerformerProfile — the wire shape of
+// internal/service.PerformerView. Assembled by BrowseService at the read
+// boundary, per docs/technical/shared-domain-model.md Part 3; never a
+// persisted entity of its own.
+message PerformerView {
+  purser.domain.v1.Person person = 1;
+  PerformerProfile performer_profile = 2;
+}
+
+message ListScenesInNetworkRequest {
+  string network_id = 1;
+  int32 page_size = 2;
+  string page_token = 3;
+}
+
+message ListScenesInNetworkResponse {
+  repeated purser.domain.v1.Item scenes = 1;
+  string next_page_token = 2;
+}
+
+message ListScenesForPerformerRequest {
+  string person_id = 1;
+  int32 page_size = 2;
+  string page_token = 3;
+}
+
+message ListScenesForPerformerResponse {
+  repeated purser.domain.v1.Item scenes = 1;
+  string next_page_token = 2;
+}
+
+message ListPerformersForSceneRequest {
+  string item_id = 1;
+  int32 page_size = 2;
+  string page_token = 3;
+}
+
+message ListPerformersForSceneResponse {
+  repeated PerformerView performers = 1;
+  string next_page_token = 2;
+}
+
+message ListPerformersForStudioRequest {
+  string library_entry_id = 1;
+  int32 page_size = 2;
+  string page_token = 3;
+}
+
+message ListPerformersForStudioResponse {
+  repeated PerformerView performers = 1;
+  string next_page_token = 2;
+}
+
+message ListPerformersForNetworkRequest {
+  string network_id = 1;
+  int32 page_size = 2;
+  string page_token = 3;
+}
+
+message ListPerformersForNetworkResponse {
+  repeated PerformerView performers = 1;
+  string next_page_token = 2;
+}
+
+message ListPerformersRequest {
+  int32 page_size = 1;
+  string page_token = 2;
+}
+
+message ListPerformersResponse {
+  repeated PerformerView performers = 1;
+  string next_page_token = 2;
+}
+
+// BrowseService is AfterDark's composing service — it depends on multiple
+// kernel entities (LibraryEntry, Item, ItemPerson, Person) plus
+// PerformerProfile together, the explicit exception to the
+// one-port-per-service rule defined by
+// docs/adr/0015-deletion-impact-and-composing-services.md and
+// docs/adr/0011-api-design.md. Never folded into LibraryEntryService,
+// ItemService, ItemPersonService, or PersonService, each of which stays
+// single-entity.
+//
+// Pagination on the multi-parent-union RPCs (ListScenesInNetwork,
+// ListPerformersForStudio, ListPerformersForNetwork) is a composed,
+// in-memory offset cursor, not a real storage-backed one — see
+// internal/service.AfterDarkBrowseService's doc comment for why this is an
+// accepted, documented simplification for AfterDark's bounded fan-out.
+service BrowseService {
+  rpc ListScenesInNetwork(ListScenesInNetworkRequest) returns (ListScenesInNetworkResponse);
+  rpc ListScenesForPerformer(ListScenesForPerformerRequest) returns (ListScenesForPerformerResponse);
+  rpc ListPerformersForScene(ListPerformersForSceneRequest) returns (ListPerformersForSceneResponse);
+  rpc ListPerformersForStudio(ListPerformersForStudioRequest) returns (ListPerformersForStudioResponse);
+  rpc ListPerformersForNetwork(ListPerformersForNetworkRequest) returns (ListPerformersForNetworkResponse);
+  rpc ListPerformers(ListPerformersRequest) returns (ListPerformersResponse);
+}

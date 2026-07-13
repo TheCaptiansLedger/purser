@@ -50,7 +50,8 @@ func (s *LibraryEntryService) Delete(ctx context.Context, id string) error {
 	return s.repo.Delete(ctx, id)
 }
 
-// List returns a page of LibraryEntry records.
-func (s *LibraryEntryService) List(ctx context.Context, pageSize int, pageToken string) ([]*domain.LibraryEntry, string, error) {
-	return s.repo.List(ctx, pageSize, pageToken)
+// List returns a page of LibraryEntry records. kind and parentID are
+// independent, optional filters.
+func (s *LibraryEntryService) List(ctx context.Context, kind domain.Kind, parentID string, pageSize int, pageToken string) ([]*domain.LibraryEntry, string, error) {
+	return s.repo.List(ctx, kind, parentID, pageSize, pageToken)
 }

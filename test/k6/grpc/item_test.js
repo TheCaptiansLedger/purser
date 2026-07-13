@@ -42,6 +42,19 @@ export default () => {
     'ListItems includes the created item': (r) => r && r.message && r.message.items && r.message.items.some((i) => i.id === id),
   });
 
+  res = client.invoke('purser.domain.v1.ItemService/ListItems', { libraryEntryId: 'entry1', contentType: 'adult', pageSize: 10 });
+  check(res, {
+    'ListItems filtered by libraryEntryId+contentType status is OK': (r) => r && r.status === grpc.StatusOK,
+    'ListItems filtered by libraryEntryId+contentType includes the created item': (r) =>
+      r && r.message && r.message.items && r.message.items.some((i) => i.id === id),
+  });
+
+  res = client.invoke('purser.domain.v1.ItemService/ListItems', { libraryEntryId: 'no-such-entry', pageSize: 10 });
+  check(res, {
+    'ListItems filtered by a non-matching libraryEntryId excludes the created item': (r) =>
+      r && r.message && !(r.message.items || []).some((i) => i.id === id),
+  });
+
   res = client.invoke('purser.domain.v1.ItemService/DeleteItem', { id: id });
   check(res, { 'DeleteItem status is OK': (r) => r && r.status === grpc.StatusOK });
 

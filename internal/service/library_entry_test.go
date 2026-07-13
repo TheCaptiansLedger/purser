@@ -52,7 +52,7 @@ func (f *fakeLibraryEntryRepository) Delete(_ context.Context, id string) error 
 	return nil
 }
 
-func (f *fakeLibraryEntryRepository) List(_ context.Context, _ int, _ string) ([]*domain.LibraryEntry, string, error) {
+func (f *fakeLibraryEntryRepository) List(_ context.Context, _ domain.Kind, _ string, _ int, _ string) ([]*domain.LibraryEntry, string, error) {
 	entries := make([]*domain.LibraryEntry, 0, len(f.byID))
 	for _, e := range f.byID {
 		stored := *e
@@ -204,7 +204,7 @@ func TestLibraryEntryService_List(t *testing.T) {
 		}
 	}
 
-	entries, _, err := svc.List(context.Background(), 10, "")
+	entries, _, err := svc.List(context.Background(), "", "", 10, "")
 	if err != nil {
 		t.Fatalf("List returned error: %v", err)
 	}

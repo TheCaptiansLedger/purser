@@ -21,6 +21,9 @@ type fakeLibraryEntryService struct {
 	updateErr error
 	deleteErr error
 	listErr   error
+
+	gotKind     domain.Kind
+	gotParentID string
 }
 
 func newFakeLibraryEntryService() *fakeLibraryEntryService {
@@ -62,7 +65,8 @@ func (f *fakeLibraryEntryService) Delete(_ context.Context, id string) error {
 	return nil
 }
 
-func (f *fakeLibraryEntryService) List(_ context.Context, _ int, _ string) ([]*domain.LibraryEntry, string, error) {
+func (f *fakeLibraryEntryService) List(_ context.Context, kind domain.Kind, parentID string, _ int, _ string) ([]*domain.LibraryEntry, string, error) {
+	f.gotKind, f.gotParentID = kind, parentID
 	if f.listErr != nil {
 		return nil, "", f.listErr
 	}
@@ -209,6 +213,21 @@ func TestLibraryEntryHandler_ListLibraryEntries(t *testing.T) {
 		}
 		if len(res.Msg.GetLibraryEntries()) != 2 {
 			t.Fatalf("ListLibraryEntries returned %d entries, want 2", len(res.Msg.GetLibraryEntries()))
+		}
+	})
+
+	t.Run("filter fields are threaded through to the service", func(t *testing.T) {
+		svc := newFakeLibraryEntryService()
+		h := apiconnect.NewLibraryEntryHandler(svc, nil)
+
+		_, err := h.ListLibraryEntries(context.Background(), connect.NewRequest(&v1.ListLibraryEntriesRequest{
+			Kind: "studio", ParentId: "network1", PageSize: 10,
+		}))
+		if err != nil {
+			t.Fatalf("ListLibraryEntries returned error: %v", err)
+		}
+		if svc.gotKind != domain.KindStudio || svc.gotParentID != "network1" {
+			t.Fatalf("ListLibraryEntries passed filters (%q, %q), want (%q, %q)", svc.gotKind, svc.gotParentID, domain.KindStudio, "network1")
 		}
 	})
 

@@ -62,6 +62,11 @@ message DeleteItemResponse {}
 message ListItemsRequest {
   int32 page_size = 1;
   string page_token = 2;
+  // library_entry_id, content_type, and group_id are independent,
+  // optional filters — leave unset for no filter on that field.
+  string library_entry_id = 3;
+  string content_type = 4;
+  string group_id = 5;
 }
 
 message ListItemsResponse {

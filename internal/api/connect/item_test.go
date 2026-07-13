@@ -21,6 +21,10 @@ type fakeItemService struct {
 	updateErr error
 	deleteErr error
 	listErr   error
+
+	gotLibraryEntryID string
+	gotContentType    string
+	gotGroupID        string
 }
 
 func newFakeItemService() *fakeItemService {
@@ -62,7 +66,8 @@ func (f *fakeItemService) Delete(_ context.Context, id string) error {
 	return nil
 }
 
-func (f *fakeItemService) List(_ context.Context, _ int, _ string) ([]*domain.Item, string, error) {
+func (f *fakeItemService) List(_ context.Context, libraryEntryID, contentType, groupID string, _ int, _ string) ([]*domain.Item, string, error) {
+	f.gotLibraryEntryID, f.gotContentType, f.gotGroupID = libraryEntryID, contentType, groupID
 	if f.listErr != nil {
 		return nil, "", f.listErr
 	}
@@ -203,6 +208,22 @@ func TestItemHandler_ListItems(t *testing.T) {
 		}
 		if len(res.Msg.GetItems()) != 2 {
 			t.Fatalf("ListItems returned %d items, want 2", len(res.Msg.GetItems()))
+		}
+	})
+
+	t.Run("filter fields are threaded through to the service", func(t *testing.T) {
+		svc := newFakeItemService()
+		h := apiconnect.NewItemHandler(svc, nil)
+
+		_, err := h.ListItems(context.Background(), connect.NewRequest(&v1.ListItemsRequest{
+			LibraryEntryId: "studio1", ContentType: "adult", GroupId: "group1", PageSize: 10,
+		}))
+		if err != nil {
+			t.Fatalf("ListItems returned error: %v", err)
+		}
+		if svc.gotLibraryEntryID != "studio1" || svc.gotContentType != "adult" || svc.gotGroupID != "group1" {
+			t.Fatalf("ListItems passed filters (%q, %q, %q), want (%q, %q, %q)",
+				svc.gotLibraryEntryID, svc.gotContentType, svc.gotGroupID, "studio1", "adult", "group1")
 		}
 	})
 

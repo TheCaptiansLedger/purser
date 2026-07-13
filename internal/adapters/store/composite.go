@@ -21,14 +21,23 @@ const compositeInstrumentationName = "purser/internal/adapters/store/composite"
 const keySeparator = "\x00"
 
 // CompositeRepository is the datastore-backed translator shared by every
-// entity keyed on 3 joined string parts, filtering List by the first 2 —
-// EntryPerson, ItemPerson, and (via a thin type-converting wrapper)
-// ExternalID. See docs/adr/0012-datastore-persistence.md.
+// entity keyed on 3 joined string parts — EntryPerson, ItemPerson,
+// ExternalID, and (via a thin type-converting wrapper) TagAssignment. See
+// docs/adr/0012-datastore-persistence.md.
+//
+// Which fields List can filter on is declared per entity by indexOf, not
+// hardcoded here — EntryPerson/ItemPerson/ExternalID only ever needed 2 of
+// their 3 key parts indexed; TagAssignment needs all 3 independently
+// indexed (browse-by-tag vs. show-an-entity's-tags are both real queries).
+// List itself takes a filter map built by the caller (each entity's thin
+// wrapper), not positional k1/k2 args, so the set of filterable fields is
+// entirely up to indexOf.
 type CompositeRepository[T any] struct {
 	name       string
 	collection string
 	ds         datastore.Datastore
 	keyOf      func(*T) (string, string, string)
+	indexOf    func(*T) map[string]string
 
 	logger *slog.Logger
 	tracer trace.Tracer
@@ -41,10 +50,11 @@ type CompositeRepository[T any] struct {
 }
 
 // NewComposite constructs a named CompositeRepository[T] backed by ds,
-// storing documents under collection. keyOf extracts T's 3 key parts —
-// injected rather than required via a method on T, so this package makes
-// no assumption about a domain type's field names.
-func NewComposite[T any](name, collection string, ds datastore.Datastore, keyOf func(*T) (string, string, string), opts ...Option) (*CompositeRepository[T], error) {
+// storing documents under collection. keyOf extracts T's 3 key parts;
+// indexOf declares which fields (and values) List can filter on. Both are
+// injected rather than required via methods on T, so this package makes no
+// assumption about a domain type's field names.
+func NewComposite[T any](name, collection string, ds datastore.Datastore, keyOf func(*T) (string, string, string), indexOf func(*T) map[string]string, opts ...Option) (*CompositeRepository[T], error) {
 	if name == "" {
 		return nil, fmt.Errorf("adapters/store: name must not be empty")
 	}
@@ -57,6 +67,9 @@ func NewComposite[T any](name, collection string, ds datastore.Datastore, keyOf 
 	if keyOf == nil {
 		return nil, fmt.Errorf("adapters/store: keyOf must not be nil")
 	}
+	if indexOf == nil {
+		return nil, fmt.Errorf("adapters/store: indexOf must not be nil")
+	}
 
 	o := defaultOptions()
 	for _, opt := range opts {
@@ -68,6 +81,7 @@ func NewComposite[T any](name, collection string, ds datastore.Datastore, keyOf 
 		collection: collection,
 		ds:         ds,
 		keyOf:      keyOf,
+		indexOf:    indexOf,
 		logger:     o.logger.With("component", "adapters.store."+collection, "repository.name", name),
 		tracer:     o.tracerProvider.Tracer(compositeInstrumentationName),
 	}
@@ -94,8 +108,9 @@ func NewComposite[T any](name, collection string, ds datastore.Datastore, keyOf 
 	return r, nil
 }
 
-// Create stores v under its own composite key. Returns ports.ErrConflict
-// if a document with that key already exists in this collection.
+// Create stores v under its own composite key, indexed by indexOf(v).
+// Returns ports.ErrConflict if a document with that key already exists in
+// this collection.
 func (r *CompositeRepository[T]) Create(ctx context.Context, v *T) error {
 	id := r.id(v)
 	ctx, span := r.tracer.Start(ctx, r.collection+"_repository.create",
@@ -107,7 +122,7 @@ func (r *CompositeRepository[T]) Create(ctx context.Context, v *T) error {
 		return fmt.Errorf("adapters/store: marshal %s %s: %w", r.collection, id, err)
 	}
 
-	if err := r.ds.Create(ctx, datastore.Document{Collection: r.collection, ID: id, Data: data, Index: r.index(v)}); err != nil {
+	if err := r.ds.Create(ctx, datastore.Document{Collection: r.collection, ID: id, Data: data, Index: r.indexOf(v)}); err != nil {
 		return err
 	}
 
@@ -141,8 +156,8 @@ func (r *CompositeRepository[T]) Get(ctx context.Context, k1, k2, k3 string) (*T
 	return &v, nil
 }
 
-// Update replaces the record stored under v's own composite key. Returns
-// ports.ErrNotFound if none exists.
+// Update replaces the record stored under v's own composite key,
+// re-indexed by indexOf(v). Returns ports.ErrNotFound if none exists.
 func (r *CompositeRepository[T]) Update(ctx context.Context, v *T) error {
 	id := r.id(v)
 	ctx, span := r.tracer.Start(ctx, r.collection+"_repository.update",
@@ -154,7 +169,7 @@ func (r *CompositeRepository[T]) Update(ctx context.Context, v *T) error {
 		return fmt.Errorf("adapters/store: marshal %s %s: %w", r.collection, id, err)
 	}
 
-	if err := r.ds.Update(ctx, datastore.Document{Collection: r.collection, ID: id, Data: data, Index: r.index(v)}); err != nil {
+	if err := r.ds.Update(ctx, datastore.Document{Collection: r.collection, ID: id, Data: data, Index: r.indexOf(v)}); err != nil {
 		return err
 	}
 
@@ -180,24 +195,15 @@ func (r *CompositeRepository[T]) Delete(ctx context.Context, k1, k2, k3 string) 
 	return nil
 }
 
-// List returns records in this collection, cursor-paginated. k1 and k2
-// are independent, optional filters — an empty string means "no filter
-// on this field," matching the in-memory adapters' documented behavior.
-func (r *CompositeRepository[T]) List(ctx context.Context, k1, k2 string, pageSize int, pageToken string) ([]*T, string, error) {
+// List returns records in this collection matching filter (a non-empty
+// filter restricts results to documents whose Index matches every entry;
+// nil/empty means unfiltered), cursor-paginated. Which keys filter accepts
+// is up to the caller (each entity's thin wrapper), matching whatever
+// indexOf declared.
+func (r *CompositeRepository[T]) List(ctx context.Context, filter map[string]string, pageSize int, pageToken string) ([]*T, string, error) {
 	ctx, span := r.tracer.Start(ctx, r.collection+"_repository.list",
 		trace.WithAttributes(attribute.String("repository.name", r.name)))
 	defer span.End()
-
-	filter := map[string]string{}
-	if k1 != "" {
-		filter["k1"] = k1
-	}
-	if k2 != "" {
-		filter["k2"] = k2
-	}
-	if len(filter) == 0 {
-		filter = nil
-	}
 
 	docs, nextToken, err := r.ds.List(ctx, r.collection, filter, pageSize, pageToken)
 	if err != nil {
@@ -221,11 +227,6 @@ func (r *CompositeRepository[T]) List(ctx context.Context, k1, k2 string, pageSi
 func (r *CompositeRepository[T]) id(v *T) string {
 	k1, k2, k3 := r.keyOf(v)
 	return joinKey(k1, k2, k3)
-}
-
-func (r *CompositeRepository[T]) index(v *T) map[string]string {
-	k1, k2, _ := r.keyOf(v)
-	return map[string]string{"k1": k1, "k2": k2}
 }
 
 func joinKey(k1, k2, k3 string) string {

@@ -28,6 +28,7 @@ func TestLibraryEntryRepository(t *testing.T, newRepo NewRepositoryFunc) {
 	t.Run("update on a missing entry returns ErrNotFound", func(t *testing.T) { testUpdateMissing(t, newRepo) })
 	t.Run("delete removes an entry", func(t *testing.T) { testDelete(t, newRepo) })
 	t.Run("delete on a missing entry returns ErrNotFound", func(t *testing.T) { testDeleteMissing(t, newRepo) })
+	t.Run("list filters by kind and parent independently", func(t *testing.T) { testListFilters(t, newRepo) })
 	t.Run("list returns every created entry across pages", func(t *testing.T) { testListPaginates(t, newRepo) })
 }
 
@@ -119,6 +120,38 @@ func testDeleteMissing(t *testing.T, newRepo NewRepositoryFunc) {
 	}
 }
 
+func testListFilters(t *testing.T, newRepo NewRepositoryFunc) {
+	r := newRepo(t)
+	ctx := context.Background()
+	mustCreate(t, r, sampleLibraryEntryWithParent("n1", domain.KindNetwork, ""))
+	mustCreate(t, r, sampleLibraryEntryWithParent("s1", domain.KindStudio, "n1"))
+	mustCreate(t, r, sampleLibraryEntryWithParent("s2", domain.KindStudio, "n1"))
+
+	byKind, _, err := r.List(ctx, domain.KindStudio, "", 10, "")
+	if err != nil {
+		t.Fatalf("List(by kind) returned error: %v", err)
+	}
+	if len(byKind) != 2 {
+		t.Fatalf("List(by kind studio) returned %d rows, want 2", len(byKind))
+	}
+
+	byParent, _, err := r.List(ctx, "", "n1", 10, "")
+	if err != nil {
+		t.Fatalf("List(by parent) returned error: %v", err)
+	}
+	if len(byParent) != 2 {
+		t.Fatalf("List(by parent n1) returned %d rows, want 2", len(byParent))
+	}
+
+	byBoth, _, err := r.List(ctx, domain.KindNetwork, "", 10, "")
+	if err != nil {
+		t.Fatalf("List(by kind network) returned error: %v", err)
+	}
+	if len(byBoth) != 1 || byBoth[0].ID != "n1" {
+		t.Fatalf("List(by kind network) returned %v, want [n1]", byBoth)
+	}
+}
+
 func testListPaginates(t *testing.T, newRepo NewRepositoryFunc) {
 	r := newRepo(t)
 	ctx := context.Background()
@@ -133,7 +166,7 @@ func testListPaginates(t *testing.T, newRepo NewRepositoryFunc) {
 	got := map[string]bool{}
 	pageToken := ""
 	for {
-		entries, next, err := r.List(ctx, 2, pageToken)
+		entries, next, err := r.List(ctx, "", "", 2, pageToken)
 		if err != nil {
 			t.Fatalf("List returned error: %v", err)
 		}
@@ -164,4 +197,11 @@ func sampleLibraryEntry(id string) *domain.LibraryEntry {
 		Name:        "Test Entry",
 		MonitorMode: domain.MonitorModeNone,
 	}
+}
+
+func sampleLibraryEntryWithParent(id string, kind domain.Kind, parentID string) *domain.LibraryEntry {
+	e := sampleLibraryEntry(id)
+	e.Kind = kind
+	e.ParentID = parentID
+	return e
 }

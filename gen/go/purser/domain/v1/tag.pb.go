@@ -23,11 +23,9 @@ const (
 )
 
 // Tag is the wire shape of internal/domain.Tag. This service covers only
-// the tag catalog's own CRUD in this pass — polymorphic attach/detach to
-// an entity (item_tags/entry_tags/group_tags) is deferred: no
-// internal/domain type for that join exists yet, and inventing one here
-// would be scope creep beyond what docs/technical/shared-domain-model.md
-// specifies. Flagged as a follow-up, not silently dropped.
+// the tag catalog's own CRUD — attaching a Tag to an entity (a Network, a
+// Studio, a Scene, a Performer, ...) is TagAssignmentService, in
+// tag_assignment.proto. See docs/technical/tag-assignment.md.
 type Tag struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`

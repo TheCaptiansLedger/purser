@@ -43,6 +43,19 @@ export default () => {
       r && r.message && r.message.libraryEntries && r.message.libraryEntries.some((e) => e.id === id),
   });
 
+  res = client.invoke('purser.domain.v1.LibraryEntryService/ListLibraryEntries', { kind: 'studio', pageSize: 10 });
+  check(res, {
+    'ListLibraryEntries filtered by kind status is OK': (r) => r && r.status === grpc.StatusOK,
+    'ListLibraryEntries filtered by kind includes the created entry': (r) =>
+      r && r.message && r.message.libraryEntries && r.message.libraryEntries.some((e) => e.id === id),
+  });
+
+  res = client.invoke('purser.domain.v1.LibraryEntryService/ListLibraryEntries', { kind: 'network', pageSize: 10 });
+  check(res, {
+    'ListLibraryEntries filtered by a non-matching kind excludes the created entry': (r) =>
+      r && r.message && !(r.message.libraryEntries || []).some((e) => e.id === id),
+  });
+
   res = client.invoke('purser.domain.v1.LibraryEntryService/DeleteLibraryEntry', { id: id });
   check(res, {
     'DeleteLibraryEntry status is OK': (r) => r && r.status === grpc.StatusOK,

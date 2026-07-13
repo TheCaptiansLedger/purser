@@ -38,7 +38,7 @@ var _ ports.ExternalIDRepository = (*Repository)(nil)
 
 // New constructs a named ports.ExternalIDRepository backed by ds.
 func New(name string, ds datastore.Datastore, opts ...Option) (ports.ExternalIDRepository, error) {
-	inner, err := store.NewComposite(name, collection, ds, keyOf, opts...)
+	inner, err := store.NewComposite(name, collection, ds, keyOf, indexOf, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -47,6 +47,10 @@ func New(name string, ds datastore.Datastore, opts ...Option) (ports.ExternalIDR
 
 func keyOf(e *domain.ExternalID) (string, string, string) {
 	return string(e.EntityType), e.EntityID, string(e.Source)
+}
+
+func indexOf(e *domain.ExternalID) map[string]string {
+	return map[string]string{"k1": string(e.EntityType), "k2": e.EntityID}
 }
 
 // Create implements ports.ExternalIDRepository.
@@ -71,5 +75,15 @@ func (r *Repository) Delete(ctx context.Context, entityType domain.EntityType, e
 
 // List implements ports.ExternalIDRepository.
 func (r *Repository) List(ctx context.Context, entityType domain.EntityType, entityID string, pageSize int, pageToken string) ([]*domain.ExternalID, string, error) {
-	return r.inner.List(ctx, string(entityType), entityID, pageSize, pageToken)
+	filter := map[string]string{}
+	if entityType != "" {
+		filter["k1"] = string(entityType)
+	}
+	if entityID != "" {
+		filter["k2"] = entityID
+	}
+	if len(filter) == 0 {
+		filter = nil
+	}
+	return r.inner.List(ctx, filter, pageSize, pageToken)
 }

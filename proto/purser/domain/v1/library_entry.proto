@@ -66,6 +66,10 @@ message DeleteLibraryEntryResponse {}
 message ListLibraryEntriesRequest {
   int32 page_size = 1;
   string page_token = 2;
+  // kind and parent_id are independent, optional filters — leave unset
+  // for no filter on that field.
+  string kind = 3;
+  string parent_id = 4;
 }
 
 message ListLibraryEntriesResponse {

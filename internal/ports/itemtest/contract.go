@@ -28,6 +28,7 @@ func TestItemRepository(t *testing.T, newRepo NewRepositoryFunc) {
 	t.Run("update on a missing item returns ErrNotFound", func(t *testing.T) { testUpdateMissing(t, newRepo) })
 	t.Run("delete removes an item", func(t *testing.T) { testDelete(t, newRepo) })
 	t.Run("delete on a missing item returns ErrNotFound", func(t *testing.T) { testDeleteMissing(t, newRepo) })
+	t.Run("list filters by library entry, content type, and group independently", func(t *testing.T) { testListFilters(t, newRepo) })
 	t.Run("list returns every created item across pages", func(t *testing.T) { testListPaginates(t, newRepo) })
 }
 
@@ -119,6 +120,46 @@ func testDeleteMissing(t *testing.T, newRepo NewRepositoryFunc) {
 	}
 }
 
+func testListFilters(t *testing.T, newRepo NewRepositoryFunc) {
+	r := newRepo(t)
+	ctx := context.Background()
+	mustCreate(t, r, sampleItemWithGroup("i1", "studio1", "group1"))
+	mustCreate(t, r, sampleItemWithGroup("i2", "studio1", "group2"))
+	mustCreate(t, r, sampleItemWithGroup("i3", "studio2", "group1"))
+
+	byLibraryEntry, _, err := r.List(ctx, "studio1", "", "", 10, "")
+	if err != nil {
+		t.Fatalf("List(by library entry) returned error: %v", err)
+	}
+	if len(byLibraryEntry) != 2 {
+		t.Fatalf("List(by library entry studio1) returned %d rows, want 2", len(byLibraryEntry))
+	}
+
+	byContentType, _, err := r.List(ctx, "", "adult", "", 10, "")
+	if err != nil {
+		t.Fatalf("List(by content type) returned error: %v", err)
+	}
+	if len(byContentType) != 3 {
+		t.Fatalf("List(by content type adult) returned %d rows, want 3", len(byContentType))
+	}
+
+	byGroup, _, err := r.List(ctx, "", "", "group1", 10, "")
+	if err != nil {
+		t.Fatalf("List(by group) returned error: %v", err)
+	}
+	if len(byGroup) != 2 {
+		t.Fatalf("List(by group group1) returned %d rows, want 2", len(byGroup))
+	}
+
+	byBoth, _, err := r.List(ctx, "studio1", "", "group2", 10, "")
+	if err != nil {
+		t.Fatalf("List(by library entry and group) returned error: %v", err)
+	}
+	if len(byBoth) != 1 || byBoth[0].ID != "i2" {
+		t.Fatalf("List(by library entry and group) returned %v, want [i2]", byBoth)
+	}
+}
+
 func testListPaginates(t *testing.T, newRepo NewRepositoryFunc) {
 	r := newRepo(t)
 	ctx := context.Background()
@@ -133,7 +174,7 @@ func testListPaginates(t *testing.T, newRepo NewRepositoryFunc) {
 	got := map[string]bool{}
 	pageToken := ""
 	for {
-		items, next, err := r.List(ctx, 2, pageToken)
+		items, next, err := r.List(ctx, "", "", "", 2, pageToken)
 		if err != nil {
 			t.Fatalf("List returned error: %v", err)
 		}
@@ -164,4 +205,11 @@ func sampleItem(id string) *domain.Item {
 		Title:          "Test Item",
 		Status:         domain.ItemStatusWanted,
 	}
+}
+
+func sampleItemWithGroup(id, libraryEntryID, groupID string) *domain.Item {
+	i := sampleItem(id)
+	i.LibraryEntryID = libraryEntryID
+	i.GroupID = groupID
+	return i
 }

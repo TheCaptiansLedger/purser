@@ -38,6 +38,17 @@ export default () => {
     'ListItems includes the created item': (r) => (r.json('items') || []).some((i) => i.id === id),
   });
 
+  res = http.post(`${SERVICE}/ListItems`, JSON.stringify({ libraryEntryId: 'entry1', contentType: 'adult', pageSize: 10 }), HEADERS);
+  check(res, {
+    'ListItems filtered by libraryEntryId+contentType status is 200': (r) => r.status === 200,
+    'ListItems filtered by libraryEntryId+contentType includes the created item': (r) => (r.json('items') || []).some((i) => i.id === id),
+  });
+
+  res = http.post(`${SERVICE}/ListItems`, JSON.stringify({ libraryEntryId: 'no-such-entry', pageSize: 10 }), HEADERS);
+  check(res, {
+    'ListItems filtered by a non-matching libraryEntryId excludes the created item': (r) => !(r.json('items') || []).some((i) => i.id === id),
+  });
+
   res = http.post(`${SERVICE}/DeleteItem`, JSON.stringify({ id: id }), HEADERS);
   check(res, { 'DeleteItem status is 200': (r) => r.status === 200 });
 

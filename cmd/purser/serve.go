@@ -36,6 +36,7 @@ import (
 	storeperformerprofile "purser/internal/adapters/store/performerprofile"
 	storeperson "purser/internal/adapters/store/person"
 	storetag "purser/internal/adapters/store/tag"
+	storetagassignment "purser/internal/adapters/store/tagassignment"
 	apiconnect "purser/internal/api/connect"
 )
 
@@ -247,6 +248,14 @@ func newServeMux(logger *slog.Logger, ds datastore.Datastore) (*http.ServeMux, e
 	tagPath, tagConnectHandler := domainv1connect.NewTagServiceHandler(tagHandler, interceptors)
 	mux.Handle(tagPath, tagConnectHandler)
 
+	tagAssignmentRepo, err := storetagassignment.New("tag_assignment", ds, storetagassignment.WithLogger(logger))
+	if err != nil {
+		return nil, fmt.Errorf("cmd/purser: constructing tag assignment repository: %w", err)
+	}
+	tagAssignmentHandler := apiconnect.NewTagAssignmentHandler(service.NewTagAssignmentService(tagAssignmentRepo), logger)
+	tagAssignmentPath, tagAssignmentConnectHandler := domainv1connect.NewTagAssignmentServiceHandler(tagAssignmentHandler, interceptors)
+	mux.Handle(tagAssignmentPath, tagAssignmentConnectHandler)
+
 	externalIDRepo, err := storeexternalid.New("external_id", ds, storeexternalid.WithLogger(logger))
 	if err != nil {
 		return nil, fmt.Errorf("cmd/purser: constructing external id repository: %w", err)
@@ -281,6 +290,15 @@ func newServeMux(logger *slog.Logger, ds datastore.Datastore) (*http.ServeMux, e
 	performerProfilePath, performerProfileConnectHandler := afterdarkv1connect.NewPerformerProfileServiceHandler(performerProfileHandler, interceptors)
 	mux.Handle(performerProfilePath, performerProfileConnectHandler)
 
+	// BrowseService is the composing service exception per
+	// docs/adr/0015-deletion-impact-and-composing-services.md — it reuses
+	// the kernel repositories already constructed above, no new repository
+	// construction needed.
+	browseSvc := service.NewAfterDarkBrowseService(libraryEntryRepo, itemRepo, itemPersonRepo, personRepo, performerProfileRepo)
+	browseHandler := apiconnect.NewBrowseHandler(browseSvc, logger)
+	browsePath, browseConnectHandler := afterdarkv1connect.NewBrowseServiceHandler(browseHandler, interceptors)
+	mux.Handle(browsePath, browseConnectHandler)
+
 	reflector := grpcreflect.NewStaticReflector(
 		domainv1connect.PersonServiceName,
 		domainv1connect.LibraryEntryServiceName,
@@ -289,10 +307,12 @@ func newServeMux(logger *slog.Logger, ds datastore.Datastore) (*http.ServeMux, e
 		domainv1connect.EntryPersonServiceName,
 		domainv1connect.ItemPersonServiceName,
 		domainv1connect.TagServiceName,
+		domainv1connect.TagAssignmentServiceName,
 		domainv1connect.ExternalIDServiceName,
 		domainv1connect.ImageServiceName,
 		domainv1connect.MediaFileServiceName,
 		afterdarkv1connect.PerformerProfileServiceName,
+		afterdarkv1connect.BrowseServiceName,
 	)
 	mux.Handle(grpcreflect.NewHandlerV1(reflector))
 	mux.Handle(grpcreflect.NewHandlerV1Alpha(reflector))

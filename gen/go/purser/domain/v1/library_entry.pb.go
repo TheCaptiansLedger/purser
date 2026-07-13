@@ -531,9 +531,13 @@ func (*DeleteLibraryEntryResponse) Descriptor() ([]byte, []int) {
 }
 
 type ListLibraryEntriesRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	PageSize      int32                  `protobuf:"varint,1,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
-	PageToken     string                 `protobuf:"bytes,2,opt,name=page_token,json=pageToken,proto3" json:"page_token,omitempty"`
+	state     protoimpl.MessageState `protogen:"open.v1"`
+	PageSize  int32                  `protobuf:"varint,1,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
+	PageToken string                 `protobuf:"bytes,2,opt,name=page_token,json=pageToken,proto3" json:"page_token,omitempty"`
+	// kind and parent_id are independent, optional filters — leave unset
+	// for no filter on that field.
+	Kind          string `protobuf:"bytes,3,opt,name=kind,proto3" json:"kind,omitempty"`
+	ParentId      string `protobuf:"bytes,4,opt,name=parent_id,json=parentId,proto3" json:"parent_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -578,6 +582,20 @@ func (x *ListLibraryEntriesRequest) GetPageSize() int32 {
 func (x *ListLibraryEntriesRequest) GetPageToken() string {
 	if x != nil {
 		return x.PageToken
+	}
+	return ""
+}
+
+func (x *ListLibraryEntriesRequest) GetKind() string {
+	if x != nil {
+		return x.Kind
+	}
+	return ""
+}
+
+func (x *ListLibraryEntriesRequest) GetParentId() string {
+	if x != nil {
+		return x.ParentId
 	}
 	return ""
 }
@@ -671,11 +689,13 @@ const file_purser_domain_v1_library_entry_proto_rawDesc = "" +
 	"\rlibrary_entry\x18\x01 \x01(\v2\x1e.purser.domain.v1.LibraryEntryR\flibraryEntry\"+\n" +
 	"\x19DeleteLibraryEntryRequest\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\"\x1c\n" +
-	"\x1aDeleteLibraryEntryResponse\"W\n" +
+	"\x1aDeleteLibraryEntryResponse\"\x88\x01\n" +
 	"\x19ListLibraryEntriesRequest\x12\x1b\n" +
 	"\tpage_size\x18\x01 \x01(\x05R\bpageSize\x12\x1d\n" +
 	"\n" +
-	"page_token\x18\x02 \x01(\tR\tpageToken\"\x8d\x01\n" +
+	"page_token\x18\x02 \x01(\tR\tpageToken\x12\x12\n" +
+	"\x04kind\x18\x03 \x01(\tR\x04kind\x12\x1b\n" +
+	"\tparent_id\x18\x04 \x01(\tR\bparentId\"\x8d\x01\n" +
 	"\x1aListLibraryEntriesResponse\x12G\n" +
 	"\x0flibrary_entries\x18\x01 \x03(\v2\x1e.purser.domain.v1.LibraryEntryR\x0elibraryEntries\x12&\n" +
 	"\x0fnext_page_token\x18\x02 \x01(\tR\rnextPageToken2\xc1\x04\n" +
