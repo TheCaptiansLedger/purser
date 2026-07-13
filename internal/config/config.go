@@ -19,6 +19,7 @@ type Config struct {
 	Server   Server   `mapstructure:"server"`
 	Paths    Paths    `mapstructure:"paths"`
 	Database Database `mapstructure:"database"`
+	Media    Media    `mapstructure:"media"`
 }
 
 // DefaultConfig returns the defaults every component starts from.
@@ -27,6 +28,7 @@ func DefaultConfig() Config {
 		Server:   DefaultServer(),
 		Paths:    DefaultPaths(),
 		Database: DefaultDatabase(),
+		Media:    DefaultMedia(),
 	}
 	deriveDataDirDefaults(&cfg)
 	return cfg
@@ -44,6 +46,9 @@ func (c Config) Validate() error {
 	}
 	if err := c.Database.Validate(); err != nil {
 		return fmt.Errorf("config: %w", err)
+	}
+	if c.Media.Path == "" {
+		return fmt.Errorf("config: media.path must not be empty")
 	}
 	return nil
 }
@@ -69,6 +74,7 @@ func Load(v *viper.Viper, configPath string) (Config, error) {
 	v.SetDefault("database.badger.value_log_dir", "")
 	v.SetDefault("database.badger.sync_writes", false)
 	v.SetDefault("database.sql.dsn", "")
+	v.SetDefault("media.path", "")
 
 	v.SetEnvPrefix("purser")
 	v.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
@@ -96,14 +102,17 @@ func Load(v *viper.Viper, configPath string) (Config, error) {
 	return cfg, nil
 }
 
-// deriveDataDirDefaults fills in Database.Badger.DataDir and
-// Database.SQL.DSN (sqlite only) from cfg.Paths.DataDir when the user
-// hasn't explicitly set them.
+// deriveDataDirDefaults fills in Database.Badger.DataDir,
+// Database.SQL.DSN (sqlite only), and Media.Path from cfg.Paths.DataDir
+// when the user hasn't explicitly set them.
 func deriveDataDirDefaults(cfg *Config) {
 	if cfg.Database.Badger.DataDir == "" {
 		cfg.Database.Badger.DataDir = filepath.Join(cfg.Paths.DataDir, "badger")
 	}
 	if cfg.Database.Driver == "sqlite" && cfg.Database.SQL.DSN == "" {
 		cfg.Database.SQL.DSN = filepath.Join(cfg.Paths.DataDir, "purser.db")
+	}
+	if cfg.Media.Path == "" {
+		cfg.Media.Path = filepath.Join(cfg.Paths.DataDir, "media")
 	}
 }

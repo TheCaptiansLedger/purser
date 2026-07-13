@@ -207,6 +207,32 @@ way `store/person` looked *before* the `Repository[T]` addendum above. If
 a second entity ever needs this same "independent filter, unrelated ID"
 shape, that's the trigger to extract a third generic — not before.
 
+### Addendum: `CompositeRepository[T]` indexes whichever fields the entity needs, not a fixed two
+
+The addendum above shipped `CompositeRepository[T]` indexing exactly `k1`
+and `k2` — sufficient for `EntryPerson`, `ItemPerson`, and `ExternalID`,
+which only ever needed one filter direction each (by parent, not by the
+third key part). `docs/technical/tag-assignment.md`'s `TagAssignment`
+surfaced the case that shape doesn't cover: a UI genuinely needs *both*
+"everything tagged X" (filter by `TagID`) and "this entity's tags"
+(filter by `EntityType`+`EntityID`) to be efficient, not scan-and-discard.
+Two fixed, positional index slots can't serve both directions of a
+3-part key at once.
+
+**Decision:** generalize `CompositeRepository[T]`'s indexing so the
+entity's own translator declares *which* key parts are worth indexing
+(any subset of the 3, not a hardcoded `k1`/`k2`), and `List`'s filter
+accepts any of those declared fields, not fixed positional arguments.
+This is a contained change to `internal/adapters/store/composite.go`
+alone — `EntryPerson`, `ItemPerson`, and `ExternalID` keep declaring the
+one direction they've always used and are unaffected; `TagAssignment`
+(or any future 3-part-key entity needing bidirectional lookup) declares
+all 3 and gets real indexed lookups from any angle. Whether this is
+implemented as one `Document.Index` entry per declared field or some
+other shape is an implementation detail left to whoever builds it — the
+architectural commitment here is only "the generic supports it," not the
+literal encoding.
+
 ## Consequences
 
 - Adding a new shared-kernel or module entity to either persistent backend
@@ -279,3 +305,8 @@ Run after any change to `internal/adapters/datastore/**` or
    string-joining key parts and losing the filter fields)? If yes — write
    its own translator instead; `Repository[T]` is only for the six ports
    with the exact single-ID, unfiltered shape described above.
+8. Does a new `CompositeRepository[T]` user need a filter direction it
+   isn't declaring as indexed (or that the generic still hardcodes as a
+   fixed `k1`/`k2` instead of an entity-declared set)? If yes — fix the
+   indexing before merging; a filter that isn't indexed silently falls
+   back to scanning the whole collection.

@@ -29,6 +29,10 @@ Do not read all project documentation. Determine what the task touches, then loa
 - [docs/adr/0010-configuration.md](docs/adr/0010-configuration.md) — Viper configuration; required for any new configurable component or `internal/config` change
 - [docs/adr/0011-api-design.md](docs/adr/0011-api-design.md) — Connect-primary RPC API design; required for any `proto/**`, `internal/api/connect`, or `internal/service`/`internal/ports` change
 - [docs/adr/0012-datastore-persistence.md](docs/adr/0012-datastore-persistence.md) — generic `Datastore` behind Badger/SQL; required for any `internal/adapters/datastore` or `internal/adapters/store` change
+- [docs/adr/0013-image-blob-storage.md](docs/adr/0013-image-blob-storage.md) — `ImageStore` port and local-filesystem adapter; required for any `internal/adapters/imagestore` change or anything writing/reading image bytes
+- [docs/adr/0014-search-embedded-full-text-index.md](docs/adr/0014-search-embedded-full-text-index.md) — `SearchIndex` port and the embedded-Bleve decision; required for any `internal/adapters/searchindex` change or anything indexing/querying free-text search
+- [docs/adr/0015-deletion-impact-and-composing-services.md](docs/adr/0015-deletion-impact-and-composing-services.md) — `DeletionImpact`/Unlink-Cascade pattern and the composing-service exception to "one port per service"; required for any `Delete` flow that can leave other entities dangling, or any new composing service
+- [docs/adr/0016-bulk-operations.md](docs/adr/0016-bulk-operations.md) — batch writes at the `Datastore` layer and when a bulk API endpoint is justified; required for any batch/multi-row operation
 
 **After finishing any ask/task/session:** run the self-audit checklist in [0001](docs/adr/0001-hexagonal-architecture.md) and [0002](docs/adr/0002-solid-design-principles.md) (and [0003](docs/adr/0003-go-testing-standards.md)/[0004](docs/adr/0004-typescript-react-testing-standards.md) if tests were written) and state the result explicitly — do not skip this silently.
 
@@ -88,6 +92,14 @@ Documentation under `docs/` (architecture overview, development guides, technica
 - [docs/adr/0007-telemetry.md](docs/adr/0007-telemetry.md)
 - [docs/adr/0008-structured-logging.md](docs/adr/0008-structured-logging.md)
 
+### Building image blob storage (`internal/adapters/imagestore`)
+- [docs/adr/0013-image-blob-storage.md](docs/adr/0013-image-blob-storage.md)
+- [docs/adr/0001-hexagonal-architecture.md](docs/adr/0001-hexagonal-architecture.md)
+- [docs/adr/0002-solid-design-principles.md](docs/adr/0002-solid-design-principles.md)
+- [docs/adr/0003-go-testing-standards.md](docs/adr/0003-go-testing-standards.md)
+- [docs/adr/0007-telemetry.md](docs/adr/0007-telemetry.md)
+- [docs/adr/0008-structured-logging.md](docs/adr/0008-structured-logging.md)
+
 ### Building a proto/Connect (gRPC/HTTP) API service or handler
 - [docs/adr/0011-api-design.md](docs/adr/0011-api-design.md)
 - [docs/adr/0001-hexagonal-architecture.md](docs/adr/0001-hexagonal-architecture.md)
@@ -95,6 +107,26 @@ Documentation under `docs/` (architecture overview, development guides, technica
 - [docs/adr/0003-go-testing-standards.md](docs/adr/0003-go-testing-standards.md)
 - [docs/adr/0007-telemetry.md](docs/adr/0007-telemetry.md)
 - [docs/adr/0008-structured-logging.md](docs/adr/0008-structured-logging.md)
+
+### Building search (`internal/adapters/searchindex`)
+- [docs/adr/0014-search-embedded-full-text-index.md](docs/adr/0014-search-embedded-full-text-index.md)
+- [docs/adr/0001-hexagonal-architecture.md](docs/adr/0001-hexagonal-architecture.md)
+- [docs/adr/0002-solid-design-principles.md](docs/adr/0002-solid-design-principles.md)
+- [docs/adr/0003-go-testing-standards.md](docs/adr/0003-go-testing-standards.md)
+- [docs/adr/0007-telemetry.md](docs/adr/0007-telemetry.md)
+- [docs/adr/0008-structured-logging.md](docs/adr/0008-structured-logging.md)
+
+### Building a delete flow or a composing service
+- [docs/adr/0015-deletion-impact-and-composing-services.md](docs/adr/0015-deletion-impact-and-composing-services.md)
+- [docs/adr/0011-api-design.md](docs/adr/0011-api-design.md)
+- [docs/adr/0001-hexagonal-architecture.md](docs/adr/0001-hexagonal-architecture.md)
+- [docs/adr/0002-solid-design-principles.md](docs/adr/0002-solid-design-principles.md)
+
+### Building a bulk/batch operation
+- [docs/adr/0016-bulk-operations.md](docs/adr/0016-bulk-operations.md)
+- [docs/adr/0012-datastore-persistence.md](docs/adr/0012-datastore-persistence.md)
+- [docs/adr/0015-deletion-impact-and-composing-services.md](docs/adr/0015-deletion-impact-and-composing-services.md) — if the batch operation is a delete
+- [docs/adr/0001-hexagonal-architecture.md](docs/adr/0001-hexagonal-architecture.md)
 
 ### Committing or creating a PR
 - Hard ban above still applies: produce the message, do not run the command.

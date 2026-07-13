@@ -31,6 +31,10 @@ ADR wins.
 | [0010](0010-configuration.md) | Configuration: Viper | Accepted |
 | [0011](0011-api-design.md) | API Design: Connect-Primary RPC API | Accepted |
 | [0012](0012-datastore-persistence.md) | Persistence: A Generic Datastore Behind Badger and SQL | Accepted |
+| [0013](0013-image-blob-storage.md) | Image Blob Storage: A Local-Filesystem-First `ImageStore` Port | Accepted |
+| [0014](0014-search-embedded-full-text-index.md) | Search: An Embedded Full-Text Index (Bleve), Not a Search Server | Accepted |
+| [0015](0015-deletion-impact-and-composing-services.md) | Deletion Impact and Composing Services | Accepted |
+| [0016](0016-bulk-operations.md) | Bulk Operations: Batch at the Storage Layer, Bulk Endpoints Only Where Needed | Accepted |
 
 ## Adding a new ADR
 

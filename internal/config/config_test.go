@@ -140,3 +140,34 @@ func TestConfig_Validate_AcceptsPostgresWithDSN(t *testing.T) {
 		t.Fatalf("Validate with postgres driver and a DSN returned error: %v", err)
 	}
 }
+
+func TestLoad_DerivesMediaPathFromPaths(t *testing.T) {
+	cfg, err := config.Load(viper.New(), "")
+	if err != nil {
+		t.Fatalf("Load returned error: %v", err)
+	}
+	want := filepath.Join(cfg.Paths.DataDir, "media")
+	if cfg.Media.Path != want {
+		t.Fatalf("Load derived Media.Path %q, want %q", cfg.Media.Path, want)
+	}
+}
+
+func TestLoad_ExplicitMediaPathOverridesDerivedDefault(t *testing.T) {
+	t.Setenv("PURSER_MEDIA_PATH", "/custom/media")
+
+	cfg, err := config.Load(viper.New(), "")
+	if err != nil {
+		t.Fatalf("Load returned error: %v", err)
+	}
+	if cfg.Media.Path != "/custom/media" {
+		t.Fatalf("Load returned Media.Path %q, want %q", cfg.Media.Path, "/custom/media")
+	}
+}
+
+func TestConfig_Validate_RejectsEmptyMediaPath(t *testing.T) {
+	cfg := config.DefaultConfig()
+	cfg.Media.Path = ""
+	if err := cfg.Validate(); err == nil {
+		t.Fatal("Validate with empty Media.Path did not return an error")
+	}
+}
