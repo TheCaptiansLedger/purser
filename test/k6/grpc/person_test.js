@@ -2,11 +2,11 @@
 // .proto directly (no server reflection dependency). Run from the repo
 // root via `make k6-grpc` (or `k6 run test/k6/grpc/person_test.js`)
 // against a running `purser serve` (PURSER_GRPC_ADDR, default
-// localhost:8080). See docs/adr/0011-api-design.md.
+// localhost:7474). See docs/adr/0011-api-design.md.
 import grpc from 'k6/net/grpc';
 import { check } from 'k6';
 
-const ADDR = __ENV.PURSER_GRPC_ADDR || 'localhost:8080';
+const ADDR = __ENV.PURSER_GRPC_ADDR || 'localhost:7474';
 
 const client = new grpc.Client();
 client.load(['../../../proto'], 'purser/domain/v1/person.proto');

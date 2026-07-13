@@ -1,11 +1,17 @@
-# node_modules are never sent — they are OS-specific and rebuilt inside the
-# container; sending them would corrupt the Linux build.
+# node_modules are never sent — they are OS-specific and would need
+# rebuilding for Linux anyway, and web/dist (the actual build output) is
+# what the Containerfile copies in.
 web/node_modules/
 
-# Go build artifacts
-purser
+# Go build artifacts other than the one goreleaser stages at repo root as
+# ./purser — that binary is what ops/Containerfile COPYs in (it's a
+# copy-only Dockerfile, no `go build` happens inside — see
+# docs/adr/0017-build-and-release-goreleaser.md). Do NOT ignore `purser`
+# here; that's the whole point of the build context.
 *.test
+/dist/
 
 # Runtime / dev noise
 .env
 *.log
+/.local/

@@ -2,24 +2,22 @@
 /purser
 *.exe
 
-# Locally-installed pinned dev tooling (buf, protoc-gen-*) — see Makefile `tools` target
+# goreleaser output (binaries, archives, container build context) — see
+# docs/adr/0017-build-and-release-goreleaser.md
+/dist/
+
+# Locally-installed pinned dev tooling (buf, protoc-gen-*, goreleaser) — see Makefile `tools` target
 /.gobin/
 
 # Web build artifacts and dependencies
 web/dist/
 web/node_modules/
 
-# Downloaded artwork (populated by seed command)
-images/
-
-# Dev data volume
-data/
-
-# Dev data directory (writable DB used by compose.dev.yml)
-data/
-
-# BadgerDB data directory created when running the server locally outside Docker
-purser-data/
+# All local dev-state: datastore files, downloaded media, and the compose
+# stack's Postgres/Grafana/Prometheus/Tempo data — see
+# docs/adr/0018-local-development-environment.md. test-data/ (below) is a
+# deliberate exception, not part of this tree.
+/.local/
 
 # Env with real secrets
 .env
@@ -30,8 +28,10 @@ purser-data/
 *.db-shm
 *.db-wal
 
-# Config with local secrets
-purser.yaml
+# Config with local secrets — anchored to repo root only. Unanchored, this
+# also matched (and had silently, permanently untracked) ops/purser.yaml,
+# the compose stack's checked-in example config.
+/purser.yaml
 
 # OS
 .DS_Store

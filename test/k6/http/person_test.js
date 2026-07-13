@@ -2,11 +2,11 @@
 // (the same generated handler as the gRPC suite, different wire protocol;
 // see docs/adr/0011-api-design.md). Run from the repo root via
 // `make k6-http` (or `k6 run test/k6/http/person_test.js`) against a
-// running `purser serve` (PURSER_HTTP_URL, default http://localhost:8080).
+// running `purser serve` (PURSER_HTTP_URL, default http://localhost:7474).
 import http from 'k6/http';
 import { check } from 'k6';
 
-const BASE_URL = __ENV.PURSER_HTTP_URL || 'http://localhost:8080';
+const BASE_URL = __ENV.PURSER_HTTP_URL || 'http://localhost:7474';
 const SERVICE = `${BASE_URL}/purser.domain.v1.PersonService`;
 const HEADERS = { headers: { 'Content-Type': 'application/json' } };
 

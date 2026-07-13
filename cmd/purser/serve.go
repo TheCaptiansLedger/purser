@@ -19,6 +19,7 @@ import (
 	"connectrpc.com/grpcreflect"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 
 	afterdarkv1connect "purser/gen/go/purser/afterdark/v1/afterdarkv1connect"
 	domainv1connect "purser/gen/go/purser/domain/v1/domainv1connect"
@@ -68,11 +69,17 @@ func runServe(ctx context.Context, configPath string) error {
 		return err
 	}
 
-	// Telemetry: no SDK/exporter is wired yet (OTLP/Prometheus config is a
-	// follow-up, tracked as a gap, not silently skipped — see ADR 0007).
-	// The global TracerProvider/MeterProvider stay at OTel's own no-op
-	// default, which every instrumented package already supports at zero
-	// cost per ADR 0007's design.
+	shutdownTelemetry, err := setupTelemetry(ctx, cfg.Telemetry, logger)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		shutdownCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
+		defer cancel()
+		if closeErr := shutdownTelemetry(shutdownCtx); closeErr != nil {
+			logger.Error("shutting down telemetry", "error", closeErr)
+		}
+	}()
 
 	ds, dsCloser, err := openDatastore(cfg.Database)
 	if err != nil {
@@ -100,7 +107,7 @@ func runServe(ctx context.Context, configPath string) error {
 
 	srv := &http.Server{
 		Addr:              cfg.Server.ListenAddr,
-		Handler:           mux,
+		Handler:           otelhttp.NewHandler(mux, "purser"),
 		Protocols:         protocols,
 		ReadHeaderTimeout: 5 * time.Second,
 	}

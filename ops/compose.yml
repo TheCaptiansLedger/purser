@@ -1,31 +1,129 @@
 name: purser
 
-volumes:
-  purser-data:      # BadgerDB data directory — wipe to reset all library data
-  purser-media:     # Cover art, logos, headshots downloaded by Purser
-  # purser-content replaced by bind mount below — drop files into test-data/ to exercise the scanner
+# One compose file for the whole local dev stack — app, Postgres (one
+# instance, two roles: purser + grafana), Prometheus, Tempo, Grafana — on
+# the default network compose creates, so they can all reach each other
+# by service name, and a natively-run (non-container) binary can reach
+# any of them via their published localhost ports. See
+# docs/adr/0018-local-development-environment.md.
+#
+# All persistent state lives under ../.local/<component>/ as bind mounts,
+# shared with the natively-run binary via the same paths — stop the
+# container, keep working locally against identical data, or vice versa.
 
 services:
   # ── Main application ─────────────────────────────────────────────────────────
+  # Behind the "app" profile — `docker compose up` (bare) starts only the
+  # observability stack (Postgres/Grafana/Prometheus/Tempo) so you can run
+  # the app natively (`make run`) against it. `make dev` passes
+  # --profile app explicitly to include the containerized app too. See
+  # docs/adr/0018-local-development-environment.md.
   app:
+    profiles: ["app"]
     build:
       context: ..
       dockerfile: ops/Containerfile
-    command: ["--config", "/config/purser.yaml"]
+    command: ["serve", "--config", "/config/purser.yaml"]
     ports:
       - "7474:7474"
+      - "9464:9464" # Prometheus scrape endpoint (PURSER_TELEMETRY_METRICS_ADDR)
     volumes:
       - ./purser.yaml:/config/purser.yaml:ro
-      - purser-data:/data
-      - purser-media:/media/purser
+      - ../.local/data:/data
+      - ../.local/media:/media/purser
       - ../test-data:/media/content
     env_file:
       - path: ../.env
         required: false
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost:7474/api/v1/tags"]
+      # Connect-go services are POST-only RPC paths (e.g.
+      # /purser.domain.v1.PersonService/List), not REST GETs — there's no
+      # "/api/v1/tags" route to wget, and no dedicated health endpoint
+      # exists yet (adding one is an application feature, not build
+      # tooling). A raw TCP check confirms the server is actually
+      # accepting connections without asserting HTTP semantics.
+      test: ["CMD", "bash", "-c", "echo > /dev/tcp/localhost/7474"]
       interval: 10s
       timeout: 5s
       retries: 5
       start_period: 5s
+
+  # ── Postgres: one instance, two isolated roles/databases ─────────────────────
+  # PURSER_DB_* backs the app when PURSER_DATABASE_DRIVER=postgres;
+  # GRAFANA_DB_* backs Grafana's own dashboards/users/datasource config
+  # instead of its default embedded SQLite. See ops/postgres/init-multi-db.sh
+  # and docs/adr/0018-local-development-environment.md.
+  postgres:
+    image: postgres:18-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_SUPERUSER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_SUPERUSER_PASSWORD:?set POSTGRES_SUPERUSER_PASSWORD in .env}
+      PURSER_DB_USER: ${PURSER_DB_USER:-purser}
+      PURSER_DB_PASSWORD: ${PURSER_DB_PASSWORD:?set PURSER_DB_PASSWORD in .env}
+      PURSER_DB_NAME: ${PURSER_DB_NAME:-purser}
+      GRAFANA_DB_USER: ${GRAFANA_DB_USER:-grafana}
+      GRAFANA_DB_PASSWORD: ${GRAFANA_DB_PASSWORD:?set GRAFANA_DB_PASSWORD in .env}
+      GRAFANA_DB_NAME: ${GRAFANA_DB_NAME:-grafana}
+    ports:
+      - "5432:5432"
+    volumes:
+      # Postgres 18+'s official image manages a version-specific
+      # subdirectory itself (for safe `pg_upgrade --link` major-version
+      # upgrades) — the bind mount must be the parent /var/lib/postgresql,
+      # not /var/lib/postgresql/data directly, or the image refuses to
+      # start. See https://github.com/docker-library/postgres/pull/1259.
+      - ../.local/postgres:/var/lib/postgresql
+      - ./postgres/init-multi-db.sh:/docker-entrypoint-initdb.d/init-multi-db.sh:ro
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ── Prometheus: scrapes the app's metrics endpoint ────────────────────────────
+  prometheus:
+    image: prom/prometheus:v3.6.0
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ../.local/prometheus:/prometheus
+    extra_hosts:
+      # host.docker.internal resolves automatically on Docker Desktop
+      # (Mac/Windows); this makes it work on native Linux Docker too.
+      - "host.docker.internal:host-gateway"
+    ports:
+      - "9090:9090"
+    restart: unless-stopped
+
+  # ── Tempo: receives OTLP traces from the app ──────────────────────────────────
+  tempo:
+    image: grafana/tempo:2.9.0
+    command: ["-config.file=/etc/tempo.yaml"]
+    volumes:
+      - ./tempo/tempo.yaml:/etc/tempo.yaml:ro
+      - ../.local/tempo:/var/tempo
+    ports:
+      - "3200:3200" # Tempo query API (Grafana datasource)
+      - "4317:4317" # OTLP/gRPC — PURSER_TELEMETRY_OTLP_ENDPOINT
+    restart: unless-stopped
+
+  # ── Grafana: browse Prometheus metrics + Tempo traces ─────────────────────────
+  grafana:
+    image: grafana/grafana:12.3.0
+    environment:
+      GF_DATABASE_TYPE: postgres
+      GF_DATABASE_HOST: postgres:5432
+      GF_DATABASE_NAME: ${GRAFANA_DB_NAME:-grafana}
+      GF_DATABASE_USER: ${GRAFANA_DB_USER:-grafana}
+      GF_DATABASE_PASSWORD: ${GRAFANA_DB_PASSWORD:?set GRAFANA_DB_PASSWORD in .env}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:?set GRAFANA_ADMIN_PASSWORD in .env}
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ../.local/grafana:/var/lib/grafana
+    ports:
+      - "3000:3000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped

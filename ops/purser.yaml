@@ -1,0 +1,57 @@
+server:
+  listen_addr: ":7474"
+
+# Base directory Purser's own data lives under (Badger's data dir and the
+# SQLite DSN both default under it — see database.badger.data_dir /
+# database.sql.dsn below). Defaults to the OS-appropriate per-user app data
+# directory when unset.
+paths:
+  data_dir: /data/purser
+
+database:
+  driver: badger
+  badger:
+    data_dir: /data/purser-badger
+  # ANSI-SQL alternative (postgres, mysql, or sqlite share this one dsn-shaped block):
+  #   driver: sqlite   # or postgres, mysql
+  #   sql:
+  #     dsn: /data/purser.db
+
+media:
+  path: /media/purser
+
+modules:
+  movies:
+    enabled: true
+    roots:
+      - /media/content/movies
+  tv:
+    enabled: true
+    roots:
+      - /media/content/tv
+  music:
+    enabled: true
+    roots:
+      - /media/content/music
+  books:
+    enabled: true
+    roots:
+      - /media/content/books
+  afterdark:
+    enabled: true
+    roots:
+      - /media/content/afterdark
+      - /media/content/jav
+
+log:
+  level: debug
+  format: text
+
+# Sends traces to Tempo and exposes Prometheus-scraped metrics on :9464 —
+# both are services in this same compose stack. See
+# docs/adr/0007-telemetry.md and docs/adr/0018-local-development-environment.md.
+telemetry:
+  enabled: true
+  otlp_endpoint: tempo:4317
+  otlp_insecure: true
+  metrics_addr: ":9464"

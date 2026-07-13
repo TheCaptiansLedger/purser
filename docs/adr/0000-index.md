@@ -35,6 +35,8 @@ ADR wins.
 | [0014](0014-search-embedded-full-text-index.md) | Search: An Embedded Full-Text Index (Bleve), Not a Search Server | Accepted |
 | [0015](0015-deletion-impact-and-composing-services.md) | Deletion Impact and Composing Services | Accepted |
 | [0016](0016-bulk-operations.md) | Bulk Operations: Batch at the Storage Layer, Bulk Endpoints Only Where Needed | Accepted |
+| [0017](0017-build-and-release-goreleaser.md) | Build & Release: Goreleaser as the Build Model | Accepted |
+| [0018](0018-local-development-environment.md) | Local Development Environment: Shared Directories, One Compose File, One Postgres | Accepted |
 
 ## Adding a new ADR
 

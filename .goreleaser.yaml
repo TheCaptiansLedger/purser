@@ -1,0 +1,89 @@
+# See docs/adr/0017-build-and-release-goreleaser.md — goreleaser is the
+# only place that builds release binaries and container images. Versioning
+# (the git tag, the changelog, the GitHub Release itself) is still owned by
+# semantic-release; goreleaser runs after the tag exists and appends its
+# artifacts to the release semantic-release already created.
+version: 2
+
+before:
+  hooks:
+    # web/dist must exist before any build below — the CI job running
+    # goreleaser builds it first (see .github/workflows/release.yml);
+    # `make compose build`'s snapshot path does the same locally.
+    - ops/scripts/check-web-dist.sh
+
+builds:
+  - id: purser
+    main: ./cmd/purser
+    binary: purser
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    ignore:
+      - goos: windows
+        goarch: arm64
+    ldflags:
+      - -s -w
+      - -X purser/internal/version.Version={{ .Version }}
+      - -X purser/internal/version.Commit={{ .ShortCommit }}
+      - -X purser/internal/version.Date={{ .Date }}
+
+archives:
+  - id: purser
+    ids: [purser]
+    formats: [tar.gz]
+    format_overrides:
+      - goos: windows
+        formats: [zip]
+    name_template: >-
+      purser_{{ .Version }}_{{ .Os }}_{{ .Arch }}
+
+checksum:
+  name_template: checksums.txt
+
+# semantic-release generates the changelog from Conventional Commits;
+# goreleaser must not generate a second, conflicting one.
+changelog:
+  disable: true
+
+# dockers_v2 builds one multi-platform manifest per image tag directly —
+# no separate docker_manifests stitching step needed (that pattern is the
+# older, now-deprecated `dockers`+`docker_manifests` combo).
+dockers_v2:
+  - ids: [purser]
+    dockerfile: ops/Containerfile
+    platforms:
+      - linux/amd64
+      - linux/arm64
+    images:
+      - ghcr.io/thecaptiansledger/purser
+    tags:
+      - "{{ .Version }}"
+      - "{{ .Major }}.{{ .Minor }}"
+      - "{{ .Major }}"
+      - latest
+    labels:
+      org.opencontainers.image.title: Purser
+      org.opencontainers.image.description: Self-hosted media metadata manager
+      org.opencontainers.image.version: "{{ .Version }}"
+      org.opencontainers.image.source: https://github.com/TheCaptiansLedger/purser
+      org.opencontainers.image.licenses: MIT
+    extra_files:
+      - web/dist
+
+release:
+  github:
+    owner: TheCaptiansLedger
+    name: purser
+  # semantic-release already created the GitHub Release for this tag;
+  # append checksums/archives to it instead of creating a competing one.
+  mode: append
+  # semantic-release's own codename step (.github/workflows/release.yml)
+  # sets the release title — don't overwrite it.
+  name_template: "{{ .Tag }}"

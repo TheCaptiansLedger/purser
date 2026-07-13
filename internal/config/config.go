@@ -16,19 +16,21 @@ import (
 // Config is the top-level configuration tree, assembled from component
 // structs.
 type Config struct {
-	Server   Server   `mapstructure:"server"`
-	Paths    Paths    `mapstructure:"paths"`
-	Database Database `mapstructure:"database"`
-	Media    Media    `mapstructure:"media"`
+	Server    Server    `mapstructure:"server"`
+	Paths     Paths     `mapstructure:"paths"`
+	Database  Database  `mapstructure:"database"`
+	Media     Media     `mapstructure:"media"`
+	Telemetry Telemetry `mapstructure:"telemetry"`
 }
 
 // DefaultConfig returns the defaults every component starts from.
 func DefaultConfig() Config {
 	cfg := Config{
-		Server:   DefaultServer(),
-		Paths:    DefaultPaths(),
-		Database: DefaultDatabase(),
-		Media:    DefaultMedia(),
+		Server:    DefaultServer(),
+		Paths:     DefaultPaths(),
+		Database:  DefaultDatabase(),
+		Media:     DefaultMedia(),
+		Telemetry: DefaultTelemetry(),
 	}
 	deriveDataDirDefaults(&cfg)
 	return cfg
@@ -49,6 +51,9 @@ func (c Config) Validate() error {
 	}
 	if c.Media.Path == "" {
 		return fmt.Errorf("config: media.path must not be empty")
+	}
+	if err := c.Telemetry.Validate(); err != nil {
+		return fmt.Errorf("config: %w", err)
 	}
 	return nil
 }
@@ -75,6 +80,10 @@ func Load(v *viper.Viper, configPath string) (Config, error) {
 	v.SetDefault("database.badger.sync_writes", false)
 	v.SetDefault("database.sql.dsn", "")
 	v.SetDefault("media.path", "")
+	v.SetDefault("telemetry.enabled", defaults.Telemetry.Enabled)
+	v.SetDefault("telemetry.otlp_endpoint", defaults.Telemetry.OTLPEndpoint)
+	v.SetDefault("telemetry.otlp_insecure", defaults.Telemetry.OTLPInsecure)
+	v.SetDefault("telemetry.metrics_addr", defaults.Telemetry.MetricsAddr)
 
 	v.SetEnvPrefix("purser")
 	v.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))

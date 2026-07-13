@@ -33,6 +33,8 @@ Do not read all project documentation. Determine what the task touches, then loa
 - [docs/adr/0014-search-embedded-full-text-index.md](docs/adr/0014-search-embedded-full-text-index.md) — `SearchIndex` port and the embedded-Bleve decision; required for any `internal/adapters/searchindex` change or anything indexing/querying free-text search
 - [docs/adr/0015-deletion-impact-and-composing-services.md](docs/adr/0015-deletion-impact-and-composing-services.md) — `DeletionImpact`/Unlink-Cascade pattern and the composing-service exception to "one port per service"; required for any `Delete` flow that can leave other entities dangling, or any new composing service
 - [docs/adr/0016-bulk-operations.md](docs/adr/0016-bulk-operations.md) — batch writes at the `Datastore` layer and when a bulk API endpoint is justified; required for any batch/multi-row operation
+- [docs/adr/0017-build-and-release-goreleaser.md](docs/adr/0017-build-and-release-goreleaser.md) — goreleaser-driven binary/container builds; required for any `.goreleaser.yaml`, `ops/Containerfile`, `internal/version`, or release-pipeline (`.github/workflows/release.yml`) change
+- [docs/adr/0018-local-development-environment.md](docs/adr/0018-local-development-environment.md) — shared `.local/` dev-state layout, single `ops/compose.yml`, one Postgres with two roles; required for any `ops/compose.yml`, `ops/postgres/**`, `Makefile` compose target, or local dev-state directory change
 
 **After finishing any ask/task/session:** run the self-audit checklist in [0001](docs/adr/0001-hexagonal-architecture.md) and [0002](docs/adr/0002-solid-design-principles.md) (and [0003](docs/adr/0003-go-testing-standards.md)/[0004](docs/adr/0004-typescript-react-testing-standards.md) if tests were written) and state the result explicitly — do not skip this silently.
 
@@ -127,6 +129,15 @@ Documentation under `docs/` (architecture overview, development guides, technica
 - [docs/adr/0012-datastore-persistence.md](docs/adr/0012-datastore-persistence.md)
 - [docs/adr/0015-deletion-impact-and-composing-services.md](docs/adr/0015-deletion-impact-and-composing-services.md) — if the batch operation is a delete
 - [docs/adr/0001-hexagonal-architecture.md](docs/adr/0001-hexagonal-architecture.md)
+
+### Building or releasing binaries/containers (goreleaser, `ops/Containerfile`, `.github/workflows/release.yml`)
+- [docs/adr/0017-build-and-release-goreleaser.md](docs/adr/0017-build-and-release-goreleaser.md)
+- [docs/adr/0009-cli-stack.md](docs/adr/0009-cli-stack.md) — if the change touches `internal/version`/`cmd/purser` version wiring
+
+### Changing local dev environment (`ops/compose.yml`, `ops/postgres/**`, `.local/` layout, `make compose`)
+- [docs/adr/0018-local-development-environment.md](docs/adr/0018-local-development-environment.md)
+- [docs/adr/0010-configuration.md](docs/adr/0010-configuration.md)
+- [docs/adr/0012-datastore-persistence.md](docs/adr/0012-datastore-persistence.md) — if it touches Postgres as a `database.driver` option
 
 ### Committing or creating a PR
 - Hard ban above still applies: produce the message, do not run the command.

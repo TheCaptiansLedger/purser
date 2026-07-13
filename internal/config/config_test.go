@@ -28,8 +28,8 @@ func TestLoad_UsesDefaultsWithNoOverrides(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Load returned error: %v", err)
 	}
-	if cfg.Server.ListenAddr != ":8080" {
-		t.Fatalf("Load returned ListenAddr %q, want %q", cfg.Server.ListenAddr, ":8080")
+	if cfg.Server.ListenAddr != ":7474" {
+		t.Fatalf("Load returned ListenAddr %q, want %q", cfg.Server.ListenAddr, ":7474")
 	}
 }
 
@@ -169,5 +169,62 @@ func TestConfig_Validate_RejectsEmptyMediaPath(t *testing.T) {
 	cfg.Media.Path = ""
 	if err := cfg.Validate(); err == nil {
 		t.Fatal("Validate with empty Media.Path did not return an error")
+	}
+}
+
+func TestConfig_Validate_AcceptsDisabledTelemetryWithNoEndpoint(t *testing.T) {
+	cfg := config.DefaultConfig()
+	cfg.Telemetry.Enabled = false
+	cfg.Telemetry.OTLPEndpoint = ""
+	cfg.Telemetry.MetricsAddr = ""
+	if err := cfg.Validate(); err != nil {
+		t.Fatalf("Validate with disabled telemetry returned error: %v", err)
+	}
+}
+
+func TestConfig_Validate_RejectsEnabledTelemetryWithNoOTLPEndpoint(t *testing.T) {
+	cfg := config.DefaultConfig()
+	cfg.Telemetry.Enabled = true
+	cfg.Telemetry.OTLPEndpoint = ""
+	if err := cfg.Validate(); err == nil {
+		t.Fatal("Validate with enabled telemetry and no OTLP endpoint did not return an error")
+	}
+}
+
+func TestConfig_Validate_RejectsEnabledTelemetryWithNoMetricsAddr(t *testing.T) {
+	cfg := config.DefaultConfig()
+	cfg.Telemetry.Enabled = true
+	cfg.Telemetry.MetricsAddr = ""
+	if err := cfg.Validate(); err == nil {
+		t.Fatal("Validate with enabled telemetry and no metrics addr did not return an error")
+	}
+}
+
+func TestLoad_UsesDefaultTelemetrySettings(t *testing.T) {
+	cfg, err := config.Load(viper.New(), "")
+	if err != nil {
+		t.Fatalf("Load returned error: %v", err)
+	}
+	if cfg.Telemetry.Enabled {
+		t.Fatal("Load returned Telemetry.Enabled=true, want false by default")
+	}
+	if cfg.Telemetry.OTLPEndpoint != "localhost:4317" {
+		t.Fatalf("Load returned Telemetry.OTLPEndpoint %q, want %q", cfg.Telemetry.OTLPEndpoint, "localhost:4317")
+	}
+}
+
+func TestLoad_EnvOverridesTelemetryEnabled(t *testing.T) {
+	t.Setenv("PURSER_TELEMETRY_ENABLED", "true")
+	t.Setenv("PURSER_TELEMETRY_OTLP_ENDPOINT", "tempo:4317")
+
+	cfg, err := config.Load(viper.New(), "")
+	if err != nil {
+		t.Fatalf("Load returned error: %v", err)
+	}
+	if !cfg.Telemetry.Enabled {
+		t.Fatal("Load returned Telemetry.Enabled=false, want true")
+	}
+	if cfg.Telemetry.OTLPEndpoint != "tempo:4317" {
+		t.Fatalf("Load returned Telemetry.OTLPEndpoint %q, want %q", cfg.Telemetry.OTLPEndpoint, "tempo:4317")
 	}
 }

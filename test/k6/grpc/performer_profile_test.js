@@ -4,7 +4,7 @@
 import grpc from 'k6/net/grpc';
 import { check } from 'k6';
 
-const ADDR = __ENV.PURSER_GRPC_ADDR || 'localhost:8080';
+const ADDR = __ENV.PURSER_GRPC_ADDR || 'localhost:7474';
 
 const client = new grpc.Client();
 client.load(['../../../proto'], 'purser/afterdark/v1/performer_profile.proto');

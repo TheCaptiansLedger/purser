@@ -1,29 +1,16 @@
 # syntax=docker/dockerfile:1
-# Build context must be the project root.
-# web/dist/ must be pre-built before calling docker build:
-#   cd web && npm run build
-# The Makefile dev target handles this automatically.
-# ──────────────────────────────────────────────────────────────────────────────
-# Stage 1: Build Go binary (web/dist/ is provided by the build context)
-# ──────────────────────────────────────────────────────────────────────────────
-FROM golang:1.26-bookworm AS go-builder
-WORKDIR /app
-
-COPY go.mod go.sum ./
-RUN go mod download
-
-COPY . .
-
-ARG VERSION=dev
-ARG COMMIT_SHA=unknown
-
-RUN CGO_ENABLED=0 GOOS=linux go build -trimpath \
-    -ldflags="-s -w -X purser/internal/version.Version=${VERSION}" \
-    -o /out/purser ./cmd/purser
-
-# ──────────────────────────────────────────────────────────────────────────────
-# Stage 2: Runtime image
-# ──────────────────────────────────────────────────────────────────────────────
+#
+# Copy-only runtime image — see docs/adr/0017-build-and-release-goreleaser.md.
+# Goreleaser is the only thing that builds the `purser` binary; this
+# Dockerfile never runs `go build`. It expects, at the build context root:
+#   ./purser     — the prebuilt binary for the target platform
+#   ./web/dist   — the prebuilt React UI
+#
+# Goreleaser's `dockers` config stages both automatically per platform.
+# For a local single-arch image outside goreleaser's release pipeline, use
+# `make compose build` — it runs `goreleaser build --single-target
+# --snapshot` first and stages the binary at the repo root before calling
+# `docker build`, so this Dockerfile never needs a separate "dev" variant.
 FROM debian:12-slim
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -33,11 +20,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
       libchromaprint-tools \
     && rm -rf /var/lib/apt/lists/*
 
-COPY --from=go-builder /out/purser /usr/local/bin/purser
+COPY purser /usr/local/bin/purser
+COPY web/dist /web/dist
 
 VOLUME ["/data", "/media/purser", "/media/content"]
 
 EXPOSE 7474
 
 ENTRYPOINT ["/usr/local/bin/purser"]
-CMD ["--config", "/config/purser.yaml"]
+CMD ["serve", "--config", "/config/purser.yaml"]

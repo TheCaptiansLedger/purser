@@ -1,0 +1,18 @@
+# Scrape config for the local dev observability stack — see
+# docs/adr/0018-local-development-environment.md. host.docker.internal
+# (not the "app" service name) so this scrapes port 9464 on the host
+# machine regardless of whether Purser is the containerized "app" service
+# (profile "app", published 9464:9464) or a natively-run `make run` —
+# either way it's reachable on the host at that port.
+# PURSER_TELEMETRY_METRICS_ADDR defaults to :9464 (internal/config/telemetry.go).
+global:
+  scrape_interval: 15s
+
+scrape_configs:
+  - job_name: prometheus
+    static_configs:
+      - targets: ["localhost:9090"]
+
+  - job_name: purser
+    static_configs:
+      - targets: ["host.docker.internal:9464"]
