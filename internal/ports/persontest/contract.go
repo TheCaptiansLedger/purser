@@ -1,7 +1,7 @@
 // Package persontest is the shared contract test suite for the
 // ports.PersonRepository port (see ADR 0003's contract-test convention). It
 // is a normal buildable package, not a _test.go file, because Go test files
-// cannot be imported across packages — every adapter (internal/adapters/memory/person
+// cannot be imported across packages — every adapter (internal/adapters/store/person
 // today, others later) imports this from its own test file and runs it
 // against its own constructor, proving Liskov substitutability without
 // duplicating the assertions per adapter.

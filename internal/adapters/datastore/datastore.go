@@ -24,9 +24,8 @@ type Document struct {
 	// ID is opaque to Datastore. For single-key entities it's the
 	// entity's own ID; for composite-key entities (EntryPerson,
 	// ItemPerson, ExternalID) the owning repository joins the key parts
-	// into one string before calling Datastore, the same way
-	// internal/adapters/memory/entryperson already does for its
-	// in-memory map key.
+	// into one string before calling Datastore — see
+	// internal/adapters/store.CompositeRepository's keySeparator.
 	ID string
 
 	// Data is the JSON-encoded domain entity.

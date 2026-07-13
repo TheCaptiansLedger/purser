@@ -24,17 +24,17 @@ import (
 	domainv1connect "purser/gen/go/purser/domain/v1/domainv1connect"
 	dsbadger "purser/internal/adapters/datastore/badger"
 	dssql "purser/internal/adapters/datastore/sql"
-	preentryperson "purser/internal/adapters/memory/entryperson"
-	memexternalid "purser/internal/adapters/memory/externalid"
-	memgroup "purser/internal/adapters/memory/group"
-	memimage "purser/internal/adapters/memory/image"
-	memitem "purser/internal/adapters/memory/item"
-	memitemperson "purser/internal/adapters/memory/itemperson"
-	memlibraryentry "purser/internal/adapters/memory/libraryentry"
-	memmediafile "purser/internal/adapters/memory/mediafile"
-	memperformerprofile "purser/internal/adapters/memory/performerprofile"
-	memtag "purser/internal/adapters/memory/tag"
+	storeentryperson "purser/internal/adapters/store/entryperson"
+	storeexternalid "purser/internal/adapters/store/externalid"
+	storegroup "purser/internal/adapters/store/group"
+	storeimage "purser/internal/adapters/store/image"
+	storeitem "purser/internal/adapters/store/item"
+	storeitemperson "purser/internal/adapters/store/itemperson"
+	storelibraryentry "purser/internal/adapters/store/libraryentry"
+	storemediafile "purser/internal/adapters/store/mediafile"
+	storeperformerprofile "purser/internal/adapters/store/performerprofile"
 	storeperson "purser/internal/adapters/store/person"
+	storetag "purser/internal/adapters/store/tag"
 	apiconnect "purser/internal/api/connect"
 )
 
@@ -178,10 +178,8 @@ func openDatastore(cfg config.Database) (datastore.Datastore, io.Closer, error) 
 // same four-line shape; that repetition is intentional (SRP per entity)
 // rather than a signal to collapse it into a generic helper.
 //
-// Person is backed by ds (see docs/adr/0012-datastore-persistence.md); the
-// other ten entities are not yet migrated off the in-memory adapters —
-// tracked as a known, intentional gap for a follow-up pass, not a silent
-// regression.
+// Every entity is backed by the single shared ds — see
+// docs/adr/0012-datastore-persistence.md.
 func newServeMux(logger *slog.Logger, ds datastore.Datastore) (*http.ServeMux, error) {
 	mux := http.NewServeMux()
 	interceptors := connect.WithInterceptors(apiconnect.NewLoggingInterceptor(logger))
@@ -194,7 +192,7 @@ func newServeMux(logger *slog.Logger, ds datastore.Datastore) (*http.ServeMux, e
 	personPath, personConnectHandler := domainv1connect.NewPersonServiceHandler(personHandler, interceptors)
 	mux.Handle(personPath, personConnectHandler)
 
-	libraryEntryRepo, err := memlibraryentry.New("library_entry", memlibraryentry.WithLogger(logger))
+	libraryEntryRepo, err := storelibraryentry.New("library_entry", ds, storelibraryentry.WithLogger(logger))
 	if err != nil {
 		return nil, fmt.Errorf("cmd/purser: constructing library entry repository: %w", err)
 	}
@@ -202,7 +200,7 @@ func newServeMux(logger *slog.Logger, ds datastore.Datastore) (*http.ServeMux, e
 	libraryEntryPath, libraryEntryConnectHandler := domainv1connect.NewLibraryEntryServiceHandler(libraryEntryHandler, interceptors)
 	mux.Handle(libraryEntryPath, libraryEntryConnectHandler)
 
-	groupRepo, err := memgroup.New("group", memgroup.WithLogger(logger))
+	groupRepo, err := storegroup.New("group", ds, storegroup.WithLogger(logger))
 	if err != nil {
 		return nil, fmt.Errorf("cmd/purser: constructing group repository: %w", err)
 	}
@@ -210,7 +208,7 @@ func newServeMux(logger *slog.Logger, ds datastore.Datastore) (*http.ServeMux, e
 	groupPath, groupConnectHandler := domainv1connect.NewGroupServiceHandler(groupHandler, interceptors)
 	mux.Handle(groupPath, groupConnectHandler)
 
-	itemRepo, err := memitem.New("item", memitem.WithLogger(logger))
+	itemRepo, err := storeitem.New("item", ds, storeitem.WithLogger(logger))
 	if err != nil {
 		return nil, fmt.Errorf("cmd/purser: constructing item repository: %w", err)
 	}
@@ -218,7 +216,7 @@ func newServeMux(logger *slog.Logger, ds datastore.Datastore) (*http.ServeMux, e
 	itemPath, itemConnectHandler := domainv1connect.NewItemServiceHandler(itemHandler, interceptors)
 	mux.Handle(itemPath, itemConnectHandler)
 
-	entryPersonRepo, err := preentryperson.New("entry_person", preentryperson.WithLogger(logger))
+	entryPersonRepo, err := storeentryperson.New("entry_person", ds, storeentryperson.WithLogger(logger))
 	if err != nil {
 		return nil, fmt.Errorf("cmd/purser: constructing entry person repository: %w", err)
 	}
@@ -226,7 +224,7 @@ func newServeMux(logger *slog.Logger, ds datastore.Datastore) (*http.ServeMux, e
 	entryPersonPath, entryPersonConnectHandler := domainv1connect.NewEntryPersonServiceHandler(entryPersonHandler, interceptors)
 	mux.Handle(entryPersonPath, entryPersonConnectHandler)
 
-	itemPersonRepo, err := memitemperson.New("item_person", memitemperson.WithLogger(logger))
+	itemPersonRepo, err := storeitemperson.New("item_person", ds, storeitemperson.WithLogger(logger))
 	if err != nil {
 		return nil, fmt.Errorf("cmd/purser: constructing item person repository: %w", err)
 	}
@@ -234,7 +232,7 @@ func newServeMux(logger *slog.Logger, ds datastore.Datastore) (*http.ServeMux, e
 	itemPersonPath, itemPersonConnectHandler := domainv1connect.NewItemPersonServiceHandler(itemPersonHandler, interceptors)
 	mux.Handle(itemPersonPath, itemPersonConnectHandler)
 
-	tagRepo, err := memtag.New("tag", memtag.WithLogger(logger))
+	tagRepo, err := storetag.New("tag", ds, storetag.WithLogger(logger))
 	if err != nil {
 		return nil, fmt.Errorf("cmd/purser: constructing tag repository: %w", err)
 	}
@@ -242,7 +240,7 @@ func newServeMux(logger *slog.Logger, ds datastore.Datastore) (*http.ServeMux, e
 	tagPath, tagConnectHandler := domainv1connect.NewTagServiceHandler(tagHandler, interceptors)
 	mux.Handle(tagPath, tagConnectHandler)
 
-	externalIDRepo, err := memexternalid.New("external_id", memexternalid.WithLogger(logger))
+	externalIDRepo, err := storeexternalid.New("external_id", ds, storeexternalid.WithLogger(logger))
 	if err != nil {
 		return nil, fmt.Errorf("cmd/purser: constructing external id repository: %w", err)
 	}
@@ -250,7 +248,7 @@ func newServeMux(logger *slog.Logger, ds datastore.Datastore) (*http.ServeMux, e
 	externalIDPath, externalIDConnectHandler := domainv1connect.NewExternalIDServiceHandler(externalIDHandler, interceptors)
 	mux.Handle(externalIDPath, externalIDConnectHandler)
 
-	imageRepo, err := memimage.New("image", memimage.WithLogger(logger))
+	imageRepo, err := storeimage.New("image", ds, storeimage.WithLogger(logger))
 	if err != nil {
 		return nil, fmt.Errorf("cmd/purser: constructing image repository: %w", err)
 	}
@@ -258,7 +256,7 @@ func newServeMux(logger *slog.Logger, ds datastore.Datastore) (*http.ServeMux, e
 	imagePath, imageConnectHandler := domainv1connect.NewImageServiceHandler(imageHandler, interceptors)
 	mux.Handle(imagePath, imageConnectHandler)
 
-	mediaFileRepo, err := memmediafile.New("media_file", memmediafile.WithLogger(logger))
+	mediaFileRepo, err := storemediafile.New("media_file", ds, storemediafile.WithLogger(logger))
 	if err != nil {
 		return nil, fmt.Errorf("cmd/purser: constructing media file repository: %w", err)
 	}
@@ -268,7 +266,7 @@ func newServeMux(logger *slog.Logger, ds datastore.Datastore) (*http.ServeMux, e
 
 	// AfterDark: the first module built on the shared kernel above — every
 	// line here is additive, nothing in the kernel wiring changed to add it.
-	performerProfileRepo, err := memperformerprofile.New("performer_profile", memperformerprofile.WithLogger(logger))
+	performerProfileRepo, err := storeperformerprofile.New("performer_profile", ds, storeperformerprofile.WithLogger(logger))
 	if err != nil {
 		return nil, fmt.Errorf("cmd/purser: constructing performer profile repository: %w", err)
 	}

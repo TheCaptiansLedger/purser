@@ -41,9 +41,10 @@ Each `ports.XRepository` implementation (`internal/adapters/store/<entity>`)
 is a thin translator: marshal `domain.X` to JSON, call
 `Datastore.Create`/`Get`/`Update`/`Delete`/`List`, unmarshal the result back.
 Composite-key ports (`EntryPerson`, `ItemPerson`, `ExternalID`) build a
-single joined `ID` the same way the in-memory adapters already do (e.g.
-`internal/adapters/memory/entryperson`'s `\x00`-joined key) and pass the
-same fields into `Document.Index` for filtered `List`. `Datastore` reuses
+single joined `ID` using a `\x00` delimiter — the same convention the
+original in-memory adapters used before their removal (see the
+`CompositeRepository[T]` addendum below) — and pass the same fields into
+`Document.Index` for filtered `List`. `Datastore` reuses
 `ports.ErrNotFound`/`ports.ErrConflict` directly — no error translation
 layer.
 
@@ -126,8 +127,8 @@ pre-reset code made, keeps distroless/cross-compile builds simple).
 The first entity translator (`internal/adapters/store/person`) was
 initially hand-written in full — constructor, telemetry setup, Option
 pattern, five CRUD methods — mirroring the shape every
-`internal/adapters/memory/<entity>` package already uses. But six of the
-eleven ports (`PersonRepository`, `GroupRepository`, `ItemRepository`,
+`internal/adapters/memory/<entity>` package used before those were
+removed. But six of the eleven ports (`PersonRepository`, `GroupRepository`, `ItemRepository`,
 `TagRepository`, `LibraryEntryRepository`, `MediaFileRepository`) share an
 *identical* method shape — `Create(*T)`, `Get(id) *T`, `Update(*T)`,
 `Delete(id)`, `List(pageSize, pageToken) ([]*T, string, error)` — differing
@@ -161,8 +162,50 @@ service/API/port boundaries.
 The composite-key ports (`EntryPersonRepository`, `ItemPersonRepository`,
 `ExternalIDRepository`) and the filtered port (`ImageRepository`) do not
 fit this shape (different `Get`/`Delete` signatures, `List` filter
-arguments) and keep their own hand-written or differently-shaped
-translators.
+arguments) — see the next two addenda.
+
+### Addendum: `CompositeRepository[T]` for 3-part-key entities
+
+`EntryPersonRepository`, `ItemPersonRepository`, and `ExternalIDRepository`
+key on 3 joined string parts and filter `List` by the first 2 — the same
+"identical shape, different `T`" situation `Repository[T]` solved, just
+with a different method signature. `internal/adapters/store.CompositeRepository[T]`
+is the shared generic for this shape: `Document.ID` is the 3 parts joined
+with the same `\x00` delimiter the original in-memory adapters used
+(`internal/adapters/memory/*`, since removed — all 11 entities are now on
+this datastore-backed pattern), and `Document.Index` carries the first 2
+parts so `List` is a real indexed lookup, not a scan
+— consistent with the "secondary index, built now" decision above,
+extended to a generic that didn't exist yet at that point.
+
+`EntryPerson` (`LibraryEntryID, PersonID, Role`) and `ItemPerson`
+(`ItemID, PersonID, Role`) match `CompositeRepository[T]`'s plain-`string`
+signature exactly, so — like `Repository[T]`'s single-ID entities — their
+wrapper packages need no method bodies at all, just a `keyOf` function and
+a `New`. `ExternalID`'s port signature types its first key part as
+`domain.EntityType`, not `string`
+(`Get(ctx, entityType domain.EntityType, entityID, source string)`), so
+`*store.CompositeRepository[domain.ExternalID]` can't satisfy
+`ports.ExternalIDRepository` structurally the way the other two do —
+`internal/adapters/store/externalid` wraps an embedded
+`*CompositeRepository[domain.ExternalID]` in a small `Repository` type
+whose five methods each do one `string(entityType)` conversion before
+delegating. Still eliminates all the marshal/telemetry/CRUD boilerplate;
+it just can't be a zero-method type alias like the others.
+
+### Addendum: `Image` stays hand-written
+
+`ImageRepository`'s `Get`/`Delete` key on `Image`'s own `ID`, but `List`
+filters independently on `OwnerType`/`OwnerID` — fields that are *not*
+part of the key. This is a third, genuinely different shape ("single ID +
+independent N-field filter"), and `Image` is its only occurrence among
+the 11 ports. Building a third generic for one caller would be premature
+abstraction — `internal/adapters/store/image` is a small, hand-written
+translator against `datastore.Datastore` directly (own `Option`/telemetry,
+`Document.Index = {"owner_type": ..., "owner_id": ...}`), structured the
+way `store/person` looked *before* the `Repository[T]` addendum above. If
+a second entity ever needs this same "independent filter, unrelated ID"
+shape, that's the trigger to extract a third generic — not before.
 
 ## Consequences
 
