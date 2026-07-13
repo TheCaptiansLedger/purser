@@ -219,6 +219,28 @@ export default () => {
   msg = invoke('purser.afterdark.v1.BrowseService/ListPerformersForNetwork', { networkId: networkId, pageSize: 50 }, 'ListPerformersForNetwork');
   check(msg, { 'list performers for network includes all four imported performers': hasAllPerformers });
 
+  // Tags are never embedded on Item — TagAssignment is a separate
+  // polymorphic join. Prove both scene tags round-trip in both
+  // directions: "this scene's tags" (both genre and setting together) and
+  // "everything tagged this tag" (browse-by-tag).
+  msg = invoke(
+    'purser.domain.v1.TagAssignmentService/ListTagAssignments',
+    { entityType: 'ENTITY_TYPE_ITEM', entityId: sceneId, pageSize: 10 },
+    'ListTagAssignments(by scene)'
+  );
+  check(msg, {
+    "the scene's tags include both the genre and setting tags": (m) => {
+      const ids = new Set((m.tagAssignments || []).map((ta) => ta.tagId));
+      return ids.has(genreTagId) && ids.has(settingTagId);
+    },
+  });
+
+  msg = invoke('purser.domain.v1.TagAssignmentService/ListTagAssignments', { tagId: genreTagId, pageSize: 10 }, 'ListTagAssignments(by genre tag)');
+  check(msg, { 'everything tagged the genre tag includes the imported scene': (m) => (m.tagAssignments || []).some((ta) => ta.entityId === sceneId) });
+
+  msg = invoke('purser.domain.v1.TagAssignmentService/ListTagAssignments', { tagId: settingTagId, pageSize: 10 }, 'ListTagAssignments(by setting tag)');
+  check(msg, { 'everything tagged the setting tag includes the imported scene': (m) => (m.tagAssignments || []).some((ta) => ta.entityId === sceneId) });
+
   // Teardown, reverse dependency order.
   invoke(
     'purser.domain.v1.TagAssignmentService/DeleteTagAssignment',

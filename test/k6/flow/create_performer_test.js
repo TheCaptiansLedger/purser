@@ -99,6 +99,28 @@ export default () => {
     'ListPerformers includes the created performer': (m) => m && m.performers && m.performers.some((p) => p.person && p.person.id === personId),
   });
 
+  // Tags are never embedded on Person/PerformerView — TagAssignment is a
+  // separate polymorphic join, same as ExternalID/Image. Prove the
+  // association actually round-trips in both directions: "this
+  // performer's tags" and "everything tagged this tag."
+  const performerTags = invoke(
+    'purser.domain.v1.TagAssignmentService/ListTagAssignments',
+    { entityType: 'ENTITY_TYPE_PERSON', entityId: personId, pageSize: 10 },
+    'ListTagAssignments(by performer)'
+  );
+  check(performerTags, {
+    "the performer's tags include the created tag": (m) => m && m.tagAssignments && m.tagAssignments.some((ta) => ta.tagId === tagId),
+  });
+
+  const taggedEntities = invoke(
+    'purser.domain.v1.TagAssignmentService/ListTagAssignments',
+    { tagId: tagId, pageSize: 10 },
+    'ListTagAssignments(by tag)'
+  );
+  check(taggedEntities, {
+    'everything tagged this tag includes the created performer': (m) => m && m.tagAssignments && m.tagAssignments.some((ta) => ta.entityId === personId),
+  });
+
   // Teardown, reverse order.
   invoke(
     'purser.domain.v1.TagAssignmentService/DeleteTagAssignment',

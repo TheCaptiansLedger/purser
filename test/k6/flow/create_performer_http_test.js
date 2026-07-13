@@ -80,6 +80,16 @@ export default () => {
   res = invoke(`${BROWSE}/ListPerformers`, { pageSize: 50 }, 'ListPerformers');
   check(res, { 'ListPerformers includes the created performer': (r) => (r.json('performers') || []).some((p) => p.person && p.person.id === personId) });
 
+  // Tags are never embedded on Person/PerformerView — TagAssignment is a
+  // separate polymorphic join, same as ExternalID/Image. Prove the
+  // association actually round-trips in both directions: "this
+  // performer's tags" and "everything tagged this tag."
+  res = invoke(`${TAG_ASSIGNMENT}/ListTagAssignments`, { entityType: 'ENTITY_TYPE_PERSON', entityId: personId, pageSize: 10 }, 'ListTagAssignments(by performer)');
+  check(res, { "the performer's tags include the created tag": (r) => (r.json('tagAssignments') || []).some((ta) => ta.tagId === tagId) });
+
+  res = invoke(`${TAG_ASSIGNMENT}/ListTagAssignments`, { tagId: tagId, pageSize: 10 }, 'ListTagAssignments(by tag)');
+  check(res, { 'everything tagged this tag includes the created performer': (r) => (r.json('tagAssignments') || []).some((ta) => ta.entityId === personId) });
+
   // Teardown, reverse order.
   invoke(`${TAG_ASSIGNMENT}/DeleteTagAssignment`, { tagId: tagId, entityType: 'ENTITY_TYPE_PERSON', entityId: personId }, 'DeleteTagAssignment');
   invoke(`${TAG}/DeleteTag`, { id: tagId }, 'DeleteTag');

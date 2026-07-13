@@ -191,6 +191,24 @@ export default () => {
   res = invoke(`${BROWSE}/ListPerformersForNetwork`, { networkId: networkId, pageSize: 50 }, 'ListPerformersForNetwork');
   check(res, { 'list performers for network includes all four imported performers': hasAllPerformers });
 
+  // Tags are never embedded on Item — TagAssignment is a separate
+  // polymorphic join. Prove both scene tags round-trip in both
+  // directions: "this scene's tags" (both genre and setting together) and
+  // "everything tagged this tag" (browse-by-tag).
+  res = invoke(`${TAG_ASSIGNMENT}/ListTagAssignments`, { entityType: 'ENTITY_TYPE_ITEM', entityId: sceneId, pageSize: 10 }, 'ListTagAssignments(by scene)');
+  check(res, {
+    "the scene's tags include both the genre and setting tags": (r) => {
+      const ids = new Set((r.json('tagAssignments') || []).map((ta) => ta.tagId));
+      return ids.has(genreTagId) && ids.has(settingTagId);
+    },
+  });
+
+  res = invoke(`${TAG_ASSIGNMENT}/ListTagAssignments`, { tagId: genreTagId, pageSize: 10 }, 'ListTagAssignments(by genre tag)');
+  check(res, { 'everything tagged the genre tag includes the imported scene': (r) => (r.json('tagAssignments') || []).some((ta) => ta.entityId === sceneId) });
+
+  res = invoke(`${TAG_ASSIGNMENT}/ListTagAssignments`, { tagId: settingTagId, pageSize: 10 }, 'ListTagAssignments(by setting tag)');
+  check(res, { 'everything tagged the setting tag includes the imported scene': (r) => (r.json('tagAssignments') || []).some((ta) => ta.entityId === sceneId) });
+
   // Teardown, reverse dependency order.
   invoke(`${TAG_ASSIGNMENT}/DeleteTagAssignment`, { tagId: settingTagId, entityType: 'ENTITY_TYPE_ITEM', entityId: sceneId }, 'DeleteTagAssignment(setting)');
   invoke(`${TAG}/DeleteTag`, { id: settingTagId }, 'DeleteTag(setting)');

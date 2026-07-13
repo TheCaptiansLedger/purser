@@ -104,6 +104,46 @@ export default () => {
   );
   check(studios, { 'list studios under network includes the created studio': (m) => m && m.libraryEntries && m.libraryEntries.some((e) => e.id === studioId) });
 
+  // Tags are never embedded on LibraryEntry — TagAssignment is a separate
+  // polymorphic join. Prove each association round-trips in both
+  // directions: "this network's/studio's tags" and "everything tagged
+  // this tag."
+  const networkTags = invoke(
+    'purser.domain.v1.TagAssignmentService/ListTagAssignments',
+    { entityType: 'ENTITY_TYPE_LIBRARY_ENTRY', entityId: networkId, pageSize: 10 },
+    'ListTagAssignments(by network)'
+  );
+  check(networkTags, {
+    "the network's tags include the created tag": (m) => m && m.tagAssignments && m.tagAssignments.some((ta) => ta.tagId === networkTagId),
+  });
+
+  const taggedWithNetworkTag = invoke(
+    'purser.domain.v1.TagAssignmentService/ListTagAssignments',
+    { tagId: networkTagId, pageSize: 10 },
+    'ListTagAssignments(by network tag)'
+  );
+  check(taggedWithNetworkTag, {
+    'everything tagged the network tag includes the created network': (m) => m && m.tagAssignments && m.tagAssignments.some((ta) => ta.entityId === networkId),
+  });
+
+  const studioTags = invoke(
+    'purser.domain.v1.TagAssignmentService/ListTagAssignments',
+    { entityType: 'ENTITY_TYPE_LIBRARY_ENTRY', entityId: studioId, pageSize: 10 },
+    'ListTagAssignments(by studio)'
+  );
+  check(studioTags, {
+    "the studio's tags include the created tag": (m) => m && m.tagAssignments && m.tagAssignments.some((ta) => ta.tagId === studioTagId),
+  });
+
+  const taggedWithStudioTag = invoke(
+    'purser.domain.v1.TagAssignmentService/ListTagAssignments',
+    { tagId: studioTagId, pageSize: 10 },
+    'ListTagAssignments(by studio tag)'
+  );
+  check(taggedWithStudioTag, {
+    'everything tagged the studio tag includes the created studio': (m) => m && m.tagAssignments && m.tagAssignments.some((ta) => ta.entityId === studioId),
+  });
+
   // Teardown, reverse order.
   invoke(
     'purser.domain.v1.TagAssignmentService/DeleteTagAssignment',

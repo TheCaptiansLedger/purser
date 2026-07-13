@@ -91,6 +91,22 @@ export default () => {
   res = invoke(`${LIBRARY_ENTRY}/ListLibraryEntries`, { kind: 'studio', parentId: networkId, pageSize: 50 }, 'ListLibraryEntries(studios)');
   check(res, { 'list studios under network includes the created studio': (r) => (r.json('libraryEntries') || []).some((e) => e.id === studioId) });
 
+  // Tags are never embedded on LibraryEntry — TagAssignment is a separate
+  // polymorphic join. Prove each association round-trips in both
+  // directions: "this network's/studio's tags" and "everything tagged
+  // this tag."
+  res = invoke(`${TAG_ASSIGNMENT}/ListTagAssignments`, { entityType: 'ENTITY_TYPE_LIBRARY_ENTRY', entityId: networkId, pageSize: 10 }, 'ListTagAssignments(by network)');
+  check(res, { "the network's tags include the created tag": (r) => (r.json('tagAssignments') || []).some((ta) => ta.tagId === networkTagId) });
+
+  res = invoke(`${TAG_ASSIGNMENT}/ListTagAssignments`, { tagId: networkTagId, pageSize: 10 }, 'ListTagAssignments(by network tag)');
+  check(res, { 'everything tagged the network tag includes the created network': (r) => (r.json('tagAssignments') || []).some((ta) => ta.entityId === networkId) });
+
+  res = invoke(`${TAG_ASSIGNMENT}/ListTagAssignments`, { entityType: 'ENTITY_TYPE_LIBRARY_ENTRY', entityId: studioId, pageSize: 10 }, 'ListTagAssignments(by studio)');
+  check(res, { "the studio's tags include the created tag": (r) => (r.json('tagAssignments') || []).some((ta) => ta.tagId === studioTagId) });
+
+  res = invoke(`${TAG_ASSIGNMENT}/ListTagAssignments`, { tagId: studioTagId, pageSize: 10 }, 'ListTagAssignments(by studio tag)');
+  check(res, { 'everything tagged the studio tag includes the created studio': (r) => (r.json('tagAssignments') || []).some((ta) => ta.entityId === studioId) });
+
   // Teardown, reverse order.
   invoke(
     `${TAG_ASSIGNMENT}/DeleteTagAssignment`,
