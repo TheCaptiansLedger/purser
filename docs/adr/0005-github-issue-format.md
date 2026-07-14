@@ -59,9 +59,13 @@ layers. `priority:` is optional.
 
 - **Title:** imperative, no type prefix in the title (the label carries
   that) — e.g. "Add track reordering to album detail," not "[Feature] ...".
-- **Epic issues** (`scope: epic`): describe the user-facing outcome, list
-  the task issues that implement it (as a checklist of issue links, filled
-  in as tasks are created), and state what's explicitly out of scope.
+- **Epic issues** (`scope: epic`): describe the user-facing outcome and
+  state what's explicitly out of scope. Task issues are attached as real
+  GitHub sub-issues (`gh issue create --parent <epic#>`, or the
+  `sub_issues` REST endpoint), not a markdown checklist of issue links in
+  the body — the checklist can't be filtered/tracked by GitHub's own UI or
+  API and drifts out of sync silently; a real sub-issue relationship
+  can't.
 - **Task issues** (`scope: task`): reference the parent epic, describe the
   concrete unit of work, and state which ADR(s) govern the area being
   touched (per [0001](0001-hexagonal-architecture.md) /

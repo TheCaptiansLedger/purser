@@ -118,6 +118,7 @@ compose: ## Manage the observability stack (Postgres/Grafana/Prometheus/Tempo). 
 	  "") echo "usage: make compose <up|down|logs|ps|...>" >&2; \
 	      echo "docker compose flags need quoting: make compose \"logs -f app\"" >&2; exit 1 ;; \
 	  up) $(COMPOSE) up -d ;; \
+	  down|down\ *) $(COMPOSE) --profile app $$args ;; \
 	  *) $(COMPOSE) $$args ;; \
 	esac
 

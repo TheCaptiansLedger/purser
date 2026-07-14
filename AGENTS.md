@@ -37,6 +37,7 @@ Do not read all project documentation. Determine what the task touches, then loa
 - [docs/adr/0018-local-development-environment.md](docs/adr/0018-local-development-environment.md) — shared `.local/` dev-state layout, single `ops/compose.yml`, one Postgres with two roles; required for any `ops/compose.yml`, `ops/postgres/**`, `Makefile` compose target, or local dev-state directory change
 - [docs/adr/0019-tag-identity-and-get-or-create.md](docs/adr/0019-tag-identity-and-get-or-create.md) — Tag's `(Scope, Key, Value)` uniqueness and the reservation-document pattern; required for any `internal/adapters/store/tag` change, any `TagService`/`TagDeletionService` change, or any new entity that needs a uniqueness constraint beyond its own `(collection, id)` primary key
 - [docs/adr/0020-server-generated-kernel-entity-ids.md](docs/adr/0020-server-generated-kernel-entity-ids.md) — server-generated UUIDv7 `ID`s via `domain.NewID()`; required for any kernel entity's `Create` flow, any new single-ID kernel entity, or any change to `internal/domain/id.go`
+- [docs/adr/0021-music-domain-model.md](docs/adr/0021-music-domain-model.md) — Music's Artist/Release Group/Release/Track model on the shared kernel; required for any `internal/domain/music`, `internal/adapters/store/music`, Music `internal/service`/`internal/ports` code, or `proto/purser/music/v1` change
 
 **After finishing any ask/task/session:** run the self-audit checklist in [0001](docs/adr/0001-hexagonal-architecture.md) and [0002](docs/adr/0002-solid-design-principles.md) (and [0003](docs/adr/0003-go-testing-standards.md)/[0004](docs/adr/0004-typescript-react-testing-standards.md) if tests were written) and state the result explicitly — do not skip this silently.
 
@@ -144,6 +145,18 @@ Documentation under `docs/` (architecture overview, development guides, technica
 - [docs/adr/0011-api-design.md](docs/adr/0011-api-design.md)
 - [docs/adr/0001-hexagonal-architecture.md](docs/adr/0001-hexagonal-architecture.md)
 - [docs/adr/0002-solid-design-principles.md](docs/adr/0002-solid-design-principles.md)
+
+### Building the Music module (`internal/domain/music`, `internal/adapters/store/music`, `proto/purser/music/v1`)
+- [docs/adr/0021-music-domain-model.md](docs/adr/0021-music-domain-model.md)
+- [docs/adr/0012-datastore-persistence.md](docs/adr/0012-datastore-persistence.md)
+- [docs/adr/0015-deletion-impact-and-composing-services.md](docs/adr/0015-deletion-impact-and-composing-services.md) — the Music release deletion service, and the required `GroupDeletionService`/`LibraryEntryDeletionService` referrer updates
+- [docs/adr/0011-api-design.md](docs/adr/0011-api-design.md)
+- [docs/adr/0020-server-generated-kernel-entity-ids.md](docs/adr/0020-server-generated-kernel-entity-ids.md)
+- [docs/adr/0001-hexagonal-architecture.md](docs/adr/0001-hexagonal-architecture.md)
+- [docs/adr/0002-solid-design-principles.md](docs/adr/0002-solid-design-principles.md)
+- [docs/adr/0003-go-testing-standards.md](docs/adr/0003-go-testing-standards.md)
+- [docs/adr/0007-telemetry.md](docs/adr/0007-telemetry.md)
+- [docs/adr/0008-structured-logging.md](docs/adr/0008-structured-logging.md)
 
 ### Building a bulk/batch operation
 - [docs/adr/0016-bulk-operations.md](docs/adr/0016-bulk-operations.md)

@@ -13,5 +13,6 @@ func newRootCmd() *cobra.Command {
 		Version: version.String(),
 	}
 	cmd.AddCommand(newServeCmd())
+	cmd.AddCommand(newSeedVariousArtistsCmd())
 	return cmd
 }
