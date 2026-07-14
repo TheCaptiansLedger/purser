@@ -52,8 +52,34 @@ func (s *TagDeletionService) Delete(ctx context.Context, id string, _ bool) erro
 	if _, err := s.tags.Get(ctx, id); err != nil {
 		return err
 	}
+	if err := s.unlinkAssignments(ctx, id); err != nil {
+		return err
+	}
+	return s.tags.Delete(ctx, id)
+}
 
-	assignments, err := s.drainAssignments(ctx, id)
+// DeleteBatch removes every Tag in ids, all-or-nothing — see
+// docs/adr/0016-bulk-operations.md. Every ID must exist and have its
+// TagAssignments unlinked before any Tag row is removed; the final row
+// removal itself is one atomic ports.TagRepository.DeleteBatch call, not a
+// loop of single-row deletes. cascade is accepted for API-shape
+// consistency but unused: Tag never blocks a delete.
+func (s *TagDeletionService) DeleteBatch(ctx context.Context, ids []string, _ bool) error {
+	for _, id := range ids {
+		if _, err := s.tags.Get(ctx, id); err != nil {
+			return err
+		}
+	}
+	for _, id := range ids {
+		if err := s.unlinkAssignments(ctx, id); err != nil {
+			return err
+		}
+	}
+	return s.tags.DeleteBatch(ctx, ids)
+}
+
+func (s *TagDeletionService) unlinkAssignments(ctx context.Context, tagID string) error {
+	assignments, err := s.drainAssignments(ctx, tagID)
 	if err != nil {
 		return err
 	}
@@ -62,8 +88,7 @@ func (s *TagDeletionService) Delete(ctx context.Context, id string, _ bool) erro
 			return err
 		}
 	}
-
-	return s.tags.Delete(ctx, id)
+	return nil
 }
 
 func (s *TagDeletionService) drainAssignments(ctx context.Context, tagID string) ([]*domain.TagAssignment, error) {

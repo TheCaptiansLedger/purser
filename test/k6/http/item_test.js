@@ -68,4 +68,40 @@ export default () => {
 
   res = http.post(`${MEDIA_FILE}/GetMediaFile`, JSON.stringify({ id: mediaFileId }), HEADERS);
   check(res, { 'GetMediaFile after Item Delete is 404 (unlinked)': (r) => r.status === 404 });
+
+  // BulkDeleteItems: the "delete these 12 duplicate scenes" use case — one
+  // of the two entities ADR 0016 names for a real bulk-delete endpoint.
+  const bulkId1 = `k6-http-bulk-item-${__VU}-${__ITER}-${Date.now()}-1`;
+  const bulkId2 = `k6-http-bulk-item-${__VU}-${__ITER}-${Date.now()}-2`;
+  const bulkId3 = `k6-http-bulk-item-${__VU}-${__ITER}-${Date.now()}-3`;
+
+  for (const bulkId of [bulkId1, bulkId2, bulkId3]) {
+    res = http.post(
+      `${SERVICE}/CreateItem`,
+      JSON.stringify({ item: { id: bulkId, contentType: 'adult', libraryEntryId: 'entry1', title: 'K6 Bulk Item', status: 'ITEM_STATUS_WANTED' } }),
+      HEADERS
+    );
+    check(res, { 'setup: CreateItem status is 200': (r) => r.status === 200 });
+  }
+
+  res = http.post(`${SERVICE}/BulkDeleteItems`, JSON.stringify({ ids: [bulkId1, bulkId2] }), HEADERS);
+  check(res, { 'BulkDeleteItems status is 200': (r) => r.status === 200 });
+
+  res = http.post(`${SERVICE}/GetItem`, JSON.stringify({ id: bulkId1 }), HEADERS);
+  check(res, { 'GetItem for bulkId1 after BulkDeleteItems is 404': (r) => r.status === 404 });
+  res = http.post(`${SERVICE}/GetItem`, JSON.stringify({ id: bulkId2 }), HEADERS);
+  check(res, { 'GetItem for bulkId2 after BulkDeleteItems is 404': (r) => r.status === 404 });
+  res = http.post(`${SERVICE}/GetItem`, JSON.stringify({ id: bulkId3 }), HEADERS);
+  check(res, { 'GetItem for bulkId3 (not in the batch) still exists': (r) => r.status === 200 });
+
+  // All-or-nothing: a batch with one missing id must fail entirely — the
+  // still-existing bulkId3 must not be removed either.
+  res = http.post(`${SERVICE}/BulkDeleteItems`, JSON.stringify({ ids: [bulkId3, 'k6-http-item-missing'] }), HEADERS);
+  check(res, { 'BulkDeleteItems with a missing id is 404': (r) => r.status === 404 });
+
+  res = http.post(`${SERVICE}/GetItem`, JSON.stringify({ id: bulkId3 }), HEADERS);
+  check(res, { 'GetItem for bulkId3 after failed batch still exists (rolled back)': (r) => r.status === 200 });
+
+  res = http.post(`${SERVICE}/DeleteItem`, JSON.stringify({ id: bulkId3 }), HEADERS);
+  check(res, { 'cleanup: DeleteItem status is 200': (r) => r.status === 200 });
 };

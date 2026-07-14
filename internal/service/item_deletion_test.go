@@ -10,8 +10,9 @@ import (
 )
 
 type deletionFakeItemRepository struct {
-	byID      map[string]*domain.Item
-	deleteErr error
+	byID           map[string]*domain.Item
+	deleteErr      error
+	deleteBatchErr error
 }
 
 func (f *deletionFakeItemRepository) Create(_ context.Context, i *domain.Item) error {
@@ -45,6 +46,21 @@ func (f *deletionFakeItemRepository) Delete(_ context.Context, id string) error 
 
 func (f *deletionFakeItemRepository) List(context.Context, string, string, string, int, string) ([]*domain.Item, string, error) {
 	return nil, "", nil
+}
+
+func (f *deletionFakeItemRepository) DeleteBatch(_ context.Context, ids []string) error {
+	if f.deleteBatchErr != nil {
+		return f.deleteBatchErr
+	}
+	for _, id := range ids {
+		if _, ok := f.byID[id]; !ok {
+			return ports.ErrNotFound
+		}
+	}
+	for _, id := range ids {
+		delete(f.byID, id)
+	}
+	return nil
 }
 
 type deletionFakeItemPersonRepository struct {
@@ -430,6 +446,90 @@ func TestItemDeletionService_Delete_PropagatesPortErrors(t *testing.T) {
 		images.listErr = errBoom
 		if _, err := svc.GetDeletionImpact(context.Background(), "i1"); !errors.Is(err, errBoom) {
 			t.Fatalf("GetDeletionImpact returned %v, want errBoom", err)
+		}
+	})
+}
+
+func newItemDeletionBatchFixture() (*service.ItemDeletionService, *deletionFakeItemRepository, *deletionFakeTagAssignmentRepository) {
+	items := &deletionFakeItemRepository{byID: map[string]*domain.Item{
+		"i1": {ID: "i1"},
+		"i2": {ID: "i2"},
+		"i3": {ID: "i3"},
+	}}
+	itemPeople := &deletionFakeItemPersonRepository{rows: []*domain.ItemPerson{
+		{ItemID: "i1", PersonID: "p1", Role: "performer"},
+		{ItemID: "i2", PersonID: "p2", Role: "performer"},
+		{ItemID: "i3", PersonID: "p3", Role: "performer"},
+	}}
+	mediaFiles := &deletionFakeMediaFileRepository{byID: map[string]*domain.MediaFile{}}
+	externalIDs := &deletionFakeExternalIDRepository{}
+	images := &deletionFakeImageRepository{byID: map[string]*domain.Image{}}
+	tagAssignments := &deletionFakeTagAssignmentRepository{rows: []*domain.TagAssignment{
+		{TagID: "t1", EntityType: domain.EntityTypeItem, EntityID: "i1"},
+		{TagID: "t1", EntityType: domain.EntityTypeItem, EntityID: "i2"},
+		{TagID: "t1", EntityType: domain.EntityTypeItem, EntityID: "i3"},
+	}}
+	svc := service.NewItemDeletionService(items, itemPeople, mediaFiles, externalIDs, images, tagAssignments)
+	return svc, items, tagAssignments
+}
+
+func TestItemDeletionService_DeleteBatch(t *testing.T) {
+	svc, items, tagAssignments := newItemDeletionBatchFixture()
+
+	if err := svc.DeleteBatch(context.Background(), []string{"i1", "i2"}, false); err != nil {
+		t.Fatalf("DeleteBatch returned error: %v", err)
+	}
+
+	if _, err := items.Get(context.Background(), "i1"); !errors.Is(err, ports.ErrNotFound) {
+		t.Fatal("DeleteBatch did not remove i1")
+	}
+	if _, err := items.Get(context.Background(), "i2"); !errors.Is(err, ports.ErrNotFound) {
+		t.Fatal("DeleteBatch did not remove i2")
+	}
+	if _, err := items.Get(context.Background(), "i3"); err != nil {
+		t.Fatalf("DeleteBatch removed i3, which wasn't in the batch: %v", err)
+	}
+
+	remaining, _, _ := tagAssignments.List(context.Background(), "", "", "", 10, "")
+	if len(remaining) != 1 || remaining[0].EntityID != "i3" {
+		t.Fatalf("DeleteBatch left %+v assignments, want only i3's untouched", remaining)
+	}
+}
+
+func TestItemDeletionService_DeleteBatch_MissingIDFailsWithoutSideEffects(t *testing.T) {
+	svc, items, tagAssignments := newItemDeletionBatchFixture()
+
+	err := svc.DeleteBatch(context.Background(), []string{"i1", "missing", "i2"}, false)
+	if !errors.Is(err, ports.ErrNotFound) {
+		t.Fatalf("DeleteBatch with a missing id returned %v, want ErrNotFound", err)
+	}
+
+	if _, err := items.Get(context.Background(), "i1"); err != nil {
+		t.Fatalf("DeleteBatch removed i1 despite failing: %v", err)
+	}
+	if _, err := items.Get(context.Background(), "i2"); err != nil {
+		t.Fatalf("DeleteBatch removed i2 despite failing: %v", err)
+	}
+	remaining, _, _ := tagAssignments.List(context.Background(), "", "", "", 10, "")
+	if len(remaining) != 3 {
+		t.Fatalf("DeleteBatch unlinked assignments despite failing: %+v", remaining)
+	}
+}
+
+func TestItemDeletionService_DeleteBatch_PropagatesPortErrors(t *testing.T) {
+	t.Run("attachment unlink error propagates", func(t *testing.T) {
+		svc, _, tagAssignments := newItemDeletionBatchFixture()
+		tagAssignments.deleteErr = errBoom
+		if err := svc.DeleteBatch(context.Background(), []string{"i1", "i2"}, false); !errors.Is(err, errBoom) {
+			t.Fatalf("DeleteBatch returned %v, want errBoom", err)
+		}
+	})
+
+	t.Run("items DeleteBatch error propagates", func(t *testing.T) {
+		svc, items, _ := newItemDeletionBatchFixture()
+		items.deleteBatchErr = errBoom
+		if err := svc.DeleteBatch(context.Background(), []string{"i1", "i2"}, false); !errors.Is(err, errBoom) {
+			t.Fatalf("DeleteBatch returned %v, want errBoom", err)
 		}
 	})
 }

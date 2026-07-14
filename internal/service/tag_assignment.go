@@ -30,6 +30,28 @@ func (s *TagAssignmentService) Create(ctx context.Context, ta *domain.TagAssignm
 	return ta, nil
 }
 
+// BulkCreateTagAssignments validates and persists one TagAssignment per
+// entityID (tagID, entityType, entityID), all-or-nothing — see
+// docs/adr/0016-bulk-operations.md. Every row is validated before any
+// write happens; the write itself is one atomic
+// ports.TagAssignmentRepository.CreateBatch call, not a loop of single-row
+// creates.
+func (s *TagAssignmentService) BulkCreateTagAssignments(ctx context.Context, tagID string, entityType domain.EntityType, entityIDs []string) ([]*domain.TagAssignment, error) {
+	tas := make([]*domain.TagAssignment, 0, len(entityIDs))
+	for _, entityID := range entityIDs {
+		ta := &domain.TagAssignment{TagID: tagID, EntityType: entityType, EntityID: entityID}
+		if err := ta.Validate(); err != nil {
+			return nil, err
+		}
+		tas = append(tas, ta)
+	}
+
+	if err := s.repo.CreateBatch(ctx, tas); err != nil {
+		return nil, err
+	}
+	return tas, nil
+}
+
 // Get returns the TagAssignment for the given composite key, or ports.ErrNotFound.
 func (s *TagAssignmentService) Get(ctx context.Context, tagID string, entityType domain.EntityType, entityID string) (*domain.TagAssignment, error) {
 	return s.repo.Get(ctx, tagID, entityType, entityID)

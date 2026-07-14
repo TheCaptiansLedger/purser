@@ -34,3 +34,22 @@ func (f *fakeEntityDeletionService) Delete(_ context.Context, id string, cascade
 	f.gotID, f.gotCascade = id, cascade
 	return f.deleteErr
 }
+
+// fakeBulkDeletionService is a test double for the shared
+// bulkDeletionService interface ItemHandler/TagHandler depend on — see
+// docs/adr/0016-bulk-operations.md.
+type fakeBulkDeletionService struct {
+	fakeEntityDeletionService
+	deleteBatchErr  error
+	gotBatchIDs     []string
+	gotBatchCascade bool
+}
+
+func newFakeBulkDeletionService() *fakeBulkDeletionService {
+	return &fakeBulkDeletionService{}
+}
+
+func (f *fakeBulkDeletionService) DeleteBatch(_ context.Context, ids []string, cascade bool) error {
+	f.gotBatchIDs, f.gotBatchCascade = ids, cascade
+	return f.deleteBatchErr
+}

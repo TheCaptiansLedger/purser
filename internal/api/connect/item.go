@@ -24,12 +24,12 @@ type itemService interface {
 type ItemHandler struct {
 	domainv1connect.UnimplementedItemServiceHandler
 	svc         itemService
-	deletionSvc entityDeletionService
+	deletionSvc bulkDeletionService
 	logger      *slog.Logger
 }
 
 // NewItemHandler constructs an ItemHandler backed by svc and deletionSvc.
-func NewItemHandler(svc itemService, deletionSvc entityDeletionService, logger *slog.Logger) *ItemHandler {
+func NewItemHandler(svc itemService, deletionSvc bulkDeletionService, logger *slog.Logger) *ItemHandler {
 	if logger == nil {
 		logger = slog.Default()
 	}
@@ -86,6 +86,14 @@ func (h *ItemHandler) GetItemDeletionImpact(ctx context.Context, req *connect.Re
 		return nil, mapError(ctx, h.logger, err)
 	}
 	return connect.NewResponse(&v1.GetItemDeletionImpactResponse{Impacts: deletionImpactRowsToProto(impact.Impacts)}), nil
+}
+
+// BulkDeleteItems implements domainv1connect.ItemServiceHandler.
+func (h *ItemHandler) BulkDeleteItems(ctx context.Context, req *connect.Request[v1.BulkDeleteItemsRequest]) (*connect.Response[v1.BulkDeleteItemsResponse], error) {
+	if err := h.deletionSvc.DeleteBatch(ctx, req.Msg.GetIds(), req.Msg.GetCascade()); err != nil {
+		return nil, mapError(ctx, h.logger, err)
+	}
+	return connect.NewResponse(&v1.BulkDeleteItemsResponse{}), nil
 }
 
 // ListItems implements domainv1connect.ItemServiceHandler.

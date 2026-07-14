@@ -64,5 +64,39 @@ export default () => {
   res = client.invoke('purser.domain.v1.TagAssignmentService/GetTagAssignment', { tagId: id, entityType: 'ENTITY_TYPE_PERSON', entityId: entityId });
   check(res, { 'GetTagAssignment after Tag Delete is NotFound (unlinked)': (r) => r && r.status === grpc.StatusNotFound });
 
+  // BulkDeleteTags: the "delete these duplicate tags" use case — one of
+  // the two entities ADR 0016 names for a real bulk-delete endpoint.
+  const bulkId1 = `k6-grpc-bulk-tag-${__VU}-${__ITER}-${Date.now()}-1`;
+  const bulkId2 = `k6-grpc-bulk-tag-${__VU}-${__ITER}-${Date.now()}-2`;
+  const bulkId3 = `k6-grpc-bulk-tag-${__VU}-${__ITER}-${Date.now()}-3`;
+
+  for (const bulkId of [bulkId1, bulkId2, bulkId3]) {
+    res = client.invoke('purser.domain.v1.TagService/CreateTag', {
+      tag: { id: bulkId, key: 'genre', value: 'gonzo', scope: 'TAG_SCOPE_METADATA' },
+    });
+    check(res, { 'setup: CreateTag status is OK': (r) => r && r.status === grpc.StatusOK });
+  }
+
+  res = client.invoke('purser.domain.v1.TagService/BulkDeleteTags', { ids: [bulkId1, bulkId2] });
+  check(res, { 'BulkDeleteTags status is OK': (r) => r && r.status === grpc.StatusOK });
+
+  res = client.invoke('purser.domain.v1.TagService/GetTag', { id: bulkId1 });
+  check(res, { 'GetTag for bulkId1 after BulkDeleteTags is NotFound': (r) => r && r.status === grpc.StatusNotFound });
+  res = client.invoke('purser.domain.v1.TagService/GetTag', { id: bulkId2 });
+  check(res, { 'GetTag for bulkId2 after BulkDeleteTags is NotFound': (r) => r && r.status === grpc.StatusNotFound });
+  res = client.invoke('purser.domain.v1.TagService/GetTag', { id: bulkId3 });
+  check(res, { 'GetTag for bulkId3 (not in the batch) still exists': (r) => r && r.status === grpc.StatusOK });
+
+  // All-or-nothing: a batch with one missing id must fail entirely — the
+  // still-existing bulkId3 must not be removed either.
+  res = client.invoke('purser.domain.v1.TagService/BulkDeleteTags', { ids: [bulkId3, 'k6-grpc-tag-missing'] });
+  check(res, { 'BulkDeleteTags with a missing id is NotFound': (r) => r && r.status === grpc.StatusNotFound });
+
+  res = client.invoke('purser.domain.v1.TagService/GetTag', { id: bulkId3 });
+  check(res, { 'GetTag for bulkId3 after failed batch still exists (rolled back)': (r) => r && r.status === grpc.StatusOK });
+
+  res = client.invoke('purser.domain.v1.TagService/DeleteTag', { id: bulkId3 });
+  check(res, { 'cleanup: DeleteTag status is OK': (r) => r && r.status === grpc.StatusOK });
+
   client.close();
 };

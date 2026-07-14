@@ -15,8 +15,9 @@ import (
 var errBoom = errors.New("boom")
 
 type deletionFakeTagRepository struct {
-	byID      map[string]*domain.Tag
-	deleteErr error
+	byID           map[string]*domain.Tag
+	deleteErr      error
+	deleteBatchErr error
 }
 
 func newDeletionFakeTagRepository() *deletionFakeTagRepository {
@@ -52,6 +53,21 @@ func (f *deletionFakeTagRepository) Delete(_ context.Context, id string) error {
 	return nil
 }
 
+func (f *deletionFakeTagRepository) DeleteBatch(_ context.Context, ids []string) error {
+	if f.deleteBatchErr != nil {
+		return f.deleteBatchErr
+	}
+	for _, id := range ids {
+		if _, ok := f.byID[id]; !ok {
+			return ports.ErrNotFound
+		}
+	}
+	for _, id := range ids {
+		delete(f.byID, id)
+	}
+	return nil
+}
+
 func (f *deletionFakeTagRepository) List(context.Context, int, string) ([]*domain.Tag, string, error) {
 	return nil, "", nil
 }
@@ -64,6 +80,11 @@ type deletionFakeTagAssignmentRepository struct {
 
 func (f *deletionFakeTagAssignmentRepository) Create(_ context.Context, ta *domain.TagAssignment) error {
 	f.rows = append(f.rows, ta)
+	return nil
+}
+
+func (f *deletionFakeTagAssignmentRepository) CreateBatch(_ context.Context, tas []*domain.TagAssignment) error {
+	f.rows = append(f.rows, tas...)
 	return nil
 }
 
@@ -217,6 +238,83 @@ func TestTagDeletionService_Delete_PropagatesPortErrors(t *testing.T) {
 
 		if err := svc.Delete(context.Background(), "t1", false); !errors.Is(err, errBoom) {
 			t.Fatalf("Delete returned %v, want errBoom", err)
+		}
+	})
+}
+
+func newTagDeletionBatchFixture() (*service.TagDeletionService, *deletionFakeTagRepository, *deletionFakeTagAssignmentRepository) {
+	tags := newDeletionFakeTagRepository()
+	tags.byID["t1"] = &domain.Tag{ID: "t1"}
+	tags.byID["t2"] = &domain.Tag{ID: "t2"}
+	tags.byID["t3"] = &domain.Tag{ID: "t3"}
+	assignments := &deletionFakeTagAssignmentRepository{rows: []*domain.TagAssignment{
+		{TagID: "t1", EntityType: domain.EntityTypePerson, EntityID: "p1"},
+		{TagID: "t2", EntityType: domain.EntityTypeItem, EntityID: "i1"},
+		{TagID: "t3", EntityType: domain.EntityTypePerson, EntityID: "p2"},
+	}}
+	svc := service.NewTagDeletionService(tags, assignments)
+	return svc, tags, assignments
+}
+
+func TestTagDeletionService_DeleteBatch(t *testing.T) {
+	svc, tags, assignments := newTagDeletionBatchFixture()
+
+	if err := svc.DeleteBatch(context.Background(), []string{"t1", "t2"}, false); err != nil {
+		t.Fatalf("DeleteBatch returned error: %v", err)
+	}
+
+	if _, err := tags.Get(context.Background(), "t1"); !errors.Is(err, ports.ErrNotFound) {
+		t.Fatal("DeleteBatch did not remove t1")
+	}
+	if _, err := tags.Get(context.Background(), "t2"); !errors.Is(err, ports.ErrNotFound) {
+		t.Fatal("DeleteBatch did not remove t2")
+	}
+	if _, err := tags.Get(context.Background(), "t3"); err != nil {
+		t.Fatalf("DeleteBatch removed t3, which wasn't in the batch: %v", err)
+	}
+
+	remaining, _, _ := assignments.List(context.Background(), "", "", "", 10, "")
+	if len(remaining) != 1 || remaining[0].TagID != "t3" {
+		t.Fatalf("DeleteBatch left %+v assignments, want only t3's untouched", remaining)
+	}
+}
+
+func TestTagDeletionService_DeleteBatch_MissingIDFailsWithoutSideEffects(t *testing.T) {
+	svc, tags, assignments := newTagDeletionBatchFixture()
+
+	err := svc.DeleteBatch(context.Background(), []string{"t1", "missing", "t2"}, false)
+	if !errors.Is(err, ports.ErrNotFound) {
+		t.Fatalf("DeleteBatch with a missing id returned %v, want ErrNotFound", err)
+	}
+
+	// All-or-nothing: the existence check runs before any unlinking or
+	// deletion, so t1/t2 and their assignments must be completely untouched.
+	if _, err := tags.Get(context.Background(), "t1"); err != nil {
+		t.Fatalf("DeleteBatch removed t1 despite failing: %v", err)
+	}
+	if _, err := tags.Get(context.Background(), "t2"); err != nil {
+		t.Fatalf("DeleteBatch removed t2 despite failing: %v", err)
+	}
+	remaining, _, _ := assignments.List(context.Background(), "", "", "", 10, "")
+	if len(remaining) != 3 {
+		t.Fatalf("DeleteBatch unlinked assignments despite failing: %+v", remaining)
+	}
+}
+
+func TestTagDeletionService_DeleteBatch_PropagatesPortErrors(t *testing.T) {
+	t.Run("assignments Delete error propagates", func(t *testing.T) {
+		svc, _, assignments := newTagDeletionBatchFixture()
+		assignments.deleteErr = errBoom
+		if err := svc.DeleteBatch(context.Background(), []string{"t1", "t2"}, false); !errors.Is(err, errBoom) {
+			t.Fatalf("DeleteBatch returned %v, want errBoom", err)
+		}
+	})
+
+	t.Run("tags DeleteBatch error propagates", func(t *testing.T) {
+		svc, tags, _ := newTagDeletionBatchFixture()
+		tags.deleteBatchErr = errBoom
+		if err := svc.DeleteBatch(context.Background(), []string{"t1", "t2"}, false); !errors.Is(err, errBoom) {
+			t.Fatalf("DeleteBatch returned %v, want errBoom", err)
 		}
 	})
 }

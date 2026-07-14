@@ -63,6 +63,17 @@ message GetTagDeletionImpactResponse {
   repeated DeletionImpactRow impacts = 1;
 }
 
+// BulkDeleteTags is one of the two bulk-delete endpoints named by
+// docs/adr/0016-bulk-operations.md — a real multi-select UI action, not a
+// blanket bulk rollout.
+message BulkDeleteTagsRequest {
+  repeated string ids = 1;
+  // cascade has no effect for Tag — see DeleteTagRequest.cascade.
+  bool cascade = 2;
+}
+
+message BulkDeleteTagsResponse {}
+
 message ListTagsRequest {
   int32 page_size = 1;
   string page_token = 2;
@@ -84,4 +95,7 @@ service TagService {
   // GetTagDeletionImpact reports what references this Tag before Delete
   // is called — see docs/adr/0015-deletion-impact-and-composing-services.md.
   rpc GetTagDeletionImpact(GetTagDeletionImpactRequest) returns (GetTagDeletionImpactResponse);
+  // BulkDeleteTags removes every Tag in ids atomically — see
+  // docs/adr/0016-bulk-operations.md.
+  rpc BulkDeleteTags(BulkDeleteTagsRequest) returns (BulkDeleteTagsResponse);
 }

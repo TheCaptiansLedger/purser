@@ -73,6 +73,11 @@ func (r *Repository) Delete(ctx context.Context, id string) error {
 	return r.inner.Delete(ctx, id)
 }
 
+// DeleteBatch implements ports.ItemRepository.
+func (r *Repository) DeleteBatch(ctx context.Context, ids []string) error {
+	return r.inner.DeleteBatch(ctx, ids)
+}
+
 // List implements ports.ItemRepository. libraryEntryID, contentType, and
 // groupID are independent, optional filters — an empty string means "no
 // filter on this field."

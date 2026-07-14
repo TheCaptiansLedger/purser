@@ -15,4 +15,9 @@ type ItemRepository interface {
 	Update(ctx context.Context, i *domain.Item) error
 	Delete(ctx context.Context, id string) error
 	List(ctx context.Context, libraryEntryID, contentType, groupID string, pageSize int, pageToken string) (items []*domain.Item, nextPageToken string, err error)
+
+	// DeleteBatch removes every Item whose ID is in ids, atomically — all
+	// succeed or none do. Item is one of the two entities ADR 0016 names for
+	// a real bulk-delete UI use case; most entities never need this.
+	DeleteBatch(ctx context.Context, ids []string) error
 }

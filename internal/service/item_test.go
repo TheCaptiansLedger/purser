@@ -61,6 +61,18 @@ func (f *fakeItemRepository) List(_ context.Context, _, _, _ string, _ int, _ st
 	return items, "", nil
 }
 
+func (f *fakeItemRepository) DeleteBatch(_ context.Context, ids []string) error {
+	for _, id := range ids {
+		if _, ok := f.byID[id]; !ok {
+			return ports.ErrNotFound
+		}
+	}
+	for _, id := range ids {
+		delete(f.byID, id)
+	}
+	return nil
+}
+
 func validItem(id string) *domain.Item {
 	return &domain.Item{
 		ID:             id,

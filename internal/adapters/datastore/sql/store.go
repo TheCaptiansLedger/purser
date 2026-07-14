@@ -275,6 +275,87 @@ func (s *Store) List(ctx context.Context, collection string, filter map[string]s
 	return docs, nextToken, nil
 }
 
+// CreateBatch implements datastore.Datastore.
+func (s *Store) CreateBatch(ctx context.Context, docs []datastore.Document) error {
+	ctx, span := s.tracer.Start(ctx, "datastore_sql.create_batch", trace.WithAttributes(
+		attribute.String("datastore.name", s.name),
+		attribute.Int("document.count", len(docs)),
+	))
+	defer span.End()
+
+	err := withTx(ctx, s.db, func(tx *sql.Tx) error {
+		insert := rebind(`INSERT INTO documents(collection, id, data, index_json) VALUES(?, ?, ?, ?)`, s.dialect)
+		for _, d := range docs {
+			indexJSON, err := marshalIndex(d.Index)
+			if err != nil {
+				return fmt.Errorf("marshal index for %s/%s: %w", d.Collection, d.ID, err)
+			}
+			if _, err := tx.ExecContext(ctx, insert, d.Collection, d.ID, string(d.Data), indexJSON); err != nil {
+				if isConflict(s.dialect, err) {
+					return ports.ErrConflict
+				}
+				return err
+			}
+			if err := insertIndexRows(ctx, tx, s.dialect, d.Collection, d.ID, d.Index); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		if errors.Is(err, ports.ErrConflict) {
+			return err
+		}
+		return fmt.Errorf("datastore/sql: create batch: %w", err)
+	}
+
+	s.creates.Add(ctx, int64(len(docs)), metric.WithAttributes(attribute.String("datastore.name", s.name)))
+	s.logger.DebugContext(ctx, "document batch created", "document.count", len(docs))
+	return nil
+}
+
+// DeleteBatch implements datastore.Datastore.
+func (s *Store) DeleteBatch(ctx context.Context, collection string, ids []string) error {
+	ctx, span := s.tracer.Start(ctx, "datastore_sql.delete_batch", trace.WithAttributes(
+		attribute.String("datastore.name", s.name),
+		attribute.String("document.collection", collection),
+		attribute.Int("document.count", len(ids)),
+	))
+	defer span.End()
+
+	err := withTx(ctx, s.db, func(tx *sql.Tx) error {
+		del := rebind(`DELETE FROM documents WHERE collection = ? AND id = ?`, s.dialect)
+		delIdx := rebind(`DELETE FROM document_index WHERE collection = ? AND id = ?`, s.dialect)
+		for _, id := range ids {
+			res, err := tx.ExecContext(ctx, del, collection, id)
+			if err != nil {
+				return err
+			}
+			rows, err := res.RowsAffected()
+			if err != nil {
+				return err
+			}
+			if rows == 0 {
+				return ports.ErrNotFound
+			}
+			if _, err := tx.ExecContext(ctx, delIdx, collection, id); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		if errors.Is(err, ports.ErrNotFound) {
+			return err
+		}
+		return fmt.Errorf("datastore/sql: delete batch %s: %w", collection, err)
+	}
+
+	s.deletes.Add(ctx, int64(len(ids)), metric.WithAttributes(attribute.String("datastore.name", s.name)))
+	s.logger.DebugContext(ctx, "document batch deleted", "document.collection", collection, "document.count", len(ids))
+	return nil
+}
+
 func (s *Store) listUnfiltered(ctx context.Context, collection, pageToken string, limit int) ([]datastore.Document, error) {
 	query := rebind(`SELECT id, data, index_json FROM documents WHERE collection = ? AND id > ? ORDER BY id LIMIT ?`, s.dialect)
 	rows, err := s.db.QueryContext(ctx, query, collection, pageToken, limit)

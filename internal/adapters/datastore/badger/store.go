@@ -272,6 +272,77 @@ func (s *Store) List(ctx context.Context, collection string, filter map[string]s
 	return docs, nextToken, nil
 }
 
+// CreateBatch implements datastore.Datastore.
+func (s *Store) CreateBatch(ctx context.Context, docs []datastore.Document) error {
+	ctx, span := s.tracer.Start(ctx, "datastore_badger.create_batch", trace.WithAttributes(
+		attribute.String("datastore.name", s.name),
+		attribute.Int("document.count", len(docs)),
+	))
+	defer span.End()
+
+	err := s.db.Update(func(txn *badgerdb.Txn) error {
+		for _, doc := range docs {
+			_, getErr := txn.Get(kPrimary(doc.Collection, doc.ID))
+			if getErr == nil {
+				return ports.ErrConflict
+			}
+			if !errors.Is(getErr, badgerdb.ErrKeyNotFound) {
+				return getErr
+			}
+			if err := writeDoc(txn, doc); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		if errors.Is(err, ports.ErrConflict) {
+			return err
+		}
+		return fmt.Errorf("datastore/badger: create batch: %w", err)
+	}
+
+	s.creates.Add(ctx, int64(len(docs)), metric.WithAttributes(attribute.String("datastore.name", s.name)))
+	s.logger.DebugContext(ctx, "document batch created", "document.count", len(docs))
+	return nil
+}
+
+// DeleteBatch implements datastore.Datastore.
+func (s *Store) DeleteBatch(ctx context.Context, collection string, ids []string) error {
+	ctx, span := s.tracer.Start(ctx, "datastore_badger.delete_batch", trace.WithAttributes(
+		attribute.String("datastore.name", s.name),
+		attribute.String("document.collection", collection),
+		attribute.Int("document.count", len(ids)),
+	))
+	defer span.End()
+
+	err := s.db.Update(func(txn *badgerdb.Txn) error {
+		for _, id := range ids {
+			old, loadErr := loadEnvelope(txn, collection, id)
+			if loadErr != nil {
+				return loadErr
+			}
+			if delErr := deleteIndexEntries(txn, collection, id, old.Index); delErr != nil {
+				return delErr
+			}
+			if err := txn.Delete(kPrimary(collection, id)); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		if errors.Is(err, ports.ErrNotFound) {
+			return err
+		}
+		return fmt.Errorf("datastore/badger: delete batch %s: %w", collection, err)
+	}
+
+	s.deletes.Add(ctx, int64(len(ids)), metric.WithAttributes(attribute.String("datastore.name", s.name)))
+	s.logger.DebugContext(ctx, "document batch deleted", "document.collection", collection, "document.count", len(ids))
+	return nil
+}
+
 func writeDoc(txn *badgerdb.Txn, d datastore.Document) error {
 	env := envelope{Data: json.RawMessage(d.Data), Index: d.Index}
 	b, err := json.Marshal(env)

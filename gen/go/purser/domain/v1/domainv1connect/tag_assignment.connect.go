@@ -45,6 +45,9 @@ const (
 	// TagAssignmentServiceListTagAssignmentsProcedure is the fully-qualified name of the
 	// TagAssignmentService's ListTagAssignments RPC.
 	TagAssignmentServiceListTagAssignmentsProcedure = "/purser.domain.v1.TagAssignmentService/ListTagAssignments"
+	// TagAssignmentServiceBulkCreateTagAssignmentsProcedure is the fully-qualified name of the
+	// TagAssignmentService's BulkCreateTagAssignments RPC.
+	TagAssignmentServiceBulkCreateTagAssignmentsProcedure = "/purser.domain.v1.TagAssignmentService/BulkCreateTagAssignments"
 )
 
 // TagAssignmentServiceClient is a client for the purser.domain.v1.TagAssignmentService service.
@@ -53,6 +56,9 @@ type TagAssignmentServiceClient interface {
 	GetTagAssignment(context.Context, *connect.Request[v1.GetTagAssignmentRequest]) (*connect.Response[v1.GetTagAssignmentResponse], error)
 	DeleteTagAssignment(context.Context, *connect.Request[v1.DeleteTagAssignmentRequest]) (*connect.Response[v1.DeleteTagAssignmentResponse], error)
 	ListTagAssignments(context.Context, *connect.Request[v1.ListTagAssignmentsRequest]) (*connect.Response[v1.ListTagAssignmentsResponse], error)
+	// BulkCreateTagAssignments attaches one Tag to many entities of the same
+	// type atomically — see docs/adr/0016-bulk-operations.md.
+	BulkCreateTagAssignments(context.Context, *connect.Request[v1.BulkCreateTagAssignmentsRequest]) (*connect.Response[v1.BulkCreateTagAssignmentsResponse], error)
 }
 
 // NewTagAssignmentServiceClient constructs a client for the purser.domain.v1.TagAssignmentService
@@ -90,15 +96,22 @@ func NewTagAssignmentServiceClient(httpClient connect.HTTPClient, baseURL string
 			connect.WithSchema(tagAssignmentServiceMethods.ByName("ListTagAssignments")),
 			connect.WithClientOptions(opts...),
 		),
+		bulkCreateTagAssignments: connect.NewClient[v1.BulkCreateTagAssignmentsRequest, v1.BulkCreateTagAssignmentsResponse](
+			httpClient,
+			baseURL+TagAssignmentServiceBulkCreateTagAssignmentsProcedure,
+			connect.WithSchema(tagAssignmentServiceMethods.ByName("BulkCreateTagAssignments")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
 // tagAssignmentServiceClient implements TagAssignmentServiceClient.
 type tagAssignmentServiceClient struct {
-	createTagAssignment *connect.Client[v1.CreateTagAssignmentRequest, v1.CreateTagAssignmentResponse]
-	getTagAssignment    *connect.Client[v1.GetTagAssignmentRequest, v1.GetTagAssignmentResponse]
-	deleteTagAssignment *connect.Client[v1.DeleteTagAssignmentRequest, v1.DeleteTagAssignmentResponse]
-	listTagAssignments  *connect.Client[v1.ListTagAssignmentsRequest, v1.ListTagAssignmentsResponse]
+	createTagAssignment      *connect.Client[v1.CreateTagAssignmentRequest, v1.CreateTagAssignmentResponse]
+	getTagAssignment         *connect.Client[v1.GetTagAssignmentRequest, v1.GetTagAssignmentResponse]
+	deleteTagAssignment      *connect.Client[v1.DeleteTagAssignmentRequest, v1.DeleteTagAssignmentResponse]
+	listTagAssignments       *connect.Client[v1.ListTagAssignmentsRequest, v1.ListTagAssignmentsResponse]
+	bulkCreateTagAssignments *connect.Client[v1.BulkCreateTagAssignmentsRequest, v1.BulkCreateTagAssignmentsResponse]
 }
 
 // CreateTagAssignment calls purser.domain.v1.TagAssignmentService.CreateTagAssignment.
@@ -121,6 +134,11 @@ func (c *tagAssignmentServiceClient) ListTagAssignments(ctx context.Context, req
 	return c.listTagAssignments.CallUnary(ctx, req)
 }
 
+// BulkCreateTagAssignments calls purser.domain.v1.TagAssignmentService.BulkCreateTagAssignments.
+func (c *tagAssignmentServiceClient) BulkCreateTagAssignments(ctx context.Context, req *connect.Request[v1.BulkCreateTagAssignmentsRequest]) (*connect.Response[v1.BulkCreateTagAssignmentsResponse], error) {
+	return c.bulkCreateTagAssignments.CallUnary(ctx, req)
+}
+
 // TagAssignmentServiceHandler is an implementation of the purser.domain.v1.TagAssignmentService
 // service.
 type TagAssignmentServiceHandler interface {
@@ -128,6 +146,9 @@ type TagAssignmentServiceHandler interface {
 	GetTagAssignment(context.Context, *connect.Request[v1.GetTagAssignmentRequest]) (*connect.Response[v1.GetTagAssignmentResponse], error)
 	DeleteTagAssignment(context.Context, *connect.Request[v1.DeleteTagAssignmentRequest]) (*connect.Response[v1.DeleteTagAssignmentResponse], error)
 	ListTagAssignments(context.Context, *connect.Request[v1.ListTagAssignmentsRequest]) (*connect.Response[v1.ListTagAssignmentsResponse], error)
+	// BulkCreateTagAssignments attaches one Tag to many entities of the same
+	// type atomically — see docs/adr/0016-bulk-operations.md.
+	BulkCreateTagAssignments(context.Context, *connect.Request[v1.BulkCreateTagAssignmentsRequest]) (*connect.Response[v1.BulkCreateTagAssignmentsResponse], error)
 }
 
 // NewTagAssignmentServiceHandler builds an HTTP handler from the service implementation. It returns
@@ -161,6 +182,12 @@ func NewTagAssignmentServiceHandler(svc TagAssignmentServiceHandler, opts ...con
 		connect.WithSchema(tagAssignmentServiceMethods.ByName("ListTagAssignments")),
 		connect.WithHandlerOptions(opts...),
 	)
+	tagAssignmentServiceBulkCreateTagAssignmentsHandler := connect.NewUnaryHandler(
+		TagAssignmentServiceBulkCreateTagAssignmentsProcedure,
+		svc.BulkCreateTagAssignments,
+		connect.WithSchema(tagAssignmentServiceMethods.ByName("BulkCreateTagAssignments")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/purser.domain.v1.TagAssignmentService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case TagAssignmentServiceCreateTagAssignmentProcedure:
@@ -171,6 +198,8 @@ func NewTagAssignmentServiceHandler(svc TagAssignmentServiceHandler, opts ...con
 			tagAssignmentServiceDeleteTagAssignmentHandler.ServeHTTP(w, r)
 		case TagAssignmentServiceListTagAssignmentsProcedure:
 			tagAssignmentServiceListTagAssignmentsHandler.ServeHTTP(w, r)
+		case TagAssignmentServiceBulkCreateTagAssignmentsProcedure:
+			tagAssignmentServiceBulkCreateTagAssignmentsHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -194,4 +223,8 @@ func (UnimplementedTagAssignmentServiceHandler) DeleteTagAssignment(context.Cont
 
 func (UnimplementedTagAssignmentServiceHandler) ListTagAssignments(context.Context, *connect.Request[v1.ListTagAssignmentsRequest]) (*connect.Response[v1.ListTagAssignmentsResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("purser.domain.v1.TagAssignmentService.ListTagAssignments is not implemented"))
+}
+
+func (UnimplementedTagAssignmentServiceHandler) BulkCreateTagAssignments(context.Context, *connect.Request[v1.BulkCreateTagAssignmentsRequest]) (*connect.Response[v1.BulkCreateTagAssignmentsResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("purser.domain.v1.TagAssignmentService.BulkCreateTagAssignments is not implemented"))
 }

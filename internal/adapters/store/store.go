@@ -185,6 +185,24 @@ func (r *Repository[T]) Delete(ctx context.Context, id string) error {
 	return nil
 }
 
+// DeleteBatch removes every record whose ID is in ids, as a single
+// atomic Datastore transaction — all succeed or none do. Only entities
+// with a real bulk-delete API endpoint call this — see
+// docs/adr/0016-bulk-operations.md.
+func (r *Repository[T]) DeleteBatch(ctx context.Context, ids []string) error {
+	ctx, span := r.tracer.Start(ctx, r.collection+"_repository.delete_batch",
+		trace.WithAttributes(attribute.String("repository.name", r.name), attribute.Int(r.collection+".count", len(ids))))
+	defer span.End()
+
+	if err := r.ds.DeleteBatch(ctx, r.collection, ids); err != nil {
+		return err
+	}
+
+	r.deletes.Add(ctx, int64(len(ids)), metric.WithAttributes(attribute.String("repository.name", r.name)))
+	r.logger.DebugContext(ctx, r.collection+" batch deleted", "count", len(ids))
+	return nil
+}
+
 // List returns records in this collection, cursor-paginated. This
 // generic type only serves ports with no filter arguments, so the
 // underlying datastore.Datastore.List filter is always nil.

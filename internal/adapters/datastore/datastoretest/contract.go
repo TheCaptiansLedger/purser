@@ -33,6 +33,10 @@ func TestDatastore(t *testing.T, newDS NewDatastoreFunc) {
 	t.Run("list filters by multiple index keys with AND semantics", func(t *testing.T) { testListFilterMultiKey(t, newDS) })
 	t.Run("list filter matching nothing returns an empty page", func(t *testing.T) { testListFilterNoMatch(t, newDS) })
 	t.Run("update replaces stale index entries", func(t *testing.T) { testUpdateReplacesIndex(t, newDS) })
+	t.Run("create batch stores every document atomically", func(t *testing.T) { testCreateBatch(t, newDS) })
+	t.Run("create batch with one conflicting id rolls back the whole batch", func(t *testing.T) { testCreateBatchRollsBackOnConflict(t, newDS) })
+	t.Run("delete batch removes every document atomically", func(t *testing.T) { testDeleteBatch(t, newDS) })
+	t.Run("delete batch with one missing id rolls back the whole batch", func(t *testing.T) { testDeleteBatchRollsBackOnMissing(t, newDS) })
 }
 
 func mustCreate(t *testing.T, ds datastore.Datastore, doc datastore.Document) {
@@ -246,5 +250,86 @@ func testUpdateReplacesIndex(t *testing.T, newDS NewDatastoreFunc) {
 	}
 	if len(byNewIndex) != 1 {
 		t.Fatalf("List(owner_type=group) after Update returned %d documents, want 1", len(byNewIndex))
+	}
+}
+
+func testCreateBatch(t *testing.T, newDS NewDatastoreFunc) {
+	ds := newDS(t)
+	ctx := context.Background()
+
+	docs := []datastore.Document{
+		doc("widget", "w1", nil),
+		doc("widget", "w2", nil),
+		doc("widget", "w3", nil),
+	}
+	if err := ds.CreateBatch(ctx, docs); err != nil {
+		t.Fatalf("CreateBatch returned error: %v", err)
+	}
+
+	for _, d := range docs {
+		if _, err := ds.Get(ctx, "widget", d.ID); err != nil {
+			t.Fatalf("Get after CreateBatch for %q returned error: %v", d.ID, err)
+		}
+	}
+}
+
+func testCreateBatchRollsBackOnConflict(t *testing.T, newDS NewDatastoreFunc) {
+	ds := newDS(t)
+	ctx := context.Background()
+	mustCreate(t, ds, doc("widget", "w2", nil))
+
+	err := ds.CreateBatch(ctx, []datastore.Document{
+		doc("widget", "w1", nil),
+		doc("widget", "w2", nil), // already exists — the whole batch must fail
+		doc("widget", "w3", nil),
+	})
+	if !errors.Is(err, ports.ErrConflict) {
+		t.Fatalf("CreateBatch with a conflicting id returned %v, want ErrConflict", err)
+	}
+
+	// Rolled back means w1/w3 must not have been created either.
+	if _, err := ds.Get(ctx, "widget", "w1"); !errors.Is(err, ports.ErrNotFound) {
+		t.Fatalf("CreateBatch left w1 created despite rolling back: %v", err)
+	}
+	if _, err := ds.Get(ctx, "widget", "w3"); !errors.Is(err, ports.ErrNotFound) {
+		t.Fatalf("CreateBatch left w3 created despite rolling back: %v", err)
+	}
+}
+
+func testDeleteBatch(t *testing.T, newDS NewDatastoreFunc) {
+	ds := newDS(t)
+	ctx := context.Background()
+	mustCreate(t, ds, doc("widget", "w1", nil))
+	mustCreate(t, ds, doc("widget", "w2", nil))
+	mustCreate(t, ds, doc("widget", "w3", nil))
+
+	if err := ds.DeleteBatch(ctx, "widget", []string{"w1", "w2"}); err != nil {
+		t.Fatalf("DeleteBatch returned error: %v", err)
+	}
+
+	if _, err := ds.Get(ctx, "widget", "w1"); !errors.Is(err, ports.ErrNotFound) {
+		t.Fatalf("Get after DeleteBatch for w1 returned %v, want ErrNotFound", err)
+	}
+	if _, err := ds.Get(ctx, "widget", "w2"); !errors.Is(err, ports.ErrNotFound) {
+		t.Fatalf("Get after DeleteBatch for w2 returned %v, want ErrNotFound", err)
+	}
+	if _, err := ds.Get(ctx, "widget", "w3"); err != nil {
+		t.Fatalf("DeleteBatch removed w3, which wasn't in the batch: %v", err)
+	}
+}
+
+func testDeleteBatchRollsBackOnMissing(t *testing.T, newDS NewDatastoreFunc) {
+	ds := newDS(t)
+	ctx := context.Background()
+	mustCreate(t, ds, doc("widget", "w1", nil))
+
+	err := ds.DeleteBatch(ctx, "widget", []string{"w1", "missing"})
+	if !errors.Is(err, ports.ErrNotFound) {
+		t.Fatalf("DeleteBatch with a missing id returned %v, want ErrNotFound", err)
+	}
+
+	// Rolled back means w1 must still exist.
+	if _, err := ds.Get(ctx, "widget", "w1"); err != nil {
+		t.Fatalf("DeleteBatch removed w1 despite rolling back: %v", err)
 	}
 }

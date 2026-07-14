@@ -72,6 +72,17 @@ message GetItemDeletionImpactResponse {
   repeated DeletionImpactRow impacts = 1;
 }
 
+// BulkDeleteItems is one of the two bulk-delete endpoints named by
+// docs/adr/0016-bulk-operations.md — a real multi-select UI action
+// ("delete these 12 duplicate scenes"), not a blanket bulk rollout.
+message BulkDeleteItemsRequest {
+  repeated string ids = 1;
+  // cascade has no effect for Item today — see DeleteItemRequest.cascade.
+  bool cascade = 2;
+}
+
+message BulkDeleteItemsResponse {}
+
 message ListItemsRequest {
   int32 page_size = 1;
   string page_token = 2;
@@ -98,4 +109,7 @@ service ItemService {
   // GetItemDeletionImpact reports what references this Item before Delete
   // is called — see docs/adr/0015-deletion-impact-and-composing-services.md.
   rpc GetItemDeletionImpact(GetItemDeletionImpactRequest) returns (GetItemDeletionImpactResponse);
+  // BulkDeleteItems removes every Item in ids atomically — see
+  // docs/adr/0016-bulk-operations.md.
+  rpc BulkDeleteItems(BulkDeleteItemsRequest) returns (BulkDeleteItemsResponse);
 }

@@ -506,6 +506,114 @@ func (x *ListTagAssignmentsResponse) GetNextPageToken() string {
 	return ""
 }
 
+// BulkCreateTagAssignments is the bulk tag-assignment endpoint named by
+// docs/adr/0016-bulk-operations.md — a real multi-select UI action ("tag
+// these 50 scenes"), applying one Tag to many entities of the same type in
+// one atomic call.
+type BulkCreateTagAssignmentsRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	TagId         string                 `protobuf:"bytes,1,opt,name=tag_id,json=tagId,proto3" json:"tag_id,omitempty"`
+	EntityType    EntityType             `protobuf:"varint,2,opt,name=entity_type,json=entityType,proto3,enum=purser.domain.v1.EntityType" json:"entity_type,omitempty"`
+	EntityIds     []string               `protobuf:"bytes,3,rep,name=entity_ids,json=entityIds,proto3" json:"entity_ids,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *BulkCreateTagAssignmentsRequest) Reset() {
+	*x = BulkCreateTagAssignmentsRequest{}
+	mi := &file_purser_domain_v1_tag_assignment_proto_msgTypes[9]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *BulkCreateTagAssignmentsRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*BulkCreateTagAssignmentsRequest) ProtoMessage() {}
+
+func (x *BulkCreateTagAssignmentsRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_purser_domain_v1_tag_assignment_proto_msgTypes[9]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use BulkCreateTagAssignmentsRequest.ProtoReflect.Descriptor instead.
+func (*BulkCreateTagAssignmentsRequest) Descriptor() ([]byte, []int) {
+	return file_purser_domain_v1_tag_assignment_proto_rawDescGZIP(), []int{9}
+}
+
+func (x *BulkCreateTagAssignmentsRequest) GetTagId() string {
+	if x != nil {
+		return x.TagId
+	}
+	return ""
+}
+
+func (x *BulkCreateTagAssignmentsRequest) GetEntityType() EntityType {
+	if x != nil {
+		return x.EntityType
+	}
+	return EntityType_ENTITY_TYPE_UNSPECIFIED
+}
+
+func (x *BulkCreateTagAssignmentsRequest) GetEntityIds() []string {
+	if x != nil {
+		return x.EntityIds
+	}
+	return nil
+}
+
+type BulkCreateTagAssignmentsResponse struct {
+	state          protoimpl.MessageState `protogen:"open.v1"`
+	TagAssignments []*TagAssignment       `protobuf:"bytes,1,rep,name=tag_assignments,json=tagAssignments,proto3" json:"tag_assignments,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
+}
+
+func (x *BulkCreateTagAssignmentsResponse) Reset() {
+	*x = BulkCreateTagAssignmentsResponse{}
+	mi := &file_purser_domain_v1_tag_assignment_proto_msgTypes[10]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *BulkCreateTagAssignmentsResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*BulkCreateTagAssignmentsResponse) ProtoMessage() {}
+
+func (x *BulkCreateTagAssignmentsResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_purser_domain_v1_tag_assignment_proto_msgTypes[10]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use BulkCreateTagAssignmentsResponse.ProtoReflect.Descriptor instead.
+func (*BulkCreateTagAssignmentsResponse) Descriptor() ([]byte, []int) {
+	return file_purser_domain_v1_tag_assignment_proto_rawDescGZIP(), []int{10}
+}
+
+func (x *BulkCreateTagAssignmentsResponse) GetTagAssignments() []*TagAssignment {
+	if x != nil {
+		return x.TagAssignments
+	}
+	return nil
+}
+
 var File_purser_domain_v1_tag_assignment_proto protoreflect.FileDescriptor
 
 const file_purser_domain_v1_tag_assignment_proto_rawDesc = "" +
@@ -543,12 +651,21 @@ const file_purser_domain_v1_tag_assignment_proto_rawDesc = "" +
 	"page_token\x18\x05 \x01(\tR\tpageToken\"\x8e\x01\n" +
 	"\x1aListTagAssignmentsResponse\x12H\n" +
 	"\x0ftag_assignments\x18\x01 \x03(\v2\x1f.purser.domain.v1.TagAssignmentR\x0etagAssignments\x12&\n" +
-	"\x0fnext_page_token\x18\x02 \x01(\tR\rnextPageToken2\xda\x03\n" +
+	"\x0fnext_page_token\x18\x02 \x01(\tR\rnextPageToken\"\x96\x01\n" +
+	"\x1fBulkCreateTagAssignmentsRequest\x12\x15\n" +
+	"\x06tag_id\x18\x01 \x01(\tR\x05tagId\x12=\n" +
+	"\ventity_type\x18\x02 \x01(\x0e2\x1c.purser.domain.v1.EntityTypeR\n" +
+	"entityType\x12\x1d\n" +
+	"\n" +
+	"entity_ids\x18\x03 \x03(\tR\tentityIds\"l\n" +
+	" BulkCreateTagAssignmentsResponse\x12H\n" +
+	"\x0ftag_assignments\x18\x01 \x03(\v2\x1f.purser.domain.v1.TagAssignmentR\x0etagAssignments2\xde\x04\n" +
 	"\x14TagAssignmentService\x12r\n" +
 	"\x13CreateTagAssignment\x12,.purser.domain.v1.CreateTagAssignmentRequest\x1a-.purser.domain.v1.CreateTagAssignmentResponse\x12i\n" +
 	"\x10GetTagAssignment\x12).purser.domain.v1.GetTagAssignmentRequest\x1a*.purser.domain.v1.GetTagAssignmentResponse\x12r\n" +
 	"\x13DeleteTagAssignment\x12,.purser.domain.v1.DeleteTagAssignmentRequest\x1a-.purser.domain.v1.DeleteTagAssignmentResponse\x12o\n" +
-	"\x12ListTagAssignments\x12+.purser.domain.v1.ListTagAssignmentsRequest\x1a,.purser.domain.v1.ListTagAssignmentsResponseB)Z'purser/gen/go/purser/domain/v1;domainv1b\x06proto3"
+	"\x12ListTagAssignments\x12+.purser.domain.v1.ListTagAssignmentsRequest\x1a,.purser.domain.v1.ListTagAssignmentsResponse\x12\x81\x01\n" +
+	"\x18BulkCreateTagAssignments\x121.purser.domain.v1.BulkCreateTagAssignmentsRequest\x1a2.purser.domain.v1.BulkCreateTagAssignmentsResponseB)Z'purser/gen/go/purser/domain/v1;domainv1b\x06proto3"
 
 var (
 	file_purser_domain_v1_tag_assignment_proto_rawDescOnce sync.Once
@@ -562,41 +679,47 @@ func file_purser_domain_v1_tag_assignment_proto_rawDescGZIP() []byte {
 	return file_purser_domain_v1_tag_assignment_proto_rawDescData
 }
 
-var file_purser_domain_v1_tag_assignment_proto_msgTypes = make([]protoimpl.MessageInfo, 9)
+var file_purser_domain_v1_tag_assignment_proto_msgTypes = make([]protoimpl.MessageInfo, 11)
 var file_purser_domain_v1_tag_assignment_proto_goTypes = []any{
-	(*TagAssignment)(nil),               // 0: purser.domain.v1.TagAssignment
-	(*CreateTagAssignmentRequest)(nil),  // 1: purser.domain.v1.CreateTagAssignmentRequest
-	(*CreateTagAssignmentResponse)(nil), // 2: purser.domain.v1.CreateTagAssignmentResponse
-	(*GetTagAssignmentRequest)(nil),     // 3: purser.domain.v1.GetTagAssignmentRequest
-	(*GetTagAssignmentResponse)(nil),    // 4: purser.domain.v1.GetTagAssignmentResponse
-	(*DeleteTagAssignmentRequest)(nil),  // 5: purser.domain.v1.DeleteTagAssignmentRequest
-	(*DeleteTagAssignmentResponse)(nil), // 6: purser.domain.v1.DeleteTagAssignmentResponse
-	(*ListTagAssignmentsRequest)(nil),   // 7: purser.domain.v1.ListTagAssignmentsRequest
-	(*ListTagAssignmentsResponse)(nil),  // 8: purser.domain.v1.ListTagAssignmentsResponse
-	(EntityType)(0),                     // 9: purser.domain.v1.EntityType
+	(*TagAssignment)(nil),                    // 0: purser.domain.v1.TagAssignment
+	(*CreateTagAssignmentRequest)(nil),       // 1: purser.domain.v1.CreateTagAssignmentRequest
+	(*CreateTagAssignmentResponse)(nil),      // 2: purser.domain.v1.CreateTagAssignmentResponse
+	(*GetTagAssignmentRequest)(nil),          // 3: purser.domain.v1.GetTagAssignmentRequest
+	(*GetTagAssignmentResponse)(nil),         // 4: purser.domain.v1.GetTagAssignmentResponse
+	(*DeleteTagAssignmentRequest)(nil),       // 5: purser.domain.v1.DeleteTagAssignmentRequest
+	(*DeleteTagAssignmentResponse)(nil),      // 6: purser.domain.v1.DeleteTagAssignmentResponse
+	(*ListTagAssignmentsRequest)(nil),        // 7: purser.domain.v1.ListTagAssignmentsRequest
+	(*ListTagAssignmentsResponse)(nil),       // 8: purser.domain.v1.ListTagAssignmentsResponse
+	(*BulkCreateTagAssignmentsRequest)(nil),  // 9: purser.domain.v1.BulkCreateTagAssignmentsRequest
+	(*BulkCreateTagAssignmentsResponse)(nil), // 10: purser.domain.v1.BulkCreateTagAssignmentsResponse
+	(EntityType)(0),                          // 11: purser.domain.v1.EntityType
 }
 var file_purser_domain_v1_tag_assignment_proto_depIdxs = []int32{
-	9,  // 0: purser.domain.v1.TagAssignment.entity_type:type_name -> purser.domain.v1.EntityType
+	11, // 0: purser.domain.v1.TagAssignment.entity_type:type_name -> purser.domain.v1.EntityType
 	0,  // 1: purser.domain.v1.CreateTagAssignmentRequest.tag_assignment:type_name -> purser.domain.v1.TagAssignment
 	0,  // 2: purser.domain.v1.CreateTagAssignmentResponse.tag_assignment:type_name -> purser.domain.v1.TagAssignment
-	9,  // 3: purser.domain.v1.GetTagAssignmentRequest.entity_type:type_name -> purser.domain.v1.EntityType
+	11, // 3: purser.domain.v1.GetTagAssignmentRequest.entity_type:type_name -> purser.domain.v1.EntityType
 	0,  // 4: purser.domain.v1.GetTagAssignmentResponse.tag_assignment:type_name -> purser.domain.v1.TagAssignment
-	9,  // 5: purser.domain.v1.DeleteTagAssignmentRequest.entity_type:type_name -> purser.domain.v1.EntityType
-	9,  // 6: purser.domain.v1.ListTagAssignmentsRequest.entity_type:type_name -> purser.domain.v1.EntityType
+	11, // 5: purser.domain.v1.DeleteTagAssignmentRequest.entity_type:type_name -> purser.domain.v1.EntityType
+	11, // 6: purser.domain.v1.ListTagAssignmentsRequest.entity_type:type_name -> purser.domain.v1.EntityType
 	0,  // 7: purser.domain.v1.ListTagAssignmentsResponse.tag_assignments:type_name -> purser.domain.v1.TagAssignment
-	1,  // 8: purser.domain.v1.TagAssignmentService.CreateTagAssignment:input_type -> purser.domain.v1.CreateTagAssignmentRequest
-	3,  // 9: purser.domain.v1.TagAssignmentService.GetTagAssignment:input_type -> purser.domain.v1.GetTagAssignmentRequest
-	5,  // 10: purser.domain.v1.TagAssignmentService.DeleteTagAssignment:input_type -> purser.domain.v1.DeleteTagAssignmentRequest
-	7,  // 11: purser.domain.v1.TagAssignmentService.ListTagAssignments:input_type -> purser.domain.v1.ListTagAssignmentsRequest
-	2,  // 12: purser.domain.v1.TagAssignmentService.CreateTagAssignment:output_type -> purser.domain.v1.CreateTagAssignmentResponse
-	4,  // 13: purser.domain.v1.TagAssignmentService.GetTagAssignment:output_type -> purser.domain.v1.GetTagAssignmentResponse
-	6,  // 14: purser.domain.v1.TagAssignmentService.DeleteTagAssignment:output_type -> purser.domain.v1.DeleteTagAssignmentResponse
-	8,  // 15: purser.domain.v1.TagAssignmentService.ListTagAssignments:output_type -> purser.domain.v1.ListTagAssignmentsResponse
-	12, // [12:16] is the sub-list for method output_type
-	8,  // [8:12] is the sub-list for method input_type
-	8,  // [8:8] is the sub-list for extension type_name
-	8,  // [8:8] is the sub-list for extension extendee
-	0,  // [0:8] is the sub-list for field type_name
+	11, // 8: purser.domain.v1.BulkCreateTagAssignmentsRequest.entity_type:type_name -> purser.domain.v1.EntityType
+	0,  // 9: purser.domain.v1.BulkCreateTagAssignmentsResponse.tag_assignments:type_name -> purser.domain.v1.TagAssignment
+	1,  // 10: purser.domain.v1.TagAssignmentService.CreateTagAssignment:input_type -> purser.domain.v1.CreateTagAssignmentRequest
+	3,  // 11: purser.domain.v1.TagAssignmentService.GetTagAssignment:input_type -> purser.domain.v1.GetTagAssignmentRequest
+	5,  // 12: purser.domain.v1.TagAssignmentService.DeleteTagAssignment:input_type -> purser.domain.v1.DeleteTagAssignmentRequest
+	7,  // 13: purser.domain.v1.TagAssignmentService.ListTagAssignments:input_type -> purser.domain.v1.ListTagAssignmentsRequest
+	9,  // 14: purser.domain.v1.TagAssignmentService.BulkCreateTagAssignments:input_type -> purser.domain.v1.BulkCreateTagAssignmentsRequest
+	2,  // 15: purser.domain.v1.TagAssignmentService.CreateTagAssignment:output_type -> purser.domain.v1.CreateTagAssignmentResponse
+	4,  // 16: purser.domain.v1.TagAssignmentService.GetTagAssignment:output_type -> purser.domain.v1.GetTagAssignmentResponse
+	6,  // 17: purser.domain.v1.TagAssignmentService.DeleteTagAssignment:output_type -> purser.domain.v1.DeleteTagAssignmentResponse
+	8,  // 18: purser.domain.v1.TagAssignmentService.ListTagAssignments:output_type -> purser.domain.v1.ListTagAssignmentsResponse
+	10, // 19: purser.domain.v1.TagAssignmentService.BulkCreateTagAssignments:output_type -> purser.domain.v1.BulkCreateTagAssignmentsResponse
+	15, // [15:20] is the sub-list for method output_type
+	10, // [10:15] is the sub-list for method input_type
+	10, // [10:10] is the sub-list for extension type_name
+	10, // [10:10] is the sub-list for extension extendee
+	0,  // [0:10] is the sub-list for field type_name
 }
 
 func init() { file_purser_domain_v1_tag_assignment_proto_init() }
@@ -611,7 +734,7 @@ func file_purser_domain_v1_tag_assignment_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_purser_domain_v1_tag_assignment_proto_rawDesc), len(file_purser_domain_v1_tag_assignment_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   9,
+			NumMessages:   11,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

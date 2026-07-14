@@ -554,6 +554,98 @@ func (x *GetTagDeletionImpactResponse) GetImpacts() []*DeletionImpactRow {
 	return nil
 }
 
+// BulkDeleteTags is one of the two bulk-delete endpoints named by
+// docs/adr/0016-bulk-operations.md — a real multi-select UI action, not a
+// blanket bulk rollout.
+type BulkDeleteTagsRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	Ids   []string               `protobuf:"bytes,1,rep,name=ids,proto3" json:"ids,omitempty"`
+	// cascade has no effect for Tag — see DeleteTagRequest.cascade.
+	Cascade       bool `protobuf:"varint,2,opt,name=cascade,proto3" json:"cascade,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *BulkDeleteTagsRequest) Reset() {
+	*x = BulkDeleteTagsRequest{}
+	mi := &file_purser_domain_v1_tag_proto_msgTypes[11]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *BulkDeleteTagsRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*BulkDeleteTagsRequest) ProtoMessage() {}
+
+func (x *BulkDeleteTagsRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_purser_domain_v1_tag_proto_msgTypes[11]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use BulkDeleteTagsRequest.ProtoReflect.Descriptor instead.
+func (*BulkDeleteTagsRequest) Descriptor() ([]byte, []int) {
+	return file_purser_domain_v1_tag_proto_rawDescGZIP(), []int{11}
+}
+
+func (x *BulkDeleteTagsRequest) GetIds() []string {
+	if x != nil {
+		return x.Ids
+	}
+	return nil
+}
+
+func (x *BulkDeleteTagsRequest) GetCascade() bool {
+	if x != nil {
+		return x.Cascade
+	}
+	return false
+}
+
+type BulkDeleteTagsResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *BulkDeleteTagsResponse) Reset() {
+	*x = BulkDeleteTagsResponse{}
+	mi := &file_purser_domain_v1_tag_proto_msgTypes[12]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *BulkDeleteTagsResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*BulkDeleteTagsResponse) ProtoMessage() {}
+
+func (x *BulkDeleteTagsResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_purser_domain_v1_tag_proto_msgTypes[12]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use BulkDeleteTagsResponse.ProtoReflect.Descriptor instead.
+func (*BulkDeleteTagsResponse) Descriptor() ([]byte, []int) {
+	return file_purser_domain_v1_tag_proto_rawDescGZIP(), []int{12}
+}
+
 type ListTagsRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	PageSize      int32                  `protobuf:"varint,1,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
@@ -564,7 +656,7 @@ type ListTagsRequest struct {
 
 func (x *ListTagsRequest) Reset() {
 	*x = ListTagsRequest{}
-	mi := &file_purser_domain_v1_tag_proto_msgTypes[11]
+	mi := &file_purser_domain_v1_tag_proto_msgTypes[13]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -576,7 +668,7 @@ func (x *ListTagsRequest) String() string {
 func (*ListTagsRequest) ProtoMessage() {}
 
 func (x *ListTagsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_purser_domain_v1_tag_proto_msgTypes[11]
+	mi := &file_purser_domain_v1_tag_proto_msgTypes[13]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -589,7 +681,7 @@ func (x *ListTagsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListTagsRequest.ProtoReflect.Descriptor instead.
 func (*ListTagsRequest) Descriptor() ([]byte, []int) {
-	return file_purser_domain_v1_tag_proto_rawDescGZIP(), []int{11}
+	return file_purser_domain_v1_tag_proto_rawDescGZIP(), []int{13}
 }
 
 func (x *ListTagsRequest) GetPageSize() int32 {
@@ -616,7 +708,7 @@ type ListTagsResponse struct {
 
 func (x *ListTagsResponse) Reset() {
 	*x = ListTagsResponse{}
-	mi := &file_purser_domain_v1_tag_proto_msgTypes[12]
+	mi := &file_purser_domain_v1_tag_proto_msgTypes[14]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -628,7 +720,7 @@ func (x *ListTagsResponse) String() string {
 func (*ListTagsResponse) ProtoMessage() {}
 
 func (x *ListTagsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_purser_domain_v1_tag_proto_msgTypes[12]
+	mi := &file_purser_domain_v1_tag_proto_msgTypes[14]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -641,7 +733,7 @@ func (x *ListTagsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListTagsResponse.ProtoReflect.Descriptor instead.
 func (*ListTagsResponse) Descriptor() ([]byte, []int) {
-	return file_purser_domain_v1_tag_proto_rawDescGZIP(), []int{12}
+	return file_purser_domain_v1_tag_proto_rawDescGZIP(), []int{14}
 }
 
 func (x *ListTagsResponse) GetTags() []*Tag {
@@ -690,14 +782,18 @@ const file_purser_domain_v1_tag_proto_rawDesc = "" +
 	"\x1bGetTagDeletionImpactRequest\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\"]\n" +
 	"\x1cGetTagDeletionImpactResponse\x12=\n" +
-	"\aimpacts\x18\x01 \x03(\v2#.purser.domain.v1.DeletionImpactRowR\aimpacts\"M\n" +
+	"\aimpacts\x18\x01 \x03(\v2#.purser.domain.v1.DeletionImpactRowR\aimpacts\"C\n" +
+	"\x15BulkDeleteTagsRequest\x12\x10\n" +
+	"\x03ids\x18\x01 \x03(\tR\x03ids\x12\x18\n" +
+	"\acascade\x18\x02 \x01(\bR\acascade\"\x18\n" +
+	"\x16BulkDeleteTagsResponse\"M\n" +
 	"\x0fListTagsRequest\x12\x1b\n" +
 	"\tpage_size\x18\x01 \x01(\x05R\bpageSize\x12\x1d\n" +
 	"\n" +
 	"page_token\x18\x02 \x01(\tR\tpageToken\"e\n" +
 	"\x10ListTagsResponse\x12)\n" +
 	"\x04tags\x18\x01 \x03(\v2\x15.purser.domain.v1.TagR\x04tags\x12&\n" +
-	"\x0fnext_page_token\x18\x02 \x01(\tR\rnextPageToken2\xa5\x04\n" +
+	"\x0fnext_page_token\x18\x02 \x01(\tR\rnextPageToken2\x8a\x05\n" +
 	"\n" +
 	"TagService\x12T\n" +
 	"\tCreateTag\x12\".purser.domain.v1.CreateTagRequest\x1a#.purser.domain.v1.CreateTagResponse\x12K\n" +
@@ -705,7 +801,8 @@ const file_purser_domain_v1_tag_proto_rawDesc = "" +
 	"\tUpdateTag\x12\".purser.domain.v1.UpdateTagRequest\x1a#.purser.domain.v1.UpdateTagResponse\x12T\n" +
 	"\tDeleteTag\x12\".purser.domain.v1.DeleteTagRequest\x1a#.purser.domain.v1.DeleteTagResponse\x12Q\n" +
 	"\bListTags\x12!.purser.domain.v1.ListTagsRequest\x1a\".purser.domain.v1.ListTagsResponse\x12u\n" +
-	"\x14GetTagDeletionImpact\x12-.purser.domain.v1.GetTagDeletionImpactRequest\x1a..purser.domain.v1.GetTagDeletionImpactResponseB)Z'purser/gen/go/purser/domain/v1;domainv1b\x06proto3"
+	"\x14GetTagDeletionImpact\x12-.purser.domain.v1.GetTagDeletionImpactRequest\x1a..purser.domain.v1.GetTagDeletionImpactResponse\x12c\n" +
+	"\x0eBulkDeleteTags\x12'.purser.domain.v1.BulkDeleteTagsRequest\x1a(.purser.domain.v1.BulkDeleteTagsResponseB)Z'purser/gen/go/purser/domain/v1;domainv1b\x06proto3"
 
 var (
 	file_purser_domain_v1_tag_proto_rawDescOnce sync.Once
@@ -719,7 +816,7 @@ func file_purser_domain_v1_tag_proto_rawDescGZIP() []byte {
 	return file_purser_domain_v1_tag_proto_rawDescData
 }
 
-var file_purser_domain_v1_tag_proto_msgTypes = make([]protoimpl.MessageInfo, 13)
+var file_purser_domain_v1_tag_proto_msgTypes = make([]protoimpl.MessageInfo, 15)
 var file_purser_domain_v1_tag_proto_goTypes = []any{
 	(*Tag)(nil),                          // 0: purser.domain.v1.Tag
 	(*CreateTagRequest)(nil),             // 1: purser.domain.v1.CreateTagRequest
@@ -732,36 +829,40 @@ var file_purser_domain_v1_tag_proto_goTypes = []any{
 	(*DeleteTagResponse)(nil),            // 8: purser.domain.v1.DeleteTagResponse
 	(*GetTagDeletionImpactRequest)(nil),  // 9: purser.domain.v1.GetTagDeletionImpactRequest
 	(*GetTagDeletionImpactResponse)(nil), // 10: purser.domain.v1.GetTagDeletionImpactResponse
-	(*ListTagsRequest)(nil),              // 11: purser.domain.v1.ListTagsRequest
-	(*ListTagsResponse)(nil),             // 12: purser.domain.v1.ListTagsResponse
-	(TagScope)(0),                        // 13: purser.domain.v1.TagScope
-	(*fieldmaskpb.FieldMask)(nil),        // 14: google.protobuf.FieldMask
-	(*DeletionImpactRow)(nil),            // 15: purser.domain.v1.DeletionImpactRow
+	(*BulkDeleteTagsRequest)(nil),        // 11: purser.domain.v1.BulkDeleteTagsRequest
+	(*BulkDeleteTagsResponse)(nil),       // 12: purser.domain.v1.BulkDeleteTagsResponse
+	(*ListTagsRequest)(nil),              // 13: purser.domain.v1.ListTagsRequest
+	(*ListTagsResponse)(nil),             // 14: purser.domain.v1.ListTagsResponse
+	(TagScope)(0),                        // 15: purser.domain.v1.TagScope
+	(*fieldmaskpb.FieldMask)(nil),        // 16: google.protobuf.FieldMask
+	(*DeletionImpactRow)(nil),            // 17: purser.domain.v1.DeletionImpactRow
 }
 var file_purser_domain_v1_tag_proto_depIdxs = []int32{
-	13, // 0: purser.domain.v1.Tag.scope:type_name -> purser.domain.v1.TagScope
+	15, // 0: purser.domain.v1.Tag.scope:type_name -> purser.domain.v1.TagScope
 	0,  // 1: purser.domain.v1.CreateTagRequest.tag:type_name -> purser.domain.v1.Tag
 	0,  // 2: purser.domain.v1.CreateTagResponse.tag:type_name -> purser.domain.v1.Tag
 	0,  // 3: purser.domain.v1.GetTagResponse.tag:type_name -> purser.domain.v1.Tag
 	0,  // 4: purser.domain.v1.UpdateTagRequest.tag:type_name -> purser.domain.v1.Tag
-	14, // 5: purser.domain.v1.UpdateTagRequest.update_mask:type_name -> google.protobuf.FieldMask
+	16, // 5: purser.domain.v1.UpdateTagRequest.update_mask:type_name -> google.protobuf.FieldMask
 	0,  // 6: purser.domain.v1.UpdateTagResponse.tag:type_name -> purser.domain.v1.Tag
-	15, // 7: purser.domain.v1.GetTagDeletionImpactResponse.impacts:type_name -> purser.domain.v1.DeletionImpactRow
+	17, // 7: purser.domain.v1.GetTagDeletionImpactResponse.impacts:type_name -> purser.domain.v1.DeletionImpactRow
 	0,  // 8: purser.domain.v1.ListTagsResponse.tags:type_name -> purser.domain.v1.Tag
 	1,  // 9: purser.domain.v1.TagService.CreateTag:input_type -> purser.domain.v1.CreateTagRequest
 	3,  // 10: purser.domain.v1.TagService.GetTag:input_type -> purser.domain.v1.GetTagRequest
 	5,  // 11: purser.domain.v1.TagService.UpdateTag:input_type -> purser.domain.v1.UpdateTagRequest
 	7,  // 12: purser.domain.v1.TagService.DeleteTag:input_type -> purser.domain.v1.DeleteTagRequest
-	11, // 13: purser.domain.v1.TagService.ListTags:input_type -> purser.domain.v1.ListTagsRequest
+	13, // 13: purser.domain.v1.TagService.ListTags:input_type -> purser.domain.v1.ListTagsRequest
 	9,  // 14: purser.domain.v1.TagService.GetTagDeletionImpact:input_type -> purser.domain.v1.GetTagDeletionImpactRequest
-	2,  // 15: purser.domain.v1.TagService.CreateTag:output_type -> purser.domain.v1.CreateTagResponse
-	4,  // 16: purser.domain.v1.TagService.GetTag:output_type -> purser.domain.v1.GetTagResponse
-	6,  // 17: purser.domain.v1.TagService.UpdateTag:output_type -> purser.domain.v1.UpdateTagResponse
-	8,  // 18: purser.domain.v1.TagService.DeleteTag:output_type -> purser.domain.v1.DeleteTagResponse
-	12, // 19: purser.domain.v1.TagService.ListTags:output_type -> purser.domain.v1.ListTagsResponse
-	10, // 20: purser.domain.v1.TagService.GetTagDeletionImpact:output_type -> purser.domain.v1.GetTagDeletionImpactResponse
-	15, // [15:21] is the sub-list for method output_type
-	9,  // [9:15] is the sub-list for method input_type
+	11, // 15: purser.domain.v1.TagService.BulkDeleteTags:input_type -> purser.domain.v1.BulkDeleteTagsRequest
+	2,  // 16: purser.domain.v1.TagService.CreateTag:output_type -> purser.domain.v1.CreateTagResponse
+	4,  // 17: purser.domain.v1.TagService.GetTag:output_type -> purser.domain.v1.GetTagResponse
+	6,  // 18: purser.domain.v1.TagService.UpdateTag:output_type -> purser.domain.v1.UpdateTagResponse
+	8,  // 19: purser.domain.v1.TagService.DeleteTag:output_type -> purser.domain.v1.DeleteTagResponse
+	14, // 20: purser.domain.v1.TagService.ListTags:output_type -> purser.domain.v1.ListTagsResponse
+	10, // 21: purser.domain.v1.TagService.GetTagDeletionImpact:output_type -> purser.domain.v1.GetTagDeletionImpactResponse
+	12, // 22: purser.domain.v1.TagService.BulkDeleteTags:output_type -> purser.domain.v1.BulkDeleteTagsResponse
+	16, // [16:23] is the sub-list for method output_type
+	9,  // [9:16] is the sub-list for method input_type
 	9,  // [9:9] is the sub-list for extension type_name
 	9,  // [9:9] is the sub-list for extension extendee
 	0,  // [0:9] is the sub-list for field type_name
@@ -779,7 +880,7 @@ func file_purser_domain_v1_tag_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_purser_domain_v1_tag_proto_rawDesc), len(file_purser_domain_v1_tag_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   13,
+			NumMessages:   15,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

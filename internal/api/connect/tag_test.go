@@ -71,7 +71,7 @@ func validProtoTag(id string) *v1.Tag {
 func TestTagHandler_CreateTag(t *testing.T) {
 	t.Run("valid request returns the created tag", func(t *testing.T) {
 		svc := newFakeTagService()
-		h := apiconnect.NewTagHandler(svc, newFakeEntityDeletionService(), nil)
+		h := apiconnect.NewTagHandler(svc, newFakeBulkDeletionService(), nil)
 
 		res, err := h.CreateTag(context.Background(), connect.NewRequest(&v1.CreateTagRequest{Tag: validProtoTag("t1")}))
 		if err != nil {
@@ -85,7 +85,7 @@ func TestTagHandler_CreateTag(t *testing.T) {
 	t.Run("a ValidationError from the service maps to CodeInvalidArgument", func(t *testing.T) {
 		svc := newFakeTagService()
 		svc.createErr = &domain.ValidationError{Errors: []domain.FieldError{{Field: "Value", Rule: "required", Value: ""}}}
-		h := apiconnect.NewTagHandler(svc, newFakeEntityDeletionService(), nil)
+		h := apiconnect.NewTagHandler(svc, newFakeBulkDeletionService(), nil)
 
 		_, err := h.CreateTag(context.Background(), connect.NewRequest(&v1.CreateTagRequest{Tag: validProtoTag("t1")}))
 		if connect.CodeOf(err) != connect.CodeInvalidArgument {
@@ -96,7 +96,7 @@ func TestTagHandler_CreateTag(t *testing.T) {
 
 func TestTagHandler_GetTag(t *testing.T) {
 	svc := newFakeTagService()
-	h := apiconnect.NewTagHandler(svc, newFakeEntityDeletionService(), nil)
+	h := apiconnect.NewTagHandler(svc, newFakeBulkDeletionService(), nil)
 	svc.byID["t1"] = &domain.Tag{ID: "t1", Key: "genre", Value: "Existing", Scope: domain.TagScopeMetadata}
 
 	res, err := h.GetTag(context.Background(), connect.NewRequest(&v1.GetTagRequest{Id: "t1"}))
@@ -116,7 +116,7 @@ func TestTagHandler_GetTag(t *testing.T) {
 func TestTagHandler_UpdateTag(t *testing.T) {
 	t.Run("field mask restricts the applied fields", func(t *testing.T) {
 		svc := newFakeTagService()
-		h := apiconnect.NewTagHandler(svc, newFakeEntityDeletionService(), nil)
+		h := apiconnect.NewTagHandler(svc, newFakeBulkDeletionService(), nil)
 		svc.byID["t1"] = &domain.Tag{ID: "t1", Key: "genre", Value: "Original", Scope: domain.TagScopeMetadata, Category: "Original Category"}
 
 		req := &v1.UpdateTagRequest{
@@ -137,7 +137,7 @@ func TestTagHandler_UpdateTag(t *testing.T) {
 
 	t.Run("get failure maps through mapError", func(t *testing.T) {
 		svc := newFakeTagService()
-		h := apiconnect.NewTagHandler(svc, newFakeEntityDeletionService(), nil)
+		h := apiconnect.NewTagHandler(svc, newFakeBulkDeletionService(), nil)
 
 		_, err := h.UpdateTag(context.Background(), connect.NewRequest(&v1.UpdateTagRequest{Tag: &v1.Tag{Id: "missing"}}))
 		if connect.CodeOf(err) != connect.CodeNotFound {
@@ -149,7 +149,7 @@ func TestTagHandler_UpdateTag(t *testing.T) {
 func TestTagHandler_DeleteTag(t *testing.T) {
 	t.Run("valid delete succeeds and threads the cascade flag", func(t *testing.T) {
 		svc := newFakeTagService()
-		deletionSvc := newFakeEntityDeletionService()
+		deletionSvc := newFakeBulkDeletionService()
 		h := apiconnect.NewTagHandler(svc, deletionSvc, nil)
 
 		if _, err := h.DeleteTag(context.Background(), connect.NewRequest(&v1.DeleteTagRequest{Id: "t1", Cascade: true})); err != nil {
@@ -162,7 +162,7 @@ func TestTagHandler_DeleteTag(t *testing.T) {
 
 	t.Run("service error maps through mapError", func(t *testing.T) {
 		svc := newFakeTagService()
-		deletionSvc := newFakeEntityDeletionService()
+		deletionSvc := newFakeBulkDeletionService()
 		deletionSvc.deleteErr = ports.ErrNotFound
 		h := apiconnect.NewTagHandler(svc, deletionSvc, nil)
 
@@ -176,7 +176,7 @@ func TestTagHandler_DeleteTag(t *testing.T) {
 func TestTagHandler_GetTagDeletionImpact(t *testing.T) {
 	t.Run("valid request returns the impact rows", func(t *testing.T) {
 		svc := newFakeTagService()
-		deletionSvc := newFakeEntityDeletionService()
+		deletionSvc := newFakeBulkDeletionService()
 		deletionSvc.impact = &domain.DeletionImpact{Impacts: []domain.DeletionImpactRow{{Kind: "tag_assignment", Label: "Tag Assignments", Count: 3}}}
 		h := apiconnect.NewTagHandler(svc, deletionSvc, nil)
 
@@ -191,7 +191,7 @@ func TestTagHandler_GetTagDeletionImpact(t *testing.T) {
 
 	t.Run("service error maps through mapError", func(t *testing.T) {
 		svc := newFakeTagService()
-		deletionSvc := newFakeEntityDeletionService()
+		deletionSvc := newFakeBulkDeletionService()
 		deletionSvc.impactErr = ports.ErrNotFound
 		h := apiconnect.NewTagHandler(svc, deletionSvc, nil)
 
@@ -205,7 +205,7 @@ func TestTagHandler_GetTagDeletionImpact(t *testing.T) {
 func TestTagHandler_ListTags(t *testing.T) {
 	t.Run("valid list succeeds", func(t *testing.T) {
 		svc := newFakeTagService()
-		h := apiconnect.NewTagHandler(svc, newFakeEntityDeletionService(), nil)
+		h := apiconnect.NewTagHandler(svc, newFakeBulkDeletionService(), nil)
 		svc.byID["t1"] = &domain.Tag{ID: "t1"}
 		svc.byID["t2"] = &domain.Tag{ID: "t2"}
 
@@ -221,11 +221,39 @@ func TestTagHandler_ListTags(t *testing.T) {
 	t.Run("service error maps through mapError", func(t *testing.T) {
 		svc := newFakeTagService()
 		svc.listErr = errors.New("boom")
-		h := apiconnect.NewTagHandler(svc, newFakeEntityDeletionService(), nil)
+		h := apiconnect.NewTagHandler(svc, newFakeBulkDeletionService(), nil)
 
 		_, err := h.ListTags(context.Background(), connect.NewRequest(&v1.ListTagsRequest{PageSize: 10}))
 		if connect.CodeOf(err) != connect.CodeInternal {
 			t.Fatalf("ListTags with a service error returned code %v, want %v", connect.CodeOf(err), connect.CodeInternal)
+		}
+	})
+}
+
+func TestTagHandler_BulkDeleteTags(t *testing.T) {
+	t.Run("valid request threads ids and cascade through to the service", func(t *testing.T) {
+		svc := newFakeTagService()
+		deletionSvc := newFakeBulkDeletionService()
+		h := apiconnect.NewTagHandler(svc, deletionSvc, nil)
+
+		req := &v1.BulkDeleteTagsRequest{Ids: []string{"t1", "t2"}, Cascade: true}
+		if _, err := h.BulkDeleteTags(context.Background(), connect.NewRequest(req)); err != nil {
+			t.Fatalf("BulkDeleteTags returned error: %v", err)
+		}
+		if len(deletionSvc.gotBatchIDs) != 2 || !deletionSvc.gotBatchCascade {
+			t.Fatalf("BulkDeleteTags passed (ids=%v, cascade=%v), want ([t1 t2], true)", deletionSvc.gotBatchIDs, deletionSvc.gotBatchCascade)
+		}
+	})
+
+	t.Run("service error maps through mapError", func(t *testing.T) {
+		svc := newFakeTagService()
+		deletionSvc := newFakeBulkDeletionService()
+		deletionSvc.deleteBatchErr = ports.ErrNotFound
+		h := apiconnect.NewTagHandler(svc, deletionSvc, nil)
+
+		_, err := h.BulkDeleteTags(context.Background(), connect.NewRequest(&v1.BulkDeleteTagsRequest{Ids: []string{"missing"}}))
+		if connect.CodeOf(err) != connect.CodeNotFound {
+			t.Fatalf("BulkDeleteTags on a missing id returned code %v, want %v", connect.CodeOf(err), connect.CodeNotFound)
 		}
 	})
 }

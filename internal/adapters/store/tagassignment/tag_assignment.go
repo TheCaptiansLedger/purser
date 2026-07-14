@@ -66,6 +66,11 @@ func (r *Repository) Create(ctx context.Context, ta *domain.TagAssignment) error
 	return r.inner.Create(ctx, ta)
 }
 
+// CreateBatch implements ports.TagAssignmentRepository.
+func (r *Repository) CreateBatch(ctx context.Context, tas []*domain.TagAssignment) error {
+	return r.inner.CreateBatch(ctx, tas)
+}
+
 // Get implements ports.TagAssignmentRepository.
 func (r *Repository) Get(ctx context.Context, tagID string, entityType domain.EntityType, entityID string) (*domain.TagAssignment, error) {
 	return r.inner.Get(ctx, tagID, string(entityType), entityID)

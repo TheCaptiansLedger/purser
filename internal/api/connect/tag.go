@@ -24,12 +24,12 @@ type tagService interface {
 type TagHandler struct {
 	domainv1connect.UnimplementedTagServiceHandler
 	svc         tagService
-	deletionSvc entityDeletionService
+	deletionSvc bulkDeletionService
 	logger      *slog.Logger
 }
 
 // NewTagHandler constructs a TagHandler backed by svc and deletionSvc.
-func NewTagHandler(svc tagService, deletionSvc entityDeletionService, logger *slog.Logger) *TagHandler {
+func NewTagHandler(svc tagService, deletionSvc bulkDeletionService, logger *slog.Logger) *TagHandler {
 	if logger == nil {
 		logger = slog.Default()
 	}
@@ -86,6 +86,14 @@ func (h *TagHandler) GetTagDeletionImpact(ctx context.Context, req *connect.Requ
 		return nil, mapError(ctx, h.logger, err)
 	}
 	return connect.NewResponse(&v1.GetTagDeletionImpactResponse{Impacts: deletionImpactRowsToProto(impact.Impacts)}), nil
+}
+
+// BulkDeleteTags implements domainv1connect.TagServiceHandler.
+func (h *TagHandler) BulkDeleteTags(ctx context.Context, req *connect.Request[v1.BulkDeleteTagsRequest]) (*connect.Response[v1.BulkDeleteTagsResponse], error) {
+	if err := h.deletionSvc.DeleteBatch(ctx, req.Msg.GetIds(), req.Msg.GetCascade()); err != nil {
+		return nil, mapError(ctx, h.logger, err)
+	}
+	return connect.NewResponse(&v1.BulkDeleteTagsResponse{}), nil
 }
 
 // ListTags implements domainv1connect.TagServiceHandler.

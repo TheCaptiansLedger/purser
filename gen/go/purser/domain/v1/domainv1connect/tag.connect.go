@@ -46,6 +46,9 @@ const (
 	// TagServiceGetTagDeletionImpactProcedure is the fully-qualified name of the TagService's
 	// GetTagDeletionImpact RPC.
 	TagServiceGetTagDeletionImpactProcedure = "/purser.domain.v1.TagService/GetTagDeletionImpact"
+	// TagServiceBulkDeleteTagsProcedure is the fully-qualified name of the TagService's BulkDeleteTags
+	// RPC.
+	TagServiceBulkDeleteTagsProcedure = "/purser.domain.v1.TagService/BulkDeleteTags"
 )
 
 // TagServiceClient is a client for the purser.domain.v1.TagService service.
@@ -58,6 +61,9 @@ type TagServiceClient interface {
 	// GetTagDeletionImpact reports what references this Tag before Delete
 	// is called — see docs/adr/0015-deletion-impact-and-composing-services.md.
 	GetTagDeletionImpact(context.Context, *connect.Request[v1.GetTagDeletionImpactRequest]) (*connect.Response[v1.GetTagDeletionImpactResponse], error)
+	// BulkDeleteTags removes every Tag in ids atomically — see
+	// docs/adr/0016-bulk-operations.md.
+	BulkDeleteTags(context.Context, *connect.Request[v1.BulkDeleteTagsRequest]) (*connect.Response[v1.BulkDeleteTagsResponse], error)
 }
 
 // NewTagServiceClient constructs a client for the purser.domain.v1.TagService service. By default,
@@ -107,6 +113,12 @@ func NewTagServiceClient(httpClient connect.HTTPClient, baseURL string, opts ...
 			connect.WithSchema(tagServiceMethods.ByName("GetTagDeletionImpact")),
 			connect.WithClientOptions(opts...),
 		),
+		bulkDeleteTags: connect.NewClient[v1.BulkDeleteTagsRequest, v1.BulkDeleteTagsResponse](
+			httpClient,
+			baseURL+TagServiceBulkDeleteTagsProcedure,
+			connect.WithSchema(tagServiceMethods.ByName("BulkDeleteTags")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
@@ -118,6 +130,7 @@ type tagServiceClient struct {
 	deleteTag            *connect.Client[v1.DeleteTagRequest, v1.DeleteTagResponse]
 	listTags             *connect.Client[v1.ListTagsRequest, v1.ListTagsResponse]
 	getTagDeletionImpact *connect.Client[v1.GetTagDeletionImpactRequest, v1.GetTagDeletionImpactResponse]
+	bulkDeleteTags       *connect.Client[v1.BulkDeleteTagsRequest, v1.BulkDeleteTagsResponse]
 }
 
 // CreateTag calls purser.domain.v1.TagService.CreateTag.
@@ -150,6 +163,11 @@ func (c *tagServiceClient) GetTagDeletionImpact(ctx context.Context, req *connec
 	return c.getTagDeletionImpact.CallUnary(ctx, req)
 }
 
+// BulkDeleteTags calls purser.domain.v1.TagService.BulkDeleteTags.
+func (c *tagServiceClient) BulkDeleteTags(ctx context.Context, req *connect.Request[v1.BulkDeleteTagsRequest]) (*connect.Response[v1.BulkDeleteTagsResponse], error) {
+	return c.bulkDeleteTags.CallUnary(ctx, req)
+}
+
 // TagServiceHandler is an implementation of the purser.domain.v1.TagService service.
 type TagServiceHandler interface {
 	CreateTag(context.Context, *connect.Request[v1.CreateTagRequest]) (*connect.Response[v1.CreateTagResponse], error)
@@ -160,6 +178,9 @@ type TagServiceHandler interface {
 	// GetTagDeletionImpact reports what references this Tag before Delete
 	// is called — see docs/adr/0015-deletion-impact-and-composing-services.md.
 	GetTagDeletionImpact(context.Context, *connect.Request[v1.GetTagDeletionImpactRequest]) (*connect.Response[v1.GetTagDeletionImpactResponse], error)
+	// BulkDeleteTags removes every Tag in ids atomically — see
+	// docs/adr/0016-bulk-operations.md.
+	BulkDeleteTags(context.Context, *connect.Request[v1.BulkDeleteTagsRequest]) (*connect.Response[v1.BulkDeleteTagsResponse], error)
 }
 
 // NewTagServiceHandler builds an HTTP handler from the service implementation. It returns the path
@@ -205,6 +226,12 @@ func NewTagServiceHandler(svc TagServiceHandler, opts ...connect.HandlerOption) 
 		connect.WithSchema(tagServiceMethods.ByName("GetTagDeletionImpact")),
 		connect.WithHandlerOptions(opts...),
 	)
+	tagServiceBulkDeleteTagsHandler := connect.NewUnaryHandler(
+		TagServiceBulkDeleteTagsProcedure,
+		svc.BulkDeleteTags,
+		connect.WithSchema(tagServiceMethods.ByName("BulkDeleteTags")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/purser.domain.v1.TagService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case TagServiceCreateTagProcedure:
@@ -219,6 +246,8 @@ func NewTagServiceHandler(svc TagServiceHandler, opts ...connect.HandlerOption) 
 			tagServiceListTagsHandler.ServeHTTP(w, r)
 		case TagServiceGetTagDeletionImpactProcedure:
 			tagServiceGetTagDeletionImpactHandler.ServeHTTP(w, r)
+		case TagServiceBulkDeleteTagsProcedure:
+			tagServiceBulkDeleteTagsHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -250,4 +279,8 @@ func (UnimplementedTagServiceHandler) ListTags(context.Context, *connect.Request
 
 func (UnimplementedTagServiceHandler) GetTagDeletionImpact(context.Context, *connect.Request[v1.GetTagDeletionImpactRequest]) (*connect.Response[v1.GetTagDeletionImpactResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("purser.domain.v1.TagService.GetTagDeletionImpact is not implemented"))
+}
+
+func (UnimplementedTagServiceHandler) BulkDeleteTags(context.Context, *connect.Request[v1.BulkDeleteTagsRequest]) (*connect.Response[v1.BulkDeleteTagsResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("purser.domain.v1.TagService.BulkDeleteTags is not implemented"))
 }

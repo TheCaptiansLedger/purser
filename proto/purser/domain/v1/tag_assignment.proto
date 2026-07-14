@@ -60,6 +60,20 @@ message ListTagAssignmentsResponse {
   string next_page_token = 2;
 }
 
+// BulkCreateTagAssignments is the bulk tag-assignment endpoint named by
+// docs/adr/0016-bulk-operations.md — a real multi-select UI action ("tag
+// these 50 scenes"), applying one Tag to many entities of the same type in
+// one atomic call.
+message BulkCreateTagAssignmentsRequest {
+  string tag_id = 1;
+  EntityType entity_type = 2;
+  repeated string entity_ids = 3;
+}
+
+message BulkCreateTagAssignmentsResponse {
+  repeated TagAssignment tag_assignments = 1;
+}
+
 // TagAssignmentService owns exactly one entity — TagAssignment — per
 // docs/adr/0011-api-design.md's SRP-per-entity rule. This is the
 // attach/detach mechanism tag.proto's Tag message deferred — see
@@ -69,4 +83,7 @@ service TagAssignmentService {
   rpc GetTagAssignment(GetTagAssignmentRequest) returns (GetTagAssignmentResponse);
   rpc DeleteTagAssignment(DeleteTagAssignmentRequest) returns (DeleteTagAssignmentResponse);
   rpc ListTagAssignments(ListTagAssignmentsRequest) returns (ListTagAssignmentsResponse);
+  // BulkCreateTagAssignments attaches one Tag to many entities of the same
+  // type atomically — see docs/adr/0016-bulk-operations.md.
+  rpc BulkCreateTagAssignments(BulkCreateTagAssignmentsRequest) returns (BulkCreateTagAssignmentsResponse);
 }

@@ -90,6 +90,33 @@ func (s *ItemDeletionService) Delete(ctx context.Context, id string, _ bool) err
 	if _, err := s.items.Get(ctx, id); err != nil {
 		return err
 	}
+	if err := s.unlinkAttachments(ctx, id); err != nil {
+		return err
+	}
+	return s.items.Delete(ctx, id)
+}
+
+// DeleteBatch removes every Item in ids, all-or-nothing — see
+// docs/adr/0016-bulk-operations.md. Every ID must exist and have its
+// attachment rows unlinked before any Item row is removed; the final row
+// removal itself is one atomic ports.ItemRepository.DeleteBatch call, not a
+// loop of single-row deletes. cascade is accepted for API-shape
+// consistency but unused: Item never blocks a delete.
+func (s *ItemDeletionService) DeleteBatch(ctx context.Context, ids []string, _ bool) error {
+	for _, id := range ids {
+		if _, err := s.items.Get(ctx, id); err != nil {
+			return err
+		}
+	}
+	for _, id := range ids {
+		if err := s.unlinkAttachments(ctx, id); err != nil {
+			return err
+		}
+	}
+	return s.items.DeleteBatch(ctx, ids)
+}
+
+func (s *ItemDeletionService) unlinkAttachments(ctx context.Context, id string) error {
 	if err := s.unlinkItemPeople(ctx, id); err != nil {
 		return err
 	}
@@ -102,10 +129,7 @@ func (s *ItemDeletionService) Delete(ctx context.Context, id string, _ bool) err
 	if err := s.unlinkImages(ctx, id); err != nil {
 		return err
 	}
-	if err := s.unlinkTagAssignments(ctx, id); err != nil {
-		return err
-	}
-	return s.items.Delete(ctx, id)
+	return s.unlinkTagAssignments(ctx, id)
 }
 
 func (s *ItemDeletionService) unlinkItemPeople(ctx context.Context, itemID string) error {

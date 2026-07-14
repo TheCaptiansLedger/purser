@@ -22,4 +22,9 @@ type TagAssignmentRepository interface {
 	Get(ctx context.Context, tagID string, entityType domain.EntityType, entityID string) (*domain.TagAssignment, error)
 	Delete(ctx context.Context, tagID string, entityType domain.EntityType, entityID string) error
 	List(ctx context.Context, tagID string, entityType domain.EntityType, entityID string, pageSize int, pageToken string) (assignments []*domain.TagAssignment, nextPageToken string, err error)
+
+	// CreateBatch stores every TagAssignment in tas atomically — all
+	// succeed or none do. TagAssignment is the one entity ADR 0016 names
+	// for a real bulk tag-assignment UI use case.
+	CreateBatch(ctx context.Context, tas []*domain.TagAssignment) error
 }

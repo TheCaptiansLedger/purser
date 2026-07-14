@@ -75,5 +75,39 @@ export default () => {
   res = client.invoke('purser.domain.v1.MediaFileService/GetMediaFile', { id: mediaFileId });
   check(res, { 'GetMediaFile after Item Delete is NotFound (unlinked)': (r) => r && r.status === grpc.StatusNotFound });
 
+  // BulkDeleteItems: the "delete these 12 duplicate scenes" use case — one
+  // of the two entities ADR 0016 names for a real bulk-delete endpoint.
+  const bulkId1 = `k6-grpc-bulk-item-${__VU}-${__ITER}-${Date.now()}-1`;
+  const bulkId2 = `k6-grpc-bulk-item-${__VU}-${__ITER}-${Date.now()}-2`;
+  const bulkId3 = `k6-grpc-bulk-item-${__VU}-${__ITER}-${Date.now()}-3`;
+
+  for (const bulkId of [bulkId1, bulkId2, bulkId3]) {
+    res = client.invoke('purser.domain.v1.ItemService/CreateItem', {
+      item: { id: bulkId, contentType: 'adult', libraryEntryId: 'entry1', title: 'K6 Bulk Item', status: 'ITEM_STATUS_WANTED' },
+    });
+    check(res, { 'setup: CreateItem status is OK': (r) => r && r.status === grpc.StatusOK });
+  }
+
+  res = client.invoke('purser.domain.v1.ItemService/BulkDeleteItems', { ids: [bulkId1, bulkId2] });
+  check(res, { 'BulkDeleteItems status is OK': (r) => r && r.status === grpc.StatusOK });
+
+  res = client.invoke('purser.domain.v1.ItemService/GetItem', { id: bulkId1 });
+  check(res, { 'GetItem for bulkId1 after BulkDeleteItems is NotFound': (r) => r && r.status === grpc.StatusNotFound });
+  res = client.invoke('purser.domain.v1.ItemService/GetItem', { id: bulkId2 });
+  check(res, { 'GetItem for bulkId2 after BulkDeleteItems is NotFound': (r) => r && r.status === grpc.StatusNotFound });
+  res = client.invoke('purser.domain.v1.ItemService/GetItem', { id: bulkId3 });
+  check(res, { 'GetItem for bulkId3 (not in the batch) still exists': (r) => r && r.status === grpc.StatusOK });
+
+  // All-or-nothing: a batch with one missing id must fail entirely — the
+  // still-existing bulkId3 must not be removed either.
+  res = client.invoke('purser.domain.v1.ItemService/BulkDeleteItems', { ids: [bulkId3, 'k6-grpc-item-missing'] });
+  check(res, { 'BulkDeleteItems with a missing id is NotFound': (r) => r && r.status === grpc.StatusNotFound });
+
+  res = client.invoke('purser.domain.v1.ItemService/GetItem', { id: bulkId3 });
+  check(res, { 'GetItem for bulkId3 after failed batch still exists (rolled back)': (r) => r && r.status === grpc.StatusOK });
+
+  res = client.invoke('purser.domain.v1.ItemService/DeleteItem', { id: bulkId3 });
+  check(res, { 'cleanup: DeleteItem status is OK': (r) => r && r.status === grpc.StatusOK });
+
   client.close();
 };

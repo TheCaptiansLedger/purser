@@ -190,6 +190,24 @@ func (r *FilteredRepository[T]) Delete(ctx context.Context, id string) error {
 	return nil
 }
 
+// DeleteBatch removes every record whose ID is in ids, as a single
+// atomic Datastore transaction — all succeed or none do. Only entities
+// with a real bulk-delete API endpoint call this — see
+// docs/adr/0016-bulk-operations.md.
+func (r *FilteredRepository[T]) DeleteBatch(ctx context.Context, ids []string) error {
+	ctx, span := r.tracer.Start(ctx, r.collection+"_repository.delete_batch",
+		trace.WithAttributes(attribute.String("repository.name", r.name), attribute.Int(r.collection+".count", len(ids))))
+	defer span.End()
+
+	if err := r.ds.DeleteBatch(ctx, r.collection, ids); err != nil {
+		return err
+	}
+
+	r.deletes.Add(ctx, int64(len(ids)), metric.WithAttributes(attribute.String("repository.name", r.name)))
+	r.logger.DebugContext(ctx, r.collection+" batch deleted", "count", len(ids))
+	return nil
+}
+
 // List returns records in this collection matching filter (a non-empty
 // filter restricts results to documents whose Index matches every entry;
 // nil/empty means unfiltered), cursor-paginated.

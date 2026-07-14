@@ -61,6 +61,18 @@ func (f *fakeTagRepository) List(_ context.Context, _ int, _ string) ([]*domain.
 	return tags, "", nil
 }
 
+func (f *fakeTagRepository) DeleteBatch(_ context.Context, ids []string) error {
+	for _, id := range ids {
+		if _, ok := f.byID[id]; !ok {
+			return ports.ErrNotFound
+		}
+	}
+	for _, id := range ids {
+		delete(f.byID, id)
+	}
+	return nil
+}
+
 func validTag(id string) *domain.Tag {
 	return &domain.Tag{ID: id, Key: "genre", Value: "action", Scope: domain.TagScopeMetadata}
 }

@@ -131,6 +131,33 @@ func (r *CompositeRepository[T]) Create(ctx context.Context, v *T) error {
 	return nil
 }
 
+// CreateBatch stores every v in vs under its own composite key, each
+// indexed by indexOf(v), as a single atomic Datastore transaction — all
+// succeed or none do. Only entities with a real bulk-create API endpoint
+// call this — see docs/adr/0016-bulk-operations.md.
+func (r *CompositeRepository[T]) CreateBatch(ctx context.Context, vs []*T) error {
+	ctx, span := r.tracer.Start(ctx, r.collection+"_repository.create_batch",
+		trace.WithAttributes(attribute.String("repository.name", r.name), attribute.Int(r.collection+".count", len(vs))))
+	defer span.End()
+
+	docs := make([]datastore.Document, 0, len(vs))
+	for _, v := range vs {
+		data, err := json.Marshal(v)
+		if err != nil {
+			return fmt.Errorf("adapters/store: marshal %s %s: %w", r.collection, r.id(v), err)
+		}
+		docs = append(docs, datastore.Document{Collection: r.collection, ID: r.id(v), Data: data, Index: r.indexOf(v)})
+	}
+
+	if err := r.ds.CreateBatch(ctx, docs); err != nil {
+		return err
+	}
+
+	r.creates.Add(ctx, int64(len(vs)), metric.WithAttributes(attribute.String("repository.name", r.name)))
+	r.logger.DebugContext(ctx, r.collection+" batch created", "count", len(vs))
+	return nil
+}
+
 // Get returns the record stored under k1/k2/k3. Returns ports.ErrNotFound
 // if none exists.
 func (r *CompositeRepository[T]) Get(ctx context.Context, k1, k2, k3 string) (*T, error) {

@@ -14,11 +14,14 @@ import (
 )
 
 type fakeTagAssignmentService struct {
-	byKey     map[string]*domain.TagAssignment
-	createErr error
-	getErr    error
-	deleteErr error
-	listErr   error
+	byKey           map[string]*domain.TagAssignment
+	createErr       error
+	getErr          error
+	deleteErr       error
+	listErr         error
+	bulkCreateErr   error
+	gotBulkTagID    string
+	gotBulkEntities []string
 }
 
 func newFakeTagAssignmentService() *fakeTagAssignmentService {
@@ -65,6 +68,20 @@ func (f *fakeTagAssignmentService) List(_ context.Context, _ string, _ domain.En
 		rows = append(rows, ta)
 	}
 	return rows, "", nil
+}
+
+func (f *fakeTagAssignmentService) BulkCreateTagAssignments(_ context.Context, tagID string, entityType domain.EntityType, entityIDs []string) ([]*domain.TagAssignment, error) {
+	f.gotBulkTagID, f.gotBulkEntities = tagID, entityIDs
+	if f.bulkCreateErr != nil {
+		return nil, f.bulkCreateErr
+	}
+	tas := make([]*domain.TagAssignment, 0, len(entityIDs))
+	for _, entityID := range entityIDs {
+		ta := &domain.TagAssignment{TagID: tagID, EntityType: entityType, EntityID: entityID}
+		f.byKey[taKey(tagID, entityType, entityID)] = ta
+		tas = append(tas, ta)
+	}
+	return tas, nil
 }
 
 func validProtoTagAssignment(tagID string, entityType v1.EntityType, entityID string) *v1.TagAssignment {
@@ -169,6 +186,37 @@ func TestTagAssignmentHandler_ListTagAssignments(t *testing.T) {
 		_, err := h.ListTagAssignments(context.Background(), connect.NewRequest(&v1.ListTagAssignmentsRequest{PageSize: 10}))
 		if connect.CodeOf(err) != connect.CodeInternal {
 			t.Fatalf("ListTagAssignments with a service error returned code %v, want %v", connect.CodeOf(err), connect.CodeInternal)
+		}
+	})
+}
+
+func TestTagAssignmentHandler_BulkCreateTagAssignments(t *testing.T) {
+	t.Run("valid request returns the created assignments", func(t *testing.T) {
+		svc := newFakeTagAssignmentService()
+		h := apiconnect.NewTagAssignmentHandler(svc, nil)
+
+		req := &v1.BulkCreateTagAssignmentsRequest{TagId: "t1", EntityType: v1.EntityType_ENTITY_TYPE_ITEM, EntityIds: []string{"scene1", "scene2"}}
+		res, err := h.BulkCreateTagAssignments(context.Background(), connect.NewRequest(req))
+		if err != nil {
+			t.Fatalf("BulkCreateTagAssignments returned error: %v", err)
+		}
+		if len(res.Msg.GetTagAssignments()) != 2 {
+			t.Fatalf("BulkCreateTagAssignments returned %d assignments, want 2", len(res.Msg.GetTagAssignments()))
+		}
+		if svc.gotBulkTagID != "t1" || len(svc.gotBulkEntities) != 2 {
+			t.Fatalf("BulkCreateTagAssignments passed (tagID=%q, entities=%v), want (t1, [scene1 scene2])", svc.gotBulkTagID, svc.gotBulkEntities)
+		}
+	})
+
+	t.Run("service error maps through mapError", func(t *testing.T) {
+		svc := newFakeTagAssignmentService()
+		svc.bulkCreateErr = &domain.ValidationError{Errors: []domain.FieldError{{Field: "EntityID", Rule: "required", Value: ""}}}
+		h := apiconnect.NewTagAssignmentHandler(svc, nil)
+
+		req := &v1.BulkCreateTagAssignmentsRequest{TagId: "t1", EntityType: v1.EntityType_ENTITY_TYPE_ITEM, EntityIds: []string{""}}
+		_, err := h.BulkCreateTagAssignments(context.Background(), connect.NewRequest(req))
+		if connect.CodeOf(err) != connect.CodeInvalidArgument {
+			t.Fatalf("BulkCreateTagAssignments with a ValidationError returned code %v, want %v", connect.CodeOf(err), connect.CodeInvalidArgument)
 		}
 	})
 }

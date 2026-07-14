@@ -54,4 +54,36 @@ export default () => {
 
   res = http.post(`${TAG_ASSIGNMENT}/GetTagAssignment`, JSON.stringify({ tagId: id, entityType: 'ENTITY_TYPE_PERSON', entityId: entityId }), HEADERS);
   check(res, { 'GetTagAssignment after Tag Delete is 404 (unlinked)': (r) => r.status === 404 });
+
+  // BulkDeleteTags: the "delete these duplicate tags" use case — one of
+  // the two entities ADR 0016 names for a real bulk-delete endpoint.
+  const bulkId1 = `k6-http-bulk-tag-${__VU}-${__ITER}-${Date.now()}-1`;
+  const bulkId2 = `k6-http-bulk-tag-${__VU}-${__ITER}-${Date.now()}-2`;
+  const bulkId3 = `k6-http-bulk-tag-${__VU}-${__ITER}-${Date.now()}-3`;
+
+  for (const bulkId of [bulkId1, bulkId2, bulkId3]) {
+    res = http.post(`${SERVICE}/CreateTag`, JSON.stringify({ tag: { id: bulkId, key: 'genre', value: 'gonzo', scope: 'TAG_SCOPE_METADATA' } }), HEADERS);
+    check(res, { 'setup: CreateTag status is 200': (r) => r.status === 200 });
+  }
+
+  res = http.post(`${SERVICE}/BulkDeleteTags`, JSON.stringify({ ids: [bulkId1, bulkId2] }), HEADERS);
+  check(res, { 'BulkDeleteTags status is 200': (r) => r.status === 200 });
+
+  res = http.post(`${SERVICE}/GetTag`, JSON.stringify({ id: bulkId1 }), HEADERS);
+  check(res, { 'GetTag for bulkId1 after BulkDeleteTags is 404': (r) => r.status === 404 });
+  res = http.post(`${SERVICE}/GetTag`, JSON.stringify({ id: bulkId2 }), HEADERS);
+  check(res, { 'GetTag for bulkId2 after BulkDeleteTags is 404': (r) => r.status === 404 });
+  res = http.post(`${SERVICE}/GetTag`, JSON.stringify({ id: bulkId3 }), HEADERS);
+  check(res, { 'GetTag for bulkId3 (not in the batch) still exists': (r) => r.status === 200 });
+
+  // All-or-nothing: a batch with one missing id must fail entirely — the
+  // still-existing bulkId3 must not be removed either.
+  res = http.post(`${SERVICE}/BulkDeleteTags`, JSON.stringify({ ids: [bulkId3, 'k6-http-tag-missing'] }), HEADERS);
+  check(res, { 'BulkDeleteTags with a missing id is 404': (r) => r.status === 404 });
+
+  res = http.post(`${SERVICE}/GetTag`, JSON.stringify({ id: bulkId3 }), HEADERS);
+  check(res, { 'GetTag for bulkId3 after failed batch still exists (rolled back)': (r) => r.status === 200 });
+
+  res = http.post(`${SERVICE}/DeleteTag`, JSON.stringify({ id: bulkId3 }), HEADERS);
+  check(res, { 'cleanup: DeleteTag status is 200': (r) => r.status === 200 });
 };

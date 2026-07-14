@@ -46,6 +46,9 @@ const (
 	// ItemServiceGetItemDeletionImpactProcedure is the fully-qualified name of the ItemService's
 	// GetItemDeletionImpact RPC.
 	ItemServiceGetItemDeletionImpactProcedure = "/purser.domain.v1.ItemService/GetItemDeletionImpact"
+	// ItemServiceBulkDeleteItemsProcedure is the fully-qualified name of the ItemService's
+	// BulkDeleteItems RPC.
+	ItemServiceBulkDeleteItemsProcedure = "/purser.domain.v1.ItemService/BulkDeleteItems"
 )
 
 // ItemServiceClient is a client for the purser.domain.v1.ItemService service.
@@ -58,6 +61,9 @@ type ItemServiceClient interface {
 	// GetItemDeletionImpact reports what references this Item before Delete
 	// is called — see docs/adr/0015-deletion-impact-and-composing-services.md.
 	GetItemDeletionImpact(context.Context, *connect.Request[v1.GetItemDeletionImpactRequest]) (*connect.Response[v1.GetItemDeletionImpactResponse], error)
+	// BulkDeleteItems removes every Item in ids atomically — see
+	// docs/adr/0016-bulk-operations.md.
+	BulkDeleteItems(context.Context, *connect.Request[v1.BulkDeleteItemsRequest]) (*connect.Response[v1.BulkDeleteItemsResponse], error)
 }
 
 // NewItemServiceClient constructs a client for the purser.domain.v1.ItemService service. By
@@ -107,6 +113,12 @@ func NewItemServiceClient(httpClient connect.HTTPClient, baseURL string, opts ..
 			connect.WithSchema(itemServiceMethods.ByName("GetItemDeletionImpact")),
 			connect.WithClientOptions(opts...),
 		),
+		bulkDeleteItems: connect.NewClient[v1.BulkDeleteItemsRequest, v1.BulkDeleteItemsResponse](
+			httpClient,
+			baseURL+ItemServiceBulkDeleteItemsProcedure,
+			connect.WithSchema(itemServiceMethods.ByName("BulkDeleteItems")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
@@ -118,6 +130,7 @@ type itemServiceClient struct {
 	deleteItem            *connect.Client[v1.DeleteItemRequest, v1.DeleteItemResponse]
 	listItems             *connect.Client[v1.ListItemsRequest, v1.ListItemsResponse]
 	getItemDeletionImpact *connect.Client[v1.GetItemDeletionImpactRequest, v1.GetItemDeletionImpactResponse]
+	bulkDeleteItems       *connect.Client[v1.BulkDeleteItemsRequest, v1.BulkDeleteItemsResponse]
 }
 
 // CreateItem calls purser.domain.v1.ItemService.CreateItem.
@@ -150,6 +163,11 @@ func (c *itemServiceClient) GetItemDeletionImpact(ctx context.Context, req *conn
 	return c.getItemDeletionImpact.CallUnary(ctx, req)
 }
 
+// BulkDeleteItems calls purser.domain.v1.ItemService.BulkDeleteItems.
+func (c *itemServiceClient) BulkDeleteItems(ctx context.Context, req *connect.Request[v1.BulkDeleteItemsRequest]) (*connect.Response[v1.BulkDeleteItemsResponse], error) {
+	return c.bulkDeleteItems.CallUnary(ctx, req)
+}
+
 // ItemServiceHandler is an implementation of the purser.domain.v1.ItemService service.
 type ItemServiceHandler interface {
 	CreateItem(context.Context, *connect.Request[v1.CreateItemRequest]) (*connect.Response[v1.CreateItemResponse], error)
@@ -160,6 +178,9 @@ type ItemServiceHandler interface {
 	// GetItemDeletionImpact reports what references this Item before Delete
 	// is called — see docs/adr/0015-deletion-impact-and-composing-services.md.
 	GetItemDeletionImpact(context.Context, *connect.Request[v1.GetItemDeletionImpactRequest]) (*connect.Response[v1.GetItemDeletionImpactResponse], error)
+	// BulkDeleteItems removes every Item in ids atomically — see
+	// docs/adr/0016-bulk-operations.md.
+	BulkDeleteItems(context.Context, *connect.Request[v1.BulkDeleteItemsRequest]) (*connect.Response[v1.BulkDeleteItemsResponse], error)
 }
 
 // NewItemServiceHandler builds an HTTP handler from the service implementation. It returns the path
@@ -205,6 +226,12 @@ func NewItemServiceHandler(svc ItemServiceHandler, opts ...connect.HandlerOption
 		connect.WithSchema(itemServiceMethods.ByName("GetItemDeletionImpact")),
 		connect.WithHandlerOptions(opts...),
 	)
+	itemServiceBulkDeleteItemsHandler := connect.NewUnaryHandler(
+		ItemServiceBulkDeleteItemsProcedure,
+		svc.BulkDeleteItems,
+		connect.WithSchema(itemServiceMethods.ByName("BulkDeleteItems")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/purser.domain.v1.ItemService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case ItemServiceCreateItemProcedure:
@@ -219,6 +246,8 @@ func NewItemServiceHandler(svc ItemServiceHandler, opts ...connect.HandlerOption
 			itemServiceListItemsHandler.ServeHTTP(w, r)
 		case ItemServiceGetItemDeletionImpactProcedure:
 			itemServiceGetItemDeletionImpactHandler.ServeHTTP(w, r)
+		case ItemServiceBulkDeleteItemsProcedure:
+			itemServiceBulkDeleteItemsHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -250,4 +279,8 @@ func (UnimplementedItemServiceHandler) ListItems(context.Context, *connect.Reque
 
 func (UnimplementedItemServiceHandler) GetItemDeletionImpact(context.Context, *connect.Request[v1.GetItemDeletionImpactRequest]) (*connect.Response[v1.GetItemDeletionImpactResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("purser.domain.v1.ItemService.GetItemDeletionImpact is not implemented"))
+}
+
+func (UnimplementedItemServiceHandler) BulkDeleteItems(context.Context, *connect.Request[v1.BulkDeleteItemsRequest]) (*connect.Response[v1.BulkDeleteItemsResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("purser.domain.v1.ItemService.BulkDeleteItems is not implemented"))
 }

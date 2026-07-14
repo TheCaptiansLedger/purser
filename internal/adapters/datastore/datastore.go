@@ -68,4 +68,19 @@ type Datastore interface {
 	// starts from the beginning; a non-empty nextPageToken is returned
 	// whenever more results exist, and is empty on the last page.
 	List(ctx context.Context, collection string, filter map[string]string, pageSize int, pageToken string) (docs []Document, nextPageToken string, err error)
+
+	// CreateBatch stores every doc in docs as a single transaction — all
+	// succeed or none do. Returns purser/internal/ports.ErrConflict if any
+	// doc's Collection+ID already exists, rolling back the whole batch. See
+	// docs/adr/0016-bulk-operations.md. Only entities with a real bulk-create
+	// API endpoint call this — most callers keep using Create.
+	CreateBatch(ctx context.Context, docs []Document) error
+
+	// DeleteBatch removes every document stored under collection+id for
+	// each id in ids, as a single transaction — all succeed or none do.
+	// Returns purser/internal/ports.ErrNotFound if any id doesn't exist,
+	// rolling back the whole batch. See docs/adr/0016-bulk-operations.md.
+	// Only entities with a real bulk-delete API endpoint call this — most
+	// callers keep using Delete.
+	DeleteBatch(ctx context.Context, collection string, ids []string) error
 }

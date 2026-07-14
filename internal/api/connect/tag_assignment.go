@@ -19,6 +19,7 @@ type tagAssignmentService interface {
 	Get(ctx context.Context, tagID string, entityType domain.EntityType, entityID string) (*domain.TagAssignment, error)
 	Delete(ctx context.Context, tagID string, entityType domain.EntityType, entityID string) error
 	List(ctx context.Context, tagID string, entityType domain.EntityType, entityID string, pageSize int, pageToken string) ([]*domain.TagAssignment, string, error)
+	BulkCreateTagAssignments(ctx context.Context, tagID string, entityType domain.EntityType, entityIDs []string) ([]*domain.TagAssignment, error)
 }
 
 // TagAssignmentHandler implements domainv1connect.TagAssignmentServiceHandler.
@@ -61,6 +62,19 @@ func (h *TagAssignmentHandler) DeleteTagAssignment(ctx context.Context, req *con
 		return nil, mapError(ctx, h.logger, err)
 	}
 	return connect.NewResponse(&v1.DeleteTagAssignmentResponse{}), nil
+}
+
+// BulkCreateTagAssignments implements domainv1connect.TagAssignmentServiceHandler.
+func (h *TagAssignmentHandler) BulkCreateTagAssignments(ctx context.Context, req *connect.Request[v1.BulkCreateTagAssignmentsRequest]) (*connect.Response[v1.BulkCreateTagAssignmentsResponse], error) {
+	created, err := h.svc.BulkCreateTagAssignments(ctx, req.Msg.GetTagId(), entityTypeFromProto(req.Msg.GetEntityType()), req.Msg.GetEntityIds())
+	if err != nil {
+		return nil, mapError(ctx, h.logger, err)
+	}
+	pbRows := make([]*v1.TagAssignment, 0, len(created))
+	for _, ta := range created {
+		pbRows = append(pbRows, tagAssignmentToProto(ta))
+	}
+	return connect.NewResponse(&v1.BulkCreateTagAssignmentsResponse{TagAssignments: pbRows}), nil
 }
 
 // ListTagAssignments implements domainv1connect.TagAssignmentServiceHandler.

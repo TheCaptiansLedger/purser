@@ -30,6 +30,8 @@ func TestTagAssignmentRepository(t *testing.T, newRepo NewRepositoryFunc) {
 	t.Run("list filters by entity type and entity id alone", func(t *testing.T) { testListFiltersByEntity(t, newRepo) })
 	t.Run("list filters by tag id and entity together", func(t *testing.T) { testListFiltersByBoth(t, newRepo) })
 	t.Run("list paginates across an unfiltered set", func(t *testing.T) { testListPaginates(t, newRepo) })
+	t.Run("create batch stores every assignment atomically", func(t *testing.T) { testCreateBatch(t, newRepo) })
+	t.Run("create batch with one conflicting key rolls back the whole batch", func(t *testing.T) { testCreateBatchRollsBackOnConflict(t, newRepo) })
 }
 
 func mustCreate(t *testing.T, r ports.TagAssignmentRepository, ta *domain.TagAssignment) {
@@ -171,4 +173,46 @@ func testListPaginates(t *testing.T, newRepo NewRepositoryFunc) {
 
 func sampleTagAssignment(tagID string, entityType domain.EntityType, entityID string) *domain.TagAssignment {
 	return &domain.TagAssignment{TagID: tagID, EntityType: entityType, EntityID: entityID}
+}
+
+func testCreateBatch(t *testing.T, newRepo NewRepositoryFunc) {
+	r := newRepo(t)
+	ctx := context.Background()
+
+	tas := []*domain.TagAssignment{
+		sampleTagAssignment("t1", domain.EntityTypeItem, "scene1"),
+		sampleTagAssignment("t1", domain.EntityTypeItem, "scene2"),
+		sampleTagAssignment("t1", domain.EntityTypeItem, "scene3"),
+	}
+	if err := r.CreateBatch(ctx, tas); err != nil {
+		t.Fatalf("CreateBatch returned error: %v", err)
+	}
+
+	for _, ta := range tas {
+		if _, err := r.Get(ctx, ta.TagID, ta.EntityType, ta.EntityID); err != nil {
+			t.Fatalf("Get after CreateBatch for %+v returned error: %v", ta, err)
+		}
+	}
+}
+
+func testCreateBatchRollsBackOnConflict(t *testing.T, newRepo NewRepositoryFunc) {
+	r := newRepo(t)
+	ctx := context.Background()
+	mustCreate(t, r, sampleTagAssignment("t1", domain.EntityTypeItem, "scene2"))
+
+	err := r.CreateBatch(ctx, []*domain.TagAssignment{
+		sampleTagAssignment("t1", domain.EntityTypeItem, "scene1"),
+		sampleTagAssignment("t1", domain.EntityTypeItem, "scene2"), // already exists
+		sampleTagAssignment("t1", domain.EntityTypeItem, "scene3"),
+	})
+	if !errors.Is(err, ports.ErrConflict) {
+		t.Fatalf("CreateBatch with a conflicting key returned %v, want ErrConflict", err)
+	}
+
+	if _, err := r.Get(ctx, "t1", domain.EntityTypeItem, "scene1"); !errors.Is(err, ports.ErrNotFound) {
+		t.Fatalf("CreateBatch left scene1 created despite rolling back: %v", err)
+	}
+	if _, err := r.Get(ctx, "t1", domain.EntityTypeItem, "scene3"); !errors.Is(err, ports.ErrNotFound) {
+		t.Fatalf("CreateBatch left scene3 created despite rolling back: %v", err)
+	}
 }

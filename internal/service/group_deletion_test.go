@@ -64,10 +64,11 @@ func (f *deletionFakeGroupRepository) List(_ context.Context, libraryEntryID str
 // no-op List since ItemDeletionService only ever needs itemPeople/
 // mediaFiles/etc. filtered by itemID, never Item itself filtered.
 type deletionFakeItemRepositoryFiltered struct {
-	byID      map[string]*domain.Item
-	listErr   error
-	updateErr error
-	deleteErr error
+	byID           map[string]*domain.Item
+	listErr        error
+	updateErr      error
+	deleteErr      error
+	deleteBatchErr error
 }
 
 func (f *deletionFakeItemRepositoryFiltered) Create(_ context.Context, i *domain.Item) error {
@@ -99,6 +100,21 @@ func (f *deletionFakeItemRepositoryFiltered) Delete(_ context.Context, id string
 		return ports.ErrNotFound
 	}
 	delete(f.byID, id)
+	return nil
+}
+
+func (f *deletionFakeItemRepositoryFiltered) DeleteBatch(_ context.Context, ids []string) error {
+	if f.deleteBatchErr != nil {
+		return f.deleteBatchErr
+	}
+	for _, id := range ids {
+		if _, ok := f.byID[id]; !ok {
+			return ports.ErrNotFound
+		}
+	}
+	for _, id := range ids {
+		delete(f.byID, id)
+	}
 	return nil
 }
 

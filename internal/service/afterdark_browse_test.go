@@ -85,8 +85,9 @@ func (f *browseFakeItemRepository) Get(_ context.Context, id string) (*domain.It
 	}
 	return i, nil
 }
-func (f *browseFakeItemRepository) Update(context.Context, *domain.Item) error { return nil }
-func (f *browseFakeItemRepository) Delete(context.Context, string) error       { return nil }
+func (f *browseFakeItemRepository) Update(context.Context, *domain.Item) error  { return nil }
+func (f *browseFakeItemRepository) Delete(context.Context, string) error        { return nil }
+func (f *browseFakeItemRepository) DeleteBatch(context.Context, []string) error { return nil }
 func (f *browseFakeItemRepository) List(_ context.Context, libraryEntryID, contentType, groupID string, pageSize int, pageToken string) ([]*domain.Item, string, error) {
 	var matched []*domain.Item
 	for _, i := range f.byID {
