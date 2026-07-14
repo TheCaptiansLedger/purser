@@ -7,7 +7,10 @@ Status: Accepted
 `domain.Tag.ID` is caller-supplied, like every kernel entity's ID (see
 [issue #447](https://github.com/TheCaptiansLedger/purser/issues/447) for the
 open question of whether that should change kernel-wide — out of scope
-here). Nothing before this ADR enforced any uniqueness on a Tag's
+here; resolved by [0020](0020-server-generated-kernel-entity-ids.md), which
+makes `Tag.ID` server-generated same as every other single-ID entity and
+closes the "ID collision vs. get-or-create hit" ambiguity this ADR flags
+below as a real, reachable case). Nothing before this ADR enforced any uniqueness on a Tag's
 `(Scope, Key, Value)` — only the SQL/Badger primary key on `(collection,
 id)` was ever checked, per [0012](0012-datastore-persistence.md). Two
 `CreateTag` calls with identical `Scope`/`Key`/`Value` but different
@@ -165,7 +168,8 @@ availability cost, not a correctness one — see Consequences.
   inconsistent with every other kernel entity's Create contract (see
   [issue #447](https://github.com/TheCaptiansLedger/purser/issues/447) —
   that inconsistency belongs in a kernel-wide decision, not a Tag-only
-  workaround).
+  workaround; see [0020](0020-server-generated-kernel-entity-ids.md) for
+  that decision).
 - **Making identity fields immutable on `UpdateTag`.** Would remove the
   rename-atomicity problem entirely. Rejected because an existing k6
   fixture already exercises renaming a Tag's `value` in place, and there's

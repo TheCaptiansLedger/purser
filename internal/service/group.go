@@ -17,8 +17,11 @@ func NewGroupService(repo ports.GroupRepository) *GroupService {
 	return &GroupService{repo: repo}
 }
 
-// Create validates g and persists it.
+// Create assigns g a server-generated ID (see
+// docs/adr/0020-server-generated-kernel-entity-ids.md), validates it, and
+// persists it.
 func (s *GroupService) Create(ctx context.Context, g *domain.Group) (*domain.Group, error) {
+	g.ID = domain.NewID()
 	if err := g.Validate(); err != nil {
 		return nil, err
 	}

@@ -17,8 +17,11 @@ func NewImageService(repo ports.ImageRepository) *ImageService {
 	return &ImageService{repo: repo}
 }
 
-// Create validates img and persists it.
+// Create assigns img a server-generated ID (see
+// docs/adr/0020-server-generated-kernel-entity-ids.md), validates it, and
+// persists it.
 func (s *ImageService) Create(ctx context.Context, img *domain.Image) (*domain.Image, error) {
+	img.ID = domain.NewID()
 	if err := img.Validate(); err != nil {
 		return nil, err
 	}

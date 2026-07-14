@@ -17,21 +17,27 @@ function invoke(method, request) {
 export default () => {
   client.connect(ADDR, { plaintext: true });
 
-  const id = `k6-grpc-${__VU}-${__ITER}-${Date.now()}`;
+  // id is server-generated (docs/adr/0020-server-generated-kernel-entity-ids.md)
+  // — never sent on Create, always read back from the response. value is
+  // still suffixed per-VU/iteration: Tag identity is (scope, key, value)
+  // (docs/adr/0019-tag-identity-and-get-or-create.md), so a shared value
+  // would get-or-create-collide across concurrent VUs.
+  const value = `gonzo-${__VU}-${__ITER}-${Date.now()}`;
   const entityId = 'k6-tag-deletion-entity-1';
 
   let res = invoke('purser.domain.v1.TagService/CreateTag', {
-    tag: { id: id, key: 'genre', value: 'gonzo', scope: 'TAG_SCOPE_METADATA' },
+    tag: { key: 'genre', value: value, scope: 'TAG_SCOPE_METADATA' },
   });
   check(res, {
     'CreateTag status is OK': (r) => r && r.status === grpc.StatusOK,
-    'CreateTag returns the id': (r) => r && r.message && r.message.tag && r.message.tag.id === id,
+    'CreateTag returns an id': (r) => r && r.message && r.message.tag && !!r.message.tag.id,
   });
+  const id = res.message.tag.id;
 
   res = invoke('purser.domain.v1.TagService/GetTag', { id: id });
   check(res, {
     'GetTag status is OK': (r) => r && r.status === grpc.StatusOK,
-    'GetTag returns the created value': (r) => r && r.message && r.message.tag && r.message.tag.value === 'gonzo',
+    'GetTag returns the created value': (r) => r && r.message && r.message.tag && r.message.tag.value === value,
   });
 
   res = invoke('purser.domain.v1.TagService/UpdateTag', {
@@ -71,17 +77,22 @@ export default () => {
   check(res, { 'GetTagAssignment after Tag Delete is NotFound (unlinked)': (r) => r && r.status === grpc.StatusNotFound });
 
   // BulkDeleteTags: the "delete these duplicate tags" use case — one of
-  // the two entities ADR 0016 names for a real bulk-delete endpoint.
-  const bulkId1 = `k6-grpc-bulk-tag-${__VU}-${__ITER}-${Date.now()}-1`;
-  const bulkId2 = `k6-grpc-bulk-tag-${__VU}-${__ITER}-${Date.now()}-2`;
-  const bulkId3 = `k6-grpc-bulk-tag-${__VU}-${__ITER}-${Date.now()}-3`;
-
-  for (const bulkId of [bulkId1, bulkId2, bulkId3]) {
+  // the two entities ADR 0016 names for a real bulk-delete endpoint. Each
+  // gets its own value — Tag identity is (scope, key, value), so three
+  // creates with the same value would get-or-create-collide into one row
+  // instead of three (docs/adr/0019-tag-identity-and-get-or-create.md).
+  const bulkIds = [];
+  for (let i = 0; i < 3; i++) {
     res = invoke('purser.domain.v1.TagService/CreateTag', {
-      tag: { id: bulkId, key: 'genre', value: 'gonzo', scope: 'TAG_SCOPE_METADATA' },
+      tag: { key: 'genre', value: `gonzo-bulk-${__VU}-${__ITER}-${Date.now()}-${i}`, scope: 'TAG_SCOPE_METADATA' },
     });
-    check(res, { 'setup: CreateTag status is OK': (r) => r && r.status === grpc.StatusOK });
+    check(res, {
+      'setup: CreateTag status is OK': (r) => r && r.status === grpc.StatusOK,
+      'setup: CreateTag returns an id': (r) => r && r.message && r.message.tag && !!r.message.tag.id,
+    });
+    bulkIds.push(res.message.tag.id);
   }
+  const [bulkId1, bulkId2, bulkId3] = bulkIds;
 
   res = invoke('purser.domain.v1.TagService/BulkDeleteTags', { ids: [bulkId1, bulkId2] });
   check(res, { 'BulkDeleteTags status is OK': (r) => r && r.status === grpc.StatusOK });

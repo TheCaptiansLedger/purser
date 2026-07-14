@@ -15,6 +15,11 @@ import (
 // against a fake port, never a real adapter.
 type fakePersonRepository struct {
 	byID map[string]*domain.Person
+	// forceConflict makes the next Create return ports.ErrConflict without
+	// touching byID — with server-generated IDs (see
+	// docs/adr/0020-server-generated-kernel-entity-ids.md), two Creates
+	// can no longer be forced to collide by reusing a literal ID.
+	forceConflict bool
 }
 
 func newFakePersonRepository() *fakePersonRepository {
@@ -22,6 +27,9 @@ func newFakePersonRepository() *fakePersonRepository {
 }
 
 func (f *fakePersonRepository) Create(_ context.Context, p *domain.Person) error {
+	if f.forceConflict {
+		return ports.ErrConflict
+	}
 	if _, exists := f.byID[p.ID]; exists {
 		return ports.ErrConflict
 	}
@@ -85,11 +93,14 @@ func TestPersonService_Create(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Create returned error: %v", err)
 		}
-		if got.ID != "p1" {
-			t.Fatalf("Create returned ID %q, want %q", got.ID, "p1")
+		if got.ID == "" {
+			t.Fatal("Create returned an empty ID, want a server-generated one")
+		}
+		if got.ID == "p1" {
+			t.Fatal("Create returned the caller-supplied ID, want a server-generated one")
 		}
 
-		if _, err := repo.Get(context.Background(), "p1"); err != nil {
+		if _, err := repo.Get(context.Background(), got.ID); err != nil {
 			t.Fatalf("repo.Get after Create returned error: %v", err)
 		}
 	})
@@ -113,13 +124,11 @@ func TestPersonService_Create(t *testing.T) {
 
 	t.Run("a repository conflict is propagated", func(t *testing.T) {
 		repo := newFakePersonRepository()
+		repo.forceConflict = true
 		svc := service.NewPersonService(repo)
 
-		if _, err := svc.Create(context.Background(), validPerson("p1")); err != nil {
-			t.Fatalf("first Create returned error: %v", err)
-		}
 		if _, err := svc.Create(context.Background(), validPerson("p1")); !errors.Is(err, ports.ErrConflict) {
-			t.Fatalf("duplicate Create returned %v, want ErrConflict", err)
+			t.Fatalf("Create returned %v, want ErrConflict", err)
 		}
 	})
 }
@@ -128,16 +137,17 @@ func TestPersonService_Get(t *testing.T) {
 	repo := newFakePersonRepository()
 	svc := service.NewPersonService(repo)
 
-	if _, err := svc.Create(context.Background(), validPerson("p1")); err != nil {
+	created, err := svc.Create(context.Background(), validPerson("p1"))
+	if err != nil {
 		t.Fatalf("Create returned error: %v", err)
 	}
 
-	got, err := svc.Get(context.Background(), "p1")
+	got, err := svc.Get(context.Background(), created.ID)
 	if err != nil {
 		t.Fatalf("Get returned error: %v", err)
 	}
-	if got.ID != "p1" {
-		t.Fatalf("Get returned ID %q, want %q", got.ID, "p1")
+	if got.ID != created.ID {
+		t.Fatalf("Get returned ID %q, want %q", got.ID, created.ID)
 	}
 
 	if _, err := svc.Get(context.Background(), "missing"); !errors.Is(err, ports.ErrNotFound) {
@@ -150,17 +160,18 @@ func TestPersonService_Update(t *testing.T) {
 		repo := newFakePersonRepository()
 		svc := service.NewPersonService(repo)
 
-		if _, err := svc.Create(context.Background(), validPerson("p1")); err != nil {
+		created, err := svc.Create(context.Background(), validPerson("p1"))
+		if err != nil {
 			t.Fatalf("Create returned error: %v", err)
 		}
 
-		updated := validPerson("p1")
+		updated := validPerson(created.ID)
 		updated.Name = "Updated Name"
 		if _, err := svc.Update(context.Background(), updated); err != nil {
 			t.Fatalf("Update returned error: %v", err)
 		}
 
-		got, err := svc.Get(context.Background(), "p1")
+		got, err := svc.Get(context.Background(), created.ID)
 		if err != nil {
 			t.Fatalf("Get returned error: %v", err)
 		}
@@ -200,13 +211,14 @@ func TestPersonService_Delete(t *testing.T) {
 	repo := newFakePersonRepository()
 	svc := service.NewPersonService(repo)
 
-	if _, err := svc.Create(context.Background(), validPerson("p1")); err != nil {
+	created, err := svc.Create(context.Background(), validPerson("p1"))
+	if err != nil {
 		t.Fatalf("Create returned error: %v", err)
 	}
-	if err := svc.Delete(context.Background(), "p1"); err != nil {
+	if err := svc.Delete(context.Background(), created.ID); err != nil {
 		t.Fatalf("Delete returned error: %v", err)
 	}
-	if _, err := svc.Get(context.Background(), "p1"); !errors.Is(err, ports.ErrNotFound) {
+	if _, err := svc.Get(context.Background(), created.ID); !errors.Is(err, ports.ErrNotFound) {
 		t.Fatalf("Get after Delete returned %v, want ErrNotFound", err)
 	}
 }

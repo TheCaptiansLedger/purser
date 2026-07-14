@@ -29,6 +29,8 @@ message Item {
 }
 
 message CreateItemRequest {
+  // id is server-generated; any value sent here is ignored. See
+  // docs/adr/0020-server-generated-kernel-entity-ids.md.
   Item item = 1;
 }
 

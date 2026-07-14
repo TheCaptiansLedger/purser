@@ -17,15 +17,16 @@ function invoke(method, request) {
 export default () => {
   client.connect(ADDR, { plaintext: true });
 
-  const id = `k6-grpc-${__VU}-${__ITER}-${Date.now()}`;
-
+  // ids are server-generated (docs/adr/0020-server-generated-kernel-entity-ids.md)
+  // — never sent on Create, always read back from the response.
   let res = invoke('purser.domain.v1.LibraryEntryService/CreateLibraryEntry', {
-    libraryEntry: { id: id, contentType: 'adult', kind: 'studio', name: 'K6 gRPC Studio', monitorMode: 'MONITOR_MODE_NONE' },
+    libraryEntry: { contentType: 'adult', kind: 'studio', name: 'K6 gRPC Studio', monitorMode: 'MONITOR_MODE_NONE' },
   });
   check(res, {
     'CreateLibraryEntry status is OK': (r) => r && r.status === grpc.StatusOK,
-    'CreateLibraryEntry returns the id': (r) => r && r.message && r.message.libraryEntry && r.message.libraryEntry.id === id,
+    'CreateLibraryEntry returns an id': (r) => r && r.message && r.message.libraryEntry && !!r.message.libraryEntry.id,
   });
+  const id = res.message.libraryEntry.id;
 
   res = invoke('purser.domain.v1.LibraryEntryService/GetLibraryEntry', { id: id });
   check(res, {
@@ -65,11 +66,14 @@ export default () => {
   // Deletion-impact + Unlink: a child LibraryEntry is a non-blocking
   // referrer — deleting the parent without cascade detaches the child
   // (blanks its parentId) rather than deleting it or failing.
-  const childId = `k6-grpc-le-child-${__VU}-${__ITER}-${Date.now()}`;
   res = invoke('purser.domain.v1.LibraryEntryService/CreateLibraryEntry', {
-    libraryEntry: { id: childId, contentType: 'adult', kind: 'studio', name: 'K6 gRPC Child Studio', parentId: id, monitorMode: 'MONITOR_MODE_NONE' },
+    libraryEntry: { contentType: 'adult', kind: 'studio', name: 'K6 gRPC Child Studio', parentId: id, monitorMode: 'MONITOR_MODE_NONE' },
   });
-  check(res, { 'CreateLibraryEntry (child) status is OK': (r) => r && r.status === grpc.StatusOK });
+  check(res, {
+    'CreateLibraryEntry (child) status is OK': (r) => r && r.status === grpc.StatusOK,
+    'CreateLibraryEntry (child) returns an id': (r) => r && r.message && r.message.libraryEntry && !!r.message.libraryEntry.id,
+  });
+  const childId = res.message.libraryEntry.id;
 
   res = invoke('purser.domain.v1.LibraryEntryService/GetLibraryEntryDeletionImpact', { id: id });
   check(res, {
@@ -99,11 +103,14 @@ export default () => {
   // Blocking + cascade: a Group is a structural referrer (required FK) —
   // deleting its LibraryEntry without cascade must fail, and only
   // cascade=true removes both.
-  const groupId = `k6-grpc-le-group-${__VU}-${__ITER}-${Date.now()}`;
   res = invoke('purser.domain.v1.GroupService/CreateGroup', {
-    group: { id: groupId, libraryEntryId: childId, title: 'K6 gRPC LibraryEntry Deletion Group', monitorMode: 'MONITOR_MODE_NONE' },
+    group: { libraryEntryId: childId, title: 'K6 gRPC LibraryEntry Deletion Group', monitorMode: 'MONITOR_MODE_NONE' },
   });
-  check(res, { 'CreateGroup status is OK': (r) => r && r.status === grpc.StatusOK });
+  check(res, {
+    'CreateGroup status is OK': (r) => r && r.status === grpc.StatusOK,
+    'CreateGroup returns an id': (r) => r && r.message && r.message.group && !!r.message.group.id,
+  });
+  const groupId = res.message.group.id;
 
   res = invoke('purser.domain.v1.LibraryEntryService/GetLibraryEntryDeletionImpact', { id: childId });
   check(res, {

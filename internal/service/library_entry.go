@@ -18,8 +18,11 @@ func NewLibraryEntryService(repo ports.LibraryEntryRepository) *LibraryEntryServ
 	return &LibraryEntryService{repo: repo}
 }
 
-// Create validates e and persists it.
+// Create assigns e a server-generated ID (see
+// docs/adr/0020-server-generated-kernel-entity-ids.md), validates it, and
+// persists it.
 func (s *LibraryEntryService) Create(ctx context.Context, e *domain.LibraryEntry) (*domain.LibraryEntry, error) {
+	e.ID = domain.NewID()
 	if err := e.Validate(); err != nil {
 		return nil, err
 	}

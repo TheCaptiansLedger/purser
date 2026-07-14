@@ -161,8 +161,10 @@ func (x *Item) GetMetadata() *structpb.Struct {
 }
 
 type CreateItemRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Item          *Item                  `protobuf:"bytes,1,opt,name=item,proto3" json:"item,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// id is server-generated; any value sent here is ignored. See
+	// docs/adr/0020-server-generated-kernel-entity-ids.md.
+	Item          *Item `protobuf:"bytes,1,opt,name=item,proto3" json:"item,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }

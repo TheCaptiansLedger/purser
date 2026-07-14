@@ -14,18 +14,20 @@ function invoke(url, body, headers) {
 }
 
 export default () => {
-  const id = `k6-http-${__VU}-${__ITER}-${Date.now()}`;
+  // id is server-generated (docs/adr/0020-server-generated-kernel-entity-ids.md)
+  // — never sent on Create, always read back from the response.
   const ownerId = 'k6-owner-1';
 
   let res = invoke(
     `${SERVICE}/CreateImage`,
-    JSON.stringify({ image: { id: id, ownerType: 'person', ownerId: ownerId, imageType: 'poster', url: 'https://example.com/k6.jpg' } }),
+    JSON.stringify({ image: { ownerType: 'person', ownerId: ownerId, imageType: 'poster', url: 'https://example.com/k6.jpg' } }),
     HEADERS
   );
   check(res, {
     'CreateImage status is 200': (r) => r.status === 200,
-    'CreateImage returns the id': (r) => r.json('image.id') === id,
+    'CreateImage returns an id': (r) => !!r.json('image.id'),
   });
+  const id = res.json('image.id');
 
   res = invoke(`${SERVICE}/GetImage`, JSON.stringify({ id: id }), HEADERS);
   check(res, {

@@ -18,19 +18,20 @@ function invoke(url, body, headers) {
 }
 
 export default () => {
-  const id = `k6-http-${__VU}-${__ITER}-${Date.now()}`;
-
+  // id is server-generated (docs/adr/0020-server-generated-kernel-entity-ids.md)
+  // — never sent on Create, always read back from the response.
   let res = invoke(
     `${SERVICE}/CreatePerson`,
     JSON.stringify({
-      person: { id: id, name: 'K6 HTTP Person', gender: 'GENDER_UNKNOWN', monitorMode: 'MONITOR_MODE_NONE' },
+      person: { name: 'K6 HTTP Person', gender: 'GENDER_UNKNOWN', monitorMode: 'MONITOR_MODE_NONE' },
     }),
     HEADERS
   );
   check(res, {
     'CreatePerson status is 200': (r) => r.status === 200,
-    'CreatePerson returns the id': (r) => r.json('person.id') === id,
+    'CreatePerson returns an id': (r) => !!r.json('person.id'),
   });
+  const id = res.json('person.id');
 
   res = invoke(`${SERVICE}/GetPerson`, JSON.stringify({ id: id }), HEADERS);
   check(res, {

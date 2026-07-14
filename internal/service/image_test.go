@@ -11,6 +11,11 @@ import (
 
 type fakeImageRepository struct {
 	byID map[string]*domain.Image
+	// forceConflict makes the next Create return ports.ErrConflict without
+	// touching byID — with server-generated IDs (see
+	// docs/adr/0020-server-generated-kernel-entity-ids.md), two Creates
+	// can no longer be forced to collide by reusing a literal ID.
+	forceConflict bool
 }
 
 func newFakeImageRepository() *fakeImageRepository {
@@ -18,6 +23,9 @@ func newFakeImageRepository() *fakeImageRepository {
 }
 
 func (f *fakeImageRepository) Create(_ context.Context, img *domain.Image) error {
+	if f.forceConflict {
+		return ports.ErrConflict
+	}
 	if _, exists := f.byID[img.ID]; exists {
 		return ports.ErrConflict
 	}
@@ -74,8 +82,8 @@ func TestImageService_Create(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Create returned error: %v", err)
 		}
-		if got.ID != "i1" {
-			t.Fatalf("Create returned ID %q, want %q", got.ID, "i1")
+		if got.ID == "" || got.ID == "i1" {
+			t.Fatalf("Create returned ID %q, want a server-generated one", got.ID)
 		}
 	})
 
@@ -93,13 +101,11 @@ func TestImageService_Create(t *testing.T) {
 
 	t.Run("a repository conflict is propagated", func(t *testing.T) {
 		repo := newFakeImageRepository()
+		repo.forceConflict = true
 		svc := service.NewImageService(repo)
 
-		if _, err := svc.Create(context.Background(), validImage("i1")); err != nil {
-			t.Fatalf("first Create returned error: %v", err)
-		}
 		if _, err := svc.Create(context.Background(), validImage("i1")); !errors.Is(err, ports.ErrConflict) {
-			t.Fatalf("duplicate Create returned %v, want ErrConflict", err)
+			t.Fatalf("Create returned %v, want ErrConflict", err)
 		}
 	})
 }
@@ -108,10 +114,11 @@ func TestImageService_Get(t *testing.T) {
 	repo := newFakeImageRepository()
 	svc := service.NewImageService(repo)
 
-	if _, err := svc.Create(context.Background(), validImage("i1")); err != nil {
+	created, err := svc.Create(context.Background(), validImage("i1"))
+	if err != nil {
 		t.Fatalf("Create returned error: %v", err)
 	}
-	if _, err := svc.Get(context.Background(), "i1"); err != nil {
+	if _, err := svc.Get(context.Background(), created.ID); err != nil {
 		t.Fatalf("Get returned error: %v", err)
 	}
 	if _, err := svc.Get(context.Background(), "missing"); !errors.Is(err, ports.ErrNotFound) {
@@ -124,17 +131,18 @@ func TestImageService_Update(t *testing.T) {
 		repo := newFakeImageRepository()
 		svc := service.NewImageService(repo)
 
-		if _, err := svc.Create(context.Background(), validImage("i1")); err != nil {
+		created, err := svc.Create(context.Background(), validImage("i1"))
+		if err != nil {
 			t.Fatalf("Create returned error: %v", err)
 		}
 
-		updated := validImage("i1")
+		updated := validImage(created.ID)
 		updated.Priority = 5
 		if _, err := svc.Update(context.Background(), updated); err != nil {
 			t.Fatalf("Update returned error: %v", err)
 		}
 
-		got, err := svc.Get(context.Background(), "i1")
+		got, err := svc.Get(context.Background(), created.ID)
 		if err != nil {
 			t.Fatalf("Get returned error: %v", err)
 		}
@@ -173,13 +181,14 @@ func TestImageService_Delete(t *testing.T) {
 	repo := newFakeImageRepository()
 	svc := service.NewImageService(repo)
 
-	if _, err := svc.Create(context.Background(), validImage("i1")); err != nil {
+	created, err := svc.Create(context.Background(), validImage("i1"))
+	if err != nil {
 		t.Fatalf("Create returned error: %v", err)
 	}
-	if err := svc.Delete(context.Background(), "i1"); err != nil {
+	if err := svc.Delete(context.Background(), created.ID); err != nil {
 		t.Fatalf("Delete returned error: %v", err)
 	}
-	if _, err := svc.Get(context.Background(), "i1"); !errors.Is(err, ports.ErrNotFound) {
+	if _, err := svc.Get(context.Background(), created.ID); !errors.Is(err, ports.ErrNotFound) {
 		t.Fatalf("Get after Delete returned %v, want ErrNotFound", err)
 	}
 }

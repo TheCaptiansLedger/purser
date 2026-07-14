@@ -135,8 +135,10 @@ func (x *Image) GetPriority() int32 {
 }
 
 type CreateImageRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Image         *Image                 `protobuf:"bytes,1,opt,name=image,proto3" json:"image,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// id is server-generated; any value sent here is ignored. See
+	// docs/adr/0020-server-generated-kernel-entity-ids.md.
+	Image         *Image `protobuf:"bytes,1,opt,name=image,proto3" json:"image,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }

@@ -103,8 +103,10 @@ func (x *Tag) GetCategory() string {
 }
 
 type CreateTagRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Tag           *Tag                   `protobuf:"bytes,1,opt,name=tag,proto3" json:"tag,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// id is server-generated; any value sent here is ignored. See
+	// docs/adr/0020-server-generated-kernel-entity-ids.md.
+	Tag           *Tag `protobuf:"bytes,1,opt,name=tag,proto3" json:"tag,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }

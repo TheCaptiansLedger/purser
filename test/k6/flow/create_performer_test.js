@@ -42,18 +42,18 @@ export default () => {
   client.connect(ADDR, { plaintext: true });
 
   const suffix = `${__VU}-${__ITER}-${Date.now()}`;
-  const personId = `k6-flow-performer-person-${suffix}`;
-  const tagId = `k6-flow-performer-tag-${suffix}`;
 
+  // ids are server-generated (docs/adr/0020-server-generated-kernel-entity-ids.md)
+  // — never sent on Create, always read back from the response.
+  //
   // A fictional performer, shaped like a real StashDB performer record
   // (name/aliases/gender/pronouns/nationality) plus a real
   // afterdark.PerformerProfile record (cup/band size, breast type, a
   // tattoo, career start year) — none of it drawn from an actual person.
-  invoke(
+  const createdPerson = invoke(
     'purser.domain.v1.PersonService/CreatePerson',
     {
       person: {
-        id: personId,
         name: 'Harlow Vance',
         sortName: 'Vance, Harlow',
         aliases: ['Harlow V.'],
@@ -66,6 +66,7 @@ export default () => {
     },
     'CreatePerson'
   );
+  const personId = createdPerson.person.id;
 
   invoke(
     'purser.afterdark.v1.PerformerProfileService/CreatePerformerProfile',
@@ -85,11 +86,12 @@ export default () => {
   // value is suffixed per-VU: CreateTag is get-or-create on (scope, key,
   // value) (docs/adr/0019), so a literal value would make concurrent VUs
   // share one tag and race on this flow's own teardown DeleteTag.
-  invoke(
+  const createdTag = invoke(
     'purser.domain.v1.TagService/CreateTag',
-    { tag: { id: tagId, key: 'attribute', value: `Tattoos ${suffix}`, scope: 'TAG_SCOPE_USER', category: 'People' } },
+    { tag: { key: 'attribute', value: `Tattoos ${suffix}`, scope: 'TAG_SCOPE_USER', category: 'People' } },
     'CreateTag'
   );
+  const tagId = createdTag.tag.id;
   invoke(
     'purser.domain.v1.TagAssignmentService/CreateTagAssignment',
     { tagAssignment: { tagId: tagId, entityType: 'ENTITY_TYPE_PERSON', entityId: personId } },

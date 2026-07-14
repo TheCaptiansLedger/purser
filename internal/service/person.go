@@ -31,8 +31,11 @@ func NewPersonService(repo ports.PersonRepository) *PersonService {
 	return &PersonService{repo: repo}
 }
 
-// Create validates p and persists it.
+// Create assigns p a server-generated ID (see
+// docs/adr/0020-server-generated-kernel-entity-ids.md), validates it, and
+// persists it.
 func (s *PersonService) Create(ctx context.Context, p *domain.Person) (*domain.Person, error) {
+	p.ID = domain.NewID()
 	if err := p.Validate(); err != nil {
 		return nil, err
 	}

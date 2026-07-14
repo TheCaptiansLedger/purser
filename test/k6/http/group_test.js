@@ -15,18 +15,18 @@ function invoke(url, body, headers) {
 }
 
 export default () => {
-  const id = `k6-http-${__VU}-${__ITER}-${Date.now()}`;
-  const itemId = `k6-http-group-item-${__VU}-${__ITER}-${Date.now()}`;
-
+  // ids are server-generated (docs/adr/0020-server-generated-kernel-entity-ids.md)
+  // — never sent on Create, always read back from the response.
   let res = invoke(
     `${SERVICE}/CreateGroup`,
-    JSON.stringify({ group: { id: id, libraryEntryId: 'entry1', title: 'K6 HTTP Group', monitorMode: 'MONITOR_MODE_NONE' } }),
+    JSON.stringify({ group: { libraryEntryId: 'entry1', title: 'K6 HTTP Group', monitorMode: 'MONITOR_MODE_NONE' } }),
     HEADERS
   );
   check(res, {
     'CreateGroup status is 200': (r) => r.status === 200,
-    'CreateGroup returns the id': (r) => r.json('group.id') === id,
+    'CreateGroup returns an id': (r) => !!r.json('group.id'),
   });
+  const id = res.json('group.id');
 
   res = invoke(`${SERVICE}/GetGroup`, JSON.stringify({ id: id }), HEADERS);
   check(res, {
@@ -48,10 +48,14 @@ export default () => {
 
   res = invoke(
     `${ITEM}/CreateItem`,
-    JSON.stringify({ item: { id: itemId, contentType: 'adult', libraryEntryId: 'entry1', groupId: id, title: 'K6 Group Deletion Item', status: 'ITEM_STATUS_WANTED' } }),
+    JSON.stringify({ item: { contentType: 'adult', libraryEntryId: 'entry1', groupId: id, title: 'K6 Group Deletion Item', status: 'ITEM_STATUS_WANTED' } }),
     HEADERS
   );
-  check(res, { 'CreateItem status is 200': (r) => r.status === 200 });
+  check(res, {
+    'CreateItem status is 200': (r) => r.status === 200,
+    'CreateItem returns an id': (r) => !!r.json('item.id'),
+  });
+  const itemId = res.json('item.id');
 
   res = invoke(`${SERVICE}/GetGroupDeletionImpact`, JSON.stringify({ id: id }), HEADERS);
   check(res, {

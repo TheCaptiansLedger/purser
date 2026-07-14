@@ -11,6 +11,11 @@ import (
 
 type fakeTagRepository struct {
 	byID map[string]*domain.Tag
+	// forceConflict makes the next Create return ports.ErrConflict without
+	// touching byID — with server-generated IDs (see
+	// docs/adr/0020-server-generated-kernel-entity-ids.md), two Creates
+	// can no longer be forced to collide by reusing a literal ID.
+	forceConflict bool
 }
 
 func newFakeTagRepository() *fakeTagRepository {
@@ -18,6 +23,9 @@ func newFakeTagRepository() *fakeTagRepository {
 }
 
 func (f *fakeTagRepository) Create(_ context.Context, t *domain.Tag) error {
+	if f.forceConflict {
+		return ports.ErrConflict
+	}
 	if _, exists := f.byID[t.ID]; exists {
 		return ports.ErrConflict
 	}
@@ -86,8 +94,8 @@ func TestTagService_Create(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Create returned error: %v", err)
 		}
-		if got.ID != "t1" {
-			t.Fatalf("Create returned ID %q, want %q", got.ID, "t1")
+		if got.ID == "" || got.ID == "t1" {
+			t.Fatalf("Create returned ID %q, want a server-generated one", got.ID)
 		}
 	})
 
@@ -106,13 +114,11 @@ func TestTagService_Create(t *testing.T) {
 
 	t.Run("a repository conflict is propagated", func(t *testing.T) {
 		repo := newFakeTagRepository()
+		repo.forceConflict = true
 		svc := service.NewTagService(repo)
 
-		if _, err := svc.Create(context.Background(), validTag("t1")); err != nil {
-			t.Fatalf("first Create returned error: %v", err)
-		}
 		if _, err := svc.Create(context.Background(), validTag("t1")); !errors.Is(err, ports.ErrConflict) {
-			t.Fatalf("duplicate Create returned %v, want ErrConflict", err)
+			t.Fatalf("Create returned %v, want ErrConflict", err)
 		}
 	})
 }
@@ -121,10 +127,11 @@ func TestTagService_Get(t *testing.T) {
 	repo := newFakeTagRepository()
 	svc := service.NewTagService(repo)
 
-	if _, err := svc.Create(context.Background(), validTag("t1")); err != nil {
+	created, err := svc.Create(context.Background(), validTag("t1"))
+	if err != nil {
 		t.Fatalf("Create returned error: %v", err)
 	}
-	if _, err := svc.Get(context.Background(), "t1"); err != nil {
+	if _, err := svc.Get(context.Background(), created.ID); err != nil {
 		t.Fatalf("Get returned error: %v", err)
 	}
 	if _, err := svc.Get(context.Background(), "missing"); !errors.Is(err, ports.ErrNotFound) {
@@ -137,17 +144,18 @@ func TestTagService_Update(t *testing.T) {
 		repo := newFakeTagRepository()
 		svc := service.NewTagService(repo)
 
-		if _, err := svc.Create(context.Background(), validTag("t1")); err != nil {
+		created, err := svc.Create(context.Background(), validTag("t1"))
+		if err != nil {
 			t.Fatalf("Create returned error: %v", err)
 		}
 
-		updated := validTag("t1")
+		updated := validTag(created.ID)
 		updated.Value = "gonzo"
 		if _, err := svc.Update(context.Background(), updated); err != nil {
 			t.Fatalf("Update returned error: %v", err)
 		}
 
-		got, err := svc.Get(context.Background(), "t1")
+		got, err := svc.Get(context.Background(), created.ID)
 		if err != nil {
 			t.Fatalf("Get returned error: %v", err)
 		}
@@ -186,13 +194,14 @@ func TestTagService_Delete(t *testing.T) {
 	repo := newFakeTagRepository()
 	svc := service.NewTagService(repo)
 
-	if _, err := svc.Create(context.Background(), validTag("t1")); err != nil {
+	created, err := svc.Create(context.Background(), validTag("t1"))
+	if err != nil {
 		t.Fatalf("Create returned error: %v", err)
 	}
-	if err := svc.Delete(context.Background(), "t1"); err != nil {
+	if err := svc.Delete(context.Background(), created.ID); err != nil {
 		t.Fatalf("Delete returned error: %v", err)
 	}
-	if _, err := svc.Get(context.Background(), "t1"); !errors.Is(err, ports.ErrNotFound) {
+	if _, err := svc.Get(context.Background(), created.ID); !errors.Is(err, ports.ErrNotFound) {
 		t.Fatalf("Get after Delete returned %v, want ErrNotFound", err)
 	}
 }

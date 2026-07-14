@@ -15,18 +15,18 @@ function invoke(url, body, headers) {
 }
 
 export default () => {
-  const id = `k6-http-${__VU}-${__ITER}-${Date.now()}`;
-  const mediaFileId = `k6-http-item-media-${__VU}-${__ITER}-${Date.now()}`;
-
+  // ids are server-generated (docs/adr/0020-server-generated-kernel-entity-ids.md)
+  // — never sent on Create, always read back from the response.
   let res = invoke(
     `${SERVICE}/CreateItem`,
-    JSON.stringify({ item: { id: id, contentType: 'adult', libraryEntryId: 'entry1', title: 'K6 HTTP Item', status: 'ITEM_STATUS_WANTED' } }),
+    JSON.stringify({ item: { contentType: 'adult', libraryEntryId: 'entry1', title: 'K6 HTTP Item', status: 'ITEM_STATUS_WANTED' } }),
     HEADERS
   );
   check(res, {
     'CreateItem status is 200': (r) => r.status === 200,
-    'CreateItem returns the id': (r) => r.json('item.id') === id,
+    'CreateItem returns an id': (r) => !!r.json('item.id'),
   });
+  const id = res.json('item.id');
 
   res = invoke(`${SERVICE}/GetItem`, JSON.stringify({ id: id }), HEADERS);
   check(res, {
@@ -57,8 +57,12 @@ export default () => {
     'ListItems filtered by a non-matching libraryEntryId excludes the created item': (r) => !(r.json('items') || []).some((i) => i.id === id),
   });
 
-  res = invoke(`${MEDIA_FILE}/CreateMediaFile`, JSON.stringify({ mediaFile: { id: mediaFileId, itemId: id, path: '/media/k6-item-deletion.mkv' } }), HEADERS);
-  check(res, { 'CreateMediaFile status is 200': (r) => r.status === 200 });
+  res = invoke(`${MEDIA_FILE}/CreateMediaFile`, JSON.stringify({ mediaFile: { itemId: id, path: '/media/k6-item-deletion.mkv' } }), HEADERS);
+  check(res, {
+    'CreateMediaFile status is 200': (r) => r.status === 200,
+    'CreateMediaFile returns an id': (r) => !!r.json('mediaFile.id'),
+  });
+  const mediaFileId = res.json('mediaFile.id');
 
   res = invoke(`${SERVICE}/GetItemDeletionImpact`, JSON.stringify({ id: id }), HEADERS);
   check(res, {
@@ -77,18 +81,20 @@ export default () => {
 
   // BulkDeleteItems: the "delete these 12 duplicate scenes" use case — one
   // of the two entities ADR 0016 names for a real bulk-delete endpoint.
-  const bulkId1 = `k6-http-bulk-item-${__VU}-${__ITER}-${Date.now()}-1`;
-  const bulkId2 = `k6-http-bulk-item-${__VU}-${__ITER}-${Date.now()}-2`;
-  const bulkId3 = `k6-http-bulk-item-${__VU}-${__ITER}-${Date.now()}-3`;
-
-  for (const bulkId of [bulkId1, bulkId2, bulkId3]) {
+  const bulkIds = [];
+  for (let i = 0; i < 3; i++) {
     res = invoke(
       `${SERVICE}/CreateItem`,
-      JSON.stringify({ item: { id: bulkId, contentType: 'adult', libraryEntryId: 'entry1', title: 'K6 Bulk Item', status: 'ITEM_STATUS_WANTED' } }),
+      JSON.stringify({ item: { contentType: 'adult', libraryEntryId: 'entry1', title: 'K6 Bulk Item', status: 'ITEM_STATUS_WANTED' } }),
       HEADERS
     );
-    check(res, { 'setup: CreateItem status is 200': (r) => r.status === 200 });
+    check(res, {
+      'setup: CreateItem status is 200': (r) => r.status === 200,
+      'setup: CreateItem returns an id': (r) => !!r.json('item.id'),
+    });
+    bulkIds.push(res.json('item.id'));
   }
+  const [bulkId1, bulkId2, bulkId3] = bulkIds;
 
   res = invoke(`${SERVICE}/BulkDeleteItems`, JSON.stringify({ ids: [bulkId1, bulkId2] }), HEADERS);
   check(res, { 'BulkDeleteItems status is 200': (r) => r.status === 200 });

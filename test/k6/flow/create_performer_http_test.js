@@ -33,14 +33,13 @@ function invoke(url, body, label) {
 
 export default () => {
   const suffix = `${__VU}-${__ITER}-${Date.now()}`;
-  const personId = `k6-flow-http-performer-person-${suffix}`;
-  const tagId = `k6-flow-http-performer-tag-${suffix}`;
 
-  invoke(
+  // ids are server-generated (docs/adr/0020-server-generated-kernel-entity-ids.md)
+  // — never sent on Create, always read back from the response.
+  const createdPerson = invoke(
     `${PERSON}/CreatePerson`,
     {
       person: {
-        id: personId,
         name: 'Harlow Vance',
         sortName: 'Vance, Harlow',
         aliases: ['Harlow V.'],
@@ -53,6 +52,7 @@ export default () => {
     },
     'CreatePerson'
   );
+  const personId = createdPerson.json('person.id');
 
   invoke(
     `${PERFORMER_PROFILE}/CreatePerformerProfile`,
@@ -72,7 +72,8 @@ export default () => {
   // value is suffixed per-VU: CreateTag is get-or-create on (scope, key,
   // value) (docs/adr/0019), so a literal value would make concurrent VUs
   // share one tag and race on this flow's own teardown DeleteTag.
-  invoke(`${TAG}/CreateTag`, { tag: { id: tagId, key: 'attribute', value: `Tattoos ${suffix}`, scope: 'TAG_SCOPE_USER', category: 'People' } }, 'CreateTag');
+  const createdTag = invoke(`${TAG}/CreateTag`, { tag: { key: 'attribute', value: `Tattoos ${suffix}`, scope: 'TAG_SCOPE_USER', category: 'People' } }, 'CreateTag');
+  const tagId = createdTag.json('tag.id');
   invoke(
     `${TAG_ASSIGNMENT}/CreateTagAssignment`,
     { tagAssignment: { tagId: tagId, entityType: 'ENTITY_TYPE_PERSON', entityId: personId } },

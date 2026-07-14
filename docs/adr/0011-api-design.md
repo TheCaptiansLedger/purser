@@ -30,6 +30,10 @@ The starting requirements, from the planning conversation:
   provider exists. If a caller needs metadata to build a complete `Person`,
   that's a separate call to a separate (future) metadata-provider RPC — the
   caller assembles the entity, the write RPC only persists what it's given.
+  The one exception is `id` on `Create`: per
+  [0020](0020-server-generated-kernel-entity-ids.md), every single-ID
+  kernel entity's `ID` is server-generated and any caller-supplied value is
+  discarded, not persisted.
   This mirrors [0001](0001-hexagonal-architecture.md)'s rule that
   content-type/provider knowledge never leaks into shared code, applied to
   the API layer instead of the service layer.

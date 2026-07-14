@@ -36,6 +36,7 @@ Do not read all project documentation. Determine what the task touches, then loa
 - [docs/adr/0017-build-and-release-goreleaser.md](docs/adr/0017-build-and-release-goreleaser.md) — goreleaser-driven binary/container builds; required for any `.goreleaser.yaml`, `ops/Containerfile`, `internal/version`, or release-pipeline (`.github/workflows/release.yml`) change
 - [docs/adr/0018-local-development-environment.md](docs/adr/0018-local-development-environment.md) — shared `.local/` dev-state layout, single `ops/compose.yml`, one Postgres with two roles; required for any `ops/compose.yml`, `ops/postgres/**`, `Makefile` compose target, or local dev-state directory change
 - [docs/adr/0019-tag-identity-and-get-or-create.md](docs/adr/0019-tag-identity-and-get-or-create.md) — Tag's `(Scope, Key, Value)` uniqueness and the reservation-document pattern; required for any `internal/adapters/store/tag` change, any `TagService`/`TagDeletionService` change, or any new entity that needs a uniqueness constraint beyond its own `(collection, id)` primary key
+- [docs/adr/0020-server-generated-kernel-entity-ids.md](docs/adr/0020-server-generated-kernel-entity-ids.md) — server-generated UUIDv7 `ID`s via `domain.NewID()`; required for any kernel entity's `Create` flow, any new single-ID kernel entity, or any change to `internal/domain/id.go`
 
 **After finishing any ask/task/session:** run the self-audit checklist in [0001](docs/adr/0001-hexagonal-architecture.md) and [0002](docs/adr/0002-solid-design-principles.md) (and [0003](docs/adr/0003-go-testing-standards.md)/[0004](docs/adr/0004-typescript-react-testing-standards.md) if tests were written) and state the result explicitly — do not skip this silently.
 
@@ -50,6 +51,23 @@ Before doing any non-trivial work, present a plan and get explicit permission be
 3. **SOLID** — which principles apply and how the approach satisfies them (see [0002](docs/adr/0002-solid-design-principles.md)).
 
 Do not go down an open-ended investigation or implementation spiral that wasn't part of the approved plan.
+
+---
+
+## Git workflow
+
+Once a plan is approved and before writing any code:
+
+1. **If the work is tracked by a GitHub issue, assign it** to the authenticated `gh` user (`gh issue edit <N> --add-assignee @me`, or the equivalent explicit login) before starting implementation — not after.
+2. **Move the issue's `status:` label to `status: in-progress`**, removing whatever `status:` label it currently carries — every issue gets exactly one, per [0005](docs/adr/0005-github-issue-format.md) (`gh issue edit <N> --remove-label "status: <old>" --add-label "status: in-progress"`).
+3. **Post a short comment on the issue** noting work has started (e.g. "Starting to work on this issue.") — `gh issue comment <N> --body "..."`.
+4. **Create a topic branch off the current branch** and switch to it before making any edits — never accumulate work directly on `develop`/`main`. Name it `<type>/<issue#>-<short-slug>` (e.g. `feat/447-server-generated-kernel-entity-ids`), matching the `type` from [0006](docs/adr/0006-commit-conventions.md) and the issue number if one exists. If a branch already exists for the issue, switch to it instead of creating a new one.
+
+At the end of every task that produced a diff, whether or not it was asked for explicitly:
+
+5. **Produce a commit message as text and stop** — per the hard ban above, never run `git commit`. Follow [0006](docs/adr/0006-commit-conventions.md) exactly: type/scope/breaking-marker, imperative-present summary under 80 characters, prose body explaining why, and a `Closes:`/`Part-Of:` footer if a GitHub issue is being tracked.
+
+Do not wait to be asked for any of these steps — they are part of finishing the task, not a separate follow-up request.
 
 ---
 
@@ -106,6 +124,7 @@ Documentation under `docs/` (architecture overview, development guides, technica
 
 ### Building a proto/Connect (gRPC/HTTP) API service or handler
 - [docs/adr/0011-api-design.md](docs/adr/0011-api-design.md)
+- [docs/adr/0020-server-generated-kernel-entity-ids.md](docs/adr/0020-server-generated-kernel-entity-ids.md) — if the change touches a kernel entity's `Create` flow
 - [docs/adr/0001-hexagonal-architecture.md](docs/adr/0001-hexagonal-architecture.md)
 - [docs/adr/0002-solid-design-principles.md](docs/adr/0002-solid-design-principles.md)
 - [docs/adr/0003-go-testing-standards.md](docs/adr/0003-go-testing-standards.md)

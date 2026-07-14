@@ -18,8 +18,11 @@ func NewMediaFileService(repo ports.MediaFileRepository) *MediaFileService {
 	return &MediaFileService{repo: repo}
 }
 
-// Create validates m and persists it.
+// Create assigns m a server-generated ID (see
+// docs/adr/0020-server-generated-kernel-entity-ids.md), validates it, and
+// persists it.
 func (s *MediaFileService) Create(ctx context.Context, m *domain.MediaFile) (*domain.MediaFile, error) {
+	m.ID = domain.NewID()
 	if err := m.Validate(); err != nil {
 		return nil, err
 	}

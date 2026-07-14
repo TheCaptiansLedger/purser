@@ -11,6 +11,11 @@ import (
 
 type fakeLibraryEntryRepository struct {
 	byID map[string]*domain.LibraryEntry
+	// forceConflict makes the next Create return ports.ErrConflict without
+	// touching byID — with server-generated IDs (see
+	// docs/adr/0020-server-generated-kernel-entity-ids.md), two Creates
+	// can no longer be forced to collide by reusing a literal ID.
+	forceConflict bool
 }
 
 func newFakeLibraryEntryRepository() *fakeLibraryEntryRepository {
@@ -18,6 +23,9 @@ func newFakeLibraryEntryRepository() *fakeLibraryEntryRepository {
 }
 
 func (f *fakeLibraryEntryRepository) Create(_ context.Context, e *domain.LibraryEntry) error {
+	if f.forceConflict {
+		return ports.ErrConflict
+	}
 	if _, exists := f.byID[e.ID]; exists {
 		return ports.ErrConflict
 	}
@@ -80,8 +88,8 @@ func TestLibraryEntryService_Create(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Create returned error: %v", err)
 		}
-		if got.ID != "e1" {
-			t.Fatalf("Create returned ID %q, want %q", got.ID, "e1")
+		if got.ID == "" || got.ID == "e1" {
+			t.Fatalf("Create returned ID %q, want a server-generated one", got.ID)
 		}
 	})
 
@@ -103,13 +111,11 @@ func TestLibraryEntryService_Create(t *testing.T) {
 
 	t.Run("a repository conflict is propagated", func(t *testing.T) {
 		repo := newFakeLibraryEntryRepository()
+		repo.forceConflict = true
 		svc := service.NewLibraryEntryService(repo)
 
-		if _, err := svc.Create(context.Background(), validLibraryEntry("e1")); err != nil {
-			t.Fatalf("first Create returned error: %v", err)
-		}
 		if _, err := svc.Create(context.Background(), validLibraryEntry("e1")); !errors.Is(err, ports.ErrConflict) {
-			t.Fatalf("duplicate Create returned %v, want ErrConflict", err)
+			t.Fatalf("Create returned %v, want ErrConflict", err)
 		}
 	})
 }
@@ -118,10 +124,11 @@ func TestLibraryEntryService_Get(t *testing.T) {
 	repo := newFakeLibraryEntryRepository()
 	svc := service.NewLibraryEntryService(repo)
 
-	if _, err := svc.Create(context.Background(), validLibraryEntry("e1")); err != nil {
+	created, err := svc.Create(context.Background(), validLibraryEntry("e1"))
+	if err != nil {
 		t.Fatalf("Create returned error: %v", err)
 	}
-	if _, err := svc.Get(context.Background(), "e1"); err != nil {
+	if _, err := svc.Get(context.Background(), created.ID); err != nil {
 		t.Fatalf("Get returned error: %v", err)
 	}
 	if _, err := svc.Get(context.Background(), "missing"); !errors.Is(err, ports.ErrNotFound) {
@@ -134,17 +141,18 @@ func TestLibraryEntryService_Update(t *testing.T) {
 		repo := newFakeLibraryEntryRepository()
 		svc := service.NewLibraryEntryService(repo)
 
-		if _, err := svc.Create(context.Background(), validLibraryEntry("e1")); err != nil {
+		created, err := svc.Create(context.Background(), validLibraryEntry("e1"))
+		if err != nil {
 			t.Fatalf("Create returned error: %v", err)
 		}
 
-		updated := validLibraryEntry("e1")
+		updated := validLibraryEntry(created.ID)
 		updated.Name = "Updated"
 		if _, err := svc.Update(context.Background(), updated); err != nil {
 			t.Fatalf("Update returned error: %v", err)
 		}
 
-		got, err := svc.Get(context.Background(), "e1")
+		got, err := svc.Get(context.Background(), created.ID)
 		if err != nil {
 			t.Fatalf("Get returned error: %v", err)
 		}
@@ -183,13 +191,14 @@ func TestLibraryEntryService_Delete(t *testing.T) {
 	repo := newFakeLibraryEntryRepository()
 	svc := service.NewLibraryEntryService(repo)
 
-	if _, err := svc.Create(context.Background(), validLibraryEntry("e1")); err != nil {
+	created, err := svc.Create(context.Background(), validLibraryEntry("e1"))
+	if err != nil {
 		t.Fatalf("Create returned error: %v", err)
 	}
-	if err := svc.Delete(context.Background(), "e1"); err != nil {
+	if err := svc.Delete(context.Background(), created.ID); err != nil {
 		t.Fatalf("Delete returned error: %v", err)
 	}
-	if _, err := svc.Get(context.Background(), "e1"); !errors.Is(err, ports.ErrNotFound) {
+	if _, err := svc.Get(context.Background(), created.ID); !errors.Is(err, ports.ErrNotFound) {
 		t.Fatalf("Get after Delete returned %v, want ErrNotFound", err)
 	}
 }

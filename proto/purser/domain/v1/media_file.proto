@@ -26,6 +26,8 @@ message MediaFile {
 }
 
 message CreateMediaFileRequest {
+  // id is server-generated; any value sent here is ignored. See
+  // docs/adr/0020-server-generated-kernel-entity-ids.md.
   MediaFile media_file = 1;
 }
 

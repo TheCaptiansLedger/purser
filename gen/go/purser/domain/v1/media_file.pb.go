@@ -159,8 +159,10 @@ func (x *MediaFile) GetMetadata() map[string]string {
 }
 
 type CreateMediaFileRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	MediaFile     *MediaFile             `protobuf:"bytes,1,opt,name=media_file,json=mediaFile,proto3" json:"media_file,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// id is server-generated; any value sent here is ignored. See
+	// docs/adr/0020-server-generated-kernel-entity-ids.md.
+	MediaFile     *MediaFile `protobuf:"bytes,1,opt,name=media_file,json=mediaFile,proto3" json:"media_file,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }

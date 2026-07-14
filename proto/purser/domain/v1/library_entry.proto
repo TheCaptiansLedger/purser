@@ -33,6 +33,8 @@ message LibraryEntry {
 }
 
 message CreateLibraryEntryRequest {
+  // id is server-generated; any value sent here is ignored. See
+  // docs/adr/0020-server-generated-kernel-entity-ids.md.
   LibraryEntry library_entry = 1;
 }
 

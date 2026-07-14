@@ -32,16 +32,13 @@ function invoke(url, body, label) {
 
 export default () => {
   const suffix = `${__VU}-${__ITER}-${Date.now()}`;
-  const networkId = `k6-flow-http-studio-network-${suffix}`;
-  const studioId = `k6-flow-http-studio-studio-${suffix}`;
-  const networkTagId = `k6-flow-http-studio-network-tag-${suffix}`;
-  const studioTagId = `k6-flow-http-studio-studio-tag-${suffix}`;
 
-  invoke(
+  // ids are server-generated (docs/adr/0020-server-generated-kernel-entity-ids.md)
+  // — never sent on Create, always read back from the response.
+  const createdNetwork = invoke(
     `${LIBRARY_ENTRY}/CreateLibraryEntry`,
     {
       libraryEntry: {
-        id: networkId,
         contentType: 'adult',
         kind: 'network',
         name: 'Twilight Media (Network)',
@@ -51,12 +48,12 @@ export default () => {
     },
     'CreateLibraryEntry(network)'
   );
+  const networkId = createdNetwork.json('libraryEntry.id');
 
-  invoke(
+  const createdStudio = invoke(
     `${LIBRARY_ENTRY}/CreateLibraryEntry`,
     {
       libraryEntry: {
-        id: studioId,
         contentType: 'adult',
         kind: 'studio',
         parentId: networkId,
@@ -67,26 +64,29 @@ export default () => {
     },
     'CreateLibraryEntry(studio)'
   );
+  const studioId = createdStudio.json('libraryEntry.id');
 
   // value is suffixed per-VU: CreateTag is get-or-create on (scope, key,
   // value) (docs/adr/0019), so a literal value would make concurrent VUs
   // share one tag and race on this flow's own teardown DeleteTag.
-  invoke(
+  const createdNetworkTag = invoke(
     `${TAG}/CreateTag`,
-    { tag: { id: networkTagId, key: 'network_type', value: `Boutique ${suffix}`, scope: 'TAG_SCOPE_USER', category: 'Misc' } },
+    { tag: { key: 'network_type', value: `Boutique ${suffix}`, scope: 'TAG_SCOPE_USER', category: 'Misc' } },
     'CreateTag(network)'
   );
+  const networkTagId = createdNetworkTag.json('tag.id');
   invoke(
     `${TAG_ASSIGNMENT}/CreateTagAssignment`,
     { tagAssignment: { tagId: networkTagId, entityType: 'ENTITY_TYPE_LIBRARY_ENTRY', entityId: networkId } },
     'CreateTagAssignment(network)'
   );
 
-  invoke(
+  const createdStudioTag = invoke(
     `${TAG}/CreateTag`,
-    { tag: { id: studioTagId, key: 'studio_type', value: `Premium ${suffix}`, scope: 'TAG_SCOPE_USER', category: 'Misc' } },
+    { tag: { key: 'studio_type', value: `Premium ${suffix}`, scope: 'TAG_SCOPE_USER', category: 'Misc' } },
     'CreateTag(studio)'
   );
+  const studioTagId = createdStudioTag.json('tag.id');
   invoke(
     `${TAG_ASSIGNMENT}/CreateTagAssignment`,
     { tagAssignment: { tagId: studioTagId, entityType: 'ENTITY_TYPE_LIBRARY_ENTRY', entityId: studioId } },

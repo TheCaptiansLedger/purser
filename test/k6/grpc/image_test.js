@@ -17,16 +17,18 @@ function invoke(method, request) {
 export default () => {
   client.connect(ADDR, { plaintext: true });
 
-  const id = `k6-grpc-${__VU}-${__ITER}-${Date.now()}`;
+  // id is server-generated (docs/adr/0020-server-generated-kernel-entity-ids.md)
+  // — never sent on Create, always read back from the response.
   const ownerId = 'k6-owner-1';
 
   let res = invoke('purser.domain.v1.ImageService/CreateImage', {
-    image: { id: id, ownerType: 'person', ownerId: ownerId, imageType: 'poster', url: 'https://example.com/k6.jpg' },
+    image: { ownerType: 'person', ownerId: ownerId, imageType: 'poster', url: 'https://example.com/k6.jpg' },
   });
   check(res, {
     'CreateImage status is OK': (r) => r && r.status === grpc.StatusOK,
-    'CreateImage returns the id': (r) => r && r.message && r.message.image && r.message.image.id === id,
+    'CreateImage returns an id': (r) => r && r.message && r.message.image && !!r.message.image.id,
   });
+  const id = res.message.image.id;
 
   res = invoke('purser.domain.v1.ImageService/GetImage', { id: id });
   check(res, {

@@ -17,16 +17,16 @@ function invoke(method, request) {
 export default () => {
   client.connect(ADDR, { plaintext: true });
 
-  const id = `k6-grpc-${__VU}-${__ITER}-${Date.now()}`;
-  const mediaFileId = `k6-grpc-item-media-${__VU}-${__ITER}-${Date.now()}`;
-
+  // ids are server-generated (docs/adr/0020-server-generated-kernel-entity-ids.md)
+  // — never sent on Create, always read back from the response.
   let res = invoke('purser.domain.v1.ItemService/CreateItem', {
-    item: { id: id, contentType: 'adult', libraryEntryId: 'entry1', title: 'K6 gRPC Item', status: 'ITEM_STATUS_WANTED' },
+    item: { contentType: 'adult', libraryEntryId: 'entry1', title: 'K6 gRPC Item', status: 'ITEM_STATUS_WANTED' },
   });
   check(res, {
     'CreateItem status is OK': (r) => r && r.status === grpc.StatusOK,
-    'CreateItem returns the id': (r) => r && r.message && r.message.item && r.message.item.id === id,
+    'CreateItem returns an id': (r) => r && r.message && r.message.item && !!r.message.item.id,
   });
+  const id = res.message.item.id;
 
   res = invoke('purser.domain.v1.ItemService/GetItem', { id: id });
   check(res, {
@@ -62,8 +62,12 @@ export default () => {
       r && r.message && !(r.message.items || []).some((i) => i.id === id),
   });
 
-  res = invoke('purser.domain.v1.MediaFileService/CreateMediaFile', { mediaFile: { id: mediaFileId, itemId: id, path: '/media/k6-item-deletion.mkv' } });
-  check(res, { 'CreateMediaFile status is OK': (r) => r && r.status === grpc.StatusOK });
+  res = invoke('purser.domain.v1.MediaFileService/CreateMediaFile', { mediaFile: { itemId: id, path: '/media/k6-item-deletion.mkv' } });
+  check(res, {
+    'CreateMediaFile status is OK': (r) => r && r.status === grpc.StatusOK,
+    'CreateMediaFile returns an id': (r) => r && r.message && r.message.mediaFile && !!r.message.mediaFile.id,
+  });
+  const mediaFileId = res.message.mediaFile.id;
 
   res = invoke('purser.domain.v1.ItemService/GetItemDeletionImpact', { id: id });
   check(res, {
@@ -83,16 +87,18 @@ export default () => {
 
   // BulkDeleteItems: the "delete these 12 duplicate scenes" use case — one
   // of the two entities ADR 0016 names for a real bulk-delete endpoint.
-  const bulkId1 = `k6-grpc-bulk-item-${__VU}-${__ITER}-${Date.now()}-1`;
-  const bulkId2 = `k6-grpc-bulk-item-${__VU}-${__ITER}-${Date.now()}-2`;
-  const bulkId3 = `k6-grpc-bulk-item-${__VU}-${__ITER}-${Date.now()}-3`;
-
-  for (const bulkId of [bulkId1, bulkId2, bulkId3]) {
+  const bulkIds = [];
+  for (let i = 0; i < 3; i++) {
     res = invoke('purser.domain.v1.ItemService/CreateItem', {
-      item: { id: bulkId, contentType: 'adult', libraryEntryId: 'entry1', title: 'K6 Bulk Item', status: 'ITEM_STATUS_WANTED' },
+      item: { contentType: 'adult', libraryEntryId: 'entry1', title: 'K6 Bulk Item', status: 'ITEM_STATUS_WANTED' },
     });
-    check(res, { 'setup: CreateItem status is OK': (r) => r && r.status === grpc.StatusOK });
+    check(res, {
+      'setup: CreateItem status is OK': (r) => r && r.status === grpc.StatusOK,
+      'setup: CreateItem returns an id': (r) => r && r.message && r.message.item && !!r.message.item.id,
+    });
+    bulkIds.push(res.message.item.id);
   }
+  const [bulkId1, bulkId2, bulkId3] = bulkIds;
 
   res = invoke('purser.domain.v1.ItemService/BulkDeleteItems', { ids: [bulkId1, bulkId2] });
   check(res, { 'BulkDeleteItems status is OK': (r) => r && r.status === grpc.StatusOK });

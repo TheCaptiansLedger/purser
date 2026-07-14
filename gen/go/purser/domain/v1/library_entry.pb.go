@@ -179,8 +179,10 @@ func (x *LibraryEntry) GetMetadata() *structpb.Struct {
 }
 
 type CreateLibraryEntryRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	LibraryEntry  *LibraryEntry          `protobuf:"bytes,1,opt,name=library_entry,json=libraryEntry,proto3" json:"library_entry,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// id is server-generated; any value sent here is ignored. See
+	// docs/adr/0020-server-generated-kernel-entity-ids.md.
+	LibraryEntry  *LibraryEntry `protobuf:"bytes,1,opt,name=library_entry,json=libraryEntry,proto3" json:"library_entry,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }

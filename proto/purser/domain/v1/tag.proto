@@ -20,6 +20,8 @@ message Tag {
 }
 
 message CreateTagRequest {
+  // id is server-generated; any value sent here is ignored. See
+  // docs/adr/0020-server-generated-kernel-entity-ids.md.
   Tag tag = 1;
 }
 

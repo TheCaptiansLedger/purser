@@ -17,16 +17,16 @@ function invoke(method, request) {
 export default () => {
   client.connect(ADDR, { plaintext: true });
 
-  const id = `k6-grpc-${__VU}-${__ITER}-${Date.now()}`;
-  const itemId = `k6-grpc-group-item-${__VU}-${__ITER}-${Date.now()}`;
-
+  // ids are server-generated (docs/adr/0020-server-generated-kernel-entity-ids.md)
+  // — never sent on Create, always read back from the response.
   let res = invoke('purser.domain.v1.GroupService/CreateGroup', {
-    group: { id: id, libraryEntryId: 'entry1', title: 'K6 gRPC Group', monitorMode: 'MONITOR_MODE_NONE' },
+    group: { libraryEntryId: 'entry1', title: 'K6 gRPC Group', monitorMode: 'MONITOR_MODE_NONE' },
   });
   check(res, {
     'CreateGroup status is OK': (r) => r && r.status === grpc.StatusOK,
-    'CreateGroup returns the id': (r) => r && r.message && r.message.group && r.message.group.id === id,
+    'CreateGroup returns an id': (r) => r && r.message && r.message.group && !!r.message.group.id,
   });
+  const id = res.message.group.id;
 
   res = invoke('purser.domain.v1.GroupService/GetGroup', { id: id });
   check(res, {
@@ -50,9 +50,13 @@ export default () => {
   });
 
   res = invoke('purser.domain.v1.ItemService/CreateItem', {
-    item: { id: itemId, contentType: 'adult', libraryEntryId: 'entry1', groupId: id, title: 'K6 Group Deletion Item', status: 'ITEM_STATUS_WANTED' },
+    item: { contentType: 'adult', libraryEntryId: 'entry1', groupId: id, title: 'K6 Group Deletion Item', status: 'ITEM_STATUS_WANTED' },
   });
-  check(res, { 'CreateItem status is OK': (r) => r && r.status === grpc.StatusOK });
+  check(res, {
+    'CreateItem status is OK': (r) => r && r.status === grpc.StatusOK,
+    'CreateItem returns an id': (r) => r && r.message && r.message.item && !!r.message.item.id,
+  });
+  const itemId = res.message.item.id;
 
   res = invoke('purser.domain.v1.GroupService/GetGroupDeletionImpact', { id: id });
   check(res, {

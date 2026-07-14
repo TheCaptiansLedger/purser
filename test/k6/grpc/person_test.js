@@ -20,11 +20,10 @@ function invoke(method, request) {
 export default () => {
   client.connect(ADDR, { plaintext: true });
 
-  const id = `k6-grpc-${__VU}-${__ITER}-${Date.now()}`;
-
+  // id is server-generated (docs/adr/0020-server-generated-kernel-entity-ids.md)
+  // — never sent on Create, always read back from the response.
   let res = invoke('purser.domain.v1.PersonService/CreatePerson', {
     person: {
-      id: id,
       name: 'K6 gRPC Person',
       gender: 'GENDER_UNKNOWN',
       monitorMode: 'MONITOR_MODE_NONE',
@@ -32,8 +31,9 @@ export default () => {
   });
   check(res, {
     'CreatePerson status is OK': (r) => r && r.status === grpc.StatusOK,
-    'CreatePerson returns the id': (r) => r && r.message && r.message.person && r.message.person.id === id,
+    'CreatePerson returns an id': (r) => r && r.message && r.message.person && !!r.message.person.id,
   });
+  const id = res.message.person.id;
 
   res = invoke('purser.domain.v1.PersonService/GetPerson', { id: id });
   check(res, {

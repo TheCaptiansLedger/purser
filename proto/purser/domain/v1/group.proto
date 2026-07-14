@@ -23,6 +23,8 @@ message Group {
 }
 
 message CreateGroupRequest {
+  // id is server-generated; any value sent here is ignored. See
+  // docs/adr/0020-server-generated-kernel-entity-ids.md.
   Group group = 1;
 }
 

@@ -141,8 +141,10 @@ func (x *Group) GetMetadata() *structpb.Struct {
 }
 
 type CreateGroupRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Group         *Group                 `protobuf:"bytes,1,opt,name=group,proto3" json:"group,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// id is server-generated; any value sent here is ignored. See
+	// docs/adr/0020-server-generated-kernel-entity-ids.md.
+	Group         *Group `protobuf:"bytes,1,opt,name=group,proto3" json:"group,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }

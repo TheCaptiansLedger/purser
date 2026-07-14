@@ -244,7 +244,9 @@ func (x *Person) GetUpdatedAt() *timestamppb.Timestamp {
 type CreatePersonRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Caller supplies a fully-formed Person — this RPC persists what it's
-	// given, it never enriches or resolves metadata. See ADR-0011.
+	// given, it never enriches or resolves metadata. See ADR-0011. The one
+	// exception is id, which is server-generated; any value sent here is
+	// ignored. See docs/adr/0020-server-generated-kernel-entity-ids.md.
 	Person        *Person `protobuf:"bytes,1,opt,name=person,proto3" json:"person,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache

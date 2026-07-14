@@ -54,42 +54,40 @@ function invoke(method, request, label) {
   return res.message;
 }
 
-function createPerformer(id, person, profile) {
-  invoke('purser.domain.v1.PersonService/CreatePerson', { person: Object.assign({ id: id, monitorMode: 'MONITOR_MODE_NONE' }, person) }, `CreatePerson(${person.name})`);
+// Returns the server-generated Person id (docs/adr/0020-server-generated-kernel-entity-ids.md)
+// — never sent on Create, always read back from the response.
+function createPerformer(person, profile) {
+  const created = invoke('purser.domain.v1.PersonService/CreatePerson', { person: Object.assign({ monitorMode: 'MONITOR_MODE_NONE' }, person) }, `CreatePerson(${person.name})`);
+  const id = created.person.id;
   invoke(
     'purser.afterdark.v1.PerformerProfileService/CreatePerformerProfile',
     { performerProfile: Object.assign({ personId: id }, profile) },
     `CreatePerformerProfile(${person.name})`
   );
+  return id;
 }
 
 export default () => {
   client.connect(ADDR, { plaintext: true });
 
   const suffix = `${__VU}-${__ITER}-${Date.now()}`;
-  const networkId = `k6-flow-import-network-${suffix}`;
-  const studioId = `k6-flow-import-studio-${suffix}`;
-  const sceneId = `k6-flow-import-scene-${suffix}`;
-  const harlowId = `k6-flow-import-harlow-${suffix}`;
-  const darioId = `k6-flow-import-dario-${suffix}`;
-  const mikaId = `k6-flow-import-mika-${suffix}`;
-  const biancaId = `k6-flow-import-bianca-${suffix}`;
-  const performerIds = [harlowId, darioId, mikaId, biancaId];
-  const genreTagId = `k6-flow-import-genre-tag-${suffix}`;
-  const settingTagId = `k6-flow-import-setting-tag-${suffix}`;
 
+  // ids are server-generated (docs/adr/0020-server-generated-kernel-entity-ids.md)
+  // — never sent on Create, always read back from the response.
+  //
   // 1. Resolve/create the network and studio the scene's site metadata
   // points at.
-  invoke(
+  const createdNetwork = invoke(
     'purser.domain.v1.LibraryEntryService/CreateLibraryEntry',
-    { libraryEntry: { id: networkId, contentType: 'adult', kind: 'network', name: 'Twilight Media (Network)', monitorMode: 'MONITOR_MODE_ALL' } },
+    { libraryEntry: { contentType: 'adult', kind: 'network', name: 'Twilight Media (Network)', monitorMode: 'MONITOR_MODE_ALL' } },
     'CreateLibraryEntry(network)'
   );
-  invoke(
+  const networkId = createdNetwork.libraryEntry.id;
+
+  const createdStudio = invoke(
     'purser.domain.v1.LibraryEntryService/CreateLibraryEntry',
     {
       libraryEntry: {
-        id: studioId,
         contentType: 'adult',
         kind: 'studio',
         parentId: networkId,
@@ -99,37 +97,34 @@ export default () => {
     },
     'CreateLibraryEntry(studio)'
   );
+  const studioId = createdStudio.libraryEntry.id;
 
   // 2. Resolve/create the performers the scene's metadata credits — a mix
   // of genders and attribute shapes drawn from both providers' performer
   // schemas.
-  createPerformer(
-    harlowId,
+  const harlowId = createPerformer(
     { name: 'Harlow Vance', sortName: 'Vance, Harlow', gender: 'GENDER_FEMALE', nationality: 'American' },
     { cupSize: 'C', bandSize: '34', breastType: 'NATURAL', careerStartYear: 2021 }
   );
-  createPerformer(
-    darioId,
+  const darioId = createPerformer(
     { name: 'Dario Cole', sortName: 'Cole, Dario', gender: 'GENDER_MALE', nationality: 'American' },
     { breastType: 'NA', careerStartYear: 2019 }
   );
-  createPerformer(
-    mikaId,
+  const mikaId = createPerformer(
     { name: 'Mika Delgado', sortName: 'Delgado, Mika', gender: 'GENDER_FEMALE', nationality: 'Canadian' },
     { cupSize: 'D', bandSize: '32', breastType: 'FAKE', careerStartYear: 2020 }
   );
-  createPerformer(
-    biancaId,
+  const biancaId = createPerformer(
     { name: 'Bianca Storm', sortName: 'Storm, Bianca', gender: 'GENDER_TRANSGENDER_FEMALE', pronouns: 'she/her', nationality: 'Brazilian' },
     { cupSize: 'C', bandSize: '34', breastType: 'FAKE', careerStartYear: 2022 }
   );
+  const performerIds = [harlowId, darioId, mikaId, biancaId];
 
   // 3. Create the scene under the resolved studio.
-  invoke(
+  const createdScene = invoke(
     'purser.domain.v1.ItemService/CreateItem',
     {
       item: {
-        id: sceneId,
         contentType: 'adult',
         libraryEntryId: studioId,
         title: 'Velvet Hour: After Party',
@@ -140,6 +135,7 @@ export default () => {
     },
     'CreateItem'
   );
+  const sceneId = createdScene.item.id;
 
   // 4. Link each resolved performer to the scene, using a credited/stage
   // name distinct from the canonical Person name for some of them — the
@@ -169,21 +165,23 @@ export default () => {
   // value is suffixed per-VU: CreateTag is get-or-create on (scope, key,
   // value) (docs/adr/0019), so a literal value would make concurrent VUs
   // share one tag and race on this flow's own teardown DeleteTag.
-  invoke(
+  const createdGenreTag = invoke(
     'purser.domain.v1.TagService/CreateTag',
-    { tag: { id: genreTagId, key: 'genre', value: `Contemporary Romance ${suffix}`, scope: 'TAG_SCOPE_METADATA', category: 'Themes' } },
+    { tag: { key: 'genre', value: `Contemporary Romance ${suffix}`, scope: 'TAG_SCOPE_METADATA', category: 'Themes' } },
     'CreateTag(genre)'
   );
+  const genreTagId = createdGenreTag.tag.id;
   invoke(
     'purser.domain.v1.TagAssignmentService/CreateTagAssignment',
     { tagAssignment: { tagId: genreTagId, entityType: 'ENTITY_TYPE_ITEM', entityId: sceneId } },
     'CreateTagAssignment(genre)'
   );
-  invoke(
+  const createdSettingTag = invoke(
     'purser.domain.v1.TagService/CreateTag',
-    { tag: { id: settingTagId, key: 'setting', value: `Rooftop ${suffix}`, scope: 'TAG_SCOPE_METADATA', category: 'Location' } },
+    { tag: { key: 'setting', value: `Rooftop ${suffix}`, scope: 'TAG_SCOPE_METADATA', category: 'Location' } },
     'CreateTag(setting)'
   );
+  const settingTagId = createdSettingTag.tag.id;
   invoke(
     'purser.domain.v1.TagAssignmentService/CreateTagAssignment',
     { tagAssignment: { tagId: settingTagId, entityType: 'ENTITY_TYPE_ITEM', entityId: sceneId } },

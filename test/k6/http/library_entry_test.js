@@ -15,17 +15,18 @@ function invoke(url, body, headers) {
 }
 
 export default () => {
-  const id = `k6-http-${__VU}-${__ITER}-${Date.now()}`;
-
+  // ids are server-generated (docs/adr/0020-server-generated-kernel-entity-ids.md)
+  // — never sent on Create, always read back from the response.
   let res = invoke(
     `${SERVICE}/CreateLibraryEntry`,
-    JSON.stringify({ libraryEntry: { id: id, contentType: 'adult', kind: 'studio', name: 'K6 HTTP Studio', monitorMode: 'MONITOR_MODE_NONE' } }),
+    JSON.stringify({ libraryEntry: { contentType: 'adult', kind: 'studio', name: 'K6 HTTP Studio', monitorMode: 'MONITOR_MODE_NONE' } }),
     HEADERS
   );
   check(res, {
     'CreateLibraryEntry status is 200': (r) => r.status === 200,
-    'CreateLibraryEntry returns the id': (r) => r.json('libraryEntry.id') === id,
+    'CreateLibraryEntry returns an id': (r) => !!r.json('libraryEntry.id'),
   });
+  const id = res.json('libraryEntry.id');
 
   res = invoke(`${SERVICE}/GetLibraryEntry`, JSON.stringify({ id: id }), HEADERS);
   check(res, {
@@ -64,13 +65,16 @@ export default () => {
   // Deletion-impact + Unlink: a child LibraryEntry is a non-blocking
   // referrer — deleting the parent without cascade detaches the child
   // (blanks its parentId) rather than deleting it or failing.
-  const childId = `k6-http-le-child-${__VU}-${__ITER}-${Date.now()}`;
   res = invoke(
     `${SERVICE}/CreateLibraryEntry`,
-    JSON.stringify({ libraryEntry: { id: childId, contentType: 'adult', kind: 'studio', name: 'K6 HTTP Child Studio', parentId: id, monitorMode: 'MONITOR_MODE_NONE' } }),
+    JSON.stringify({ libraryEntry: { contentType: 'adult', kind: 'studio', name: 'K6 HTTP Child Studio', parentId: id, monitorMode: 'MONITOR_MODE_NONE' } }),
     HEADERS
   );
-  check(res, { 'CreateLibraryEntry (child) status is 200': (r) => r.status === 200 });
+  check(res, {
+    'CreateLibraryEntry (child) status is 200': (r) => r.status === 200,
+    'CreateLibraryEntry (child) returns an id': (r) => !!r.json('libraryEntry.id'),
+  });
+  const childId = res.json('libraryEntry.id');
 
   res = invoke(`${SERVICE}/GetLibraryEntryDeletionImpact`, JSON.stringify({ id: id }), HEADERS);
   check(res, {
@@ -98,13 +102,16 @@ export default () => {
   // Blocking + cascade: a Group is a structural referrer (required FK) —
   // deleting its LibraryEntry without cascade must fail, and only
   // cascade=true removes both.
-  const groupId = `k6-http-le-group-${__VU}-${__ITER}-${Date.now()}`;
   res = invoke(
     `${GROUP_SERVICE}/CreateGroup`,
-    JSON.stringify({ group: { id: groupId, libraryEntryId: childId, title: 'K6 HTTP LibraryEntry Deletion Group', monitorMode: 'MONITOR_MODE_NONE' } }),
+    JSON.stringify({ group: { libraryEntryId: childId, title: 'K6 HTTP LibraryEntry Deletion Group', monitorMode: 'MONITOR_MODE_NONE' } }),
     HEADERS
   );
-  check(res, { 'CreateGroup status is 200': (r) => r.status === 200 });
+  check(res, {
+    'CreateGroup status is 200': (r) => r.status === 200,
+    'CreateGroup returns an id': (r) => !!r.json('group.id'),
+  });
+  const groupId = res.json('group.id');
 
   res = invoke(`${SERVICE}/GetLibraryEntryDeletionImpact`, JSON.stringify({ id: childId }), HEADERS);
   check(res, {

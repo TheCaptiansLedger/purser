@@ -38,6 +38,7 @@ ADR wins.
 | [0017](0017-build-and-release-goreleaser.md) | Build & Release: Goreleaser as the Build Model | Accepted |
 | [0018](0018-local-development-environment.md) | Local Development Environment: Shared Directories, One Compose File, One Postgres | Accepted |
 | [0019](0019-tag-identity-and-get-or-create.md) | Tag Identity: (Scope, Key, Value) Uniqueness via a Reservation Document | Accepted |
+| [0020](0020-server-generated-kernel-entity-ids.md) | Server-Generated Kernel Entity IDs (UUIDv7) | Accepted |
 
 ## Adding a new ADR
 

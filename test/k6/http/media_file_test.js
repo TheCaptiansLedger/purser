@@ -14,13 +14,14 @@ function invoke(url, body, headers) {
 }
 
 export default () => {
-  const id = `k6-http-${__VU}-${__ITER}-${Date.now()}`;
-
-  let res = invoke(`${SERVICE}/CreateMediaFile`, JSON.stringify({ mediaFile: { id: id, itemId: 'item1', path: '/media/k6.mkv' } }), HEADERS);
+  // id is server-generated (docs/adr/0020-server-generated-kernel-entity-ids.md)
+  // — never sent on Create, always read back from the response.
+  let res = invoke(`${SERVICE}/CreateMediaFile`, JSON.stringify({ mediaFile: { itemId: 'item1', path: '/media/k6.mkv' } }), HEADERS);
   check(res, {
     'CreateMediaFile status is 200': (r) => r.status === 200,
-    'CreateMediaFile returns the id': (r) => r.json('mediaFile.id') === id,
+    'CreateMediaFile returns an id': (r) => !!r.json('mediaFile.id'),
   });
+  const id = res.json('mediaFile.id');
 
   res = invoke(`${SERVICE}/GetMediaFile`, JSON.stringify({ id: id }), HEADERS);
   check(res, {

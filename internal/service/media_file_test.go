@@ -11,6 +11,11 @@ import (
 
 type fakeMediaFileRepository struct {
 	byID map[string]*domain.MediaFile
+	// forceConflict makes the next Create return ports.ErrConflict without
+	// touching byID — with server-generated IDs (see
+	// docs/adr/0020-server-generated-kernel-entity-ids.md), two Creates
+	// can no longer be forced to collide by reusing a literal ID.
+	forceConflict bool
 }
 
 func newFakeMediaFileRepository() *fakeMediaFileRepository {
@@ -18,6 +23,9 @@ func newFakeMediaFileRepository() *fakeMediaFileRepository {
 }
 
 func (f *fakeMediaFileRepository) Create(_ context.Context, m *domain.MediaFile) error {
+	if f.forceConflict {
+		return ports.ErrConflict
+	}
 	if _, exists := f.byID[m.ID]; exists {
 		return ports.ErrConflict
 	}
@@ -74,8 +82,8 @@ func TestMediaFileService_Create(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Create returned error: %v", err)
 		}
-		if got.ID != "m1" {
-			t.Fatalf("Create returned ID %q, want %q", got.ID, "m1")
+		if got.ID == "" || got.ID == "m1" {
+			t.Fatalf("Create returned ID %q, want a server-generated one", got.ID)
 		}
 	})
 
@@ -93,13 +101,11 @@ func TestMediaFileService_Create(t *testing.T) {
 
 	t.Run("a repository conflict is propagated", func(t *testing.T) {
 		repo := newFakeMediaFileRepository()
+		repo.forceConflict = true
 		svc := service.NewMediaFileService(repo)
 
-		if _, err := svc.Create(context.Background(), validMediaFile("m1")); err != nil {
-			t.Fatalf("first Create returned error: %v", err)
-		}
 		if _, err := svc.Create(context.Background(), validMediaFile("m1")); !errors.Is(err, ports.ErrConflict) {
-			t.Fatalf("duplicate Create returned %v, want ErrConflict", err)
+			t.Fatalf("Create returned %v, want ErrConflict", err)
 		}
 	})
 }
@@ -108,10 +114,11 @@ func TestMediaFileService_Get(t *testing.T) {
 	repo := newFakeMediaFileRepository()
 	svc := service.NewMediaFileService(repo)
 
-	if _, err := svc.Create(context.Background(), validMediaFile("m1")); err != nil {
+	created, err := svc.Create(context.Background(), validMediaFile("m1"))
+	if err != nil {
 		t.Fatalf("Create returned error: %v", err)
 	}
-	if _, err := svc.Get(context.Background(), "m1"); err != nil {
+	if _, err := svc.Get(context.Background(), created.ID); err != nil {
 		t.Fatalf("Get returned error: %v", err)
 	}
 	if _, err := svc.Get(context.Background(), "missing"); !errors.Is(err, ports.ErrNotFound) {
@@ -124,17 +131,18 @@ func TestMediaFileService_Update(t *testing.T) {
 		repo := newFakeMediaFileRepository()
 		svc := service.NewMediaFileService(repo)
 
-		if _, err := svc.Create(context.Background(), validMediaFile("m1")); err != nil {
+		created, err := svc.Create(context.Background(), validMediaFile("m1"))
+		if err != nil {
 			t.Fatalf("Create returned error: %v", err)
 		}
 
-		updated := validMediaFile("m1")
+		updated := validMediaFile(created.ID)
 		updated.Quality = "1080p"
 		if _, err := svc.Update(context.Background(), updated); err != nil {
 			t.Fatalf("Update returned error: %v", err)
 		}
 
-		got, err := svc.Get(context.Background(), "m1")
+		got, err := svc.Get(context.Background(), created.ID)
 		if err != nil {
 			t.Fatalf("Get returned error: %v", err)
 		}
@@ -157,13 +165,14 @@ func TestMediaFileService_Delete(t *testing.T) {
 	repo := newFakeMediaFileRepository()
 	svc := service.NewMediaFileService(repo)
 
-	if _, err := svc.Create(context.Background(), validMediaFile("m1")); err != nil {
+	created, err := svc.Create(context.Background(), validMediaFile("m1"))
+	if err != nil {
 		t.Fatalf("Create returned error: %v", err)
 	}
-	if err := svc.Delete(context.Background(), "m1"); err != nil {
+	if err := svc.Delete(context.Background(), created.ID); err != nil {
 		t.Fatalf("Delete returned error: %v", err)
 	}
-	if _, err := svc.Get(context.Background(), "m1"); !errors.Is(err, ports.ErrNotFound) {
+	if _, err := svc.Get(context.Background(), created.ID); !errors.Is(err, ports.ErrNotFound) {
 		t.Fatalf("Get after Delete returned %v, want ErrNotFound", err)
 	}
 }

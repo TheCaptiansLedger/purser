@@ -15,19 +15,25 @@ function invoke(url, body, headers) {
 }
 
 export default () => {
-  const id = `k6-http-${__VU}-${__ITER}-${Date.now()}`;
+  // id is server-generated (docs/adr/0020-server-generated-kernel-entity-ids.md)
+  // — never sent on Create, always read back from the response. value is
+  // still suffixed per-VU/iteration: Tag identity is (scope, key, value)
+  // (docs/adr/0019-tag-identity-and-get-or-create.md), so a shared value
+  // would get-or-create-collide across concurrent VUs.
+  const value = `gonzo-${__VU}-${__ITER}-${Date.now()}`;
   const entityId = 'k6-tag-deletion-entity-1';
 
-  let res = invoke(`${SERVICE}/CreateTag`, JSON.stringify({ tag: { id: id, key: 'genre', value: 'gonzo', scope: 'TAG_SCOPE_METADATA' } }), HEADERS);
+  let res = invoke(`${SERVICE}/CreateTag`, JSON.stringify({ tag: { key: 'genre', value: value, scope: 'TAG_SCOPE_METADATA' } }), HEADERS);
   check(res, {
     'CreateTag status is 200': (r) => r.status === 200,
-    'CreateTag returns the id': (r) => r.json('tag.id') === id,
+    'CreateTag returns an id': (r) => !!r.json('tag.id'),
   });
+  const id = res.json('tag.id');
 
   res = invoke(`${SERVICE}/GetTag`, JSON.stringify({ id: id }), HEADERS);
   check(res, {
     'GetTag status is 200': (r) => r.status === 200,
-    'GetTag returns the created value': (r) => r.json('tag.value') === 'gonzo',
+    'GetTag returns the created value': (r) => r.json('tag.value') === value,
   });
 
   res = invoke(`${SERVICE}/UpdateTag`, JSON.stringify({ tag: { id: id, value: 'action' }, updateMask: 'value' }), HEADERS);
@@ -62,15 +68,24 @@ export default () => {
   check(res, { 'GetTagAssignment after Tag Delete is 404 (unlinked)': (r) => r.status === 404 });
 
   // BulkDeleteTags: the "delete these duplicate tags" use case — one of
-  // the two entities ADR 0016 names for a real bulk-delete endpoint.
-  const bulkId1 = `k6-http-bulk-tag-${__VU}-${__ITER}-${Date.now()}-1`;
-  const bulkId2 = `k6-http-bulk-tag-${__VU}-${__ITER}-${Date.now()}-2`;
-  const bulkId3 = `k6-http-bulk-tag-${__VU}-${__ITER}-${Date.now()}-3`;
-
-  for (const bulkId of [bulkId1, bulkId2, bulkId3]) {
-    res = invoke(`${SERVICE}/CreateTag`, JSON.stringify({ tag: { id: bulkId, key: 'genre', value: 'gonzo', scope: 'TAG_SCOPE_METADATA' } }), HEADERS);
-    check(res, { 'setup: CreateTag status is 200': (r) => r.status === 200 });
+  // the two entities ADR 0016 names for a real bulk-delete endpoint. Each
+  // gets its own value — Tag identity is (scope, key, value), so three
+  // creates with the same value would get-or-create-collide into one row
+  // instead of three (docs/adr/0019-tag-identity-and-get-or-create.md).
+  const bulkIds = [];
+  for (let i = 0; i < 3; i++) {
+    res = invoke(
+      `${SERVICE}/CreateTag`,
+      JSON.stringify({ tag: { key: 'genre', value: `gonzo-bulk-${__VU}-${__ITER}-${Date.now()}-${i}`, scope: 'TAG_SCOPE_METADATA' } }),
+      HEADERS
+    );
+    check(res, {
+      'setup: CreateTag status is 200': (r) => r.status === 200,
+      'setup: CreateTag returns an id': (r) => !!r.json('tag.id'),
+    });
+    bulkIds.push(res.json('tag.id'));
   }
+  const [bulkId1, bulkId2, bulkId3] = bulkIds;
 
   res = invoke(`${SERVICE}/BulkDeleteTags`, JSON.stringify({ ids: [bulkId1, bulkId2] }), HEADERS);
   check(res, { 'BulkDeleteTags status is 200': (r) => r.status === 200 });

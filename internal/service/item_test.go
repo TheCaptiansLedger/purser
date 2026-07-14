@@ -11,6 +11,11 @@ import (
 
 type fakeItemRepository struct {
 	byID map[string]*domain.Item
+	// forceConflict makes the next Create return ports.ErrConflict without
+	// touching byID — with server-generated IDs (see
+	// docs/adr/0020-server-generated-kernel-entity-ids.md), two Creates
+	// can no longer be forced to collide by reusing a literal ID.
+	forceConflict bool
 }
 
 func newFakeItemRepository() *fakeItemRepository {
@@ -18,6 +23,9 @@ func newFakeItemRepository() *fakeItemRepository {
 }
 
 func (f *fakeItemRepository) Create(_ context.Context, i *domain.Item) error {
+	if f.forceConflict {
+		return ports.ErrConflict
+	}
 	if _, exists := f.byID[i.ID]; exists {
 		return ports.ErrConflict
 	}
@@ -92,8 +100,8 @@ func TestItemService_Create(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Create returned error: %v", err)
 		}
-		if got.ID != "i1" {
-			t.Fatalf("Create returned ID %q, want %q", got.ID, "i1")
+		if got.ID == "" || got.ID == "i1" {
+			t.Fatalf("Create returned ID %q, want a server-generated one", got.ID)
 		}
 	})
 
@@ -112,13 +120,11 @@ func TestItemService_Create(t *testing.T) {
 
 	t.Run("a repository conflict is propagated", func(t *testing.T) {
 		repo := newFakeItemRepository()
+		repo.forceConflict = true
 		svc := service.NewItemService(repo)
 
-		if _, err := svc.Create(context.Background(), validItem("i1")); err != nil {
-			t.Fatalf("first Create returned error: %v", err)
-		}
 		if _, err := svc.Create(context.Background(), validItem("i1")); !errors.Is(err, ports.ErrConflict) {
-			t.Fatalf("duplicate Create returned %v, want ErrConflict", err)
+			t.Fatalf("Create returned %v, want ErrConflict", err)
 		}
 	})
 }
@@ -127,10 +133,11 @@ func TestItemService_Get(t *testing.T) {
 	repo := newFakeItemRepository()
 	svc := service.NewItemService(repo)
 
-	if _, err := svc.Create(context.Background(), validItem("i1")); err != nil {
+	created, err := svc.Create(context.Background(), validItem("i1"))
+	if err != nil {
 		t.Fatalf("Create returned error: %v", err)
 	}
-	if _, err := svc.Get(context.Background(), "i1"); err != nil {
+	if _, err := svc.Get(context.Background(), created.ID); err != nil {
 		t.Fatalf("Get returned error: %v", err)
 	}
 	if _, err := svc.Get(context.Background(), "missing"); !errors.Is(err, ports.ErrNotFound) {
@@ -143,17 +150,18 @@ func TestItemService_Update(t *testing.T) {
 		repo := newFakeItemRepository()
 		svc := service.NewItemService(repo)
 
-		if _, err := svc.Create(context.Background(), validItem("i1")); err != nil {
+		created, err := svc.Create(context.Background(), validItem("i1"))
+		if err != nil {
 			t.Fatalf("Create returned error: %v", err)
 		}
 
-		updated := validItem("i1")
+		updated := validItem(created.ID)
 		updated.Title = "Updated"
 		if _, err := svc.Update(context.Background(), updated); err != nil {
 			t.Fatalf("Update returned error: %v", err)
 		}
 
-		got, err := svc.Get(context.Background(), "i1")
+		got, err := svc.Get(context.Background(), created.ID)
 		if err != nil {
 			t.Fatalf("Get returned error: %v", err)
 		}
@@ -192,13 +200,14 @@ func TestItemService_Delete(t *testing.T) {
 	repo := newFakeItemRepository()
 	svc := service.NewItemService(repo)
 
-	if _, err := svc.Create(context.Background(), validItem("i1")); err != nil {
+	created, err := svc.Create(context.Background(), validItem("i1"))
+	if err != nil {
 		t.Fatalf("Create returned error: %v", err)
 	}
-	if err := svc.Delete(context.Background(), "i1"); err != nil {
+	if err := svc.Delete(context.Background(), created.ID); err != nil {
 		t.Fatalf("Delete returned error: %v", err)
 	}
-	if _, err := svc.Get(context.Background(), "i1"); !errors.Is(err, ports.ErrNotFound) {
+	if _, err := svc.Get(context.Background(), created.ID); !errors.Is(err, ports.ErrNotFound) {
 		t.Fatalf("Get after Delete returned %v, want ErrNotFound", err)
 	}
 }

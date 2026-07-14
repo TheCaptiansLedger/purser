@@ -11,6 +11,11 @@ import (
 
 type fakeGroupRepository struct {
 	byID map[string]*domain.Group
+	// forceConflict makes the next Create return ports.ErrConflict without
+	// touching byID — with server-generated IDs (see
+	// docs/adr/0020-server-generated-kernel-entity-ids.md), two Creates
+	// can no longer be forced to collide by reusing a literal ID.
+	forceConflict bool
 }
 
 func newFakeGroupRepository() *fakeGroupRepository {
@@ -18,6 +23,9 @@ func newFakeGroupRepository() *fakeGroupRepository {
 }
 
 func (f *fakeGroupRepository) Create(_ context.Context, g *domain.Group) error {
+	if f.forceConflict {
+		return ports.ErrConflict
+	}
 	if _, exists := f.byID[g.ID]; exists {
 		return ports.ErrConflict
 	}
@@ -79,8 +87,8 @@ func TestGroupService_Create(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Create returned error: %v", err)
 		}
-		if got.ID != "g1" {
-			t.Fatalf("Create returned ID %q, want %q", got.ID, "g1")
+		if got.ID == "" || got.ID == "g1" {
+			t.Fatalf("Create returned ID %q, want a server-generated one", got.ID)
 		}
 	})
 
@@ -99,13 +107,11 @@ func TestGroupService_Create(t *testing.T) {
 
 	t.Run("a repository conflict is propagated", func(t *testing.T) {
 		repo := newFakeGroupRepository()
+		repo.forceConflict = true
 		svc := service.NewGroupService(repo)
 
-		if _, err := svc.Create(context.Background(), validGroup("g1")); err != nil {
-			t.Fatalf("first Create returned error: %v", err)
-		}
 		if _, err := svc.Create(context.Background(), validGroup("g1")); !errors.Is(err, ports.ErrConflict) {
-			t.Fatalf("duplicate Create returned %v, want ErrConflict", err)
+			t.Fatalf("Create returned %v, want ErrConflict", err)
 		}
 	})
 }
@@ -114,10 +120,11 @@ func TestGroupService_Get(t *testing.T) {
 	repo := newFakeGroupRepository()
 	svc := service.NewGroupService(repo)
 
-	if _, err := svc.Create(context.Background(), validGroup("g1")); err != nil {
+	created, err := svc.Create(context.Background(), validGroup("g1"))
+	if err != nil {
 		t.Fatalf("Create returned error: %v", err)
 	}
-	if _, err := svc.Get(context.Background(), "g1"); err != nil {
+	if _, err := svc.Get(context.Background(), created.ID); err != nil {
 		t.Fatalf("Get returned error: %v", err)
 	}
 	if _, err := svc.Get(context.Background(), "missing"); !errors.Is(err, ports.ErrNotFound) {
@@ -130,17 +137,18 @@ func TestGroupService_Update(t *testing.T) {
 		repo := newFakeGroupRepository()
 		svc := service.NewGroupService(repo)
 
-		if _, err := svc.Create(context.Background(), validGroup("g1")); err != nil {
+		created, err := svc.Create(context.Background(), validGroup("g1"))
+		if err != nil {
 			t.Fatalf("Create returned error: %v", err)
 		}
 
-		updated := validGroup("g1")
+		updated := validGroup(created.ID)
 		updated.Title = "Updated"
 		if _, err := svc.Update(context.Background(), updated); err != nil {
 			t.Fatalf("Update returned error: %v", err)
 		}
 
-		got, err := svc.Get(context.Background(), "g1")
+		got, err := svc.Get(context.Background(), created.ID)
 		if err != nil {
 			t.Fatalf("Get returned error: %v", err)
 		}
@@ -179,13 +187,14 @@ func TestGroupService_Delete(t *testing.T) {
 	repo := newFakeGroupRepository()
 	svc := service.NewGroupService(repo)
 
-	if _, err := svc.Create(context.Background(), validGroup("g1")); err != nil {
+	created, err := svc.Create(context.Background(), validGroup("g1"))
+	if err != nil {
 		t.Fatalf("Create returned error: %v", err)
 	}
-	if err := svc.Delete(context.Background(), "g1"); err != nil {
+	if err := svc.Delete(context.Background(), created.ID); err != nil {
 		t.Fatalf("Delete returned error: %v", err)
 	}
-	if _, err := svc.Get(context.Background(), "g1"); !errors.Is(err, ports.ErrNotFound) {
+	if _, err := svc.Get(context.Background(), created.ID); !errors.Is(err, ports.ErrNotFound) {
 		t.Fatalf("Get after Delete returned %v, want ErrNotFound", err)
 	}
 }

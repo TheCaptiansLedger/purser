@@ -17,15 +17,16 @@ function invoke(method, request) {
 export default () => {
   client.connect(ADDR, { plaintext: true });
 
-  const id = `k6-grpc-${__VU}-${__ITER}-${Date.now()}`;
-
+  // id is server-generated (docs/adr/0020-server-generated-kernel-entity-ids.md)
+  // — never sent on Create, always read back from the response.
   let res = invoke('purser.domain.v1.MediaFileService/CreateMediaFile', {
-    mediaFile: { id: id, itemId: 'item1', path: '/media/k6.mkv' },
+    mediaFile: { itemId: 'item1', path: '/media/k6.mkv' },
   });
   check(res, {
     'CreateMediaFile status is OK': (r) => r && r.status === grpc.StatusOK,
-    'CreateMediaFile returns the id': (r) => r && r.message && r.message.mediaFile && r.message.mediaFile.id === id,
+    'CreateMediaFile returns an id': (r) => r && r.message && r.message.mediaFile && !!r.message.mediaFile.id,
   });
+  const id = res.message.mediaFile.id;
 
   res = invoke('purser.domain.v1.MediaFileService/GetMediaFile', { id: id });
   check(res, {

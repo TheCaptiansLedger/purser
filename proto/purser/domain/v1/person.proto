@@ -44,7 +44,9 @@ message Person {
 
 message CreatePersonRequest {
   // Caller supplies a fully-formed Person — this RPC persists what it's
-  // given, it never enriches or resolves metadata. See ADR-0011.
+  // given, it never enriches or resolves metadata. See ADR-0011. The one
+  // exception is id, which is server-generated; any value sent here is
+  // ignored. See docs/adr/0020-server-generated-kernel-entity-ids.md.
   Person person = 1;
 }
 

@@ -17,8 +17,11 @@ func NewItemService(repo ports.ItemRepository) *ItemService {
 	return &ItemService{repo: repo}
 }
 
-// Create validates i and persists it.
+// Create assigns i a server-generated ID (see
+// docs/adr/0020-server-generated-kernel-entity-ids.md), validates it, and
+// persists it.
 func (s *ItemService) Create(ctx context.Context, i *domain.Item) (*domain.Item, error) {
+	i.ID = domain.NewID()
 	if err := i.Validate(); err != nil {
 		return nil, err
 	}
