@@ -167,13 +167,32 @@ under concurrent writes, offset pagination isn't.
 - Go-level: `internal/api/connect/*_test.go` follow [0003](0003-go-testing-standards.md)'s
   API-layer convention — routing/status/payload shape against a faked
   service, never a real one.
-- k6: **two suites per RPC**, both required, neither optional —
-  `test/k6/grpc/` calls the RPC natively via `k6/net/grpc` (loading the
-  `.proto` directly, no server reflection dependency); `test/k6/http/`
-  calls the same RPC via Connect's HTTP/JSON transport with k6's built-in
-  `http` module. These exercise the real running server end-to-end; they
-  are not a substitute for the Go-level handler tests, which run without a
-  live server.
+- k6 endpoint suites: **one file per entity in each of two protocols**,
+  both required, neither optional — `test/k6/grpc/<entity>_test.js` calls
+  every RPC the entity's service exposes natively via `k6/net/grpc`
+  (loading the `.proto` directly, no server reflection dependency);
+  `test/k6/http/<entity>_test.js` calls the same RPCs via Connect's
+  HTTP/JSON transport with k6's built-in `http` module. Each file exercises
+  the entity's full CRUD lifecycle plus `GetXDeletionImpact` where the
+  entity has one, ending with a post-delete not-found check — see
+  `test/k6/grpc/group_test.js` for the shape every entity's suite follows.
+  These exercise the real running server end-to-end; they are not a
+  substitute for the Go-level handler tests, which run without a live
+  server.
+- k6 flow suites (`test/k6/flow/`): a second, distinct category —
+  multi-entity, scenario-shaped scripts modeling a real task a UI/admin
+  tool would perform end-to-end (e.g. `create_studio_test.js`: register a
+  Network, then a Studio under it, tag both, verify both tag-lookup
+  directions, tear down in reverse order). One flow per meaningful
+  cross-entity scenario, not one per entity and not one per RPC — most
+  entities are already covered by their endpoint suite and need no flow
+  test of their own. Each flow gets both a native-gRPC and an HTTP/JSON
+  variant (`<name>_test.js` / `<name>_http_test.js`), same two-protocol
+  requirement as endpoint suites.
+- `make k6 endpoint` runs every `test/k6/grpc/*.js` and `test/k6/http/*.js`
+  file; `make k6 flow` runs every `test/k6/flow/*.js` file; `make k6` with
+  no argument runs both. All three require a running server (`make serve`
+  or equivalent) — they are not run by `go test`.
 
 ## Consequences
 
@@ -209,9 +228,15 @@ under concurrent writes, offset pagination isn't.
    (a "God service")? If yes — split it.
 4. Does any handler construct a `connect.NewError` inline instead of going
    through the shared error-mapping helper? If yes — fix it.
-5. Does every new RPC have a Go handler test (faked service) *and* both a
-   `test/k6/grpc` and `test/k6/http` script? If any are missing — add them
-   before merging.
+5. Does every new entity's service have a Go handler test (faked service)
+   *and* both a `test/k6/grpc/<entity>_test.js` and
+   `test/k6/http/<entity>_test.js` endpoint suite covering every RPC it
+   exposes? If any are missing — add them before merging.
+5a. Does this change introduce a real, cross-entity user task (not just a
+    new entity's own CRUD) without a `test/k6/flow/` scenario covering it
+    in both protocols? If yes — add one; if the change is just another
+    entity's ordinary CRUD with no novel multi-entity interaction, a flow
+    test is not required — don't add one speculatively.
 6. Is anything under `gen/go/**` hand-edited instead of produced by
    `make proto-gen`? If yes — revert and fix the `.proto` instead.
 7. Does any package outside `cmd/purser` import `otel/sdk/*`, a concrete
