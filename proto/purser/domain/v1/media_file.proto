@@ -59,6 +59,8 @@ message DeleteMediaFileResponse {}
 message ListMediaFilesRequest {
   int32 page_size = 1;
   string page_token = 2;
+  // item_id is an optional filter — leave unset for no filter.
+  string item_id = 3;
 }
 
 message ListMediaFilesResponse {

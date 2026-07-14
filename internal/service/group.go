@@ -49,7 +49,8 @@ func (s *GroupService) Delete(ctx context.Context, id string) error {
 	return s.repo.Delete(ctx, id)
 }
 
-// List returns a page of Group records.
-func (s *GroupService) List(ctx context.Context, pageSize int, pageToken string) ([]*domain.Group, string, error) {
-	return s.repo.List(ctx, pageSize, pageToken)
+// List returns a page of Group records, optionally filtered by
+// libraryEntryID.
+func (s *GroupService) List(ctx context.Context, libraryEntryID string, pageSize int, pageToken string) ([]*domain.Group, string, error) {
+	return s.repo.List(ctx, libraryEntryID, pageSize, pageToken)
 }

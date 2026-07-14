@@ -433,8 +433,13 @@ func (x *UpdateItemResponse) GetItem() *Item {
 }
 
 type DeleteItemRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	Id    string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	// cascade has no effect for Item today — every referrer is a pure
+	// attachment row and always unlinks. Present for API-shape consistency
+	// with every other entity's DeleteXxxRequest. See
+	// docs/adr/0015-deletion-impact-and-composing-services.md.
+	Cascade       bool `protobuf:"varint,2,opt,name=cascade,proto3" json:"cascade,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -476,6 +481,13 @@ func (x *DeleteItemRequest) GetId() string {
 	return ""
 }
 
+func (x *DeleteItemRequest) GetCascade() bool {
+	if x != nil {
+		return x.Cascade
+	}
+	return false
+}
+
 type DeleteItemResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	unknownFields protoimpl.UnknownFields
@@ -512,6 +524,94 @@ func (*DeleteItemResponse) Descriptor() ([]byte, []int) {
 	return file_purser_domain_v1_item_proto_rawDescGZIP(), []int{8}
 }
 
+type GetItemDeletionImpactRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetItemDeletionImpactRequest) Reset() {
+	*x = GetItemDeletionImpactRequest{}
+	mi := &file_purser_domain_v1_item_proto_msgTypes[9]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetItemDeletionImpactRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetItemDeletionImpactRequest) ProtoMessage() {}
+
+func (x *GetItemDeletionImpactRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_purser_domain_v1_item_proto_msgTypes[9]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetItemDeletionImpactRequest.ProtoReflect.Descriptor instead.
+func (*GetItemDeletionImpactRequest) Descriptor() ([]byte, []int) {
+	return file_purser_domain_v1_item_proto_rawDescGZIP(), []int{9}
+}
+
+func (x *GetItemDeletionImpactRequest) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+type GetItemDeletionImpactResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Impacts       []*DeletionImpactRow   `protobuf:"bytes,1,rep,name=impacts,proto3" json:"impacts,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetItemDeletionImpactResponse) Reset() {
+	*x = GetItemDeletionImpactResponse{}
+	mi := &file_purser_domain_v1_item_proto_msgTypes[10]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetItemDeletionImpactResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetItemDeletionImpactResponse) ProtoMessage() {}
+
+func (x *GetItemDeletionImpactResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_purser_domain_v1_item_proto_msgTypes[10]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetItemDeletionImpactResponse.ProtoReflect.Descriptor instead.
+func (*GetItemDeletionImpactResponse) Descriptor() ([]byte, []int) {
+	return file_purser_domain_v1_item_proto_rawDescGZIP(), []int{10}
+}
+
+func (x *GetItemDeletionImpactResponse) GetImpacts() []*DeletionImpactRow {
+	if x != nil {
+		return x.Impacts
+	}
+	return nil
+}
+
 type ListItemsRequest struct {
 	state     protoimpl.MessageState `protogen:"open.v1"`
 	PageSize  int32                  `protobuf:"varint,1,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
@@ -527,7 +627,7 @@ type ListItemsRequest struct {
 
 func (x *ListItemsRequest) Reset() {
 	*x = ListItemsRequest{}
-	mi := &file_purser_domain_v1_item_proto_msgTypes[9]
+	mi := &file_purser_domain_v1_item_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -539,7 +639,7 @@ func (x *ListItemsRequest) String() string {
 func (*ListItemsRequest) ProtoMessage() {}
 
 func (x *ListItemsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_purser_domain_v1_item_proto_msgTypes[9]
+	mi := &file_purser_domain_v1_item_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -552,7 +652,7 @@ func (x *ListItemsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListItemsRequest.ProtoReflect.Descriptor instead.
 func (*ListItemsRequest) Descriptor() ([]byte, []int) {
-	return file_purser_domain_v1_item_proto_rawDescGZIP(), []int{9}
+	return file_purser_domain_v1_item_proto_rawDescGZIP(), []int{11}
 }
 
 func (x *ListItemsRequest) GetPageSize() int32 {
@@ -600,7 +700,7 @@ type ListItemsResponse struct {
 
 func (x *ListItemsResponse) Reset() {
 	*x = ListItemsResponse{}
-	mi := &file_purser_domain_v1_item_proto_msgTypes[10]
+	mi := &file_purser_domain_v1_item_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -612,7 +712,7 @@ func (x *ListItemsResponse) String() string {
 func (*ListItemsResponse) ProtoMessage() {}
 
 func (x *ListItemsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_purser_domain_v1_item_proto_msgTypes[10]
+	mi := &file_purser_domain_v1_item_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -625,7 +725,7 @@ func (x *ListItemsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListItemsResponse.ProtoReflect.Descriptor instead.
 func (*ListItemsResponse) Descriptor() ([]byte, []int) {
-	return file_purser_domain_v1_item_proto_rawDescGZIP(), []int{10}
+	return file_purser_domain_v1_item_proto_rawDescGZIP(), []int{12}
 }
 
 func (x *ListItemsResponse) GetItems() []*Item {
@@ -674,10 +774,15 @@ const file_purser_domain_v1_item_proto_rawDesc = "" +
 	"\vupdate_mask\x18\x02 \x01(\v2\x1a.google.protobuf.FieldMaskR\n" +
 	"updateMask\"@\n" +
 	"\x12UpdateItemResponse\x12*\n" +
-	"\x04item\x18\x01 \x01(\v2\x16.purser.domain.v1.ItemR\x04item\"#\n" +
+	"\x04item\x18\x01 \x01(\v2\x16.purser.domain.v1.ItemR\x04item\"=\n" +
 	"\x11DeleteItemRequest\x12\x0e\n" +
-	"\x02id\x18\x01 \x01(\tR\x02id\"\x14\n" +
-	"\x12DeleteItemResponse\"\xb6\x01\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x12\x18\n" +
+	"\acascade\x18\x02 \x01(\bR\acascade\"\x14\n" +
+	"\x12DeleteItemResponse\".\n" +
+	"\x1cGetItemDeletionImpactRequest\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\"^\n" +
+	"\x1dGetItemDeletionImpactResponse\x12=\n" +
+	"\aimpacts\x18\x01 \x03(\v2#.purser.domain.v1.DeletionImpactRowR\aimpacts\"\xb6\x01\n" +
 	"\x10ListItemsRequest\x12\x1b\n" +
 	"\tpage_size\x18\x01 \x01(\x05R\bpageSize\x12\x1d\n" +
 	"\n" +
@@ -687,7 +792,7 @@ const file_purser_domain_v1_item_proto_rawDesc = "" +
 	"\bgroup_id\x18\x05 \x01(\tR\agroupId\"i\n" +
 	"\x11ListItemsResponse\x12,\n" +
 	"\x05items\x18\x01 \x03(\v2\x16.purser.domain.v1.ItemR\x05items\x12&\n" +
-	"\x0fnext_page_token\x18\x02 \x01(\tR\rnextPageToken2\xbe\x03\n" +
+	"\x0fnext_page_token\x18\x02 \x01(\tR\rnextPageToken2\xb8\x04\n" +
 	"\vItemService\x12W\n" +
 	"\n" +
 	"CreateItem\x12#.purser.domain.v1.CreateItemRequest\x1a$.purser.domain.v1.CreateItemResponse\x12N\n" +
@@ -696,7 +801,8 @@ const file_purser_domain_v1_item_proto_rawDesc = "" +
 	"UpdateItem\x12#.purser.domain.v1.UpdateItemRequest\x1a$.purser.domain.v1.UpdateItemResponse\x12W\n" +
 	"\n" +
 	"DeleteItem\x12#.purser.domain.v1.DeleteItemRequest\x1a$.purser.domain.v1.DeleteItemResponse\x12T\n" +
-	"\tListItems\x12\".purser.domain.v1.ListItemsRequest\x1a#.purser.domain.v1.ListItemsResponseB)Z'purser/gen/go/purser/domain/v1;domainv1b\x06proto3"
+	"\tListItems\x12\".purser.domain.v1.ListItemsRequest\x1a#.purser.domain.v1.ListItemsResponse\x12x\n" +
+	"\x15GetItemDeletionImpact\x12..purser.domain.v1.GetItemDeletionImpactRequest\x1a/.purser.domain.v1.GetItemDeletionImpactResponseB)Z'purser/gen/go/purser/domain/v1;domainv1b\x06proto3"
 
 var (
 	file_purser_domain_v1_item_proto_rawDescOnce sync.Once
@@ -710,50 +816,56 @@ func file_purser_domain_v1_item_proto_rawDescGZIP() []byte {
 	return file_purser_domain_v1_item_proto_rawDescData
 }
 
-var file_purser_domain_v1_item_proto_msgTypes = make([]protoimpl.MessageInfo, 11)
+var file_purser_domain_v1_item_proto_msgTypes = make([]protoimpl.MessageInfo, 13)
 var file_purser_domain_v1_item_proto_goTypes = []any{
-	(*Item)(nil),                  // 0: purser.domain.v1.Item
-	(*CreateItemRequest)(nil),     // 1: purser.domain.v1.CreateItemRequest
-	(*CreateItemResponse)(nil),    // 2: purser.domain.v1.CreateItemResponse
-	(*GetItemRequest)(nil),        // 3: purser.domain.v1.GetItemRequest
-	(*GetItemResponse)(nil),       // 4: purser.domain.v1.GetItemResponse
-	(*UpdateItemRequest)(nil),     // 5: purser.domain.v1.UpdateItemRequest
-	(*UpdateItemResponse)(nil),    // 6: purser.domain.v1.UpdateItemResponse
-	(*DeleteItemRequest)(nil),     // 7: purser.domain.v1.DeleteItemRequest
-	(*DeleteItemResponse)(nil),    // 8: purser.domain.v1.DeleteItemResponse
-	(*ListItemsRequest)(nil),      // 9: purser.domain.v1.ListItemsRequest
-	(*ListItemsResponse)(nil),     // 10: purser.domain.v1.ListItemsResponse
-	(*timestamppb.Timestamp)(nil), // 11: google.protobuf.Timestamp
-	(ItemStatus)(0),               // 12: purser.domain.v1.ItemStatus
-	(*structpb.Struct)(nil),       // 13: google.protobuf.Struct
-	(*fieldmaskpb.FieldMask)(nil), // 14: google.protobuf.FieldMask
+	(*Item)(nil),                          // 0: purser.domain.v1.Item
+	(*CreateItemRequest)(nil),             // 1: purser.domain.v1.CreateItemRequest
+	(*CreateItemResponse)(nil),            // 2: purser.domain.v1.CreateItemResponse
+	(*GetItemRequest)(nil),                // 3: purser.domain.v1.GetItemRequest
+	(*GetItemResponse)(nil),               // 4: purser.domain.v1.GetItemResponse
+	(*UpdateItemRequest)(nil),             // 5: purser.domain.v1.UpdateItemRequest
+	(*UpdateItemResponse)(nil),            // 6: purser.domain.v1.UpdateItemResponse
+	(*DeleteItemRequest)(nil),             // 7: purser.domain.v1.DeleteItemRequest
+	(*DeleteItemResponse)(nil),            // 8: purser.domain.v1.DeleteItemResponse
+	(*GetItemDeletionImpactRequest)(nil),  // 9: purser.domain.v1.GetItemDeletionImpactRequest
+	(*GetItemDeletionImpactResponse)(nil), // 10: purser.domain.v1.GetItemDeletionImpactResponse
+	(*ListItemsRequest)(nil),              // 11: purser.domain.v1.ListItemsRequest
+	(*ListItemsResponse)(nil),             // 12: purser.domain.v1.ListItemsResponse
+	(*timestamppb.Timestamp)(nil),         // 13: google.protobuf.Timestamp
+	(ItemStatus)(0),                       // 14: purser.domain.v1.ItemStatus
+	(*structpb.Struct)(nil),               // 15: google.protobuf.Struct
+	(*fieldmaskpb.FieldMask)(nil),         // 16: google.protobuf.FieldMask
+	(*DeletionImpactRow)(nil),             // 17: purser.domain.v1.DeletionImpactRow
 }
 var file_purser_domain_v1_item_proto_depIdxs = []int32{
-	11, // 0: purser.domain.v1.Item.date:type_name -> google.protobuf.Timestamp
-	12, // 1: purser.domain.v1.Item.status:type_name -> purser.domain.v1.ItemStatus
-	13, // 2: purser.domain.v1.Item.metadata:type_name -> google.protobuf.Struct
+	13, // 0: purser.domain.v1.Item.date:type_name -> google.protobuf.Timestamp
+	14, // 1: purser.domain.v1.Item.status:type_name -> purser.domain.v1.ItemStatus
+	15, // 2: purser.domain.v1.Item.metadata:type_name -> google.protobuf.Struct
 	0,  // 3: purser.domain.v1.CreateItemRequest.item:type_name -> purser.domain.v1.Item
 	0,  // 4: purser.domain.v1.CreateItemResponse.item:type_name -> purser.domain.v1.Item
 	0,  // 5: purser.domain.v1.GetItemResponse.item:type_name -> purser.domain.v1.Item
 	0,  // 6: purser.domain.v1.UpdateItemRequest.item:type_name -> purser.domain.v1.Item
-	14, // 7: purser.domain.v1.UpdateItemRequest.update_mask:type_name -> google.protobuf.FieldMask
+	16, // 7: purser.domain.v1.UpdateItemRequest.update_mask:type_name -> google.protobuf.FieldMask
 	0,  // 8: purser.domain.v1.UpdateItemResponse.item:type_name -> purser.domain.v1.Item
-	0,  // 9: purser.domain.v1.ListItemsResponse.items:type_name -> purser.domain.v1.Item
-	1,  // 10: purser.domain.v1.ItemService.CreateItem:input_type -> purser.domain.v1.CreateItemRequest
-	3,  // 11: purser.domain.v1.ItemService.GetItem:input_type -> purser.domain.v1.GetItemRequest
-	5,  // 12: purser.domain.v1.ItemService.UpdateItem:input_type -> purser.domain.v1.UpdateItemRequest
-	7,  // 13: purser.domain.v1.ItemService.DeleteItem:input_type -> purser.domain.v1.DeleteItemRequest
-	9,  // 14: purser.domain.v1.ItemService.ListItems:input_type -> purser.domain.v1.ListItemsRequest
-	2,  // 15: purser.domain.v1.ItemService.CreateItem:output_type -> purser.domain.v1.CreateItemResponse
-	4,  // 16: purser.domain.v1.ItemService.GetItem:output_type -> purser.domain.v1.GetItemResponse
-	6,  // 17: purser.domain.v1.ItemService.UpdateItem:output_type -> purser.domain.v1.UpdateItemResponse
-	8,  // 18: purser.domain.v1.ItemService.DeleteItem:output_type -> purser.domain.v1.DeleteItemResponse
-	10, // 19: purser.domain.v1.ItemService.ListItems:output_type -> purser.domain.v1.ListItemsResponse
-	15, // [15:20] is the sub-list for method output_type
-	10, // [10:15] is the sub-list for method input_type
-	10, // [10:10] is the sub-list for extension type_name
-	10, // [10:10] is the sub-list for extension extendee
-	0,  // [0:10] is the sub-list for field type_name
+	17, // 9: purser.domain.v1.GetItemDeletionImpactResponse.impacts:type_name -> purser.domain.v1.DeletionImpactRow
+	0,  // 10: purser.domain.v1.ListItemsResponse.items:type_name -> purser.domain.v1.Item
+	1,  // 11: purser.domain.v1.ItemService.CreateItem:input_type -> purser.domain.v1.CreateItemRequest
+	3,  // 12: purser.domain.v1.ItemService.GetItem:input_type -> purser.domain.v1.GetItemRequest
+	5,  // 13: purser.domain.v1.ItemService.UpdateItem:input_type -> purser.domain.v1.UpdateItemRequest
+	7,  // 14: purser.domain.v1.ItemService.DeleteItem:input_type -> purser.domain.v1.DeleteItemRequest
+	11, // 15: purser.domain.v1.ItemService.ListItems:input_type -> purser.domain.v1.ListItemsRequest
+	9,  // 16: purser.domain.v1.ItemService.GetItemDeletionImpact:input_type -> purser.domain.v1.GetItemDeletionImpactRequest
+	2,  // 17: purser.domain.v1.ItemService.CreateItem:output_type -> purser.domain.v1.CreateItemResponse
+	4,  // 18: purser.domain.v1.ItemService.GetItem:output_type -> purser.domain.v1.GetItemResponse
+	6,  // 19: purser.domain.v1.ItemService.UpdateItem:output_type -> purser.domain.v1.UpdateItemResponse
+	8,  // 20: purser.domain.v1.ItemService.DeleteItem:output_type -> purser.domain.v1.DeleteItemResponse
+	12, // 21: purser.domain.v1.ItemService.ListItems:output_type -> purser.domain.v1.ListItemsResponse
+	10, // 22: purser.domain.v1.ItemService.GetItemDeletionImpact:output_type -> purser.domain.v1.GetItemDeletionImpactResponse
+	17, // [17:23] is the sub-list for method output_type
+	11, // [11:17] is the sub-list for method input_type
+	11, // [11:11] is the sub-list for extension type_name
+	11, // [11:11] is the sub-list for extension extendee
+	0,  // [0:11] is the sub-list for field type_name
 }
 
 func init() { file_purser_domain_v1_item_proto_init() }
@@ -768,7 +880,7 @@ func file_purser_domain_v1_item_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_purser_domain_v1_item_proto_rawDesc), len(file_purser_domain_v1_item_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   11,
+			NumMessages:   13,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

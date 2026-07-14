@@ -17,23 +17,23 @@ type itemService interface {
 	Create(ctx context.Context, i *domain.Item) (*domain.Item, error)
 	Get(ctx context.Context, id string) (*domain.Item, error)
 	Update(ctx context.Context, i *domain.Item) (*domain.Item, error)
-	Delete(ctx context.Context, id string) error
 	List(ctx context.Context, libraryEntryID, contentType, groupID string, pageSize int, pageToken string) ([]*domain.Item, string, error)
 }
 
 // ItemHandler implements domainv1connect.ItemServiceHandler.
 type ItemHandler struct {
 	domainv1connect.UnimplementedItemServiceHandler
-	svc    itemService
-	logger *slog.Logger
+	svc         itemService
+	deletionSvc entityDeletionService
+	logger      *slog.Logger
 }
 
-// NewItemHandler constructs an ItemHandler backed by svc.
-func NewItemHandler(svc itemService, logger *slog.Logger) *ItemHandler {
+// NewItemHandler constructs an ItemHandler backed by svc and deletionSvc.
+func NewItemHandler(svc itemService, deletionSvc entityDeletionService, logger *slog.Logger) *ItemHandler {
 	if logger == nil {
 		logger = slog.Default()
 	}
-	return &ItemHandler{svc: svc, logger: logger.With("component", "api.connect", "service", "ItemService")}
+	return &ItemHandler{svc: svc, deletionSvc: deletionSvc, logger: logger.With("component", "api.connect", "service", "ItemService")}
 }
 
 // CreateItem implements domainv1connect.ItemServiceHandler.
@@ -73,10 +73,19 @@ func (h *ItemHandler) UpdateItem(ctx context.Context, req *connect.Request[v1.Up
 
 // DeleteItem implements domainv1connect.ItemServiceHandler.
 func (h *ItemHandler) DeleteItem(ctx context.Context, req *connect.Request[v1.DeleteItemRequest]) (*connect.Response[v1.DeleteItemResponse], error) {
-	if err := h.svc.Delete(ctx, req.Msg.GetId()); err != nil {
+	if err := h.deletionSvc.Delete(ctx, req.Msg.GetId(), req.Msg.GetCascade()); err != nil {
 		return nil, mapError(ctx, h.logger, err)
 	}
 	return connect.NewResponse(&v1.DeleteItemResponse{}), nil
+}
+
+// GetItemDeletionImpact implements domainv1connect.ItemServiceHandler.
+func (h *ItemHandler) GetItemDeletionImpact(ctx context.Context, req *connect.Request[v1.GetItemDeletionImpactRequest]) (*connect.Response[v1.GetItemDeletionImpactResponse], error) {
+	impact, err := h.deletionSvc.GetDeletionImpact(ctx, req.Msg.GetId())
+	if err != nil {
+		return nil, mapError(ctx, h.logger, err)
+	}
+	return connect.NewResponse(&v1.GetItemDeletionImpactResponse{Impacts: deletionImpactRowsToProto(impact.Impacts)}), nil
 }
 
 // ListItems implements domainv1connect.ItemServiceHandler.

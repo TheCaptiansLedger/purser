@@ -52,7 +52,7 @@ func (f *fakeMediaFileRepository) Delete(_ context.Context, id string) error {
 	return nil
 }
 
-func (f *fakeMediaFileRepository) List(_ context.Context, _ int, _ string) ([]*domain.MediaFile, string, error) {
+func (f *fakeMediaFileRepository) List(_ context.Context, _ string, _ int, _ string) ([]*domain.MediaFile, string, error) {
 	files := make([]*domain.MediaFile, 0, len(f.byID))
 	for _, m := range f.byID {
 		stored := *m
@@ -178,7 +178,7 @@ func TestMediaFileService_List(t *testing.T) {
 		}
 	}
 
-	files, _, err := svc.List(context.Background(), 10, "")
+	files, _, err := svc.List(context.Background(), "", 10, "")
 	if err != nil {
 		t.Fatalf("List returned error: %v", err)
 	}

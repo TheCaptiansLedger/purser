@@ -192,37 +192,43 @@ func newServeMux(logger *slog.Logger, ds datastore.Datastore) (*http.ServeMux, e
 	mux := http.NewServeMux()
 	interceptors := connect.WithInterceptors(apiconnect.NewLoggingInterceptor(logger))
 
+	// personRepo's handler (personHandler) is constructed further down,
+	// after PersonDeletionService's other referrer repos (entryPersonRepo,
+	// itemPersonRepo, externalIDRepo, imageRepo, tagAssignmentRepo,
+	// performerProfileRepo) exist — see
+	// docs/adr/0015-deletion-impact-and-composing-services.md.
 	personRepo, err := storeperson.New("person", ds, storeperson.WithLogger(logger))
 	if err != nil {
 		return nil, fmt.Errorf("cmd/purser: constructing person repository: %w", err)
 	}
-	personHandler := apiconnect.NewPersonHandler(service.NewPersonService(personRepo), logger)
-	personPath, personConnectHandler := domainv1connect.NewPersonServiceHandler(personHandler, interceptors)
-	mux.Handle(personPath, personConnectHandler)
 
+	// libraryEntryRepo's handler (libraryEntryHandler) is constructed
+	// further down, after LibraryEntryDeletionService's dependencies
+	// (groupRepo, itemRepo, entryPersonRepo, externalIDRepo, imageRepo,
+	// tagAssignmentRepo, groupDeletionSvc, itemDeletionSvc) all exist —
+	// see docs/adr/0015-deletion-impact-and-composing-services.md.
 	libraryEntryRepo, err := storelibraryentry.New("library_entry", ds, storelibraryentry.WithLogger(logger))
 	if err != nil {
 		return nil, fmt.Errorf("cmd/purser: constructing library entry repository: %w", err)
 	}
-	libraryEntryHandler := apiconnect.NewLibraryEntryHandler(service.NewLibraryEntryService(libraryEntryRepo), logger)
-	libraryEntryPath, libraryEntryConnectHandler := domainv1connect.NewLibraryEntryServiceHandler(libraryEntryHandler, interceptors)
-	mux.Handle(libraryEntryPath, libraryEntryConnectHandler)
 
+	// groupRepo's handler (groupHandler) is constructed further down, after
+	// GroupDeletionService's other referrer repos (itemRepo, externalIDRepo,
+	// imageRepo, tagAssignmentRepo) exist — see
+	// docs/adr/0015-deletion-impact-and-composing-services.md.
 	groupRepo, err := storegroup.New("group", ds, storegroup.WithLogger(logger))
 	if err != nil {
 		return nil, fmt.Errorf("cmd/purser: constructing group repository: %w", err)
 	}
-	groupHandler := apiconnect.NewGroupHandler(service.NewGroupService(groupRepo), logger)
-	groupPath, groupConnectHandler := domainv1connect.NewGroupServiceHandler(groupHandler, interceptors)
-	mux.Handle(groupPath, groupConnectHandler)
 
+	// itemRepo's handler (itemHandler) is constructed further down, after
+	// ItemDeletionService's other referrer repos (itemPersonRepo,
+	// mediaFileRepo, externalIDRepo, imageRepo, tagAssignmentRepo) exist —
+	// see docs/adr/0015-deletion-impact-and-composing-services.md.
 	itemRepo, err := storeitem.New("item", ds, storeitem.WithLogger(logger))
 	if err != nil {
 		return nil, fmt.Errorf("cmd/purser: constructing item repository: %w", err)
 	}
-	itemHandler := apiconnect.NewItemHandler(service.NewItemService(itemRepo), logger)
-	itemPath, itemConnectHandler := domainv1connect.NewItemServiceHandler(itemHandler, interceptors)
-	mux.Handle(itemPath, itemConnectHandler)
 
 	entryPersonRepo, err := storeentryperson.New("entry_person", ds, storeentryperson.WithLogger(logger))
 	if err != nil {
@@ -244,9 +250,6 @@ func newServeMux(logger *slog.Logger, ds datastore.Datastore) (*http.ServeMux, e
 	if err != nil {
 		return nil, fmt.Errorf("cmd/purser: constructing tag repository: %w", err)
 	}
-	tagHandler := apiconnect.NewTagHandler(service.NewTagService(tagRepo), logger)
-	tagPath, tagConnectHandler := domainv1connect.NewTagServiceHandler(tagHandler, interceptors)
-	mux.Handle(tagPath, tagConnectHandler)
 
 	tagAssignmentRepo, err := storetagassignment.New("tag_assignment", ds, storetagassignment.WithLogger(logger))
 	if err != nil {
@@ -255,6 +258,14 @@ func newServeMux(logger *slog.Logger, ds datastore.Datastore) (*http.ServeMux, e
 	tagAssignmentHandler := apiconnect.NewTagAssignmentHandler(service.NewTagAssignmentService(tagAssignmentRepo), logger)
 	tagAssignmentPath, tagAssignmentConnectHandler := domainv1connect.NewTagAssignmentServiceHandler(tagAssignmentHandler, interceptors)
 	mux.Handle(tagAssignmentPath, tagAssignmentConnectHandler)
+
+	// TagDeletionService is the composing-service exception per
+	// docs/adr/0015-deletion-impact-and-composing-services.md — it reuses
+	// the already-constructed tagRepo/tagAssignmentRepo.
+	tagDeletionSvc := service.NewTagDeletionService(tagRepo, tagAssignmentRepo)
+	tagHandler := apiconnect.NewTagHandler(service.NewTagService(tagRepo), tagDeletionSvc, logger)
+	tagPath, tagConnectHandler := domainv1connect.NewTagServiceHandler(tagHandler, interceptors)
+	mux.Handle(tagPath, tagConnectHandler)
 
 	externalIDRepo, err := storeexternalid.New("external_id", ds, storeexternalid.WithLogger(logger))
 	if err != nil {
@@ -280,6 +291,37 @@ func newServeMux(logger *slog.Logger, ds datastore.Datastore) (*http.ServeMux, e
 	mediaFilePath, mediaFileConnectHandler := domainv1connect.NewMediaFileServiceHandler(mediaFileHandler, interceptors)
 	mux.Handle(mediaFilePath, mediaFileConnectHandler)
 
+	// ItemDeletionService is the composing-service exception per
+	// docs/adr/0015-deletion-impact-and-composing-services.md — it reuses
+	// the already-constructed itemRepo/itemPersonRepo/mediaFileRepo/
+	// externalIDRepo/imageRepo/tagAssignmentRepo.
+	itemDeletionSvc := service.NewItemDeletionService(itemRepo, itemPersonRepo, mediaFileRepo, externalIDRepo, imageRepo, tagAssignmentRepo)
+	itemHandler := apiconnect.NewItemHandler(service.NewItemService(itemRepo), itemDeletionSvc, logger)
+	itemPath, itemConnectHandler := domainv1connect.NewItemServiceHandler(itemHandler, interceptors)
+	mux.Handle(itemPath, itemConnectHandler)
+
+	// GroupDeletionService is the composing-service exception per
+	// docs/adr/0015-deletion-impact-and-composing-services.md — it reuses
+	// the already-constructed groupRepo/itemRepo/externalIDRepo/imageRepo/
+	// tagAssignmentRepo.
+	groupDeletionSvc := service.NewGroupDeletionService(groupRepo, itemRepo, externalIDRepo, imageRepo, tagAssignmentRepo)
+	groupHandler := apiconnect.NewGroupHandler(service.NewGroupService(groupRepo), groupDeletionSvc, logger)
+	groupPath, groupConnectHandler := domainv1connect.NewGroupServiceHandler(groupHandler, interceptors)
+	mux.Handle(groupPath, groupConnectHandler)
+
+	// LibraryEntryDeletionService is the composing-service exception per
+	// docs/adr/0015-deletion-impact-and-composing-services.md — it reuses
+	// every already-constructed referrer repo plus the GroupDeletionService/
+	// ItemDeletionService constructed just above, since a cascade delete
+	// recurses into both.
+	libraryEntryDeletionSvc := service.NewLibraryEntryDeletionService(
+		libraryEntryRepo, groupRepo, itemRepo, entryPersonRepo, externalIDRepo, imageRepo, tagAssignmentRepo,
+		groupDeletionSvc, itemDeletionSvc,
+	)
+	libraryEntryHandler := apiconnect.NewLibraryEntryHandler(service.NewLibraryEntryService(libraryEntryRepo), libraryEntryDeletionSvc, logger)
+	libraryEntryPath, libraryEntryConnectHandler := domainv1connect.NewLibraryEntryServiceHandler(libraryEntryHandler, interceptors)
+	mux.Handle(libraryEntryPath, libraryEntryConnectHandler)
+
 	// AfterDark: the first module built on the shared kernel above — every
 	// line here is additive, nothing in the kernel wiring changed to add it.
 	performerProfileRepo, err := storeperformerprofile.New("performer_profile", ds, storeperformerprofile.WithLogger(logger))
@@ -289,6 +331,15 @@ func newServeMux(logger *slog.Logger, ds datastore.Datastore) (*http.ServeMux, e
 	performerProfileHandler := apiconnect.NewPerformerProfileHandler(service.NewPerformerProfileService(performerProfileRepo), logger)
 	performerProfilePath, performerProfileConnectHandler := afterdarkv1connect.NewPerformerProfileServiceHandler(performerProfileHandler, interceptors)
 	mux.Handle(performerProfilePath, performerProfileConnectHandler)
+
+	// PersonDeletionService is the composing-service exception per
+	// docs/adr/0015-deletion-impact-and-composing-services.md — it reuses
+	// the already-constructed personRepo/entryPersonRepo/itemPersonRepo/
+	// externalIDRepo/imageRepo/tagAssignmentRepo/performerProfileRepo.
+	personDeletionSvc := service.NewPersonDeletionService(personRepo, entryPersonRepo, itemPersonRepo, externalIDRepo, imageRepo, tagAssignmentRepo, performerProfileRepo)
+	personHandler := apiconnect.NewPersonHandler(service.NewPersonService(personRepo), personDeletionSvc, logger)
+	personPath, personConnectHandler := domainv1connect.NewPersonServiceHandler(personHandler, interceptors)
+	mux.Handle(personPath, personConnectHandler)
 
 	// BrowseService is the composing service exception per
 	// docs/adr/0015-deletion-impact-and-composing-services.md — it reuses

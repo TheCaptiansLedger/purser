@@ -1,0 +1,36 @@
+package apiconnect_test
+
+import (
+	"context"
+	"purser/internal/domain"
+)
+
+// fakeEntityDeletionService is a test double for the shared
+// entityDeletionService interface every entity handler's Delete/
+// GetXxxDeletionImpact methods depend on — one fake, reused across every
+// entity's handler tests, since the interface itself is shared. See
+// docs/adr/0015-deletion-impact-and-composing-services.md.
+type fakeEntityDeletionService struct {
+	impact     *domain.DeletionImpact
+	impactErr  error
+	deleteErr  error
+	gotID      string
+	gotCascade bool
+}
+
+func newFakeEntityDeletionService() *fakeEntityDeletionService {
+	return &fakeEntityDeletionService{}
+}
+
+func (f *fakeEntityDeletionService) GetDeletionImpact(_ context.Context, id string) (*domain.DeletionImpact, error) {
+	f.gotID = id
+	if f.impactErr != nil {
+		return nil, f.impactErr
+	}
+	return f.impact, nil
+}
+
+func (f *fakeEntityDeletionService) Delete(_ context.Context, id string, cascade bool) error {
+	f.gotID, f.gotCascade = id, cascade
+	return f.deleteErr
+}

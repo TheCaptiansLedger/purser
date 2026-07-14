@@ -46,3 +46,13 @@ enum TagScope {
   TAG_SCOPE_USER = 1;
   TAG_SCOPE_METADATA = 2;
 }
+
+// DeletionImpactRow is the wire shape of internal/domain.DeletionImpactRow
+// — one category of record that references a deletion target. See
+// docs/adr/0015-deletion-impact-and-composing-services.md.
+message DeletionImpactRow {
+  string kind = 1;
+  string label = 2;
+  int32 count = 3;
+  bool blocking = 4;
+}

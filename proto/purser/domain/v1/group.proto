@@ -49,13 +49,30 @@ message UpdateGroupResponse {
 
 message DeleteGroupRequest {
   string id = 1;
+  // cascade has no effect for Group today — Item.group_id is optional,
+  // so Delete always detaches Items (clearing group_id) rather than
+  // deleting them; every other referrer is a pure attachment row and
+  // always unlinks. Present for API-shape consistency with every other
+  // entity's DeleteXxxRequest. See
+  // docs/adr/0015-deletion-impact-and-composing-services.md.
+  bool cascade = 2;
 }
 
 message DeleteGroupResponse {}
 
+message GetGroupDeletionImpactRequest {
+  string id = 1;
+}
+
+message GetGroupDeletionImpactResponse {
+  repeated DeletionImpactRow impacts = 1;
+}
+
 message ListGroupsRequest {
   int32 page_size = 1;
   string page_token = 2;
+  // library_entry_id is an optional filter — leave unset for no filter.
+  string library_entry_id = 3;
 }
 
 message ListGroupsResponse {
@@ -71,4 +88,8 @@ service GroupService {
   rpc UpdateGroup(UpdateGroupRequest) returns (UpdateGroupResponse);
   rpc DeleteGroup(DeleteGroupRequest) returns (DeleteGroupResponse);
   rpc ListGroups(ListGroupsRequest) returns (ListGroupsResponse);
+  // GetGroupDeletionImpact reports what references this Group before
+  // Delete is called — see
+  // docs/adr/0015-deletion-impact-and-composing-services.md.
+  rpc GetGroupDeletionImpact(GetGroupDeletionImpactRequest) returns (GetGroupDeletionImpactResponse);
 }

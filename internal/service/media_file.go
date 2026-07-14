@@ -50,7 +50,7 @@ func (s *MediaFileService) Delete(ctx context.Context, id string) error {
 	return s.repo.Delete(ctx, id)
 }
 
-// List returns a page of MediaFile records.
-func (s *MediaFileService) List(ctx context.Context, pageSize int, pageToken string) ([]*domain.MediaFile, string, error) {
-	return s.repo.List(ctx, pageSize, pageToken)
+// List returns a page of MediaFile records, optionally filtered by itemID.
+func (s *MediaFileService) List(ctx context.Context, itemID string, pageSize int, pageToken string) ([]*domain.MediaFile, string, error) {
+	return s.repo.List(ctx, itemID, pageSize, pageToken)
 }

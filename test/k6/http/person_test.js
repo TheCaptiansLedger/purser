@@ -8,6 +8,7 @@ import { check } from 'k6';
 
 const BASE_URL = __ENV.PURSER_HTTP_URL || 'http://localhost:7474';
 const SERVICE = `${BASE_URL}/purser.domain.v1.PersonService`;
+const PERFORMER_PROFILE = `${BASE_URL}/purser.afterdark.v1.PerformerProfileService`;
 const HEADERS = { headers: { 'Content-Type': 'application/json' } };
 
 export default () => {
@@ -58,6 +59,16 @@ export default () => {
     'GetPerson on a missing id is 404 (NotFound)': (r) => r.status === 404,
   });
 
+  res = http.post(`${PERFORMER_PROFILE}/CreatePerformerProfile`, JSON.stringify({ performerProfile: { personId: id } }), HEADERS);
+  check(res, { 'CreatePerformerProfile status is 200': (r) => r.status === 200 });
+
+  res = http.post(`${SERVICE}/GetPersonDeletionImpact`, JSON.stringify({ id: id }), HEADERS);
+  check(res, {
+    'GetPersonDeletionImpact status is 200': (r) => r.status === 200,
+    'GetPersonDeletionImpact reports the performer profile': (r) =>
+      (r.json('impacts') || []).some((i) => i.kind === 'performer_profile' && i.count === 1),
+  });
+
   res = http.post(`${SERVICE}/DeletePerson`, JSON.stringify({ id: id }), HEADERS);
   check(res, {
     'DeletePerson status is 200': (r) => r.status === 200,
@@ -67,4 +78,7 @@ export default () => {
   check(res, {
     'GetPerson after Delete is 404 (NotFound)': (r) => r.status === 404,
   });
+
+  res = http.post(`${PERFORMER_PROFILE}/GetPerformerProfile`, JSON.stringify({ personId: id }), HEADERS);
+  check(res, { 'GetPerformerProfile after Person Delete is 404 (unlinked)': (r) => r.status === 404 });
 };

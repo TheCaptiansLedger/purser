@@ -5,10 +5,12 @@ import { check } from 'k6';
 
 const BASE_URL = __ENV.PURSER_HTTP_URL || 'http://localhost:7474';
 const SERVICE = `${BASE_URL}/purser.domain.v1.ItemService`;
+const MEDIA_FILE = `${BASE_URL}/purser.domain.v1.MediaFileService`;
 const HEADERS = { headers: { 'Content-Type': 'application/json' } };
 
 export default () => {
   const id = `k6-http-${__VU}-${__ITER}-${Date.now()}`;
+  const mediaFileId = `k6-http-item-media-${__VU}-${__ITER}-${Date.now()}`;
 
   let res = http.post(
     `${SERVICE}/CreateItem`,
@@ -49,9 +51,21 @@ export default () => {
     'ListItems filtered by a non-matching libraryEntryId excludes the created item': (r) => !(r.json('items') || []).some((i) => i.id === id),
   });
 
+  res = http.post(`${MEDIA_FILE}/CreateMediaFile`, JSON.stringify({ mediaFile: { id: mediaFileId, itemId: id, path: '/media/k6-item-deletion.mkv' } }), HEADERS);
+  check(res, { 'CreateMediaFile status is 200': (r) => r.status === 200 });
+
+  res = http.post(`${SERVICE}/GetItemDeletionImpact`, JSON.stringify({ id: id }), HEADERS);
+  check(res, {
+    'GetItemDeletionImpact status is 200': (r) => r.status === 200,
+    'GetItemDeletionImpact reports the media file': (r) => (r.json('impacts') || []).some((i) => i.kind === 'media_file' && i.count === 1),
+  });
+
   res = http.post(`${SERVICE}/DeleteItem`, JSON.stringify({ id: id }), HEADERS);
   check(res, { 'DeleteItem status is 200': (r) => r.status === 200 });
 
   res = http.post(`${SERVICE}/GetItem`, JSON.stringify({ id: id }), HEADERS);
   check(res, { 'GetItem after Delete is 404 (NotFound)': (r) => r.status === 404 });
+
+  res = http.post(`${MEDIA_FILE}/GetMediaFile`, JSON.stringify({ id: mediaFileId }), HEADERS);
+  check(res, { 'GetMediaFile after Item Delete is 404 (unlinked)': (r) => r.status === 404 });
 };

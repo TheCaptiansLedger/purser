@@ -43,6 +43,9 @@ const (
 	TagServiceDeleteTagProcedure = "/purser.domain.v1.TagService/DeleteTag"
 	// TagServiceListTagsProcedure is the fully-qualified name of the TagService's ListTags RPC.
 	TagServiceListTagsProcedure = "/purser.domain.v1.TagService/ListTags"
+	// TagServiceGetTagDeletionImpactProcedure is the fully-qualified name of the TagService's
+	// GetTagDeletionImpact RPC.
+	TagServiceGetTagDeletionImpactProcedure = "/purser.domain.v1.TagService/GetTagDeletionImpact"
 )
 
 // TagServiceClient is a client for the purser.domain.v1.TagService service.
@@ -52,6 +55,9 @@ type TagServiceClient interface {
 	UpdateTag(context.Context, *connect.Request[v1.UpdateTagRequest]) (*connect.Response[v1.UpdateTagResponse], error)
 	DeleteTag(context.Context, *connect.Request[v1.DeleteTagRequest]) (*connect.Response[v1.DeleteTagResponse], error)
 	ListTags(context.Context, *connect.Request[v1.ListTagsRequest]) (*connect.Response[v1.ListTagsResponse], error)
+	// GetTagDeletionImpact reports what references this Tag before Delete
+	// is called — see docs/adr/0015-deletion-impact-and-composing-services.md.
+	GetTagDeletionImpact(context.Context, *connect.Request[v1.GetTagDeletionImpactRequest]) (*connect.Response[v1.GetTagDeletionImpactResponse], error)
 }
 
 // NewTagServiceClient constructs a client for the purser.domain.v1.TagService service. By default,
@@ -95,16 +101,23 @@ func NewTagServiceClient(httpClient connect.HTTPClient, baseURL string, opts ...
 			connect.WithSchema(tagServiceMethods.ByName("ListTags")),
 			connect.WithClientOptions(opts...),
 		),
+		getTagDeletionImpact: connect.NewClient[v1.GetTagDeletionImpactRequest, v1.GetTagDeletionImpactResponse](
+			httpClient,
+			baseURL+TagServiceGetTagDeletionImpactProcedure,
+			connect.WithSchema(tagServiceMethods.ByName("GetTagDeletionImpact")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
 // tagServiceClient implements TagServiceClient.
 type tagServiceClient struct {
-	createTag *connect.Client[v1.CreateTagRequest, v1.CreateTagResponse]
-	getTag    *connect.Client[v1.GetTagRequest, v1.GetTagResponse]
-	updateTag *connect.Client[v1.UpdateTagRequest, v1.UpdateTagResponse]
-	deleteTag *connect.Client[v1.DeleteTagRequest, v1.DeleteTagResponse]
-	listTags  *connect.Client[v1.ListTagsRequest, v1.ListTagsResponse]
+	createTag            *connect.Client[v1.CreateTagRequest, v1.CreateTagResponse]
+	getTag               *connect.Client[v1.GetTagRequest, v1.GetTagResponse]
+	updateTag            *connect.Client[v1.UpdateTagRequest, v1.UpdateTagResponse]
+	deleteTag            *connect.Client[v1.DeleteTagRequest, v1.DeleteTagResponse]
+	listTags             *connect.Client[v1.ListTagsRequest, v1.ListTagsResponse]
+	getTagDeletionImpact *connect.Client[v1.GetTagDeletionImpactRequest, v1.GetTagDeletionImpactResponse]
 }
 
 // CreateTag calls purser.domain.v1.TagService.CreateTag.
@@ -132,6 +145,11 @@ func (c *tagServiceClient) ListTags(ctx context.Context, req *connect.Request[v1
 	return c.listTags.CallUnary(ctx, req)
 }
 
+// GetTagDeletionImpact calls purser.domain.v1.TagService.GetTagDeletionImpact.
+func (c *tagServiceClient) GetTagDeletionImpact(ctx context.Context, req *connect.Request[v1.GetTagDeletionImpactRequest]) (*connect.Response[v1.GetTagDeletionImpactResponse], error) {
+	return c.getTagDeletionImpact.CallUnary(ctx, req)
+}
+
 // TagServiceHandler is an implementation of the purser.domain.v1.TagService service.
 type TagServiceHandler interface {
 	CreateTag(context.Context, *connect.Request[v1.CreateTagRequest]) (*connect.Response[v1.CreateTagResponse], error)
@@ -139,6 +157,9 @@ type TagServiceHandler interface {
 	UpdateTag(context.Context, *connect.Request[v1.UpdateTagRequest]) (*connect.Response[v1.UpdateTagResponse], error)
 	DeleteTag(context.Context, *connect.Request[v1.DeleteTagRequest]) (*connect.Response[v1.DeleteTagResponse], error)
 	ListTags(context.Context, *connect.Request[v1.ListTagsRequest]) (*connect.Response[v1.ListTagsResponse], error)
+	// GetTagDeletionImpact reports what references this Tag before Delete
+	// is called — see docs/adr/0015-deletion-impact-and-composing-services.md.
+	GetTagDeletionImpact(context.Context, *connect.Request[v1.GetTagDeletionImpactRequest]) (*connect.Response[v1.GetTagDeletionImpactResponse], error)
 }
 
 // NewTagServiceHandler builds an HTTP handler from the service implementation. It returns the path
@@ -178,6 +199,12 @@ func NewTagServiceHandler(svc TagServiceHandler, opts ...connect.HandlerOption) 
 		connect.WithSchema(tagServiceMethods.ByName("ListTags")),
 		connect.WithHandlerOptions(opts...),
 	)
+	tagServiceGetTagDeletionImpactHandler := connect.NewUnaryHandler(
+		TagServiceGetTagDeletionImpactProcedure,
+		svc.GetTagDeletionImpact,
+		connect.WithSchema(tagServiceMethods.ByName("GetTagDeletionImpact")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/purser.domain.v1.TagService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case TagServiceCreateTagProcedure:
@@ -190,6 +217,8 @@ func NewTagServiceHandler(svc TagServiceHandler, opts ...connect.HandlerOption) 
 			tagServiceDeleteTagHandler.ServeHTTP(w, r)
 		case TagServiceListTagsProcedure:
 			tagServiceListTagsHandler.ServeHTTP(w, r)
+		case TagServiceGetTagDeletionImpactProcedure:
+			tagServiceGetTagDeletionImpactHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -217,4 +246,8 @@ func (UnimplementedTagServiceHandler) DeleteTag(context.Context, *connect.Reques
 
 func (UnimplementedTagServiceHandler) ListTags(context.Context, *connect.Request[v1.ListTagsRequest]) (*connect.Response[v1.ListTagsResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("purser.domain.v1.TagService.ListTags is not implemented"))
+}
+
+func (UnimplementedTagServiceHandler) GetTagDeletionImpact(context.Context, *connect.Request[v1.GetTagDeletionImpactRequest]) (*connect.Response[v1.GetTagDeletionImpactResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("purser.domain.v1.TagService.GetTagDeletionImpact is not implemented"))
 }

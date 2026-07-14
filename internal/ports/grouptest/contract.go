@@ -28,6 +28,7 @@ func TestGroupRepository(t *testing.T, newRepo NewRepositoryFunc) {
 	t.Run("update on a missing group returns ErrNotFound", func(t *testing.T) { testUpdateMissing(t, newRepo) })
 	t.Run("delete removes a group", func(t *testing.T) { testDelete(t, newRepo) })
 	t.Run("delete on a missing group returns ErrNotFound", func(t *testing.T) { testDeleteMissing(t, newRepo) })
+	t.Run("list filters by library entry independently", func(t *testing.T) { testListFilters(t, newRepo) })
 	t.Run("list returns every created group across pages", func(t *testing.T) { testListPaginates(t, newRepo) })
 }
 
@@ -119,6 +120,30 @@ func testDeleteMissing(t *testing.T, newRepo NewRepositoryFunc) {
 	}
 }
 
+func testListFilters(t *testing.T, newRepo NewRepositoryFunc) {
+	r := newRepo(t)
+	ctx := context.Background()
+	mustCreate(t, r, sampleGroupForEntry("g1", "entry1"))
+	mustCreate(t, r, sampleGroupForEntry("g2", "entry1"))
+	mustCreate(t, r, sampleGroupForEntry("g3", "entry2"))
+
+	byEntry, _, err := r.List(ctx, "entry1", 10, "")
+	if err != nil {
+		t.Fatalf("List(by library entry) returned error: %v", err)
+	}
+	if len(byEntry) != 2 {
+		t.Fatalf("List(by library entry entry1) returned %d rows, want 2", len(byEntry))
+	}
+
+	unfiltered, _, err := r.List(ctx, "", 10, "")
+	if err != nil {
+		t.Fatalf("List(unfiltered) returned error: %v", err)
+	}
+	if len(unfiltered) != 3 {
+		t.Fatalf("List(unfiltered) returned %d rows, want 3", len(unfiltered))
+	}
+}
+
 func testListPaginates(t *testing.T, newRepo NewRepositoryFunc) {
 	r := newRepo(t)
 	ctx := context.Background()
@@ -133,7 +158,7 @@ func testListPaginates(t *testing.T, newRepo NewRepositoryFunc) {
 	got := map[string]bool{}
 	pageToken := ""
 	for {
-		groups, next, err := r.List(ctx, 2, pageToken)
+		groups, next, err := r.List(ctx, "", 2, pageToken)
 		if err != nil {
 			t.Fatalf("List returned error: %v", err)
 		}
@@ -163,4 +188,10 @@ func sampleGroup(id string) *domain.Group {
 		Title:          "Test Group",
 		MonitorMode:    domain.MonitorModeNone,
 	}
+}
+
+func sampleGroupForEntry(id, libraryEntryID string) *domain.Group {
+	g := sampleGroup(id)
+	g.LibraryEntryID = libraryEntryID
+	return g
 }

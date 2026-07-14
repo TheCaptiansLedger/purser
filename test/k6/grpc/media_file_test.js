@@ -43,6 +43,18 @@ export default () => {
     'ListMediaFiles includes the created file': (r) => r && r.message && r.message.mediaFiles && r.message.mediaFiles.some((m) => m.id === id),
   });
 
+  res = client.invoke('purser.domain.v1.MediaFileService/ListMediaFiles', { itemId: 'item1', pageSize: 10 });
+  check(res, {
+    'ListMediaFiles filtered by itemId includes the created file': (r) =>
+      r && r.message && r.message.mediaFiles && r.message.mediaFiles.some((m) => m.id === id),
+  });
+
+  res = client.invoke('purser.domain.v1.MediaFileService/ListMediaFiles', { itemId: 'no-such-item', pageSize: 10 });
+  check(res, {
+    'ListMediaFiles filtered by a non-matching itemId excludes the created file': (r) =>
+      r && r.message && !(r.message.mediaFiles || []).some((m) => m.id === id),
+  });
+
   res = client.invoke('purser.domain.v1.MediaFileService/DeleteMediaFile', { id: id });
   check(res, { 'DeleteMediaFile status is OK': (r) => r && r.status === grpc.StatusOK });
 

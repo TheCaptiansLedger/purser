@@ -18,7 +18,7 @@ type mediaFileService interface {
 	Get(ctx context.Context, id string) (*domain.MediaFile, error)
 	Update(ctx context.Context, m *domain.MediaFile) (*domain.MediaFile, error)
 	Delete(ctx context.Context, id string) error
-	List(ctx context.Context, pageSize int, pageToken string) ([]*domain.MediaFile, string, error)
+	List(ctx context.Context, itemID string, pageSize int, pageToken string) ([]*domain.MediaFile, string, error)
 }
 
 // MediaFileHandler implements domainv1connect.MediaFileServiceHandler.
@@ -81,7 +81,7 @@ func (h *MediaFileHandler) DeleteMediaFile(ctx context.Context, req *connect.Req
 
 // ListMediaFiles implements domainv1connect.MediaFileServiceHandler.
 func (h *MediaFileHandler) ListMediaFiles(ctx context.Context, req *connect.Request[v1.ListMediaFilesRequest]) (*connect.Response[v1.ListMediaFilesResponse], error) {
-	files, next, err := h.svc.List(ctx, int(req.Msg.GetPageSize()), req.Msg.GetPageToken())
+	files, next, err := h.svc.List(ctx, req.Msg.GetItemId(), int(req.Msg.GetPageSize()), req.Msg.GetPageToken())
 	if err != nil {
 		return nil, mapError(ctx, h.logger, err)
 	}

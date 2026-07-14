@@ -48,6 +48,13 @@ func TestMapError(t *testing.T) {
 		}
 	})
 
+	t.Run("ErrDeletionBlocked maps to CodeFailedPrecondition", func(t *testing.T) {
+		err := mapError(context.Background(), logger, ports.ErrDeletionBlocked)
+		if connect.CodeOf(err) != connect.CodeFailedPrecondition {
+			t.Fatalf("mapError(ErrDeletionBlocked) code = %v, want %v", connect.CodeOf(err), connect.CodeFailedPrecondition)
+		}
+	})
+
 	t.Run("unmapped error becomes a generic CodeInternal and is logged", func(t *testing.T) {
 		var buf bytes.Buffer
 		bufLogger := slog.New(slog.NewJSONHandler(&buf, nil))

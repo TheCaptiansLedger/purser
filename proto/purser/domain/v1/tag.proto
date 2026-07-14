@@ -46,9 +46,22 @@ message UpdateTagResponse {
 
 message DeleteTagRequest {
   string id = 1;
+  // cascade has no effect for Tag — its only referrer, TagAssignment, is
+  // always unlinked. Present for API-shape consistency with every other
+  // entity's DeleteXxxRequest. See
+  // docs/adr/0015-deletion-impact-and-composing-services.md.
+  bool cascade = 2;
 }
 
 message DeleteTagResponse {}
+
+message GetTagDeletionImpactRequest {
+  string id = 1;
+}
+
+message GetTagDeletionImpactResponse {
+  repeated DeletionImpactRow impacts = 1;
+}
 
 message ListTagsRequest {
   int32 page_size = 1;
@@ -68,4 +81,7 @@ service TagService {
   rpc UpdateTag(UpdateTagRequest) returns (UpdateTagResponse);
   rpc DeleteTag(DeleteTagRequest) returns (DeleteTagResponse);
   rpc ListTags(ListTagsRequest) returns (ListTagsResponse);
+  // GetTagDeletionImpact reports what references this Tag before Delete
+  // is called — see docs/adr/0015-deletion-impact-and-composing-services.md.
+  rpc GetTagDeletionImpact(GetTagDeletionImpactRequest) returns (GetTagDeletionImpactResponse);
 }

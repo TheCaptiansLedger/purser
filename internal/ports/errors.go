@@ -16,3 +16,10 @@ var ErrNotFound = errors.New("not found")
 // invariant the repository enforces (e.g. creating a record whose ID
 // already exists).
 var ErrConflict = errors.New("conflict")
+
+// ErrDeletionBlocked is returned by a composing deletion service's Delete
+// when the target has structural referrers (a required foreign key, e.g.
+// a Group's LibraryEntryID) that can't simply be unlinked, and the caller
+// didn't explicitly request cascade=true. See
+// docs/adr/0015-deletion-impact-and-composing-services.md.
+var ErrDeletionBlocked = errors.New("deletion blocked: dependent records exist")

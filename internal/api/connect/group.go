@@ -17,23 +17,23 @@ type groupService interface {
 	Create(ctx context.Context, g *domain.Group) (*domain.Group, error)
 	Get(ctx context.Context, id string) (*domain.Group, error)
 	Update(ctx context.Context, g *domain.Group) (*domain.Group, error)
-	Delete(ctx context.Context, id string) error
-	List(ctx context.Context, pageSize int, pageToken string) ([]*domain.Group, string, error)
+	List(ctx context.Context, libraryEntryID string, pageSize int, pageToken string) ([]*domain.Group, string, error)
 }
 
 // GroupHandler implements domainv1connect.GroupServiceHandler.
 type GroupHandler struct {
 	domainv1connect.UnimplementedGroupServiceHandler
-	svc    groupService
-	logger *slog.Logger
+	svc         groupService
+	deletionSvc entityDeletionService
+	logger      *slog.Logger
 }
 
-// NewGroupHandler constructs a GroupHandler backed by svc.
-func NewGroupHandler(svc groupService, logger *slog.Logger) *GroupHandler {
+// NewGroupHandler constructs a GroupHandler backed by svc and deletionSvc.
+func NewGroupHandler(svc groupService, deletionSvc entityDeletionService, logger *slog.Logger) *GroupHandler {
 	if logger == nil {
 		logger = slog.Default()
 	}
-	return &GroupHandler{svc: svc, logger: logger.With("component", "api.connect", "service", "GroupService")}
+	return &GroupHandler{svc: svc, deletionSvc: deletionSvc, logger: logger.With("component", "api.connect", "service", "GroupService")}
 }
 
 // CreateGroup implements domainv1connect.GroupServiceHandler.
@@ -73,15 +73,24 @@ func (h *GroupHandler) UpdateGroup(ctx context.Context, req *connect.Request[v1.
 
 // DeleteGroup implements domainv1connect.GroupServiceHandler.
 func (h *GroupHandler) DeleteGroup(ctx context.Context, req *connect.Request[v1.DeleteGroupRequest]) (*connect.Response[v1.DeleteGroupResponse], error) {
-	if err := h.svc.Delete(ctx, req.Msg.GetId()); err != nil {
+	if err := h.deletionSvc.Delete(ctx, req.Msg.GetId(), req.Msg.GetCascade()); err != nil {
 		return nil, mapError(ctx, h.logger, err)
 	}
 	return connect.NewResponse(&v1.DeleteGroupResponse{}), nil
 }
 
+// GetGroupDeletionImpact implements domainv1connect.GroupServiceHandler.
+func (h *GroupHandler) GetGroupDeletionImpact(ctx context.Context, req *connect.Request[v1.GetGroupDeletionImpactRequest]) (*connect.Response[v1.GetGroupDeletionImpactResponse], error) {
+	impact, err := h.deletionSvc.GetDeletionImpact(ctx, req.Msg.GetId())
+	if err != nil {
+		return nil, mapError(ctx, h.logger, err)
+	}
+	return connect.NewResponse(&v1.GetGroupDeletionImpactResponse{Impacts: deletionImpactRowsToProto(impact.Impacts)}), nil
+}
+
 // ListGroups implements domainv1connect.GroupServiceHandler.
 func (h *GroupHandler) ListGroups(ctx context.Context, req *connect.Request[v1.ListGroupsRequest]) (*connect.Response[v1.ListGroupsResponse], error) {
-	groups, next, err := h.svc.List(ctx, int(req.Msg.GetPageSize()), req.Msg.GetPageToken())
+	groups, next, err := h.svc.List(ctx, req.Msg.GetLibraryEntryId(), int(req.Msg.GetPageSize()), req.Msg.GetPageToken())
 	if err != nil {
 		return nil, mapError(ctx, h.logger, err)
 	}

@@ -48,6 +48,8 @@ func mapError(ctx context.Context, logger *slog.Logger, err error) error {
 		return connect.NewError(connect.CodeNotFound, err)
 	case errors.Is(err, ports.ErrConflict):
 		return connect.NewError(connect.CodeAlreadyExists, err)
+	case errors.Is(err, ports.ErrDeletionBlocked):
+		return connect.NewError(connect.CodeFailedPrecondition, err)
 	default:
 		logUnmapped(ctx, logger, err)
 		return connect.NewError(connect.CodeInternal, errors.New("internal error"))

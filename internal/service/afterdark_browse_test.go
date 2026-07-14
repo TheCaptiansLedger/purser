@@ -164,7 +164,9 @@ func (f *browseFakePersonRepository) List(context.Context, int, string) ([]*doma
 }
 
 type browseFakePerformerProfileRepository struct {
-	byID map[string]*afterdark.PerformerProfile
+	byID      map[string]*afterdark.PerformerProfile
+	getErr    error
+	deleteErr error
 }
 
 func (f *browseFakePerformerProfileRepository) Create(context.Context, *afterdark.PerformerProfile) error {
@@ -172,6 +174,9 @@ func (f *browseFakePerformerProfileRepository) Create(context.Context, *afterdar
 }
 
 func (f *browseFakePerformerProfileRepository) Get(_ context.Context, personID string) (*afterdark.PerformerProfile, error) {
+	if f.getErr != nil {
+		return nil, f.getErr
+	}
 	p, ok := f.byID[personID]
 	if !ok {
 		return nil, ports.ErrNotFound
@@ -182,7 +187,18 @@ func (f *browseFakePerformerProfileRepository) Get(_ context.Context, personID s
 func (f *browseFakePerformerProfileRepository) Update(context.Context, *afterdark.PerformerProfile) error {
 	return nil
 }
-func (f *browseFakePerformerProfileRepository) Delete(context.Context, string) error { return nil }
+
+func (f *browseFakePerformerProfileRepository) Delete(_ context.Context, personID string) error {
+	if f.deleteErr != nil {
+		return f.deleteErr
+	}
+	if _, ok := f.byID[personID]; !ok {
+		return ports.ErrNotFound
+	}
+	delete(f.byID, personID)
+	return nil
+}
+
 func (f *browseFakePerformerProfileRepository) List(_ context.Context, pageSize int, pageToken string) ([]*afterdark.PerformerProfile, string, error) {
 	sorted := make([]*afterdark.PerformerProfile, 0, len(f.byID))
 	for _, p := range f.byID {

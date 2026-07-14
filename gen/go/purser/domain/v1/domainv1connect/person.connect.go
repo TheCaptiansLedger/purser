@@ -47,6 +47,9 @@ const (
 	// PersonServiceListPeopleProcedure is the fully-qualified name of the PersonService's ListPeople
 	// RPC.
 	PersonServiceListPeopleProcedure = "/purser.domain.v1.PersonService/ListPeople"
+	// PersonServiceGetPersonDeletionImpactProcedure is the fully-qualified name of the PersonService's
+	// GetPersonDeletionImpact RPC.
+	PersonServiceGetPersonDeletionImpactProcedure = "/purser.domain.v1.PersonService/GetPersonDeletionImpact"
 )
 
 // PersonServiceClient is a client for the purser.domain.v1.PersonService service.
@@ -56,6 +59,10 @@ type PersonServiceClient interface {
 	UpdatePerson(context.Context, *connect.Request[v1.UpdatePersonRequest]) (*connect.Response[v1.UpdatePersonResponse], error)
 	DeletePerson(context.Context, *connect.Request[v1.DeletePersonRequest]) (*connect.Response[v1.DeletePersonResponse], error)
 	ListPeople(context.Context, *connect.Request[v1.ListPeopleRequest]) (*connect.Response[v1.ListPeopleResponse], error)
+	// GetPersonDeletionImpact reports what references this Person before
+	// Delete is called — see
+	// docs/adr/0015-deletion-impact-and-composing-services.md.
+	GetPersonDeletionImpact(context.Context, *connect.Request[v1.GetPersonDeletionImpactRequest]) (*connect.Response[v1.GetPersonDeletionImpactResponse], error)
 }
 
 // NewPersonServiceClient constructs a client for the purser.domain.v1.PersonService service. By
@@ -99,16 +106,23 @@ func NewPersonServiceClient(httpClient connect.HTTPClient, baseURL string, opts 
 			connect.WithSchema(personServiceMethods.ByName("ListPeople")),
 			connect.WithClientOptions(opts...),
 		),
+		getPersonDeletionImpact: connect.NewClient[v1.GetPersonDeletionImpactRequest, v1.GetPersonDeletionImpactResponse](
+			httpClient,
+			baseURL+PersonServiceGetPersonDeletionImpactProcedure,
+			connect.WithSchema(personServiceMethods.ByName("GetPersonDeletionImpact")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
 // personServiceClient implements PersonServiceClient.
 type personServiceClient struct {
-	createPerson *connect.Client[v1.CreatePersonRequest, v1.CreatePersonResponse]
-	getPerson    *connect.Client[v1.GetPersonRequest, v1.GetPersonResponse]
-	updatePerson *connect.Client[v1.UpdatePersonRequest, v1.UpdatePersonResponse]
-	deletePerson *connect.Client[v1.DeletePersonRequest, v1.DeletePersonResponse]
-	listPeople   *connect.Client[v1.ListPeopleRequest, v1.ListPeopleResponse]
+	createPerson            *connect.Client[v1.CreatePersonRequest, v1.CreatePersonResponse]
+	getPerson               *connect.Client[v1.GetPersonRequest, v1.GetPersonResponse]
+	updatePerson            *connect.Client[v1.UpdatePersonRequest, v1.UpdatePersonResponse]
+	deletePerson            *connect.Client[v1.DeletePersonRequest, v1.DeletePersonResponse]
+	listPeople              *connect.Client[v1.ListPeopleRequest, v1.ListPeopleResponse]
+	getPersonDeletionImpact *connect.Client[v1.GetPersonDeletionImpactRequest, v1.GetPersonDeletionImpactResponse]
 }
 
 // CreatePerson calls purser.domain.v1.PersonService.CreatePerson.
@@ -136,6 +150,11 @@ func (c *personServiceClient) ListPeople(ctx context.Context, req *connect.Reque
 	return c.listPeople.CallUnary(ctx, req)
 }
 
+// GetPersonDeletionImpact calls purser.domain.v1.PersonService.GetPersonDeletionImpact.
+func (c *personServiceClient) GetPersonDeletionImpact(ctx context.Context, req *connect.Request[v1.GetPersonDeletionImpactRequest]) (*connect.Response[v1.GetPersonDeletionImpactResponse], error) {
+	return c.getPersonDeletionImpact.CallUnary(ctx, req)
+}
+
 // PersonServiceHandler is an implementation of the purser.domain.v1.PersonService service.
 type PersonServiceHandler interface {
 	CreatePerson(context.Context, *connect.Request[v1.CreatePersonRequest]) (*connect.Response[v1.CreatePersonResponse], error)
@@ -143,6 +162,10 @@ type PersonServiceHandler interface {
 	UpdatePerson(context.Context, *connect.Request[v1.UpdatePersonRequest]) (*connect.Response[v1.UpdatePersonResponse], error)
 	DeletePerson(context.Context, *connect.Request[v1.DeletePersonRequest]) (*connect.Response[v1.DeletePersonResponse], error)
 	ListPeople(context.Context, *connect.Request[v1.ListPeopleRequest]) (*connect.Response[v1.ListPeopleResponse], error)
+	// GetPersonDeletionImpact reports what references this Person before
+	// Delete is called — see
+	// docs/adr/0015-deletion-impact-and-composing-services.md.
+	GetPersonDeletionImpact(context.Context, *connect.Request[v1.GetPersonDeletionImpactRequest]) (*connect.Response[v1.GetPersonDeletionImpactResponse], error)
 }
 
 // NewPersonServiceHandler builds an HTTP handler from the service implementation. It returns the
@@ -182,6 +205,12 @@ func NewPersonServiceHandler(svc PersonServiceHandler, opts ...connect.HandlerOp
 		connect.WithSchema(personServiceMethods.ByName("ListPeople")),
 		connect.WithHandlerOptions(opts...),
 	)
+	personServiceGetPersonDeletionImpactHandler := connect.NewUnaryHandler(
+		PersonServiceGetPersonDeletionImpactProcedure,
+		svc.GetPersonDeletionImpact,
+		connect.WithSchema(personServiceMethods.ByName("GetPersonDeletionImpact")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/purser.domain.v1.PersonService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case PersonServiceCreatePersonProcedure:
@@ -194,6 +223,8 @@ func NewPersonServiceHandler(svc PersonServiceHandler, opts ...connect.HandlerOp
 			personServiceDeletePersonHandler.ServeHTTP(w, r)
 		case PersonServiceListPeopleProcedure:
 			personServiceListPeopleHandler.ServeHTTP(w, r)
+		case PersonServiceGetPersonDeletionImpactProcedure:
+			personServiceGetPersonDeletionImpactHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -221,4 +252,8 @@ func (UnimplementedPersonServiceHandler) DeletePerson(context.Context, *connect.
 
 func (UnimplementedPersonServiceHandler) ListPeople(context.Context, *connect.Request[v1.ListPeopleRequest]) (*connect.Response[v1.ListPeopleResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("purser.domain.v1.PersonService.ListPeople is not implemented"))
+}
+
+func (UnimplementedPersonServiceHandler) GetPersonDeletionImpact(context.Context, *connect.Request[v1.GetPersonDeletionImpactRequest]) (*connect.Response[v1.GetPersonDeletionImpactResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("purser.domain.v1.PersonService.GetPersonDeletionImpact is not implemented"))
 }

@@ -9,7 +9,7 @@ import { check } from 'k6';
 const ADDR = __ENV.PURSER_GRPC_ADDR || 'localhost:7474';
 
 const client = new grpc.Client();
-client.load(['../../../proto'], 'purser/domain/v1/person.proto');
+client.load(['../../../proto'], 'purser/domain/v1/person.proto', 'purser/afterdark/v1/performer_profile.proto');
 
 export default () => {
   client.connect(ADDR, { plaintext: true });
@@ -60,6 +60,16 @@ export default () => {
     'GetPerson on a missing id is NotFound': (r) => r && r.status === grpc.StatusNotFound,
   });
 
+  res = client.invoke('purser.afterdark.v1.PerformerProfileService/CreatePerformerProfile', { performerProfile: { personId: id } });
+  check(res, { 'CreatePerformerProfile status is OK': (r) => r && r.status === grpc.StatusOK });
+
+  res = client.invoke('purser.domain.v1.PersonService/GetPersonDeletionImpact', { id: id });
+  check(res, {
+    'GetPersonDeletionImpact status is OK': (r) => r && r.status === grpc.StatusOK,
+    'GetPersonDeletionImpact reports the performer profile': (r) =>
+      r && r.message && r.message.impacts && r.message.impacts.some((i) => i.kind === 'performer_profile' && i.count === 1),
+  });
+
   res = client.invoke('purser.domain.v1.PersonService/DeletePerson', { id: id });
   check(res, {
     'DeletePerson status is OK': (r) => r && r.status === grpc.StatusOK,
@@ -69,6 +79,9 @@ export default () => {
   check(res, {
     'GetPerson after Delete is NotFound': (r) => r && r.status === grpc.StatusNotFound,
   });
+
+  res = client.invoke('purser.afterdark.v1.PerformerProfileService/GetPerformerProfile', { personId: id });
+  check(res, { 'GetPerformerProfile after Person Delete is NotFound (unlinked)': (r) => r && r.status === grpc.StatusNotFound });
 
   client.close();
 };

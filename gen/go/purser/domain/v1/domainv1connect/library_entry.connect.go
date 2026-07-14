@@ -48,6 +48,9 @@ const (
 	// LibraryEntryServiceListLibraryEntriesProcedure is the fully-qualified name of the
 	// LibraryEntryService's ListLibraryEntries RPC.
 	LibraryEntryServiceListLibraryEntriesProcedure = "/purser.domain.v1.LibraryEntryService/ListLibraryEntries"
+	// LibraryEntryServiceGetLibraryEntryDeletionImpactProcedure is the fully-qualified name of the
+	// LibraryEntryService's GetLibraryEntryDeletionImpact RPC.
+	LibraryEntryServiceGetLibraryEntryDeletionImpactProcedure = "/purser.domain.v1.LibraryEntryService/GetLibraryEntryDeletionImpact"
 )
 
 // LibraryEntryServiceClient is a client for the purser.domain.v1.LibraryEntryService service.
@@ -57,6 +60,10 @@ type LibraryEntryServiceClient interface {
 	UpdateLibraryEntry(context.Context, *connect.Request[v1.UpdateLibraryEntryRequest]) (*connect.Response[v1.UpdateLibraryEntryResponse], error)
 	DeleteLibraryEntry(context.Context, *connect.Request[v1.DeleteLibraryEntryRequest]) (*connect.Response[v1.DeleteLibraryEntryResponse], error)
 	ListLibraryEntries(context.Context, *connect.Request[v1.ListLibraryEntriesRequest]) (*connect.Response[v1.ListLibraryEntriesResponse], error)
+	// GetLibraryEntryDeletionImpact reports what references this
+	// LibraryEntry before Delete is called — see
+	// docs/adr/0015-deletion-impact-and-composing-services.md.
+	GetLibraryEntryDeletionImpact(context.Context, *connect.Request[v1.GetLibraryEntryDeletionImpactRequest]) (*connect.Response[v1.GetLibraryEntryDeletionImpactResponse], error)
 }
 
 // NewLibraryEntryServiceClient constructs a client for the purser.domain.v1.LibraryEntryService
@@ -100,16 +107,23 @@ func NewLibraryEntryServiceClient(httpClient connect.HTTPClient, baseURL string,
 			connect.WithSchema(libraryEntryServiceMethods.ByName("ListLibraryEntries")),
 			connect.WithClientOptions(opts...),
 		),
+		getLibraryEntryDeletionImpact: connect.NewClient[v1.GetLibraryEntryDeletionImpactRequest, v1.GetLibraryEntryDeletionImpactResponse](
+			httpClient,
+			baseURL+LibraryEntryServiceGetLibraryEntryDeletionImpactProcedure,
+			connect.WithSchema(libraryEntryServiceMethods.ByName("GetLibraryEntryDeletionImpact")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
 // libraryEntryServiceClient implements LibraryEntryServiceClient.
 type libraryEntryServiceClient struct {
-	createLibraryEntry *connect.Client[v1.CreateLibraryEntryRequest, v1.CreateLibraryEntryResponse]
-	getLibraryEntry    *connect.Client[v1.GetLibraryEntryRequest, v1.GetLibraryEntryResponse]
-	updateLibraryEntry *connect.Client[v1.UpdateLibraryEntryRequest, v1.UpdateLibraryEntryResponse]
-	deleteLibraryEntry *connect.Client[v1.DeleteLibraryEntryRequest, v1.DeleteLibraryEntryResponse]
-	listLibraryEntries *connect.Client[v1.ListLibraryEntriesRequest, v1.ListLibraryEntriesResponse]
+	createLibraryEntry            *connect.Client[v1.CreateLibraryEntryRequest, v1.CreateLibraryEntryResponse]
+	getLibraryEntry               *connect.Client[v1.GetLibraryEntryRequest, v1.GetLibraryEntryResponse]
+	updateLibraryEntry            *connect.Client[v1.UpdateLibraryEntryRequest, v1.UpdateLibraryEntryResponse]
+	deleteLibraryEntry            *connect.Client[v1.DeleteLibraryEntryRequest, v1.DeleteLibraryEntryResponse]
+	listLibraryEntries            *connect.Client[v1.ListLibraryEntriesRequest, v1.ListLibraryEntriesResponse]
+	getLibraryEntryDeletionImpact *connect.Client[v1.GetLibraryEntryDeletionImpactRequest, v1.GetLibraryEntryDeletionImpactResponse]
 }
 
 // CreateLibraryEntry calls purser.domain.v1.LibraryEntryService.CreateLibraryEntry.
@@ -137,6 +151,12 @@ func (c *libraryEntryServiceClient) ListLibraryEntries(ctx context.Context, req 
 	return c.listLibraryEntries.CallUnary(ctx, req)
 }
 
+// GetLibraryEntryDeletionImpact calls
+// purser.domain.v1.LibraryEntryService.GetLibraryEntryDeletionImpact.
+func (c *libraryEntryServiceClient) GetLibraryEntryDeletionImpact(ctx context.Context, req *connect.Request[v1.GetLibraryEntryDeletionImpactRequest]) (*connect.Response[v1.GetLibraryEntryDeletionImpactResponse], error) {
+	return c.getLibraryEntryDeletionImpact.CallUnary(ctx, req)
+}
+
 // LibraryEntryServiceHandler is an implementation of the purser.domain.v1.LibraryEntryService
 // service.
 type LibraryEntryServiceHandler interface {
@@ -145,6 +165,10 @@ type LibraryEntryServiceHandler interface {
 	UpdateLibraryEntry(context.Context, *connect.Request[v1.UpdateLibraryEntryRequest]) (*connect.Response[v1.UpdateLibraryEntryResponse], error)
 	DeleteLibraryEntry(context.Context, *connect.Request[v1.DeleteLibraryEntryRequest]) (*connect.Response[v1.DeleteLibraryEntryResponse], error)
 	ListLibraryEntries(context.Context, *connect.Request[v1.ListLibraryEntriesRequest]) (*connect.Response[v1.ListLibraryEntriesResponse], error)
+	// GetLibraryEntryDeletionImpact reports what references this
+	// LibraryEntry before Delete is called — see
+	// docs/adr/0015-deletion-impact-and-composing-services.md.
+	GetLibraryEntryDeletionImpact(context.Context, *connect.Request[v1.GetLibraryEntryDeletionImpactRequest]) (*connect.Response[v1.GetLibraryEntryDeletionImpactResponse], error)
 }
 
 // NewLibraryEntryServiceHandler builds an HTTP handler from the service implementation. It returns
@@ -184,6 +208,12 @@ func NewLibraryEntryServiceHandler(svc LibraryEntryServiceHandler, opts ...conne
 		connect.WithSchema(libraryEntryServiceMethods.ByName("ListLibraryEntries")),
 		connect.WithHandlerOptions(opts...),
 	)
+	libraryEntryServiceGetLibraryEntryDeletionImpactHandler := connect.NewUnaryHandler(
+		LibraryEntryServiceGetLibraryEntryDeletionImpactProcedure,
+		svc.GetLibraryEntryDeletionImpact,
+		connect.WithSchema(libraryEntryServiceMethods.ByName("GetLibraryEntryDeletionImpact")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/purser.domain.v1.LibraryEntryService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case LibraryEntryServiceCreateLibraryEntryProcedure:
@@ -196,6 +226,8 @@ func NewLibraryEntryServiceHandler(svc LibraryEntryServiceHandler, opts ...conne
 			libraryEntryServiceDeleteLibraryEntryHandler.ServeHTTP(w, r)
 		case LibraryEntryServiceListLibraryEntriesProcedure:
 			libraryEntryServiceListLibraryEntriesHandler.ServeHTTP(w, r)
+		case LibraryEntryServiceGetLibraryEntryDeletionImpactProcedure:
+			libraryEntryServiceGetLibraryEntryDeletionImpactHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -223,4 +255,8 @@ func (UnimplementedLibraryEntryServiceHandler) DeleteLibraryEntry(context.Contex
 
 func (UnimplementedLibraryEntryServiceHandler) ListLibraryEntries(context.Context, *connect.Request[v1.ListLibraryEntriesRequest]) (*connect.Response[v1.ListLibraryEntriesResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("purser.domain.v1.LibraryEntryService.ListLibraryEntries is not implemented"))
+}
+
+func (UnimplementedLibraryEntryServiceHandler) GetLibraryEntryDeletionImpact(context.Context, *connect.Request[v1.GetLibraryEntryDeletionImpactRequest]) (*connect.Response[v1.GetLibraryEntryDeletionImpactResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("purser.domain.v1.LibraryEntryService.GetLibraryEntryDeletionImpact is not implemented"))
 }

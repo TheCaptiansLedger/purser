@@ -511,9 +511,11 @@ func (*DeleteMediaFileResponse) Descriptor() ([]byte, []int) {
 }
 
 type ListMediaFilesRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	PageSize      int32                  `protobuf:"varint,1,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
-	PageToken     string                 `protobuf:"bytes,2,opt,name=page_token,json=pageToken,proto3" json:"page_token,omitempty"`
+	state     protoimpl.MessageState `protogen:"open.v1"`
+	PageSize  int32                  `protobuf:"varint,1,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
+	PageToken string                 `protobuf:"bytes,2,opt,name=page_token,json=pageToken,proto3" json:"page_token,omitempty"`
+	// item_id is an optional filter — leave unset for no filter.
+	ItemId        string `protobuf:"bytes,3,opt,name=item_id,json=itemId,proto3" json:"item_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -558,6 +560,13 @@ func (x *ListMediaFilesRequest) GetPageSize() int32 {
 func (x *ListMediaFilesRequest) GetPageToken() string {
 	if x != nil {
 		return x.PageToken
+	}
+	return ""
+}
+
+func (x *ListMediaFilesRequest) GetItemId() string {
+	if x != nil {
+		return x.ItemId
 	}
 	return ""
 }
@@ -659,11 +668,12 @@ const file_purser_domain_v1_media_file_proto_rawDesc = "" +
 	"media_file\x18\x01 \x01(\v2\x1b.purser.domain.v1.MediaFileR\tmediaFile\"(\n" +
 	"\x16DeleteMediaFileRequest\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\"\x19\n" +
-	"\x17DeleteMediaFileResponse\"S\n" +
+	"\x17DeleteMediaFileResponse\"l\n" +
 	"\x15ListMediaFilesRequest\x12\x1b\n" +
 	"\tpage_size\x18\x01 \x01(\x05R\bpageSize\x12\x1d\n" +
 	"\n" +
-	"page_token\x18\x02 \x01(\tR\tpageToken\"~\n" +
+	"page_token\x18\x02 \x01(\tR\tpageToken\x12\x17\n" +
+	"\aitem_id\x18\x03 \x01(\tR\x06itemId\"~\n" +
 	"\x16ListMediaFilesResponse\x12<\n" +
 	"\vmedia_files\x18\x01 \x03(\v2\x1b.purser.domain.v1.MediaFileR\n" +
 	"mediaFiles\x12&\n" +

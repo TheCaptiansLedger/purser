@@ -62,7 +62,7 @@ func (f *fakeMediaFileService) Delete(_ context.Context, id string) error {
 	return nil
 }
 
-func (f *fakeMediaFileService) List(_ context.Context, _ int, _ string) ([]*domain.MediaFile, string, error) {
+func (f *fakeMediaFileService) List(_ context.Context, _ string, _ int, _ string) ([]*domain.MediaFile, string, error) {
 	if f.listErr != nil {
 		return nil, "", f.listErr
 	}

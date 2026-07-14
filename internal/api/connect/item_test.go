@@ -19,7 +19,6 @@ type fakeItemService struct {
 	createErr error
 	getErr    error
 	updateErr error
-	deleteErr error
 	listErr   error
 
 	gotLibraryEntryID string
@@ -58,14 +57,6 @@ func (f *fakeItemService) Update(_ context.Context, i *domain.Item) (*domain.Ite
 	return i, nil
 }
 
-func (f *fakeItemService) Delete(_ context.Context, id string) error {
-	if f.deleteErr != nil {
-		return f.deleteErr
-	}
-	delete(f.byID, id)
-	return nil
-}
-
 func (f *fakeItemService) List(_ context.Context, libraryEntryID, contentType, groupID string, _ int, _ string) ([]*domain.Item, string, error) {
 	f.gotLibraryEntryID, f.gotContentType, f.gotGroupID = libraryEntryID, contentType, groupID
 	if f.listErr != nil {
@@ -85,7 +76,7 @@ func validProtoItem(id string) *v1.Item {
 func TestItemHandler_CreateItem(t *testing.T) {
 	t.Run("valid request returns the created item", func(t *testing.T) {
 		svc := newFakeItemService()
-		h := apiconnect.NewItemHandler(svc, nil)
+		h := apiconnect.NewItemHandler(svc, newFakeEntityDeletionService(), nil)
 
 		res, err := h.CreateItem(context.Background(), connect.NewRequest(&v1.CreateItemRequest{Item: validProtoItem("i1")}))
 		if err != nil {
@@ -99,7 +90,7 @@ func TestItemHandler_CreateItem(t *testing.T) {
 	t.Run("a ValidationError from the service maps to CodeInvalidArgument", func(t *testing.T) {
 		svc := newFakeItemService()
 		svc.createErr = &domain.ValidationError{Errors: []domain.FieldError{{Field: "Title", Rule: "required", Value: ""}}}
-		h := apiconnect.NewItemHandler(svc, nil)
+		h := apiconnect.NewItemHandler(svc, newFakeEntityDeletionService(), nil)
 
 		_, err := h.CreateItem(context.Background(), connect.NewRequest(&v1.CreateItemRequest{Item: validProtoItem("i1")}))
 		if connect.CodeOf(err) != connect.CodeInvalidArgument {
@@ -110,7 +101,7 @@ func TestItemHandler_CreateItem(t *testing.T) {
 
 func TestItemHandler_GetItem(t *testing.T) {
 	svc := newFakeItemService()
-	h := apiconnect.NewItemHandler(svc, nil)
+	h := apiconnect.NewItemHandler(svc, newFakeEntityDeletionService(), nil)
 	svc.byID["i1"] = &domain.Item{ID: "i1", Title: "Existing", Status: domain.ItemStatusWanted}
 
 	res, err := h.GetItem(context.Background(), connect.NewRequest(&v1.GetItemRequest{Id: "i1"}))
@@ -130,7 +121,7 @@ func TestItemHandler_GetItem(t *testing.T) {
 func TestItemHandler_UpdateItem(t *testing.T) {
 	t.Run("field mask restricts the applied fields", func(t *testing.T) {
 		svc := newFakeItemService()
-		h := apiconnect.NewItemHandler(svc, nil)
+		h := apiconnect.NewItemHandler(svc, newFakeEntityDeletionService(), nil)
 		svc.byID["i1"] = &domain.Item{ID: "i1", Title: "Original", Overview: "Original Overview", Status: domain.ItemStatusWanted}
 
 		req := &v1.UpdateItemRequest{
@@ -151,7 +142,7 @@ func TestItemHandler_UpdateItem(t *testing.T) {
 
 	t.Run("get failure maps through mapError", func(t *testing.T) {
 		svc := newFakeItemService()
-		h := apiconnect.NewItemHandler(svc, nil)
+		h := apiconnect.NewItemHandler(svc, newFakeEntityDeletionService(), nil)
 
 		_, err := h.UpdateItem(context.Background(), connect.NewRequest(&v1.UpdateItemRequest{Item: &v1.Item{Id: "missing"}}))
 		if connect.CodeOf(err) != connect.CodeNotFound {
@@ -163,7 +154,7 @@ func TestItemHandler_UpdateItem(t *testing.T) {
 		svc := newFakeItemService()
 		svc.byID["i1"] = &domain.Item{ID: "i1", Title: "Original", Status: domain.ItemStatusWanted}
 		svc.updateErr = ports.ErrConflict
-		h := apiconnect.NewItemHandler(svc, nil)
+		h := apiconnect.NewItemHandler(svc, newFakeEntityDeletionService(), nil)
 
 		_, err := h.UpdateItem(context.Background(), connect.NewRequest(&v1.UpdateItemRequest{Item: &v1.Item{Id: "i1", Title: "New"}}))
 		if connect.CodeOf(err) != connect.CodeAlreadyExists {
@@ -173,20 +164,24 @@ func TestItemHandler_UpdateItem(t *testing.T) {
 }
 
 func TestItemHandler_DeleteItem(t *testing.T) {
-	t.Run("valid delete succeeds", func(t *testing.T) {
+	t.Run("valid delete succeeds and threads the cascade flag", func(t *testing.T) {
 		svc := newFakeItemService()
-		h := apiconnect.NewItemHandler(svc, nil)
-		svc.byID["i1"] = &domain.Item{ID: "i1"}
+		deletionSvc := newFakeEntityDeletionService()
+		h := apiconnect.NewItemHandler(svc, deletionSvc, nil)
 
-		if _, err := h.DeleteItem(context.Background(), connect.NewRequest(&v1.DeleteItemRequest{Id: "i1"})); err != nil {
+		if _, err := h.DeleteItem(context.Background(), connect.NewRequest(&v1.DeleteItemRequest{Id: "i1", Cascade: true})); err != nil {
 			t.Fatalf("DeleteItem returned error: %v", err)
+		}
+		if deletionSvc.gotID != "i1" || !deletionSvc.gotCascade {
+			t.Fatalf("DeleteItem passed (id=%q, cascade=%v), want (i1, true)", deletionSvc.gotID, deletionSvc.gotCascade)
 		}
 	})
 
 	t.Run("service error maps through mapError", func(t *testing.T) {
 		svc := newFakeItemService()
-		svc.deleteErr = ports.ErrNotFound
-		h := apiconnect.NewItemHandler(svc, nil)
+		deletionSvc := newFakeEntityDeletionService()
+		deletionSvc.deleteErr = ports.ErrNotFound
+		h := apiconnect.NewItemHandler(svc, deletionSvc, nil)
 
 		_, err := h.DeleteItem(context.Background(), connect.NewRequest(&v1.DeleteItemRequest{Id: "missing"}))
 		if connect.CodeOf(err) != connect.CodeNotFound {
@@ -195,10 +190,39 @@ func TestItemHandler_DeleteItem(t *testing.T) {
 	})
 }
 
+func TestItemHandler_GetItemDeletionImpact(t *testing.T) {
+	t.Run("valid request returns the impact rows", func(t *testing.T) {
+		svc := newFakeItemService()
+		deletionSvc := newFakeEntityDeletionService()
+		deletionSvc.impact = &domain.DeletionImpact{Impacts: []domain.DeletionImpactRow{{Kind: "item_person", Label: "Credits", Count: 2}}}
+		h := apiconnect.NewItemHandler(svc, deletionSvc, nil)
+
+		res, err := h.GetItemDeletionImpact(context.Background(), connect.NewRequest(&v1.GetItemDeletionImpactRequest{Id: "i1"}))
+		if err != nil {
+			t.Fatalf("GetItemDeletionImpact returned error: %v", err)
+		}
+		if len(res.Msg.GetImpacts()) != 1 || res.Msg.GetImpacts()[0].GetCount() != 2 {
+			t.Fatalf("GetItemDeletionImpact returned %v, want a single row with Count 2", res.Msg.GetImpacts())
+		}
+	})
+
+	t.Run("service error maps through mapError", func(t *testing.T) {
+		svc := newFakeItemService()
+		deletionSvc := newFakeEntityDeletionService()
+		deletionSvc.impactErr = ports.ErrNotFound
+		h := apiconnect.NewItemHandler(svc, deletionSvc, nil)
+
+		_, err := h.GetItemDeletionImpact(context.Background(), connect.NewRequest(&v1.GetItemDeletionImpactRequest{Id: "missing"}))
+		if connect.CodeOf(err) != connect.CodeNotFound {
+			t.Fatalf("GetItemDeletionImpact on missing id returned code %v, want %v", connect.CodeOf(err), connect.CodeNotFound)
+		}
+	})
+}
+
 func TestItemHandler_ListItems(t *testing.T) {
 	t.Run("valid list succeeds", func(t *testing.T) {
 		svc := newFakeItemService()
-		h := apiconnect.NewItemHandler(svc, nil)
+		h := apiconnect.NewItemHandler(svc, newFakeEntityDeletionService(), nil)
 		svc.byID["i1"] = &domain.Item{ID: "i1"}
 		svc.byID["i2"] = &domain.Item{ID: "i2"}
 
@@ -213,7 +237,7 @@ func TestItemHandler_ListItems(t *testing.T) {
 
 	t.Run("filter fields are threaded through to the service", func(t *testing.T) {
 		svc := newFakeItemService()
-		h := apiconnect.NewItemHandler(svc, nil)
+		h := apiconnect.NewItemHandler(svc, newFakeEntityDeletionService(), nil)
 
 		_, err := h.ListItems(context.Background(), connect.NewRequest(&v1.ListItemsRequest{
 			LibraryEntryId: "studio1", ContentType: "adult", GroupId: "group1", PageSize: 10,
@@ -230,7 +254,7 @@ func TestItemHandler_ListItems(t *testing.T) {
 	t.Run("service error maps through mapError", func(t *testing.T) {
 		svc := newFakeItemService()
 		svc.listErr = errors.New("boom")
-		h := apiconnect.NewItemHandler(svc, nil)
+		h := apiconnect.NewItemHandler(svc, newFakeEntityDeletionService(), nil)
 
 		_, err := h.ListItems(context.Background(), connect.NewRequest(&v1.ListItemsRequest{PageSize: 10}))
 		if connect.CodeOf(err) != connect.CodeInternal {

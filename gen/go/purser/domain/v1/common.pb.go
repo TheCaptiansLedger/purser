@@ -252,11 +252,87 @@ func (TagScope) EnumDescriptor() ([]byte, []int) {
 	return file_purser_domain_v1_common_proto_rawDescGZIP(), []int{3}
 }
 
+// DeletionImpactRow is the wire shape of internal/domain.DeletionImpactRow
+// — one category of record that references a deletion target. See
+// docs/adr/0015-deletion-impact-and-composing-services.md.
+type DeletionImpactRow struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Kind          string                 `protobuf:"bytes,1,opt,name=kind,proto3" json:"kind,omitempty"`
+	Label         string                 `protobuf:"bytes,2,opt,name=label,proto3" json:"label,omitempty"`
+	Count         int32                  `protobuf:"varint,3,opt,name=count,proto3" json:"count,omitempty"`
+	Blocking      bool                   `protobuf:"varint,4,opt,name=blocking,proto3" json:"blocking,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *DeletionImpactRow) Reset() {
+	*x = DeletionImpactRow{}
+	mi := &file_purser_domain_v1_common_proto_msgTypes[0]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DeletionImpactRow) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DeletionImpactRow) ProtoMessage() {}
+
+func (x *DeletionImpactRow) ProtoReflect() protoreflect.Message {
+	mi := &file_purser_domain_v1_common_proto_msgTypes[0]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DeletionImpactRow.ProtoReflect.Descriptor instead.
+func (*DeletionImpactRow) Descriptor() ([]byte, []int) {
+	return file_purser_domain_v1_common_proto_rawDescGZIP(), []int{0}
+}
+
+func (x *DeletionImpactRow) GetKind() string {
+	if x != nil {
+		return x.Kind
+	}
+	return ""
+}
+
+func (x *DeletionImpactRow) GetLabel() string {
+	if x != nil {
+		return x.Label
+	}
+	return ""
+}
+
+func (x *DeletionImpactRow) GetCount() int32 {
+	if x != nil {
+		return x.Count
+	}
+	return 0
+}
+
+func (x *DeletionImpactRow) GetBlocking() bool {
+	if x != nil {
+		return x.Blocking
+	}
+	return false
+}
+
 var File_purser_domain_v1_common_proto protoreflect.FileDescriptor
 
 const file_purser_domain_v1_common_proto_rawDesc = "" +
 	"\n" +
-	"\x1dpurser/domain/v1/common.proto\x12\x10purser.domain.v1*\x8a\x01\n" +
+	"\x1dpurser/domain/v1/common.proto\x12\x10purser.domain.v1\"o\n" +
+	"\x11DeletionImpactRow\x12\x12\n" +
+	"\x04kind\x18\x01 \x01(\tR\x04kind\x12\x14\n" +
+	"\x05label\x18\x02 \x01(\tR\x05label\x12\x14\n" +
+	"\x05count\x18\x03 \x01(\x05R\x05count\x12\x1a\n" +
+	"\bblocking\x18\x04 \x01(\bR\bblocking*\x8a\x01\n" +
 	"\vMonitorMode\x12\x1c\n" +
 	"\x18MONITOR_MODE_UNSPECIFIED\x10\x00\x12\x14\n" +
 	"\x10MONITOR_MODE_ALL\x10\x01\x12\x17\n" +
@@ -297,11 +373,13 @@ func file_purser_domain_v1_common_proto_rawDescGZIP() []byte {
 }
 
 var file_purser_domain_v1_common_proto_enumTypes = make([]protoimpl.EnumInfo, 4)
+var file_purser_domain_v1_common_proto_msgTypes = make([]protoimpl.MessageInfo, 1)
 var file_purser_domain_v1_common_proto_goTypes = []any{
-	(MonitorMode)(0), // 0: purser.domain.v1.MonitorMode
-	(ItemStatus)(0),  // 1: purser.domain.v1.ItemStatus
-	(EntityType)(0),  // 2: purser.domain.v1.EntityType
-	(TagScope)(0),    // 3: purser.domain.v1.TagScope
+	(MonitorMode)(0),          // 0: purser.domain.v1.MonitorMode
+	(ItemStatus)(0),           // 1: purser.domain.v1.ItemStatus
+	(EntityType)(0),           // 2: purser.domain.v1.EntityType
+	(TagScope)(0),             // 3: purser.domain.v1.TagScope
+	(*DeletionImpactRow)(nil), // 4: purser.domain.v1.DeletionImpactRow
 }
 var file_purser_domain_v1_common_proto_depIdxs = []int32{
 	0, // [0:0] is the sub-list for method output_type
@@ -322,13 +400,14 @@ func file_purser_domain_v1_common_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_purser_domain_v1_common_proto_rawDesc), len(file_purser_domain_v1_common_proto_rawDesc)),
 			NumEnums:      4,
-			NumMessages:   0,
+			NumMessages:   1,
 			NumExtensions: 0,
 			NumServices:   0,
 		},
 		GoTypes:           file_purser_domain_v1_common_proto_goTypes,
 		DependencyIndexes: file_purser_domain_v1_common_proto_depIdxs,
 		EnumInfos:         file_purser_domain_v1_common_proto_enumTypes,
+		MessageInfos:      file_purser_domain_v1_common_proto_msgTypes,
 	}.Build()
 	File_purser_domain_v1_common_proto = out.File
 	file_purser_domain_v1_common_proto_goTypes = nil

@@ -52,7 +52,7 @@ func (f *fakeGroupRepository) Delete(_ context.Context, id string) error {
 	return nil
 }
 
-func (f *fakeGroupRepository) List(_ context.Context, _ int, _ string) ([]*domain.Group, string, error) {
+func (f *fakeGroupRepository) List(_ context.Context, _ string, _ int, _ string) ([]*domain.Group, string, error) {
 	groups := make([]*domain.Group, 0, len(f.byID))
 	for _, g := range f.byID {
 		stored := *g
@@ -200,7 +200,7 @@ func TestGroupService_List(t *testing.T) {
 		}
 	}
 
-	groups, _, err := svc.List(context.Background(), 10, "")
+	groups, _, err := svc.List(context.Background(), "", 10, "")
 	if err != nil {
 		t.Fatalf("List returned error: %v", err)
 	}

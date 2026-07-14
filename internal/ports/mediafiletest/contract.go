@@ -28,6 +28,7 @@ func TestMediaFileRepository(t *testing.T, newRepo NewRepositoryFunc) {
 	t.Run("update on a missing media file returns ErrNotFound", func(t *testing.T) { testUpdateMissing(t, newRepo) })
 	t.Run("delete removes a media file", func(t *testing.T) { testDelete(t, newRepo) })
 	t.Run("delete on a missing media file returns ErrNotFound", func(t *testing.T) { testDeleteMissing(t, newRepo) })
+	t.Run("list filters by item independently", func(t *testing.T) { testListFilters(t, newRepo) })
 	t.Run("list returns every created media file across pages", func(t *testing.T) { testListPaginates(t, newRepo) })
 }
 
@@ -117,6 +118,30 @@ func testDeleteMissing(t *testing.T, newRepo NewRepositoryFunc) {
 	}
 }
 
+func testListFilters(t *testing.T, newRepo NewRepositoryFunc) {
+	r := newRepo(t)
+	ctx := context.Background()
+	mustCreate(t, r, sampleMediaFileForItem("m1", "item1"))
+	mustCreate(t, r, sampleMediaFileForItem("m2", "item1"))
+	mustCreate(t, r, sampleMediaFileForItem("m3", "item2"))
+
+	byItem, _, err := r.List(ctx, "item1", 10, "")
+	if err != nil {
+		t.Fatalf("List(by item) returned error: %v", err)
+	}
+	if len(byItem) != 2 {
+		t.Fatalf("List(by item item1) returned %d rows, want 2", len(byItem))
+	}
+
+	unfiltered, _, err := r.List(ctx, "", 10, "")
+	if err != nil {
+		t.Fatalf("List(unfiltered) returned error: %v", err)
+	}
+	if len(unfiltered) != 3 {
+		t.Fatalf("List(unfiltered) returned %d rows, want 3", len(unfiltered))
+	}
+}
+
 func testListPaginates(t *testing.T, newRepo NewRepositoryFunc) {
 	r := newRepo(t)
 	ctx := context.Background()
@@ -131,7 +156,7 @@ func testListPaginates(t *testing.T, newRepo NewRepositoryFunc) {
 	got := map[string]bool{}
 	pageToken := ""
 	for {
-		files, next, err := r.List(ctx, 2, pageToken)
+		files, next, err := r.List(ctx, "", 2, pageToken)
 		if err != nil {
 			t.Fatalf("List returned error: %v", err)
 		}
@@ -156,4 +181,10 @@ func testListPaginates(t *testing.T, newRepo NewRepositoryFunc) {
 
 func sampleMediaFile(id string) *domain.MediaFile {
 	return &domain.MediaFile{ID: id, ItemID: "item1", Path: "/media/test.mkv"}
+}
+
+func sampleMediaFileForItem(id, itemID string) *domain.MediaFile {
+	m := sampleMediaFile(id)
+	m.ItemID = itemID
+	return m
 }

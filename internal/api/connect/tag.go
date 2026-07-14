@@ -17,23 +17,23 @@ type tagService interface {
 	Create(ctx context.Context, t *domain.Tag) (*domain.Tag, error)
 	Get(ctx context.Context, id string) (*domain.Tag, error)
 	Update(ctx context.Context, t *domain.Tag) (*domain.Tag, error)
-	Delete(ctx context.Context, id string) error
 	List(ctx context.Context, pageSize int, pageToken string) ([]*domain.Tag, string, error)
 }
 
 // TagHandler implements domainv1connect.TagServiceHandler.
 type TagHandler struct {
 	domainv1connect.UnimplementedTagServiceHandler
-	svc    tagService
-	logger *slog.Logger
+	svc         tagService
+	deletionSvc entityDeletionService
+	logger      *slog.Logger
 }
 
-// NewTagHandler constructs a TagHandler backed by svc.
-func NewTagHandler(svc tagService, logger *slog.Logger) *TagHandler {
+// NewTagHandler constructs a TagHandler backed by svc and deletionSvc.
+func NewTagHandler(svc tagService, deletionSvc entityDeletionService, logger *slog.Logger) *TagHandler {
 	if logger == nil {
 		logger = slog.Default()
 	}
-	return &TagHandler{svc: svc, logger: logger.With("component", "api.connect", "service", "TagService")}
+	return &TagHandler{svc: svc, deletionSvc: deletionSvc, logger: logger.With("component", "api.connect", "service", "TagService")}
 }
 
 // CreateTag implements domainv1connect.TagServiceHandler.
@@ -73,10 +73,19 @@ func (h *TagHandler) UpdateTag(ctx context.Context, req *connect.Request[v1.Upda
 
 // DeleteTag implements domainv1connect.TagServiceHandler.
 func (h *TagHandler) DeleteTag(ctx context.Context, req *connect.Request[v1.DeleteTagRequest]) (*connect.Response[v1.DeleteTagResponse], error) {
-	if err := h.svc.Delete(ctx, req.Msg.GetId()); err != nil {
+	if err := h.deletionSvc.Delete(ctx, req.Msg.GetId(), req.Msg.GetCascade()); err != nil {
 		return nil, mapError(ctx, h.logger, err)
 	}
 	return connect.NewResponse(&v1.DeleteTagResponse{}), nil
+}
+
+// GetTagDeletionImpact implements domainv1connect.TagServiceHandler.
+func (h *TagHandler) GetTagDeletionImpact(ctx context.Context, req *connect.Request[v1.GetTagDeletionImpactRequest]) (*connect.Response[v1.GetTagDeletionImpactResponse], error) {
+	impact, err := h.deletionSvc.GetDeletionImpact(ctx, req.Msg.GetId())
+	if err != nil {
+		return nil, mapError(ctx, h.logger, err)
+	}
+	return connect.NewResponse(&v1.GetTagDeletionImpactResponse{Impacts: deletionImpactRowsToProto(impact.Impacts)}), nil
 }
 
 // ListTags implements domainv1connect.TagServiceHandler.

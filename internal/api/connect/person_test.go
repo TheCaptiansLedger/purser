@@ -23,7 +23,6 @@ type fakePersonService struct {
 	createErr error
 	getErr    error
 	updateErr error
-	deleteErr error
 	listErr   error
 }
 
@@ -58,14 +57,6 @@ func (f *fakePersonService) Update(_ context.Context, p *domain.Person) (*domain
 	return p, nil
 }
 
-func (f *fakePersonService) Delete(_ context.Context, id string) error {
-	if f.deleteErr != nil {
-		return f.deleteErr
-	}
-	delete(f.byID, id)
-	return nil
-}
-
 func (f *fakePersonService) List(_ context.Context, _ int, _ string) ([]*domain.Person, string, error) {
 	if f.listErr != nil {
 		return nil, "", f.listErr
@@ -89,7 +80,7 @@ func validProtoPerson(id string) *v1.Person {
 func TestPersonHandler_CreatePerson(t *testing.T) {
 	t.Run("valid request returns the created person", func(t *testing.T) {
 		svc := newFakePersonService()
-		h := apiconnect.NewPersonHandler(svc, nil)
+		h := apiconnect.NewPersonHandler(svc, newFakeEntityDeletionService(), nil)
 
 		res, err := h.CreatePerson(context.Background(), connect.NewRequest(&v1.CreatePersonRequest{Person: validProtoPerson("p1")}))
 		if err != nil {
@@ -107,7 +98,7 @@ func TestPersonHandler_CreatePerson(t *testing.T) {
 		// service returns for invalid input.
 		svc := newFakePersonService()
 		svc.createErr = &domain.ValidationError{Errors: []domain.FieldError{{Field: "Name", Rule: "required", Value: ""}}}
-		h := apiconnect.NewPersonHandler(svc, nil)
+		h := apiconnect.NewPersonHandler(svc, newFakeEntityDeletionService(), nil)
 
 		_, err := h.CreatePerson(context.Background(), connect.NewRequest(&v1.CreatePersonRequest{Person: validProtoPerson("p1")}))
 		if connect.CodeOf(err) != connect.CodeInvalidArgument {
@@ -118,7 +109,7 @@ func TestPersonHandler_CreatePerson(t *testing.T) {
 
 func TestPersonHandler_GetPerson(t *testing.T) {
 	svc := newFakePersonService()
-	h := apiconnect.NewPersonHandler(svc, nil)
+	h := apiconnect.NewPersonHandler(svc, newFakeEntityDeletionService(), nil)
 	svc.byID["p1"] = &domain.Person{ID: "p1", Name: "Existing", Gender: domain.GenderUnknown, MonitorMode: domain.MonitorModeNone}
 
 	res, err := h.GetPerson(context.Background(), connect.NewRequest(&v1.GetPersonRequest{Id: "p1"}))
@@ -137,7 +128,7 @@ func TestPersonHandler_GetPerson(t *testing.T) {
 
 func TestPersonHandler_UpdatePerson_FieldMask(t *testing.T) {
 	svc := newFakePersonService()
-	h := apiconnect.NewPersonHandler(svc, nil)
+	h := apiconnect.NewPersonHandler(svc, newFakeEntityDeletionService(), nil)
 
 	created := time.Date(2020, 1, 1, 0, 0, 0, 0, time.UTC)
 	svc.byID["p1"] = &domain.Person{
@@ -164,20 +155,24 @@ func TestPersonHandler_UpdatePerson_FieldMask(t *testing.T) {
 }
 
 func TestPersonHandler_DeletePerson(t *testing.T) {
-	t.Run("valid delete succeeds", func(t *testing.T) {
+	t.Run("valid delete succeeds and threads the cascade flag", func(t *testing.T) {
 		svc := newFakePersonService()
-		h := apiconnect.NewPersonHandler(svc, nil)
-		svc.byID["p1"] = &domain.Person{ID: "p1"}
+		deletionSvc := newFakeEntityDeletionService()
+		h := apiconnect.NewPersonHandler(svc, deletionSvc, nil)
 
-		if _, err := h.DeletePerson(context.Background(), connect.NewRequest(&v1.DeletePersonRequest{Id: "p1"})); err != nil {
+		if _, err := h.DeletePerson(context.Background(), connect.NewRequest(&v1.DeletePersonRequest{Id: "p1", Cascade: true})); err != nil {
 			t.Fatalf("DeletePerson returned error: %v", err)
+		}
+		if deletionSvc.gotID != "p1" || !deletionSvc.gotCascade {
+			t.Fatalf("DeletePerson passed (id=%q, cascade=%v), want (p1, true)", deletionSvc.gotID, deletionSvc.gotCascade)
 		}
 	})
 
 	t.Run("service error maps through mapError", func(t *testing.T) {
 		svc := newFakePersonService()
-		svc.deleteErr = ports.ErrNotFound
-		h := apiconnect.NewPersonHandler(svc, nil)
+		deletionSvc := newFakeEntityDeletionService()
+		deletionSvc.deleteErr = ports.ErrNotFound
+		h := apiconnect.NewPersonHandler(svc, deletionSvc, nil)
 
 		_, err := h.DeletePerson(context.Background(), connect.NewRequest(&v1.DeletePersonRequest{Id: "missing"}))
 		if connect.CodeOf(err) != connect.CodeNotFound {
@@ -186,10 +181,39 @@ func TestPersonHandler_DeletePerson(t *testing.T) {
 	})
 }
 
+func TestPersonHandler_GetPersonDeletionImpact(t *testing.T) {
+	t.Run("valid request returns the impact rows", func(t *testing.T) {
+		svc := newFakePersonService()
+		deletionSvc := newFakeEntityDeletionService()
+		deletionSvc.impact = &domain.DeletionImpact{Impacts: []domain.DeletionImpactRow{{Kind: "item_person", Label: "Credits (Items)", Count: 4}}}
+		h := apiconnect.NewPersonHandler(svc, deletionSvc, nil)
+
+		res, err := h.GetPersonDeletionImpact(context.Background(), connect.NewRequest(&v1.GetPersonDeletionImpactRequest{Id: "p1"}))
+		if err != nil {
+			t.Fatalf("GetPersonDeletionImpact returned error: %v", err)
+		}
+		if len(res.Msg.GetImpacts()) != 1 || res.Msg.GetImpacts()[0].GetCount() != 4 {
+			t.Fatalf("GetPersonDeletionImpact returned %v, want a single row with Count 4", res.Msg.GetImpacts())
+		}
+	})
+
+	t.Run("service error maps through mapError", func(t *testing.T) {
+		svc := newFakePersonService()
+		deletionSvc := newFakeEntityDeletionService()
+		deletionSvc.impactErr = ports.ErrNotFound
+		h := apiconnect.NewPersonHandler(svc, deletionSvc, nil)
+
+		_, err := h.GetPersonDeletionImpact(context.Background(), connect.NewRequest(&v1.GetPersonDeletionImpactRequest{Id: "missing"}))
+		if connect.CodeOf(err) != connect.CodeNotFound {
+			t.Fatalf("GetPersonDeletionImpact on missing id returned code %v, want %v", connect.CodeOf(err), connect.CodeNotFound)
+		}
+	})
+}
+
 func TestPersonHandler_ListPeople(t *testing.T) {
 	t.Run("valid list succeeds", func(t *testing.T) {
 		svc := newFakePersonService()
-		h := apiconnect.NewPersonHandler(svc, nil)
+		h := apiconnect.NewPersonHandler(svc, newFakeEntityDeletionService(), nil)
 		svc.byID["p1"] = &domain.Person{ID: "p1"}
 		svc.byID["p2"] = &domain.Person{ID: "p2"}
 
@@ -205,7 +229,7 @@ func TestPersonHandler_ListPeople(t *testing.T) {
 	t.Run("service error maps through mapError", func(t *testing.T) {
 		svc := newFakePersonService()
 		svc.listErr = errors.New("boom")
-		h := apiconnect.NewPersonHandler(svc, nil)
+		h := apiconnect.NewPersonHandler(svc, newFakeEntityDeletionService(), nil)
 
 		_, err := h.ListPeople(context.Background(), connect.NewRequest(&v1.ListPeopleRequest{PageSize: 10}))
 		if connect.CodeOf(err) != connect.CodeInternal {
@@ -218,7 +242,7 @@ func TestPersonHandler_UpdatePerson_ServiceErrorAfterFetch(t *testing.T) {
 	svc := newFakePersonService()
 	svc.byID["p1"] = &domain.Person{ID: "p1", Name: "Original", Gender: domain.GenderUnknown, MonitorMode: domain.MonitorModeNone}
 	svc.updateErr = ports.ErrConflict
-	h := apiconnect.NewPersonHandler(svc, nil)
+	h := apiconnect.NewPersonHandler(svc, newFakeEntityDeletionService(), nil)
 
 	req := &v1.UpdatePersonRequest{Person: &v1.Person{Id: "p1", Name: "New"}}
 	_, err := h.UpdatePerson(context.Background(), connect.NewRequest(req))
@@ -230,7 +254,7 @@ func TestPersonHandler_UpdatePerson_ServiceErrorAfterFetch(t *testing.T) {
 func TestPersonHandler_UnmappedErrorBecomesInternal(t *testing.T) {
 	svc := newFakePersonService()
 	svc.getErr = errors.New("boom")
-	h := apiconnect.NewPersonHandler(svc, nil)
+	h := apiconnect.NewPersonHandler(svc, newFakeEntityDeletionService(), nil)
 
 	_, err := h.GetPerson(context.Background(), connect.NewRequest(&v1.GetPersonRequest{Id: "p1"}))
 	if connect.CodeOf(err) != connect.CodeInternal {

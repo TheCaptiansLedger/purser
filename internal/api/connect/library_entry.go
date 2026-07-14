@@ -17,23 +17,24 @@ type libraryEntryService interface {
 	Create(ctx context.Context, e *domain.LibraryEntry) (*domain.LibraryEntry, error)
 	Get(ctx context.Context, id string) (*domain.LibraryEntry, error)
 	Update(ctx context.Context, e *domain.LibraryEntry) (*domain.LibraryEntry, error)
-	Delete(ctx context.Context, id string) error
 	List(ctx context.Context, kind domain.Kind, parentID string, pageSize int, pageToken string) ([]*domain.LibraryEntry, string, error)
 }
 
 // LibraryEntryHandler implements domainv1connect.LibraryEntryServiceHandler.
 type LibraryEntryHandler struct {
 	domainv1connect.UnimplementedLibraryEntryServiceHandler
-	svc    libraryEntryService
-	logger *slog.Logger
+	svc         libraryEntryService
+	deletionSvc entityDeletionService
+	logger      *slog.Logger
 }
 
-// NewLibraryEntryHandler constructs a LibraryEntryHandler backed by svc.
-func NewLibraryEntryHandler(svc libraryEntryService, logger *slog.Logger) *LibraryEntryHandler {
+// NewLibraryEntryHandler constructs a LibraryEntryHandler backed by svc
+// and deletionSvc.
+func NewLibraryEntryHandler(svc libraryEntryService, deletionSvc entityDeletionService, logger *slog.Logger) *LibraryEntryHandler {
 	if logger == nil {
 		logger = slog.Default()
 	}
-	return &LibraryEntryHandler{svc: svc, logger: logger.With("component", "api.connect", "service", "LibraryEntryService")}
+	return &LibraryEntryHandler{svc: svc, deletionSvc: deletionSvc, logger: logger.With("component", "api.connect", "service", "LibraryEntryService")}
 }
 
 // CreateLibraryEntry implements domainv1connect.LibraryEntryServiceHandler.
@@ -73,10 +74,19 @@ func (h *LibraryEntryHandler) UpdateLibraryEntry(ctx context.Context, req *conne
 
 // DeleteLibraryEntry implements domainv1connect.LibraryEntryServiceHandler.
 func (h *LibraryEntryHandler) DeleteLibraryEntry(ctx context.Context, req *connect.Request[v1.DeleteLibraryEntryRequest]) (*connect.Response[v1.DeleteLibraryEntryResponse], error) {
-	if err := h.svc.Delete(ctx, req.Msg.GetId()); err != nil {
+	if err := h.deletionSvc.Delete(ctx, req.Msg.GetId(), req.Msg.GetCascade()); err != nil {
 		return nil, mapError(ctx, h.logger, err)
 	}
 	return connect.NewResponse(&v1.DeleteLibraryEntryResponse{}), nil
+}
+
+// GetLibraryEntryDeletionImpact implements domainv1connect.LibraryEntryServiceHandler.
+func (h *LibraryEntryHandler) GetLibraryEntryDeletionImpact(ctx context.Context, req *connect.Request[v1.GetLibraryEntryDeletionImpactRequest]) (*connect.Response[v1.GetLibraryEntryDeletionImpactResponse], error) {
+	impact, err := h.deletionSvc.GetDeletionImpact(ctx, req.Msg.GetId())
+	if err != nil {
+		return nil, mapError(ctx, h.logger, err)
+	}
+	return connect.NewResponse(&v1.GetLibraryEntryDeletionImpactResponse{Impacts: deletionImpactRowsToProto(impact.Impacts)}), nil
 }
 
 // ListLibraryEntries implements domainv1connect.LibraryEntryServiceHandler.

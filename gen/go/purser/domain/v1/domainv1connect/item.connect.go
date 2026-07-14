@@ -43,6 +43,9 @@ const (
 	ItemServiceDeleteItemProcedure = "/purser.domain.v1.ItemService/DeleteItem"
 	// ItemServiceListItemsProcedure is the fully-qualified name of the ItemService's ListItems RPC.
 	ItemServiceListItemsProcedure = "/purser.domain.v1.ItemService/ListItems"
+	// ItemServiceGetItemDeletionImpactProcedure is the fully-qualified name of the ItemService's
+	// GetItemDeletionImpact RPC.
+	ItemServiceGetItemDeletionImpactProcedure = "/purser.domain.v1.ItemService/GetItemDeletionImpact"
 )
 
 // ItemServiceClient is a client for the purser.domain.v1.ItemService service.
@@ -52,6 +55,9 @@ type ItemServiceClient interface {
 	UpdateItem(context.Context, *connect.Request[v1.UpdateItemRequest]) (*connect.Response[v1.UpdateItemResponse], error)
 	DeleteItem(context.Context, *connect.Request[v1.DeleteItemRequest]) (*connect.Response[v1.DeleteItemResponse], error)
 	ListItems(context.Context, *connect.Request[v1.ListItemsRequest]) (*connect.Response[v1.ListItemsResponse], error)
+	// GetItemDeletionImpact reports what references this Item before Delete
+	// is called — see docs/adr/0015-deletion-impact-and-composing-services.md.
+	GetItemDeletionImpact(context.Context, *connect.Request[v1.GetItemDeletionImpactRequest]) (*connect.Response[v1.GetItemDeletionImpactResponse], error)
 }
 
 // NewItemServiceClient constructs a client for the purser.domain.v1.ItemService service. By
@@ -95,16 +101,23 @@ func NewItemServiceClient(httpClient connect.HTTPClient, baseURL string, opts ..
 			connect.WithSchema(itemServiceMethods.ByName("ListItems")),
 			connect.WithClientOptions(opts...),
 		),
+		getItemDeletionImpact: connect.NewClient[v1.GetItemDeletionImpactRequest, v1.GetItemDeletionImpactResponse](
+			httpClient,
+			baseURL+ItemServiceGetItemDeletionImpactProcedure,
+			connect.WithSchema(itemServiceMethods.ByName("GetItemDeletionImpact")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
 // itemServiceClient implements ItemServiceClient.
 type itemServiceClient struct {
-	createItem *connect.Client[v1.CreateItemRequest, v1.CreateItemResponse]
-	getItem    *connect.Client[v1.GetItemRequest, v1.GetItemResponse]
-	updateItem *connect.Client[v1.UpdateItemRequest, v1.UpdateItemResponse]
-	deleteItem *connect.Client[v1.DeleteItemRequest, v1.DeleteItemResponse]
-	listItems  *connect.Client[v1.ListItemsRequest, v1.ListItemsResponse]
+	createItem            *connect.Client[v1.CreateItemRequest, v1.CreateItemResponse]
+	getItem               *connect.Client[v1.GetItemRequest, v1.GetItemResponse]
+	updateItem            *connect.Client[v1.UpdateItemRequest, v1.UpdateItemResponse]
+	deleteItem            *connect.Client[v1.DeleteItemRequest, v1.DeleteItemResponse]
+	listItems             *connect.Client[v1.ListItemsRequest, v1.ListItemsResponse]
+	getItemDeletionImpact *connect.Client[v1.GetItemDeletionImpactRequest, v1.GetItemDeletionImpactResponse]
 }
 
 // CreateItem calls purser.domain.v1.ItemService.CreateItem.
@@ -132,6 +145,11 @@ func (c *itemServiceClient) ListItems(ctx context.Context, req *connect.Request[
 	return c.listItems.CallUnary(ctx, req)
 }
 
+// GetItemDeletionImpact calls purser.domain.v1.ItemService.GetItemDeletionImpact.
+func (c *itemServiceClient) GetItemDeletionImpact(ctx context.Context, req *connect.Request[v1.GetItemDeletionImpactRequest]) (*connect.Response[v1.GetItemDeletionImpactResponse], error) {
+	return c.getItemDeletionImpact.CallUnary(ctx, req)
+}
+
 // ItemServiceHandler is an implementation of the purser.domain.v1.ItemService service.
 type ItemServiceHandler interface {
 	CreateItem(context.Context, *connect.Request[v1.CreateItemRequest]) (*connect.Response[v1.CreateItemResponse], error)
@@ -139,6 +157,9 @@ type ItemServiceHandler interface {
 	UpdateItem(context.Context, *connect.Request[v1.UpdateItemRequest]) (*connect.Response[v1.UpdateItemResponse], error)
 	DeleteItem(context.Context, *connect.Request[v1.DeleteItemRequest]) (*connect.Response[v1.DeleteItemResponse], error)
 	ListItems(context.Context, *connect.Request[v1.ListItemsRequest]) (*connect.Response[v1.ListItemsResponse], error)
+	// GetItemDeletionImpact reports what references this Item before Delete
+	// is called — see docs/adr/0015-deletion-impact-and-composing-services.md.
+	GetItemDeletionImpact(context.Context, *connect.Request[v1.GetItemDeletionImpactRequest]) (*connect.Response[v1.GetItemDeletionImpactResponse], error)
 }
 
 // NewItemServiceHandler builds an HTTP handler from the service implementation. It returns the path
@@ -178,6 +199,12 @@ func NewItemServiceHandler(svc ItemServiceHandler, opts ...connect.HandlerOption
 		connect.WithSchema(itemServiceMethods.ByName("ListItems")),
 		connect.WithHandlerOptions(opts...),
 	)
+	itemServiceGetItemDeletionImpactHandler := connect.NewUnaryHandler(
+		ItemServiceGetItemDeletionImpactProcedure,
+		svc.GetItemDeletionImpact,
+		connect.WithSchema(itemServiceMethods.ByName("GetItemDeletionImpact")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/purser.domain.v1.ItemService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case ItemServiceCreateItemProcedure:
@@ -190,6 +217,8 @@ func NewItemServiceHandler(svc ItemServiceHandler, opts ...connect.HandlerOption
 			itemServiceDeleteItemHandler.ServeHTTP(w, r)
 		case ItemServiceListItemsProcedure:
 			itemServiceListItemsHandler.ServeHTTP(w, r)
+		case ItemServiceGetItemDeletionImpactProcedure:
+			itemServiceGetItemDeletionImpactHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -217,4 +246,8 @@ func (UnimplementedItemServiceHandler) DeleteItem(context.Context, *connect.Requ
 
 func (UnimplementedItemServiceHandler) ListItems(context.Context, *connect.Request[v1.ListItemsRequest]) (*connect.Response[v1.ListItemsResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("purser.domain.v1.ItemService.ListItems is not implemented"))
+}
+
+func (UnimplementedItemServiceHandler) GetItemDeletionImpact(context.Context, *connect.Request[v1.GetItemDeletionImpactRequest]) (*connect.Response[v1.GetItemDeletionImpactResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("purser.domain.v1.ItemService.GetItemDeletionImpact is not implemented"))
 }

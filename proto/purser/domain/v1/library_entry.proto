@@ -59,9 +59,26 @@ message UpdateLibraryEntryResponse {
 
 message DeleteLibraryEntryRequest {
   string id = 1;
+  // cascade must be explicitly set when this LibraryEntry has Groups or
+  // Items under it — both require a non-nullable library_entry_id, so
+  // Delete can't simply unlink them the way it can a self-referential
+  // child LibraryEntry (parent_id is optional, so those are always
+  // detached rather than requiring cascade). Without cascade=true,
+  // Delete on a LibraryEntry with existing Groups/Items fails with
+  // FAILED_PRECONDITION. See
+  // docs/adr/0015-deletion-impact-and-composing-services.md.
+  bool cascade = 2;
 }
 
 message DeleteLibraryEntryResponse {}
+
+message GetLibraryEntryDeletionImpactRequest {
+  string id = 1;
+}
+
+message GetLibraryEntryDeletionImpactResponse {
+  repeated DeletionImpactRow impacts = 1;
+}
 
 message ListLibraryEntriesRequest {
   int32 page_size = 1;
@@ -85,4 +102,8 @@ service LibraryEntryService {
   rpc UpdateLibraryEntry(UpdateLibraryEntryRequest) returns (UpdateLibraryEntryResponse);
   rpc DeleteLibraryEntry(DeleteLibraryEntryRequest) returns (DeleteLibraryEntryResponse);
   rpc ListLibraryEntries(ListLibraryEntriesRequest) returns (ListLibraryEntriesResponse);
+  // GetLibraryEntryDeletionImpact reports what references this
+  // LibraryEntry before Delete is called — see
+  // docs/adr/0015-deletion-impact-and-composing-services.md.
+  rpc GetLibraryEntryDeletionImpact(GetLibraryEntryDeletionImpactRequest) returns (GetLibraryEntryDeletionImpactResponse);
 }

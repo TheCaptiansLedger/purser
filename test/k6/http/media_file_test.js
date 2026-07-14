@@ -38,6 +38,14 @@ export default () => {
     'ListMediaFiles includes the created file': (r) => (r.json('mediaFiles') || []).some((m) => m.id === id),
   });
 
+  res = http.post(`${SERVICE}/ListMediaFiles`, JSON.stringify({ itemId: 'item1', pageSize: 10 }), HEADERS);
+  check(res, { 'ListMediaFiles filtered by itemId includes the created file': (r) => (r.json('mediaFiles') || []).some((m) => m.id === id) });
+
+  res = http.post(`${SERVICE}/ListMediaFiles`, JSON.stringify({ itemId: 'no-such-item', pageSize: 10 }), HEADERS);
+  check(res, {
+    'ListMediaFiles filtered by a non-matching itemId excludes the created file': (r) => !(r.json('mediaFiles') || []).some((m) => m.id === id),
+  });
+
   res = http.post(`${SERVICE}/DeleteMediaFile`, JSON.stringify({ id: id }), HEADERS);
   check(res, { 'DeleteMediaFile status is 200': (r) => r.status === 200 });
 

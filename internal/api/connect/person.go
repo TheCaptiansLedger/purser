@@ -20,7 +20,6 @@ type personService interface {
 	Create(ctx context.Context, p *domain.Person) (*domain.Person, error)
 	Get(ctx context.Context, id string) (*domain.Person, error)
 	Update(ctx context.Context, p *domain.Person) (*domain.Person, error)
-	Delete(ctx context.Context, id string) error
 	List(ctx context.Context, pageSize int, pageToken string) ([]*domain.Person, string, error)
 }
 
@@ -30,16 +29,17 @@ type personService interface {
 // metadata; see docs/adr/0011-api-design.md.
 type PersonHandler struct {
 	domainv1connect.UnimplementedPersonServiceHandler
-	svc    personService
-	logger *slog.Logger
+	svc         personService
+	deletionSvc entityDeletionService
+	logger      *slog.Logger
 }
 
-// NewPersonHandler constructs a PersonHandler backed by svc.
-func NewPersonHandler(svc personService, logger *slog.Logger) *PersonHandler {
+// NewPersonHandler constructs a PersonHandler backed by svc and deletionSvc.
+func NewPersonHandler(svc personService, deletionSvc entityDeletionService, logger *slog.Logger) *PersonHandler {
 	if logger == nil {
 		logger = slog.Default()
 	}
-	return &PersonHandler{svc: svc, logger: logger.With("component", "api.connect", "service", "PersonService")}
+	return &PersonHandler{svc: svc, deletionSvc: deletionSvc, logger: logger.With("component", "api.connect", "service", "PersonService")}
 }
 
 // CreatePerson implements domainv1connect.PersonServiceHandler. The caller
@@ -88,10 +88,19 @@ func (h *PersonHandler) UpdatePerson(ctx context.Context, req *connect.Request[v
 
 // DeletePerson implements domainv1connect.PersonServiceHandler.
 func (h *PersonHandler) DeletePerson(ctx context.Context, req *connect.Request[v1.DeletePersonRequest]) (*connect.Response[v1.DeletePersonResponse], error) {
-	if err := h.svc.Delete(ctx, req.Msg.GetId()); err != nil {
+	if err := h.deletionSvc.Delete(ctx, req.Msg.GetId(), req.Msg.GetCascade()); err != nil {
 		return nil, mapError(ctx, h.logger, err)
 	}
 	return connect.NewResponse(&v1.DeletePersonResponse{}), nil
+}
+
+// GetPersonDeletionImpact implements domainv1connect.PersonServiceHandler.
+func (h *PersonHandler) GetPersonDeletionImpact(ctx context.Context, req *connect.Request[v1.GetPersonDeletionImpactRequest]) (*connect.Response[v1.GetPersonDeletionImpactResponse], error) {
+	impact, err := h.deletionSvc.GetDeletionImpact(ctx, req.Msg.GetId())
+	if err != nil {
+		return nil, mapError(ctx, h.logger, err)
+	}
+	return connect.NewResponse(&v1.GetPersonDeletionImpactResponse{Impacts: deletionImpactRowsToProto(impact.Impacts)}), nil
 }
 
 // ListPeople implements domainv1connect.PersonServiceHandler.

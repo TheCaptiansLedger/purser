@@ -55,9 +55,22 @@ message UpdateItemResponse {
 
 message DeleteItemRequest {
   string id = 1;
+  // cascade has no effect for Item today — every referrer is a pure
+  // attachment row and always unlinks. Present for API-shape consistency
+  // with every other entity's DeleteXxxRequest. See
+  // docs/adr/0015-deletion-impact-and-composing-services.md.
+  bool cascade = 2;
 }
 
 message DeleteItemResponse {}
+
+message GetItemDeletionImpactRequest {
+  string id = 1;
+}
+
+message GetItemDeletionImpactResponse {
+  repeated DeletionImpactRow impacts = 1;
+}
 
 message ListItemsRequest {
   int32 page_size = 1;
@@ -82,4 +95,7 @@ service ItemService {
   rpc UpdateItem(UpdateItemRequest) returns (UpdateItemResponse);
   rpc DeleteItem(DeleteItemRequest) returns (DeleteItemResponse);
   rpc ListItems(ListItemsRequest) returns (ListItemsResponse);
+  // GetItemDeletionImpact reports what references this Item before Delete
+  // is called — see docs/adr/0015-deletion-impact-and-composing-services.md.
+  rpc GetItemDeletionImpact(GetItemDeletionImpactRequest) returns (GetItemDeletionImpactResponse);
 }

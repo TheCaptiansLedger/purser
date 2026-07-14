@@ -19,7 +19,6 @@ type fakeLibraryEntryService struct {
 	createErr error
 	getErr    error
 	updateErr error
-	deleteErr error
 	listErr   error
 
 	gotKind     domain.Kind
@@ -57,14 +56,6 @@ func (f *fakeLibraryEntryService) Update(_ context.Context, e *domain.LibraryEnt
 	return e, nil
 }
 
-func (f *fakeLibraryEntryService) Delete(_ context.Context, id string) error {
-	if f.deleteErr != nil {
-		return f.deleteErr
-	}
-	delete(f.byID, id)
-	return nil
-}
-
 func (f *fakeLibraryEntryService) List(_ context.Context, kind domain.Kind, parentID string, _ int, _ string) ([]*domain.LibraryEntry, string, error) {
 	f.gotKind, f.gotParentID = kind, parentID
 	if f.listErr != nil {
@@ -90,7 +81,7 @@ func validProtoLibraryEntry(id string) *v1.LibraryEntry {
 func TestLibraryEntryHandler_CreateLibraryEntry(t *testing.T) {
 	t.Run("valid request returns the created entry", func(t *testing.T) {
 		svc := newFakeLibraryEntryService()
-		h := apiconnect.NewLibraryEntryHandler(svc, nil)
+		h := apiconnect.NewLibraryEntryHandler(svc, newFakeEntityDeletionService(), nil)
 
 		res, err := h.CreateLibraryEntry(context.Background(), connect.NewRequest(&v1.CreateLibraryEntryRequest{LibraryEntry: validProtoLibraryEntry("e1")}))
 		if err != nil {
@@ -104,7 +95,7 @@ func TestLibraryEntryHandler_CreateLibraryEntry(t *testing.T) {
 	t.Run("a ValidationError from the service maps to CodeInvalidArgument", func(t *testing.T) {
 		svc := newFakeLibraryEntryService()
 		svc.createErr = &domain.ValidationError{Errors: []domain.FieldError{{Field: "Name", Rule: "required", Value: ""}}}
-		h := apiconnect.NewLibraryEntryHandler(svc, nil)
+		h := apiconnect.NewLibraryEntryHandler(svc, newFakeEntityDeletionService(), nil)
 
 		_, err := h.CreateLibraryEntry(context.Background(), connect.NewRequest(&v1.CreateLibraryEntryRequest{LibraryEntry: validProtoLibraryEntry("e1")}))
 		if connect.CodeOf(err) != connect.CodeInvalidArgument {
@@ -115,7 +106,7 @@ func TestLibraryEntryHandler_CreateLibraryEntry(t *testing.T) {
 
 func TestLibraryEntryHandler_GetLibraryEntry(t *testing.T) {
 	svc := newFakeLibraryEntryService()
-	h := apiconnect.NewLibraryEntryHandler(svc, nil)
+	h := apiconnect.NewLibraryEntryHandler(svc, newFakeEntityDeletionService(), nil)
 	svc.byID["e1"] = &domain.LibraryEntry{ID: "e1", Name: "Existing", MonitorMode: domain.MonitorModeNone}
 
 	res, err := h.GetLibraryEntry(context.Background(), connect.NewRequest(&v1.GetLibraryEntryRequest{Id: "e1"}))
@@ -135,7 +126,7 @@ func TestLibraryEntryHandler_GetLibraryEntry(t *testing.T) {
 func TestLibraryEntryHandler_UpdateLibraryEntry(t *testing.T) {
 	t.Run("field mask restricts the applied fields", func(t *testing.T) {
 		svc := newFakeLibraryEntryService()
-		h := apiconnect.NewLibraryEntryHandler(svc, nil)
+		h := apiconnect.NewLibraryEntryHandler(svc, newFakeEntityDeletionService(), nil)
 		svc.byID["e1"] = &domain.LibraryEntry{ID: "e1", Name: "Original", Overview: "Original Overview", MonitorMode: domain.MonitorModeNone}
 
 		req := &v1.UpdateLibraryEntryRequest{
@@ -156,7 +147,7 @@ func TestLibraryEntryHandler_UpdateLibraryEntry(t *testing.T) {
 
 	t.Run("get failure maps through mapError", func(t *testing.T) {
 		svc := newFakeLibraryEntryService()
-		h := apiconnect.NewLibraryEntryHandler(svc, nil)
+		h := apiconnect.NewLibraryEntryHandler(svc, newFakeEntityDeletionService(), nil)
 
 		_, err := h.UpdateLibraryEntry(context.Background(), connect.NewRequest(&v1.UpdateLibraryEntryRequest{LibraryEntry: &v1.LibraryEntry{Id: "missing"}}))
 		if connect.CodeOf(err) != connect.CodeNotFound {
@@ -168,7 +159,7 @@ func TestLibraryEntryHandler_UpdateLibraryEntry(t *testing.T) {
 		svc := newFakeLibraryEntryService()
 		svc.byID["e1"] = &domain.LibraryEntry{ID: "e1", Name: "Original", MonitorMode: domain.MonitorModeNone}
 		svc.updateErr = ports.ErrConflict
-		h := apiconnect.NewLibraryEntryHandler(svc, nil)
+		h := apiconnect.NewLibraryEntryHandler(svc, newFakeEntityDeletionService(), nil)
 
 		_, err := h.UpdateLibraryEntry(context.Background(), connect.NewRequest(&v1.UpdateLibraryEntryRequest{LibraryEntry: &v1.LibraryEntry{Id: "e1", Name: "New"}}))
 		if connect.CodeOf(err) != connect.CodeAlreadyExists {
@@ -178,24 +169,57 @@ func TestLibraryEntryHandler_UpdateLibraryEntry(t *testing.T) {
 }
 
 func TestLibraryEntryHandler_DeleteLibraryEntry(t *testing.T) {
-	t.Run("valid delete succeeds", func(t *testing.T) {
+	t.Run("valid delete succeeds and threads the cascade flag", func(t *testing.T) {
 		svc := newFakeLibraryEntryService()
-		h := apiconnect.NewLibraryEntryHandler(svc, nil)
-		svc.byID["e1"] = &domain.LibraryEntry{ID: "e1"}
+		deletionSvc := newFakeEntityDeletionService()
+		h := apiconnect.NewLibraryEntryHandler(svc, deletionSvc, nil)
 
-		if _, err := h.DeleteLibraryEntry(context.Background(), connect.NewRequest(&v1.DeleteLibraryEntryRequest{Id: "e1"})); err != nil {
+		if _, err := h.DeleteLibraryEntry(context.Background(), connect.NewRequest(&v1.DeleteLibraryEntryRequest{Id: "e1", Cascade: true})); err != nil {
 			t.Fatalf("DeleteLibraryEntry returned error: %v", err)
+		}
+		if deletionSvc.gotID != "e1" || !deletionSvc.gotCascade {
+			t.Fatalf("DeleteLibraryEntry passed (id=%q, cascade=%v), want (e1, true)", deletionSvc.gotID, deletionSvc.gotCascade)
 		}
 	})
 
 	t.Run("service error maps through mapError", func(t *testing.T) {
 		svc := newFakeLibraryEntryService()
-		svc.deleteErr = ports.ErrNotFound
-		h := apiconnect.NewLibraryEntryHandler(svc, nil)
+		deletionSvc := newFakeEntityDeletionService()
+		deletionSvc.deleteErr = ports.ErrDeletionBlocked
+		h := apiconnect.NewLibraryEntryHandler(svc, deletionSvc, nil)
 
-		_, err := h.DeleteLibraryEntry(context.Background(), connect.NewRequest(&v1.DeleteLibraryEntryRequest{Id: "missing"}))
+		_, err := h.DeleteLibraryEntry(context.Background(), connect.NewRequest(&v1.DeleteLibraryEntryRequest{Id: "e1"}))
+		if connect.CodeOf(err) != connect.CodeFailedPrecondition {
+			t.Fatalf("DeleteLibraryEntry blocked without cascade returned code %v, want %v", connect.CodeOf(err), connect.CodeFailedPrecondition)
+		}
+	})
+}
+
+func TestLibraryEntryHandler_GetLibraryEntryDeletionImpact(t *testing.T) {
+	t.Run("valid request returns the impact rows", func(t *testing.T) {
+		svc := newFakeLibraryEntryService()
+		deletionSvc := newFakeEntityDeletionService()
+		deletionSvc.impact = &domain.DeletionImpact{Impacts: []domain.DeletionImpactRow{{Kind: "group", Label: "Groups", Count: 3, Blocking: true}}}
+		h := apiconnect.NewLibraryEntryHandler(svc, deletionSvc, nil)
+
+		res, err := h.GetLibraryEntryDeletionImpact(context.Background(), connect.NewRequest(&v1.GetLibraryEntryDeletionImpactRequest{Id: "e1"}))
+		if err != nil {
+			t.Fatalf("GetLibraryEntryDeletionImpact returned error: %v", err)
+		}
+		if len(res.Msg.GetImpacts()) != 1 || res.Msg.GetImpacts()[0].GetCount() != 3 || !res.Msg.GetImpacts()[0].GetBlocking() {
+			t.Fatalf("GetLibraryEntryDeletionImpact returned %v, want a single blocking row with Count 3", res.Msg.GetImpacts())
+		}
+	})
+
+	t.Run("service error maps through mapError", func(t *testing.T) {
+		svc := newFakeLibraryEntryService()
+		deletionSvc := newFakeEntityDeletionService()
+		deletionSvc.impactErr = ports.ErrNotFound
+		h := apiconnect.NewLibraryEntryHandler(svc, deletionSvc, nil)
+
+		_, err := h.GetLibraryEntryDeletionImpact(context.Background(), connect.NewRequest(&v1.GetLibraryEntryDeletionImpactRequest{Id: "missing"}))
 		if connect.CodeOf(err) != connect.CodeNotFound {
-			t.Fatalf("DeleteLibraryEntry on missing id returned code %v, want %v", connect.CodeOf(err), connect.CodeNotFound)
+			t.Fatalf("GetLibraryEntryDeletionImpact on missing id returned code %v, want %v", connect.CodeOf(err), connect.CodeNotFound)
 		}
 	})
 }
@@ -203,7 +227,7 @@ func TestLibraryEntryHandler_DeleteLibraryEntry(t *testing.T) {
 func TestLibraryEntryHandler_ListLibraryEntries(t *testing.T) {
 	t.Run("valid list succeeds", func(t *testing.T) {
 		svc := newFakeLibraryEntryService()
-		h := apiconnect.NewLibraryEntryHandler(svc, nil)
+		h := apiconnect.NewLibraryEntryHandler(svc, newFakeEntityDeletionService(), nil)
 		svc.byID["e1"] = &domain.LibraryEntry{ID: "e1"}
 		svc.byID["e2"] = &domain.LibraryEntry{ID: "e2"}
 
@@ -218,7 +242,7 @@ func TestLibraryEntryHandler_ListLibraryEntries(t *testing.T) {
 
 	t.Run("filter fields are threaded through to the service", func(t *testing.T) {
 		svc := newFakeLibraryEntryService()
-		h := apiconnect.NewLibraryEntryHandler(svc, nil)
+		h := apiconnect.NewLibraryEntryHandler(svc, newFakeEntityDeletionService(), nil)
 
 		_, err := h.ListLibraryEntries(context.Background(), connect.NewRequest(&v1.ListLibraryEntriesRequest{
 			Kind: "studio", ParentId: "network1", PageSize: 10,
@@ -234,7 +258,7 @@ func TestLibraryEntryHandler_ListLibraryEntries(t *testing.T) {
 	t.Run("service error maps through mapError", func(t *testing.T) {
 		svc := newFakeLibraryEntryService()
 		svc.listErr = errors.New("boom")
-		h := apiconnect.NewLibraryEntryHandler(svc, nil)
+		h := apiconnect.NewLibraryEntryHandler(svc, newFakeEntityDeletionService(), nil)
 
 		_, err := h.ListLibraryEntries(context.Background(), connect.NewRequest(&v1.ListLibraryEntriesRequest{PageSize: 10}))
 		if connect.CodeOf(err) != connect.CodeInternal {

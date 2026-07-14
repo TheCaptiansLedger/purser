@@ -46,6 +46,9 @@ const (
 	GroupServiceDeleteGroupProcedure = "/purser.domain.v1.GroupService/DeleteGroup"
 	// GroupServiceListGroupsProcedure is the fully-qualified name of the GroupService's ListGroups RPC.
 	GroupServiceListGroupsProcedure = "/purser.domain.v1.GroupService/ListGroups"
+	// GroupServiceGetGroupDeletionImpactProcedure is the fully-qualified name of the GroupService's
+	// GetGroupDeletionImpact RPC.
+	GroupServiceGetGroupDeletionImpactProcedure = "/purser.domain.v1.GroupService/GetGroupDeletionImpact"
 )
 
 // GroupServiceClient is a client for the purser.domain.v1.GroupService service.
@@ -55,6 +58,10 @@ type GroupServiceClient interface {
 	UpdateGroup(context.Context, *connect.Request[v1.UpdateGroupRequest]) (*connect.Response[v1.UpdateGroupResponse], error)
 	DeleteGroup(context.Context, *connect.Request[v1.DeleteGroupRequest]) (*connect.Response[v1.DeleteGroupResponse], error)
 	ListGroups(context.Context, *connect.Request[v1.ListGroupsRequest]) (*connect.Response[v1.ListGroupsResponse], error)
+	// GetGroupDeletionImpact reports what references this Group before
+	// Delete is called — see
+	// docs/adr/0015-deletion-impact-and-composing-services.md.
+	GetGroupDeletionImpact(context.Context, *connect.Request[v1.GetGroupDeletionImpactRequest]) (*connect.Response[v1.GetGroupDeletionImpactResponse], error)
 }
 
 // NewGroupServiceClient constructs a client for the purser.domain.v1.GroupService service. By
@@ -98,16 +105,23 @@ func NewGroupServiceClient(httpClient connect.HTTPClient, baseURL string, opts .
 			connect.WithSchema(groupServiceMethods.ByName("ListGroups")),
 			connect.WithClientOptions(opts...),
 		),
+		getGroupDeletionImpact: connect.NewClient[v1.GetGroupDeletionImpactRequest, v1.GetGroupDeletionImpactResponse](
+			httpClient,
+			baseURL+GroupServiceGetGroupDeletionImpactProcedure,
+			connect.WithSchema(groupServiceMethods.ByName("GetGroupDeletionImpact")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
 // groupServiceClient implements GroupServiceClient.
 type groupServiceClient struct {
-	createGroup *connect.Client[v1.CreateGroupRequest, v1.CreateGroupResponse]
-	getGroup    *connect.Client[v1.GetGroupRequest, v1.GetGroupResponse]
-	updateGroup *connect.Client[v1.UpdateGroupRequest, v1.UpdateGroupResponse]
-	deleteGroup *connect.Client[v1.DeleteGroupRequest, v1.DeleteGroupResponse]
-	listGroups  *connect.Client[v1.ListGroupsRequest, v1.ListGroupsResponse]
+	createGroup            *connect.Client[v1.CreateGroupRequest, v1.CreateGroupResponse]
+	getGroup               *connect.Client[v1.GetGroupRequest, v1.GetGroupResponse]
+	updateGroup            *connect.Client[v1.UpdateGroupRequest, v1.UpdateGroupResponse]
+	deleteGroup            *connect.Client[v1.DeleteGroupRequest, v1.DeleteGroupResponse]
+	listGroups             *connect.Client[v1.ListGroupsRequest, v1.ListGroupsResponse]
+	getGroupDeletionImpact *connect.Client[v1.GetGroupDeletionImpactRequest, v1.GetGroupDeletionImpactResponse]
 }
 
 // CreateGroup calls purser.domain.v1.GroupService.CreateGroup.
@@ -135,6 +149,11 @@ func (c *groupServiceClient) ListGroups(ctx context.Context, req *connect.Reques
 	return c.listGroups.CallUnary(ctx, req)
 }
 
+// GetGroupDeletionImpact calls purser.domain.v1.GroupService.GetGroupDeletionImpact.
+func (c *groupServiceClient) GetGroupDeletionImpact(ctx context.Context, req *connect.Request[v1.GetGroupDeletionImpactRequest]) (*connect.Response[v1.GetGroupDeletionImpactResponse], error) {
+	return c.getGroupDeletionImpact.CallUnary(ctx, req)
+}
+
 // GroupServiceHandler is an implementation of the purser.domain.v1.GroupService service.
 type GroupServiceHandler interface {
 	CreateGroup(context.Context, *connect.Request[v1.CreateGroupRequest]) (*connect.Response[v1.CreateGroupResponse], error)
@@ -142,6 +161,10 @@ type GroupServiceHandler interface {
 	UpdateGroup(context.Context, *connect.Request[v1.UpdateGroupRequest]) (*connect.Response[v1.UpdateGroupResponse], error)
 	DeleteGroup(context.Context, *connect.Request[v1.DeleteGroupRequest]) (*connect.Response[v1.DeleteGroupResponse], error)
 	ListGroups(context.Context, *connect.Request[v1.ListGroupsRequest]) (*connect.Response[v1.ListGroupsResponse], error)
+	// GetGroupDeletionImpact reports what references this Group before
+	// Delete is called — see
+	// docs/adr/0015-deletion-impact-and-composing-services.md.
+	GetGroupDeletionImpact(context.Context, *connect.Request[v1.GetGroupDeletionImpactRequest]) (*connect.Response[v1.GetGroupDeletionImpactResponse], error)
 }
 
 // NewGroupServiceHandler builds an HTTP handler from the service implementation. It returns the
@@ -181,6 +204,12 @@ func NewGroupServiceHandler(svc GroupServiceHandler, opts ...connect.HandlerOpti
 		connect.WithSchema(groupServiceMethods.ByName("ListGroups")),
 		connect.WithHandlerOptions(opts...),
 	)
+	groupServiceGetGroupDeletionImpactHandler := connect.NewUnaryHandler(
+		GroupServiceGetGroupDeletionImpactProcedure,
+		svc.GetGroupDeletionImpact,
+		connect.WithSchema(groupServiceMethods.ByName("GetGroupDeletionImpact")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/purser.domain.v1.GroupService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case GroupServiceCreateGroupProcedure:
@@ -193,6 +222,8 @@ func NewGroupServiceHandler(svc GroupServiceHandler, opts ...connect.HandlerOpti
 			groupServiceDeleteGroupHandler.ServeHTTP(w, r)
 		case GroupServiceListGroupsProcedure:
 			groupServiceListGroupsHandler.ServeHTTP(w, r)
+		case GroupServiceGetGroupDeletionImpactProcedure:
+			groupServiceGetGroupDeletionImpactHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -220,4 +251,8 @@ func (UnimplementedGroupServiceHandler) DeleteGroup(context.Context, *connect.Re
 
 func (UnimplementedGroupServiceHandler) ListGroups(context.Context, *connect.Request[v1.ListGroupsRequest]) (*connect.Response[v1.ListGroupsResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("purser.domain.v1.GroupService.ListGroups is not implemented"))
+}
+
+func (UnimplementedGroupServiceHandler) GetGroupDeletionImpact(context.Context, *connect.Request[v1.GetGroupDeletionImpactRequest]) (*connect.Response[v1.GetGroupDeletionImpactResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("purser.domain.v1.GroupService.GetGroupDeletionImpact is not implemented"))
 }

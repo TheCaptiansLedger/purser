@@ -72,9 +72,22 @@ message UpdatePersonResponse {
 
 message DeletePersonRequest {
   string id = 1;
+  // cascade has no effect for Person today — every referrer is a pure
+  // attachment row and always unlinks. Present for API-shape consistency
+  // with every other entity's DeleteXxxRequest. See
+  // docs/adr/0015-deletion-impact-and-composing-services.md.
+  bool cascade = 2;
 }
 
 message DeletePersonResponse {}
+
+message GetPersonDeletionImpactRequest {
+  string id = 1;
+}
+
+message GetPersonDeletionImpactResponse {
+  repeated DeletionImpactRow impacts = 1;
+}
 
 message ListPeopleRequest {
   int32 page_size = 1;
@@ -94,4 +107,8 @@ service PersonService {
   rpc UpdatePerson(UpdatePersonRequest) returns (UpdatePersonResponse);
   rpc DeletePerson(DeletePersonRequest) returns (DeletePersonResponse);
   rpc ListPeople(ListPeopleRequest) returns (ListPeopleResponse);
+  // GetPersonDeletionImpact reports what references this Person before
+  // Delete is called — see
+  // docs/adr/0015-deletion-impact-and-composing-services.md.
+  rpc GetPersonDeletionImpact(GetPersonDeletionImpactRequest) returns (GetPersonDeletionImpactResponse);
 }
