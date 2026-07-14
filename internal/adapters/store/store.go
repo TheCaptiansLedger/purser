@@ -37,8 +37,9 @@ type Repository[T any] struct {
 	ds         datastore.Datastore
 	idOf       func(*T) string
 
-	logger *slog.Logger
-	tracer trace.Tracer
+	logger        *slog.Logger
+	tracer        trace.Tracer
+	meterProvider metric.MeterProvider
 
 	creates metric.Int64Counter
 	gets    metric.Int64Counter
@@ -71,12 +72,13 @@ func New[T any](name, collection string, ds datastore.Datastore, idOf func(*T) s
 	}
 
 	r := &Repository[T]{
-		name:       name,
-		collection: collection,
-		ds:         ds,
-		idOf:       idOf,
-		logger:     o.logger.With("component", "adapters.store."+collection, "repository.name", name),
-		tracer:     o.tracerProvider.Tracer(instrumentationName),
+		name:          name,
+		collection:    collection,
+		ds:            ds,
+		idOf:          idOf,
+		logger:        o.logger.With("component", "adapters.store."+collection, "repository.name", name),
+		tracer:        o.tracerProvider.Tracer(instrumentationName),
+		meterProvider: o.meterProvider,
 	}
 
 	meter := o.meterProvider.Meter(instrumentationName)
@@ -229,6 +231,21 @@ func (r *Repository[T]) List(ctx context.Context, pageSize int, pageToken string
 	r.logger.DebugContext(ctx, r.collection+" list", "count", len(records), "next_page_token", nextToken)
 	return records, nextToken, nil
 }
+
+// Logger returns the logger this Repository[T] was constructed with. For a
+// hand-written adapter that embeds a Repository[T] for part of its shape
+// (see internal/adapters/store/tag) and adds its own instrumentation
+// around it, reusing this avoids re-deriving options from the same opts
+// list a second time with a different (and possibly inconsistent) result.
+func (r *Repository[T]) Logger() *slog.Logger { return r.logger }
+
+// Tracer returns the tracer this Repository[T] was constructed with — see
+// Logger.
+func (r *Repository[T]) Tracer() trace.Tracer { return r.tracer }
+
+// MeterProvider returns the MeterProvider this Repository[T] was
+// constructed with — see Logger.
+func (r *Repository[T]) MeterProvider() metric.MeterProvider { return r.meterProvider }
 
 // Option customizes a Repository[T] constructed via New.
 type Option func(*options)

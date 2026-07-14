@@ -8,12 +8,18 @@ const BASE_URL = __ENV.PURSER_HTTP_URL || 'http://localhost:7474';
 const SERVICE = `${BASE_URL}/purser.domain.v1.ItemPersonService`;
 const HEADERS = { headers: { 'Content-Type': 'application/json' } };
 
+function invoke(url, body, headers) {
+  const res = http.post(url, body, headers);
+  console.log(JSON.stringify({ method: url, request: JSON.parse(body), response: res.json() }, null, 2));
+  return res;
+}
+
 export default () => {
   const itemId = `k6-http-item-${__VU}-${__ITER}-${Date.now()}`;
   const personId = 'k6-person-1';
   const role = 'performer';
 
-  let res = http.post(
+  let res = invoke(
     `${SERVICE}/CreateItemPerson`,
     JSON.stringify({ itemPerson: { itemId: itemId, personId: personId, role: role, creditedAs: 'K6 Performer' } }),
     HEADERS
@@ -23,13 +29,13 @@ export default () => {
     'CreateItemPerson returns the role': (r) => r.json('itemPerson.role') === role,
   });
 
-  res = http.post(`${SERVICE}/GetItemPerson`, JSON.stringify({ itemId: itemId, personId: personId, role: role }), HEADERS);
+  res = invoke(`${SERVICE}/GetItemPerson`, JSON.stringify({ itemId: itemId, personId: personId, role: role }), HEADERS);
   check(res, {
     'GetItemPerson status is 200': (r) => r.status === 200,
     'GetItemPerson returns the created credit': (r) => r.json('itemPerson.creditedAs') === 'K6 Performer',
   });
 
-  res = http.post(
+  res = invoke(
     `${SERVICE}/UpdateItemPerson`,
     JSON.stringify({
       itemPerson: { itemId: itemId, personId: personId, role: role, creditedAs: 'K6 Performer Updated' },
@@ -42,15 +48,15 @@ export default () => {
     'UpdateItemPerson applied the field-masked credit': (r) => r.json('itemPerson.creditedAs') === 'K6 Performer Updated',
   });
 
-  res = http.post(`${SERVICE}/ListItemPeople`, JSON.stringify({ itemId: itemId, pageSize: 10 }), HEADERS);
+  res = invoke(`${SERVICE}/ListItemPeople`, JSON.stringify({ itemId: itemId, pageSize: 10 }), HEADERS);
   check(res, {
     'ListItemPeople status is 200': (r) => r.status === 200,
     'ListItemPeople includes the created credit': (r) => (r.json('itemPeople') || []).some((ip) => ip.personId === personId && ip.role === role),
   });
 
-  res = http.post(`${SERVICE}/DeleteItemPerson`, JSON.stringify({ itemId: itemId, personId: personId, role: role }), HEADERS);
+  res = invoke(`${SERVICE}/DeleteItemPerson`, JSON.stringify({ itemId: itemId, personId: personId, role: role }), HEADERS);
   check(res, { 'DeleteItemPerson status is 200': (r) => r.status === 200 });
 
-  res = http.post(`${SERVICE}/GetItemPerson`, JSON.stringify({ itemId: itemId, personId: personId, role: role }), HEADERS);
+  res = invoke(`${SERVICE}/GetItemPerson`, JSON.stringify({ itemId: itemId, personId: personId, role: role }), HEADERS);
   check(res, { 'GetItemPerson after Delete is 404 (NotFound)': (r) => r.status === 404 });
 };

@@ -1,13 +1,18 @@
 package domain
 
-// Tag is a global, cross-module label. The same (Key, Value) row is what
-// makes "show me every movie, book, and scene tagged genre:gonzo" one join
-// shape instead of five — content type lives on the item being tagged, not
-// on the tag itself.
+// Tag is a global, cross-module label. The same (Scope, Key, Value) row is
+// what makes "show me every movie, book, and scene tagged genre:gonzo" one
+// join shape instead of five — content type lives on the item being tagged,
+// not on the tag itself. (Scope, Key, Value) is enforced as a uniqueness
+// constraint at the adapter layer (see
+// docs/adr/0019-tag-identity-and-get-or-create.md) — creating a Tag that
+// already exists returns the existing row rather than a duplicate.
 //
-// Category is optional: StashDB's tags carry a category/group (e.g.
-// "Finishers" under "ACTION") that flat Key/Value can't express on their
-// own. Left empty, everything that only ever used Key/Value is unaffected.
+// Category is optional and explicitly not part of identity: StashDB's tags
+// carry a category/group (e.g. "Finishers" under "ACTION") that flat
+// Key/Value can't express on their own, but it's a cosmetic passenger
+// field, never queried or grouped on. Left empty, everything that only
+// ever used Key/Value is unaffected.
 type Tag struct {
 	ID       string   `validate:"required"`
 	Key      string   `validate:"required"`

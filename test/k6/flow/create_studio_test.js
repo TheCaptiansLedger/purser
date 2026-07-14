@@ -29,6 +29,11 @@ function invoke(method, request, label) {
   if (!ok) {
     fail(`${label} failed: ${res && res.status} ${res && res.error && res.error.message}`);
   }
+  console.log(JSON.stringify({
+    method: method,
+    request: request,
+    response: res.message,
+  }, null, 2))
   return res.message;
 }
 
@@ -72,9 +77,12 @@ export default () => {
     'CreateLibraryEntry(studio)'
   );
 
+  // value is suffixed per-VU: CreateTag is get-or-create on (scope, key,
+  // value) (docs/adr/0019), so a literal value would make concurrent VUs
+  // share one tag and race on this flow's own teardown DeleteTag.
   invoke(
     'purser.domain.v1.TagService/CreateTag',
-    { tag: { id: networkTagId, key: 'network_type', value: 'Boutique', scope: 'TAG_SCOPE_USER', category: 'Misc' } },
+    { tag: { id: networkTagId, key: 'network_type', value: `Boutique ${suffix}`, scope: 'TAG_SCOPE_USER', category: 'Misc' } },
     'CreateTag(network)'
   );
   invoke(
@@ -85,7 +93,7 @@ export default () => {
 
   invoke(
     'purser.domain.v1.TagService/CreateTag',
-    { tag: { id: studioTagId, key: 'studio_type', value: 'Premium', scope: 'TAG_SCOPE_USER', category: 'Misc' } },
+    { tag: { id: studioTagId, key: 'studio_type', value: `Premium ${suffix}`, scope: 'TAG_SCOPE_USER', category: 'Misc' } },
     'CreateTag(studio)'
   );
   invoke(

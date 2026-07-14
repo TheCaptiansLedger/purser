@@ -9,6 +9,12 @@ const ADDR = __ENV.PURSER_GRPC_ADDR || 'localhost:7474';
 const client = new grpc.Client();
 client.load(['../../../proto'], 'purser/domain/v1/entry_person.proto');
 
+function invoke(method, request) {
+  const res = client.invoke(method, request);
+  console.log(JSON.stringify({ method: method, request: request, response: res.message }, null, 2));
+  return res;
+}
+
 export default () => {
   client.connect(ADDR, { plaintext: true });
 
@@ -16,7 +22,7 @@ export default () => {
   const personId = 'k6-person-1';
   const role = 'director';
 
-  let res = client.invoke('purser.domain.v1.EntryPersonService/CreateEntryPerson', {
+  let res = invoke('purser.domain.v1.EntryPersonService/CreateEntryPerson', {
     entryPerson: { libraryEntryId: libraryEntryId, personId: personId, role: role, creditedAs: 'K6 Director' },
   });
   check(res, {
@@ -24,13 +30,13 @@ export default () => {
     'CreateEntryPerson returns the role': (r) => r && r.message && r.message.entryPerson && r.message.entryPerson.role === role,
   });
 
-  res = client.invoke('purser.domain.v1.EntryPersonService/GetEntryPerson', { libraryEntryId: libraryEntryId, personId: personId, role: role });
+  res = invoke('purser.domain.v1.EntryPersonService/GetEntryPerson', { libraryEntryId: libraryEntryId, personId: personId, role: role });
   check(res, {
     'GetEntryPerson status is OK': (r) => r && r.status === grpc.StatusOK,
     'GetEntryPerson returns the created credit': (r) => r && r.message && r.message.entryPerson && r.message.entryPerson.creditedAs === 'K6 Director',
   });
 
-  res = client.invoke('purser.domain.v1.EntryPersonService/UpdateEntryPerson', {
+  res = invoke('purser.domain.v1.EntryPersonService/UpdateEntryPerson', {
     entryPerson: { libraryEntryId: libraryEntryId, personId: personId, role: role, creditedAs: 'K6 Director Updated' },
     updateMask: 'creditedAs',
   });
@@ -40,17 +46,17 @@ export default () => {
       r && r.message && r.message.entryPerson && r.message.entryPerson.creditedAs === 'K6 Director Updated',
   });
 
-  res = client.invoke('purser.domain.v1.EntryPersonService/ListEntryPeople', { libraryEntryId: libraryEntryId, pageSize: 10 });
+  res = invoke('purser.domain.v1.EntryPersonService/ListEntryPeople', { libraryEntryId: libraryEntryId, pageSize: 10 });
   check(res, {
     'ListEntryPeople status is OK': (r) => r && r.status === grpc.StatusOK,
     'ListEntryPeople includes the created credit': (r) =>
       r && r.message && r.message.entryPeople && r.message.entryPeople.some((ep) => ep.personId === personId && ep.role === role),
   });
 
-  res = client.invoke('purser.domain.v1.EntryPersonService/DeleteEntryPerson', { libraryEntryId: libraryEntryId, personId: personId, role: role });
+  res = invoke('purser.domain.v1.EntryPersonService/DeleteEntryPerson', { libraryEntryId: libraryEntryId, personId: personId, role: role });
   check(res, { 'DeleteEntryPerson status is OK': (r) => r && r.status === grpc.StatusOK });
 
-  res = client.invoke('purser.domain.v1.EntryPersonService/GetEntryPerson', { libraryEntryId: libraryEntryId, personId: personId, role: role });
+  res = invoke('purser.domain.v1.EntryPersonService/GetEntryPerson', { libraryEntryId: libraryEntryId, personId: personId, role: role });
   check(res, { 'GetEntryPerson after Delete is NotFound': (r) => r && r.status === grpc.StatusNotFound });
 
   client.close();

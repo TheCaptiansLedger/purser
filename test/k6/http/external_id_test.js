@@ -8,11 +8,17 @@ const BASE_URL = __ENV.PURSER_HTTP_URL || 'http://localhost:7474';
 const SERVICE = `${BASE_URL}/purser.domain.v1.ExternalIDService`;
 const HEADERS = { headers: { 'Content-Type': 'application/json' } };
 
+function invoke(url, body, headers) {
+  const res = http.post(url, body, headers);
+  console.log(JSON.stringify({ method: url, request: JSON.parse(body), response: res.json() }, null, 2));
+  return res;
+}
+
 export default () => {
   const entityId = `k6-http-entity-${__VU}-${__ITER}-${Date.now()}`;
   const source = 'stashdb';
 
-  let res = http.post(
+  let res = invoke(
     `${SERVICE}/CreateExternalID`,
     JSON.stringify({ externalId: { entityType: 'ENTITY_TYPE_PERSON', entityId: entityId, source: source, value: 'abc123' } }),
     HEADERS
@@ -22,13 +28,13 @@ export default () => {
     'CreateExternalID returns the value': (r) => r.json('externalId.value') === 'abc123',
   });
 
-  res = http.post(`${SERVICE}/GetExternalID`, JSON.stringify({ entityType: 'ENTITY_TYPE_PERSON', entityId: entityId, source: source }), HEADERS);
+  res = invoke(`${SERVICE}/GetExternalID`, JSON.stringify({ entityType: 'ENTITY_TYPE_PERSON', entityId: entityId, source: source }), HEADERS);
   check(res, {
     'GetExternalID status is 200': (r) => r.status === 200,
     'GetExternalID returns the created value': (r) => r.json('externalId.value') === 'abc123',
   });
 
-  res = http.post(
+  res = invoke(
     `${SERVICE}/UpdateExternalID`,
     JSON.stringify({ externalId: { entityType: 'ENTITY_TYPE_PERSON', entityId: entityId, source: source, value: 'xyz789' } }),
     HEADERS
@@ -38,15 +44,15 @@ export default () => {
     'UpdateExternalID applied the new value': (r) => r.json('externalId.value') === 'xyz789',
   });
 
-  res = http.post(`${SERVICE}/ListExternalIDs`, JSON.stringify({ entityType: 'ENTITY_TYPE_PERSON', entityId: entityId, pageSize: 10 }), HEADERS);
+  res = invoke(`${SERVICE}/ListExternalIDs`, JSON.stringify({ entityType: 'ENTITY_TYPE_PERSON', entityId: entityId, pageSize: 10 }), HEADERS);
   check(res, {
     'ListExternalIDs status is 200': (r) => r.status === 200,
     'ListExternalIDs includes the created id': (r) => (r.json('externalIds') || []).some((e) => e.entityId === entityId && e.source === source),
   });
 
-  res = http.post(`${SERVICE}/DeleteExternalID`, JSON.stringify({ entityType: 'ENTITY_TYPE_PERSON', entityId: entityId, source: source }), HEADERS);
+  res = invoke(`${SERVICE}/DeleteExternalID`, JSON.stringify({ entityType: 'ENTITY_TYPE_PERSON', entityId: entityId, source: source }), HEADERS);
   check(res, { 'DeleteExternalID status is 200': (r) => r.status === 200 });
 
-  res = http.post(`${SERVICE}/GetExternalID`, JSON.stringify({ entityType: 'ENTITY_TYPE_PERSON', entityId: entityId, source: source }), HEADERS);
+  res = invoke(`${SERVICE}/GetExternalID`, JSON.stringify({ entityType: 'ENTITY_TYPE_PERSON', entityId: entityId, source: source }), HEADERS);
   check(res, { 'GetExternalID after Delete is 404 (NotFound)': (r) => r.status === 404 });
 };

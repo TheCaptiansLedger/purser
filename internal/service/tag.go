@@ -17,7 +17,11 @@ func NewTagService(repo ports.TagRepository) *TagService {
 	return &TagService{repo: repo}
 }
 
-// Create validates t and persists it.
+// Create validates t and persists it. The repository enforces
+// (Scope, Key, Value) uniqueness as get-or-create — if a Tag with the same
+// identity already exists, t is mutated in place to that existing Tag
+// before being returned, rather than creating a duplicate. See
+// docs/adr/0019-tag-identity-and-get-or-create.md.
 func (s *TagService) Create(ctx context.Context, t *domain.Tag) (*domain.Tag, error) {
 	if err := t.Validate(); err != nil {
 		return nil, err
@@ -33,7 +37,11 @@ func (s *TagService) Get(ctx context.Context, id string) (*domain.Tag, error) {
 	return s.repo.Get(ctx, id)
 }
 
-// Update validates t and persists it in place of the existing record.
+// Update validates t and persists it in place of the existing record. If
+// t's (Scope, Key, Value) differs from the existing Tag's, this renames
+// its identity — the repository rejects the rename with ports.ErrConflict
+// if the new identity is already owned by a different, live Tag. See
+// docs/adr/0019-tag-identity-and-get-or-create.md.
 func (s *TagService) Update(ctx context.Context, t *domain.Tag) (*domain.Tag, error) {
 	if err := t.Validate(); err != nil {
 		return nil, err

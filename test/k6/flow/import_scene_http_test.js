@@ -28,6 +28,11 @@ function invoke(url, body, label) {
   if (!ok) {
     fail(`${label} failed: ${res.status} ${res.body}`);
   }
+  console.log(JSON.stringify({
+    method: url,
+    request: body,
+    response: res.json(),
+  }, null, 2))
   return res;
 }
 
@@ -137,9 +142,12 @@ export default () => {
   );
 
   // 5. Tag the scene with the genre/setting metadata the import resolved.
+  // value is suffixed per-VU: CreateTag is get-or-create on (scope, key,
+  // value) (docs/adr/0019), so a literal value would make concurrent VUs
+  // share one tag and race on this flow's own teardown DeleteTag.
   invoke(
     `${TAG}/CreateTag`,
-    { tag: { id: genreTagId, key: 'genre', value: 'Contemporary Romance', scope: 'TAG_SCOPE_METADATA', category: 'Themes' } },
+    { tag: { id: genreTagId, key: 'genre', value: `Contemporary Romance ${suffix}`, scope: 'TAG_SCOPE_METADATA', category: 'Themes' } },
     'CreateTag(genre)'
   );
   invoke(
@@ -149,7 +157,7 @@ export default () => {
   );
   invoke(
     `${TAG}/CreateTag`,
-    { tag: { id: settingTagId, key: 'setting', value: 'Rooftop', scope: 'TAG_SCOPE_METADATA', category: 'Location' } },
+    { tag: { id: settingTagId, key: 'setting', value: `Rooftop ${suffix}`, scope: 'TAG_SCOPE_METADATA', category: 'Location' } },
     'CreateTag(setting)'
   );
   invoke(

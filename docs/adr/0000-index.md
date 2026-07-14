@@ -37,6 +37,7 @@ ADR wins.
 | [0016](0016-bulk-operations.md) | Bulk Operations: Batch at the Storage Layer, Bulk Endpoints Only Where Needed | Accepted |
 | [0017](0017-build-and-release-goreleaser.md) | Build & Release: Goreleaser as the Build Model | Accepted |
 | [0018](0018-local-development-environment.md) | Local Development Environment: Shared Directories, One Compose File, One Postgres | Accepted |
+| [0019](0019-tag-identity-and-get-or-create.md) | Tag Identity: (Scope, Key, Value) Uniqueness via a Reservation Document | Accepted |
 
 ## Adding a new ADR
 

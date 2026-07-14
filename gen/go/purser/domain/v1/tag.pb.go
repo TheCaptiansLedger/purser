@@ -146,6 +146,10 @@ func (x *CreateTagRequest) GetTag() *Tag {
 	return nil
 }
 
+// CreateTagResponse.tag is get-or-create on (scope, key, value): if a Tag
+// with that identity already exists, the existing Tag is returned as-is —
+// the request's id/category are discarded, and this is not an error. See
+// docs/adr/0019-tag-identity-and-get-or-create.md.
 type CreateTagResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Tag           *Tag                   `protobuf:"bytes,1,opt,name=tag,proto3" json:"tag,omitempty"`
@@ -278,6 +282,10 @@ func (x *GetTagResponse) GetTag() *Tag {
 	return nil
 }
 
+// UpdateTagRequest.tag's key/value/scope may be changed (renaming the
+// tag's identity), but only into an identity not already owned by a
+// different, live Tag — that returns a conflict error. See
+// docs/adr/0019-tag-identity-and-get-or-create.md.
 type UpdateTagRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Tag           *Tag                   `protobuf:"bytes,1,opt,name=tag,proto3" json:"tag,omitempty"`

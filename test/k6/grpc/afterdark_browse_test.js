@@ -21,6 +21,12 @@ client.load(
   'purser/afterdark/v1/browse.proto'
 );
 
+function invoke(method, request) {
+  const res = client.invoke(method, request);
+  console.log(JSON.stringify({ method: method, request: request, response: res.message }, null, 2));
+  return res;
+}
+
 export default () => {
   client.connect(ADDR, { plaintext: true });
 
@@ -30,90 +36,90 @@ export default () => {
   const personId = `k6-grpc-browse-person-${suffix}`;
   const sceneId = `k6-grpc-browse-scene-${suffix}`;
 
-  let res = client.invoke('purser.domain.v1.LibraryEntryService/CreateLibraryEntry', {
+  let res = invoke('purser.domain.v1.LibraryEntryService/CreateLibraryEntry', {
     libraryEntry: { id: networkId, contentType: 'adult', kind: 'network', name: 'K6 Browse Network', monitorMode: 'MONITOR_MODE_NONE' },
   });
   check(res, { 'CreateLibraryEntry(network) status is OK': (r) => r && r.status === grpc.StatusOK });
 
-  res = client.invoke('purser.domain.v1.LibraryEntryService/CreateLibraryEntry', {
+  res = invoke('purser.domain.v1.LibraryEntryService/CreateLibraryEntry', {
     libraryEntry: { id: studioId, contentType: 'adult', kind: 'studio', parentId: networkId, name: 'K6 Browse Studio', monitorMode: 'MONITOR_MODE_NONE' },
   });
   check(res, { 'CreateLibraryEntry(studio) status is OK': (r) => r && r.status === grpc.StatusOK });
 
-  res = client.invoke('purser.domain.v1.PersonService/CreatePerson', {
+  res = invoke('purser.domain.v1.PersonService/CreatePerson', {
     person: { id: personId, name: 'K6 Browse Performer', gender: 'GENDER_UNKNOWN', monitorMode: 'MONITOR_MODE_NONE' },
   });
   check(res, { 'CreatePerson status is OK': (r) => r && r.status === grpc.StatusOK });
 
-  res = client.invoke('purser.afterdark.v1.PerformerProfileService/CreatePerformerProfile', { performerProfile: { personId: personId } });
+  res = invoke('purser.afterdark.v1.PerformerProfileService/CreatePerformerProfile', { performerProfile: { personId: personId } });
   check(res, { 'CreatePerformerProfile status is OK': (r) => r && r.status === grpc.StatusOK });
 
-  res = client.invoke('purser.domain.v1.ItemService/CreateItem', {
+  res = invoke('purser.domain.v1.ItemService/CreateItem', {
     item: { id: sceneId, contentType: 'adult', libraryEntryId: studioId, title: 'K6 Browse Scene', status: 'ITEM_STATUS_WANTED' },
   });
   check(res, { 'CreateItem status is OK': (r) => r && r.status === grpc.StatusOK });
 
-  res = client.invoke('purser.domain.v1.ItemPersonService/CreateItemPerson', {
+  res = invoke('purser.domain.v1.ItemPersonService/CreateItemPerson', {
     itemPerson: { itemId: sceneId, personId: personId, role: 'performer' },
   });
   check(res, { 'CreateItemPerson status is OK': (r) => r && r.status === grpc.StatusOK });
 
-  res = client.invoke('purser.afterdark.v1.BrowseService/ListScenesInNetwork', { networkId: networkId, pageSize: 10 });
+  res = invoke('purser.afterdark.v1.BrowseService/ListScenesInNetwork', { networkId: networkId, pageSize: 10 });
   check(res, {
     'ListScenesInNetwork status is OK': (r) => r && r.status === grpc.StatusOK,
     'ListScenesInNetwork includes the created scene': (r) => r && r.message && r.message.scenes && r.message.scenes.some((s) => s.id === sceneId),
   });
 
-  res = client.invoke('purser.afterdark.v1.BrowseService/ListScenesForPerformer', { personId: personId, pageSize: 10 });
+  res = invoke('purser.afterdark.v1.BrowseService/ListScenesForPerformer', { personId: personId, pageSize: 10 });
   check(res, {
     'ListScenesForPerformer status is OK': (r) => r && r.status === grpc.StatusOK,
     'ListScenesForPerformer includes the created scene': (r) => r && r.message && r.message.scenes && r.message.scenes.some((s) => s.id === sceneId),
   });
 
-  res = client.invoke('purser.afterdark.v1.BrowseService/ListPerformersForScene', { itemId: sceneId, pageSize: 10 });
+  res = invoke('purser.afterdark.v1.BrowseService/ListPerformersForScene', { itemId: sceneId, pageSize: 10 });
   check(res, {
     'ListPerformersForScene status is OK': (r) => r && r.status === grpc.StatusOK,
     'ListPerformersForScene includes the created performer': (r) =>
       r && r.message && r.message.performers && r.message.performers.some((p) => p.person && p.person.id === personId),
   });
 
-  res = client.invoke('purser.afterdark.v1.BrowseService/ListPerformersForStudio', { libraryEntryId: studioId, pageSize: 10 });
+  res = invoke('purser.afterdark.v1.BrowseService/ListPerformersForStudio', { libraryEntryId: studioId, pageSize: 10 });
   check(res, {
     'ListPerformersForStudio status is OK': (r) => r && r.status === grpc.StatusOK,
     'ListPerformersForStudio includes the created performer': (r) =>
       r && r.message && r.message.performers && r.message.performers.some((p) => p.person && p.person.id === personId),
   });
 
-  res = client.invoke('purser.afterdark.v1.BrowseService/ListPerformersForNetwork', { networkId: networkId, pageSize: 10 });
+  res = invoke('purser.afterdark.v1.BrowseService/ListPerformersForNetwork', { networkId: networkId, pageSize: 10 });
   check(res, {
     'ListPerformersForNetwork status is OK': (r) => r && r.status === grpc.StatusOK,
     'ListPerformersForNetwork includes the created performer': (r) =>
       r && r.message && r.message.performers && r.message.performers.some((p) => p.person && p.person.id === personId),
   });
 
-  res = client.invoke('purser.afterdark.v1.BrowseService/ListPerformers', { pageSize: 10 });
+  res = invoke('purser.afterdark.v1.BrowseService/ListPerformers', { pageSize: 10 });
   check(res, {
     'ListPerformers status is OK': (r) => r && r.status === grpc.StatusOK,
     'ListPerformers includes the created performer': (r) =>
       r && r.message && r.message.performers && r.message.performers.some((p) => p.person && p.person.id === personId),
   });
 
-  res = client.invoke('purser.domain.v1.ItemPersonService/DeleteItemPerson', { itemId: sceneId, personId: personId, role: 'performer' });
+  res = invoke('purser.domain.v1.ItemPersonService/DeleteItemPerson', { itemId: sceneId, personId: personId, role: 'performer' });
   check(res, { 'DeleteItemPerson status is OK': (r) => r && r.status === grpc.StatusOK });
 
-  res = client.invoke('purser.domain.v1.ItemService/DeleteItem', { id: sceneId });
+  res = invoke('purser.domain.v1.ItemService/DeleteItem', { id: sceneId });
   check(res, { 'DeleteItem status is OK': (r) => r && r.status === grpc.StatusOK });
 
-  res = client.invoke('purser.afterdark.v1.PerformerProfileService/DeletePerformerProfile', { personId: personId });
+  res = invoke('purser.afterdark.v1.PerformerProfileService/DeletePerformerProfile', { personId: personId });
   check(res, { 'DeletePerformerProfile status is OK': (r) => r && r.status === grpc.StatusOK });
 
-  res = client.invoke('purser.domain.v1.PersonService/DeletePerson', { id: personId });
+  res = invoke('purser.domain.v1.PersonService/DeletePerson', { id: personId });
   check(res, { 'DeletePerson status is OK': (r) => r && r.status === grpc.StatusOK });
 
-  res = client.invoke('purser.domain.v1.LibraryEntryService/DeleteLibraryEntry', { id: studioId });
+  res = invoke('purser.domain.v1.LibraryEntryService/DeleteLibraryEntry', { id: studioId });
   check(res, { 'DeleteLibraryEntry(studio) status is OK': (r) => r && r.status === grpc.StatusOK });
 
-  res = client.invoke('purser.domain.v1.LibraryEntryService/DeleteLibraryEntry', { id: networkId });
+  res = invoke('purser.domain.v1.LibraryEntryService/DeleteLibraryEntry', { id: networkId });
   check(res, { 'DeleteLibraryEntry(network) status is OK': (r) => r && r.status === grpc.StatusOK });
 
   client.close();

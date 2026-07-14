@@ -8,12 +8,18 @@ const ADDR = __ENV.PURSER_GRPC_ADDR || 'localhost:7474';
 const client = new grpc.Client();
 client.load(['../../../proto'], 'purser/domain/v1/library_entry.proto', 'purser/domain/v1/group.proto');
 
+function invoke(method, request) {
+  const res = client.invoke(method, request);
+  console.log(JSON.stringify({ method: method, request: request, response: res.message }, null, 2));
+  return res;
+}
+
 export default () => {
   client.connect(ADDR, { plaintext: true });
 
   const id = `k6-grpc-${__VU}-${__ITER}-${Date.now()}`;
 
-  let res = client.invoke('purser.domain.v1.LibraryEntryService/CreateLibraryEntry', {
+  let res = invoke('purser.domain.v1.LibraryEntryService/CreateLibraryEntry', {
     libraryEntry: { id: id, contentType: 'adult', kind: 'studio', name: 'K6 gRPC Studio', monitorMode: 'MONITOR_MODE_NONE' },
   });
   check(res, {
@@ -21,13 +27,13 @@ export default () => {
     'CreateLibraryEntry returns the id': (r) => r && r.message && r.message.libraryEntry && r.message.libraryEntry.id === id,
   });
 
-  res = client.invoke('purser.domain.v1.LibraryEntryService/GetLibraryEntry', { id: id });
+  res = invoke('purser.domain.v1.LibraryEntryService/GetLibraryEntry', { id: id });
   check(res, {
     'GetLibraryEntry status is OK': (r) => r && r.status === grpc.StatusOK,
     'GetLibraryEntry returns the created name': (r) => r && r.message && r.message.libraryEntry && r.message.libraryEntry.name === 'K6 gRPC Studio',
   });
 
-  res = client.invoke('purser.domain.v1.LibraryEntryService/UpdateLibraryEntry', {
+  res = invoke('purser.domain.v1.LibraryEntryService/UpdateLibraryEntry', {
     libraryEntry: { id: id, name: 'K6 gRPC Studio Updated' },
     updateMask: 'name',
   });
@@ -36,21 +42,21 @@ export default () => {
     'UpdateLibraryEntry applied the field-masked name': (r) => r && r.message && r.message.libraryEntry && r.message.libraryEntry.name === 'K6 gRPC Studio Updated',
   });
 
-  res = client.invoke('purser.domain.v1.LibraryEntryService/ListLibraryEntries', { pageSize: 10 });
+  res = invoke('purser.domain.v1.LibraryEntryService/ListLibraryEntries', { pageSize: 10 });
   check(res, {
     'ListLibraryEntries status is OK': (r) => r && r.status === grpc.StatusOK,
     'ListLibraryEntries includes the created entry': (r) =>
       r && r.message && r.message.libraryEntries && r.message.libraryEntries.some((e) => e.id === id),
   });
 
-  res = client.invoke('purser.domain.v1.LibraryEntryService/ListLibraryEntries', { kind: 'studio', pageSize: 10 });
+  res = invoke('purser.domain.v1.LibraryEntryService/ListLibraryEntries', { kind: 'studio', pageSize: 10 });
   check(res, {
     'ListLibraryEntries filtered by kind status is OK': (r) => r && r.status === grpc.StatusOK,
     'ListLibraryEntries filtered by kind includes the created entry': (r) =>
       r && r.message && r.message.libraryEntries && r.message.libraryEntries.some((e) => e.id === id),
   });
 
-  res = client.invoke('purser.domain.v1.LibraryEntryService/ListLibraryEntries', { kind: 'network', pageSize: 10 });
+  res = invoke('purser.domain.v1.LibraryEntryService/ListLibraryEntries', { kind: 'network', pageSize: 10 });
   check(res, {
     'ListLibraryEntries filtered by a non-matching kind excludes the created entry': (r) =>
       r && r.message && !(r.message.libraryEntries || []).some((e) => e.id === id),
@@ -60,31 +66,31 @@ export default () => {
   // referrer — deleting the parent without cascade detaches the child
   // (blanks its parentId) rather than deleting it or failing.
   const childId = `k6-grpc-le-child-${__VU}-${__ITER}-${Date.now()}`;
-  res = client.invoke('purser.domain.v1.LibraryEntryService/CreateLibraryEntry', {
+  res = invoke('purser.domain.v1.LibraryEntryService/CreateLibraryEntry', {
     libraryEntry: { id: childId, contentType: 'adult', kind: 'studio', name: 'K6 gRPC Child Studio', parentId: id, monitorMode: 'MONITOR_MODE_NONE' },
   });
   check(res, { 'CreateLibraryEntry (child) status is OK': (r) => r && r.status === grpc.StatusOK });
 
-  res = client.invoke('purser.domain.v1.LibraryEntryService/GetLibraryEntryDeletionImpact', { id: id });
+  res = invoke('purser.domain.v1.LibraryEntryService/GetLibraryEntryDeletionImpact', { id: id });
   check(res, {
     'GetLibraryEntryDeletionImpact status is OK': (r) => r && r.status === grpc.StatusOK,
     'GetLibraryEntryDeletionImpact reports the child as non-blocking': (r) =>
       r && r.message && r.message.impacts && r.message.impacts.some((i) => i.kind === 'library_entry_child' && i.count === 1 && !i.blocking),
   });
 
-  res = client.invoke('purser.domain.v1.LibraryEntryService/DeleteLibraryEntry', { id: id });
+  res = invoke('purser.domain.v1.LibraryEntryService/DeleteLibraryEntry', { id: id });
   check(res, {
     'DeleteLibraryEntry status is OK': (r) => r && r.status === grpc.StatusOK,
   });
 
-  res = client.invoke('purser.domain.v1.LibraryEntryService/GetLibraryEntry', { id: id });
+  res = invoke('purser.domain.v1.LibraryEntryService/GetLibraryEntry', { id: id });
   check(res, {
     'GetLibraryEntry after Delete is NotFound': (r) => r && r.status === grpc.StatusNotFound,
   });
 
   // The child must still exist, just detached (parentId cleared) — a
   // non-blocking referrer is unlinked, not deleted, on a plain Delete.
-  res = client.invoke('purser.domain.v1.LibraryEntryService/GetLibraryEntry', { id: childId });
+  res = invoke('purser.domain.v1.LibraryEntryService/GetLibraryEntry', { id: childId });
   check(res, {
     'GetLibraryEntry after parent Delete still finds the child (detached, not deleted)': (r) => r && r.status === grpc.StatusOK,
     'GetLibraryEntry after parent Delete shows parentId cleared': (r) => r && r.message && r.message.libraryEntry && r.message.libraryEntry.parentId === '',
@@ -94,31 +100,31 @@ export default () => {
   // deleting its LibraryEntry without cascade must fail, and only
   // cascade=true removes both.
   const groupId = `k6-grpc-le-group-${__VU}-${__ITER}-${Date.now()}`;
-  res = client.invoke('purser.domain.v1.GroupService/CreateGroup', {
+  res = invoke('purser.domain.v1.GroupService/CreateGroup', {
     group: { id: groupId, libraryEntryId: childId, title: 'K6 gRPC LibraryEntry Deletion Group', monitorMode: 'MONITOR_MODE_NONE' },
   });
   check(res, { 'CreateGroup status is OK': (r) => r && r.status === grpc.StatusOK });
 
-  res = client.invoke('purser.domain.v1.LibraryEntryService/GetLibraryEntryDeletionImpact', { id: childId });
+  res = invoke('purser.domain.v1.LibraryEntryService/GetLibraryEntryDeletionImpact', { id: childId });
   check(res, {
     'GetLibraryEntryDeletionImpact reports the group as blocking': (r) =>
       r && r.message && r.message.impacts && r.message.impacts.some((i) => i.kind === 'group' && i.count === 1 && i.blocking),
   });
 
-  res = client.invoke('purser.domain.v1.LibraryEntryService/DeleteLibraryEntry', { id: childId });
+  res = invoke('purser.domain.v1.LibraryEntryService/DeleteLibraryEntry', { id: childId });
   check(res, {
     'DeleteLibraryEntry without cascade is FailedPrecondition when a Group exists': (r) => r && r.status === grpc.StatusFailedPrecondition,
   });
 
-  res = client.invoke('purser.domain.v1.LibraryEntryService/DeleteLibraryEntry', { id: childId, cascade: true });
+  res = invoke('purser.domain.v1.LibraryEntryService/DeleteLibraryEntry', { id: childId, cascade: true });
   check(res, {
     'DeleteLibraryEntry with cascade status is OK': (r) => r && r.status === grpc.StatusOK,
   });
 
-  res = client.invoke('purser.domain.v1.LibraryEntryService/GetLibraryEntry', { id: childId });
+  res = invoke('purser.domain.v1.LibraryEntryService/GetLibraryEntry', { id: childId });
   check(res, { 'GetLibraryEntry after cascade Delete is NotFound': (r) => r && r.status === grpc.StatusNotFound });
 
-  res = client.invoke('purser.domain.v1.GroupService/GetGroup', { id: groupId });
+  res = invoke('purser.domain.v1.GroupService/GetGroup', { id: groupId });
   check(res, { 'GetGroup after cascade Delete is NotFound': (r) => r && r.status === grpc.StatusNotFound });
 
   client.close();

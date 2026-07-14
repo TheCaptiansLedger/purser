@@ -35,6 +35,7 @@ Do not read all project documentation. Determine what the task touches, then loa
 - [docs/adr/0016-bulk-operations.md](docs/adr/0016-bulk-operations.md) — batch writes at the `Datastore` layer and when a bulk API endpoint is justified; required for any batch/multi-row operation
 - [docs/adr/0017-build-and-release-goreleaser.md](docs/adr/0017-build-and-release-goreleaser.md) — goreleaser-driven binary/container builds; required for any `.goreleaser.yaml`, `ops/Containerfile`, `internal/version`, or release-pipeline (`.github/workflows/release.yml`) change
 - [docs/adr/0018-local-development-environment.md](docs/adr/0018-local-development-environment.md) — shared `.local/` dev-state layout, single `ops/compose.yml`, one Postgres with two roles; required for any `ops/compose.yml`, `ops/postgres/**`, `Makefile` compose target, or local dev-state directory change
+- [docs/adr/0019-tag-identity-and-get-or-create.md](docs/adr/0019-tag-identity-and-get-or-create.md) — Tag's `(Scope, Key, Value)` uniqueness and the reservation-document pattern; required for any `internal/adapters/store/tag` change, any `TagService`/`TagDeletionService` change, or any new entity that needs a uniqueness constraint beyond its own `(collection, id)` primary key
 
 **After finishing any ask/task/session:** run the self-audit checklist in [0001](docs/adr/0001-hexagonal-architecture.md) and [0002](docs/adr/0002-solid-design-principles.md) (and [0003](docs/adr/0003-go-testing-standards.md)/[0004](docs/adr/0004-typescript-react-testing-standards.md) if tests were written) and state the result explicitly — do not skip this silently.
 
@@ -88,6 +89,7 @@ Documentation under `docs/` (architecture overview, development guides, technica
 
 ### Building the persistence layer (`internal/adapters/datastore`, `internal/adapters/store`)
 - [docs/adr/0012-datastore-persistence.md](docs/adr/0012-datastore-persistence.md)
+- [docs/adr/0019-tag-identity-and-get-or-create.md](docs/adr/0019-tag-identity-and-get-or-create.md) — if the change touches `internal/adapters/store/tag`, or needs a uniqueness constraint beyond an entity's own `(collection, id)` primary key
 - [docs/adr/0001-hexagonal-architecture.md](docs/adr/0001-hexagonal-architecture.md)
 - [docs/adr/0002-solid-design-principles.md](docs/adr/0002-solid-design-principles.md)
 - [docs/adr/0003-go-testing-standards.md](docs/adr/0003-go-testing-standards.md)

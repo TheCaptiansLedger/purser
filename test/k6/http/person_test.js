@@ -11,10 +11,16 @@ const SERVICE = `${BASE_URL}/purser.domain.v1.PersonService`;
 const PERFORMER_PROFILE = `${BASE_URL}/purser.afterdark.v1.PerformerProfileService`;
 const HEADERS = { headers: { 'Content-Type': 'application/json' } };
 
+function invoke(url, body, headers) {
+  const res = http.post(url, body, headers);
+  console.log(JSON.stringify({ method: url, request: JSON.parse(body), response: res.json() }, null, 2));
+  return res;
+}
+
 export default () => {
   const id = `k6-http-${__VU}-${__ITER}-${Date.now()}`;
 
-  let res = http.post(
+  let res = invoke(
     `${SERVICE}/CreatePerson`,
     JSON.stringify({
       person: { id: id, name: 'K6 HTTP Person', gender: 'GENDER_UNKNOWN', monitorMode: 'MONITOR_MODE_NONE' },
@@ -26,13 +32,13 @@ export default () => {
     'CreatePerson returns the id': (r) => r.json('person.id') === id,
   });
 
-  res = http.post(`${SERVICE}/GetPerson`, JSON.stringify({ id: id }), HEADERS);
+  res = invoke(`${SERVICE}/GetPerson`, JSON.stringify({ id: id }), HEADERS);
   check(res, {
     'GetPerson status is 200': (r) => r.status === 200,
     'GetPerson returns the created name': (r) => r.json('person.name') === 'K6 HTTP Person',
   });
 
-  res = http.post(
+  res = invoke(
     `${SERVICE}/UpdatePerson`,
     // google.protobuf.FieldMask's JSON mapping is a comma-joined string of
     // field paths, not {paths: [...]} — the latter is the wire/proto-text
@@ -48,37 +54,37 @@ export default () => {
     'UpdatePerson applied the field-masked name': (r) => r.json('person.name') === 'K6 HTTP Person Updated',
   });
 
-  res = http.post(`${SERVICE}/ListPeople`, JSON.stringify({ pageSize: 10 }), HEADERS);
+  res = invoke(`${SERVICE}/ListPeople`, JSON.stringify({ pageSize: 10 }), HEADERS);
   check(res, {
     'ListPeople status is 200': (r) => r.status === 200,
     'ListPeople includes the created person': (r) => (r.json('people') || []).some((p) => p.id === id),
   });
 
-  res = http.post(`${SERVICE}/GetPerson`, JSON.stringify({ id: 'missing-' + id }), HEADERS);
+  res = invoke(`${SERVICE}/GetPerson`, JSON.stringify({ id: 'missing-' + id }), HEADERS);
   check(res, {
     'GetPerson on a missing id is 404 (NotFound)': (r) => r.status === 404,
   });
 
-  res = http.post(`${PERFORMER_PROFILE}/CreatePerformerProfile`, JSON.stringify({ performerProfile: { personId: id } }), HEADERS);
+  res = invoke(`${PERFORMER_PROFILE}/CreatePerformerProfile`, JSON.stringify({ performerProfile: { personId: id } }), HEADERS);
   check(res, { 'CreatePerformerProfile status is 200': (r) => r.status === 200 });
 
-  res = http.post(`${SERVICE}/GetPersonDeletionImpact`, JSON.stringify({ id: id }), HEADERS);
+  res = invoke(`${SERVICE}/GetPersonDeletionImpact`, JSON.stringify({ id: id }), HEADERS);
   check(res, {
     'GetPersonDeletionImpact status is 200': (r) => r.status === 200,
     'GetPersonDeletionImpact reports the performer profile': (r) =>
       (r.json('impacts') || []).some((i) => i.kind === 'performer_profile' && i.count === 1),
   });
 
-  res = http.post(`${SERVICE}/DeletePerson`, JSON.stringify({ id: id }), HEADERS);
+  res = invoke(`${SERVICE}/DeletePerson`, JSON.stringify({ id: id }), HEADERS);
   check(res, {
     'DeletePerson status is 200': (r) => r.status === 200,
   });
 
-  res = http.post(`${SERVICE}/GetPerson`, JSON.stringify({ id: id }), HEADERS);
+  res = invoke(`${SERVICE}/GetPerson`, JSON.stringify({ id: id }), HEADERS);
   check(res, {
     'GetPerson after Delete is 404 (NotFound)': (r) => r.status === 404,
   });
 
-  res = http.post(`${PERFORMER_PROFILE}/GetPerformerProfile`, JSON.stringify({ personId: id }), HEADERS);
+  res = invoke(`${PERFORMER_PROFILE}/GetPerformerProfile`, JSON.stringify({ personId: id }), HEADERS);
   check(res, { 'GetPerformerProfile after Person Delete is 404 (unlinked)': (r) => r.status === 404 });
 };

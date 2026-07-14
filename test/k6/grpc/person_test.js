@@ -11,12 +11,18 @@ const ADDR = __ENV.PURSER_GRPC_ADDR || 'localhost:7474';
 const client = new grpc.Client();
 client.load(['../../../proto'], 'purser/domain/v1/person.proto', 'purser/afterdark/v1/performer_profile.proto');
 
+function invoke(method, request) {
+  const res = client.invoke(method, request);
+  console.log(JSON.stringify({ method: method, request: request, response: res.message }, null, 2));
+  return res;
+}
+
 export default () => {
   client.connect(ADDR, { plaintext: true });
 
   const id = `k6-grpc-${__VU}-${__ITER}-${Date.now()}`;
 
-  let res = client.invoke('purser.domain.v1.PersonService/CreatePerson', {
+  let res = invoke('purser.domain.v1.PersonService/CreatePerson', {
     person: {
       id: id,
       name: 'K6 gRPC Person',
@@ -29,7 +35,7 @@ export default () => {
     'CreatePerson returns the id': (r) => r && r.message && r.message.person && r.message.person.id === id,
   });
 
-  res = client.invoke('purser.domain.v1.PersonService/GetPerson', { id: id });
+  res = invoke('purser.domain.v1.PersonService/GetPerson', { id: id });
   check(res, {
     'GetPerson status is OK': (r) => r && r.status === grpc.StatusOK,
     'GetPerson returns the created name': (r) => r && r.message && r.message.person && r.message.person.name === 'K6 gRPC Person',
@@ -39,7 +45,7 @@ export default () => {
   // string of field paths, not {paths: [...]} — k6/net/grpc marshals
   // request objects the same way, so the object shape is a real error
   // here too, not just over HTTP/JSON.
-  res = client.invoke('purser.domain.v1.PersonService/UpdatePerson', {
+  res = invoke('purser.domain.v1.PersonService/UpdatePerson', {
     person: { id: id, name: 'K6 gRPC Person Updated' },
     updateMask: 'name',
   });
@@ -48,39 +54,39 @@ export default () => {
     'UpdatePerson applied the field-masked name': (r) => r && r.message && r.message.person && r.message.person.name === 'K6 gRPC Person Updated',
   });
 
-  res = client.invoke('purser.domain.v1.PersonService/ListPeople', { pageSize: 10 });
+  res = invoke('purser.domain.v1.PersonService/ListPeople', { pageSize: 10 });
   check(res, {
     'ListPeople status is OK': (r) => r && r.status === grpc.StatusOK,
     'ListPeople includes the created person': (r) =>
       r && r.message && r.message.people && r.message.people.some((p) => p.id === id),
   });
 
-  res = client.invoke('purser.domain.v1.PersonService/GetPerson', { id: 'missing-' + id });
+  res = invoke('purser.domain.v1.PersonService/GetPerson', { id: 'missing-' + id });
   check(res, {
     'GetPerson on a missing id is NotFound': (r) => r && r.status === grpc.StatusNotFound,
   });
 
-  res = client.invoke('purser.afterdark.v1.PerformerProfileService/CreatePerformerProfile', { performerProfile: { personId: id } });
+  res = invoke('purser.afterdark.v1.PerformerProfileService/CreatePerformerProfile', { performerProfile: { personId: id } });
   check(res, { 'CreatePerformerProfile status is OK': (r) => r && r.status === grpc.StatusOK });
 
-  res = client.invoke('purser.domain.v1.PersonService/GetPersonDeletionImpact', { id: id });
+  res = invoke('purser.domain.v1.PersonService/GetPersonDeletionImpact', { id: id });
   check(res, {
     'GetPersonDeletionImpact status is OK': (r) => r && r.status === grpc.StatusOK,
     'GetPersonDeletionImpact reports the performer profile': (r) =>
       r && r.message && r.message.impacts && r.message.impacts.some((i) => i.kind === 'performer_profile' && i.count === 1),
   });
 
-  res = client.invoke('purser.domain.v1.PersonService/DeletePerson', { id: id });
+  res = invoke('purser.domain.v1.PersonService/DeletePerson', { id: id });
   check(res, {
     'DeletePerson status is OK': (r) => r && r.status === grpc.StatusOK,
   });
 
-  res = client.invoke('purser.domain.v1.PersonService/GetPerson', { id: id });
+  res = invoke('purser.domain.v1.PersonService/GetPerson', { id: id });
   check(res, {
     'GetPerson after Delete is NotFound': (r) => r && r.status === grpc.StatusNotFound,
   });
 
-  res = client.invoke('purser.afterdark.v1.PerformerProfileService/GetPerformerProfile', { personId: id });
+  res = invoke('purser.afterdark.v1.PerformerProfileService/GetPerformerProfile', { personId: id });
   check(res, { 'GetPerformerProfile after Person Delete is NotFound (unlinked)': (r) => r && r.status === grpc.StatusNotFound });
 
   client.close();

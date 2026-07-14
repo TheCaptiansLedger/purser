@@ -23,6 +23,11 @@ function invoke(url, body, label) {
   if (!ok) {
     fail(`${label} failed: ${res.status} ${res.body}`);
   }
+  console.log(JSON.stringify({
+    method: url,
+    request: body,
+    response: res.json(),
+  }, null, 2))
   return res;
 }
 
@@ -64,7 +69,10 @@ export default () => {
     'CreatePerformerProfile'
   );
 
-  invoke(`${TAG}/CreateTag`, { tag: { id: tagId, key: 'attribute', value: 'Tattoos', scope: 'TAG_SCOPE_USER', category: 'People' } }, 'CreateTag');
+  // value is suffixed per-VU: CreateTag is get-or-create on (scope, key,
+  // value) (docs/adr/0019), so a literal value would make concurrent VUs
+  // share one tag and race on this flow's own teardown DeleteTag.
+  invoke(`${TAG}/CreateTag`, { tag: { id: tagId, key: 'attribute', value: `Tattoos ${suffix}`, scope: 'TAG_SCOPE_USER', category: 'People' } }, 'CreateTag');
   invoke(
     `${TAG_ASSIGNMENT}/CreateTagAssignment`,
     { tagAssignment: { tagId: tagId, entityType: 'ENTITY_TYPE_PERSON', entityId: personId } },
