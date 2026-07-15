@@ -1,0 +1,71 @@
+syntax = "proto3";
+
+package purser.music.v1;
+
+import "google/protobuf/timestamp.proto";
+
+option go_package = "purser/gen/go/purser/music/v1;musicv1";
+
+// ReleaseStatus mirrors internal/domain/music.ReleaseStatus — Music's own
+// closed acquisition state for a Release, distinct from the shared
+// purser.domain.v1.ItemStatus pipeline.
+enum ReleaseStatus {
+  RELEASE_STATUS_UNSPECIFIED = 0;
+  RELEASE_STATUS_STUB = 1;
+  RELEASE_STATUS_PARTIAL = 2;
+  RELEASE_STATUS_IMPORTED = 3;
+}
+
+// Release is the wire shape of internal/domain/music.Release — a specific
+// pressing/edition of a Release Group (purser.domain.v1.Group), the fourth
+// tier Music adds on top of the shared kernel. See
+// docs/adr/0021-music-domain-model.md.
+message Release {
+  string id = 1;
+  string group_id = 2;
+  string library_entry_id = 3;
+  string title = 4;
+  string country = 5;
+  google.protobuf.Timestamp date = 6;
+  string label = 7;
+  string catalog_number = 8;
+  string barcode = 9;
+  string format = 10;
+  int32 medium_count = 11;
+  int32 track_count = 12;
+  bool is_default = 13;
+  bool monitored = 14;
+  ReleaseStatus status = 15;
+  string mbid = 16;
+  google.protobuf.Timestamp added_at = 17;
+  google.protobuf.Timestamp updated_at = 18;
+}
+
+message CreateMusicReleaseRequest {
+  // id is server-generated; any value sent here is ignored. See
+  // docs/adr/0020-server-generated-kernel-entity-ids.md.
+  Release music_release = 1;
+}
+
+message CreateMusicReleaseResponse {
+  Release music_release = 1;
+}
+
+message GetMusicReleaseRequest {
+  string id = 1;
+}
+
+message GetMusicReleaseResponse {
+  Release music_release = 1;
+}
+
+// MusicReleaseService owns exactly one entity — Release — per
+// docs/adr/0011-api-design.md's SRP-per-entity rule. Only Create/Get are
+// defined in this walking-skeleton pass; Update/Delete/List and further
+// lookups (GetByMBID, GetByBarcode, ListByGroup, ListByEntry) are added by
+// later sub-issues in the Music Release API epic, extending this same
+// service.
+service MusicReleaseService {
+  rpc CreateMusicRelease(CreateMusicReleaseRequest) returns (CreateMusicReleaseResponse);
+  rpc GetMusicRelease(GetMusicReleaseRequest) returns (GetMusicReleaseResponse);
+}

@@ -23,6 +23,7 @@ import (
 
 	afterdarkv1connect "purser/gen/go/purser/afterdark/v1/afterdarkv1connect"
 	domainv1connect "purser/gen/go/purser/domain/v1/domainv1connect"
+	musicv1connect "purser/gen/go/purser/music/v1/musicv1connect"
 	dsbadger "purser/internal/adapters/datastore/badger"
 	dssql "purser/internal/adapters/datastore/sql"
 	storeentryperson "purser/internal/adapters/store/entryperson"
@@ -33,6 +34,7 @@ import (
 	storeitemperson "purser/internal/adapters/store/itemperson"
 	storelibraryentry "purser/internal/adapters/store/libraryentry"
 	storemediafile "purser/internal/adapters/store/mediafile"
+	storemusicrelease "purser/internal/adapters/store/music"
 	storeperformerprofile "purser/internal/adapters/store/performerprofile"
 	storeperson "purser/internal/adapters/store/person"
 	storetag "purser/internal/adapters/store/tag"
@@ -350,6 +352,19 @@ func newServeMux(logger *slog.Logger, ds datastore.Datastore) (*http.ServeMux, e
 	browsePath, browseConnectHandler := afterdarkv1connect.NewBrowseServiceHandler(browseHandler, interceptors)
 	mux.Handle(browsePath, browseConnectHandler)
 
+	// Music: the second module built on the shared kernel — every line here
+	// is additive, nothing above changed to add it. Only Create/Get exist
+	// yet (see docs/adr/0021-music-domain-model.md); Update/Delete/List and
+	// the GroupDeletionService/LibraryEntryDeletionService referrer wiring
+	// land with a later sub-issue.
+	musicReleaseRepo, err := storemusicrelease.New("music_release", ds, storemusicrelease.WithLogger(logger))
+	if err != nil {
+		return nil, fmt.Errorf("cmd/purser: constructing music release repository: %w", err)
+	}
+	musicReleaseHandler := apiconnect.NewMusicReleaseHandler(service.NewMusicReleaseService(musicReleaseRepo), logger)
+	musicReleasePath, musicReleaseConnectHandler := musicv1connect.NewMusicReleaseServiceHandler(musicReleaseHandler, interceptors)
+	mux.Handle(musicReleasePath, musicReleaseConnectHandler)
+
 	reflector := grpcreflect.NewStaticReflector(
 		domainv1connect.PersonServiceName,
 		domainv1connect.LibraryEntryServiceName,
@@ -364,6 +379,7 @@ func newServeMux(logger *slog.Logger, ds datastore.Datastore) (*http.ServeMux, e
 		domainv1connect.MediaFileServiceName,
 		afterdarkv1connect.PerformerProfileServiceName,
 		afterdarkv1connect.BrowseServiceName,
+		musicv1connect.MusicReleaseServiceName,
 	)
 	mux.Handle(grpcreflect.NewHandlerV1(reflector))
 	mux.Handle(grpcreflect.NewHandlerV1Alpha(reflector))
