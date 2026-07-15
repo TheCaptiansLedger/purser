@@ -4,6 +4,8 @@
 // epic, not replaced. See docs/adr/0021-music-domain-model.md.
 import http from 'k6/http';
 import { check } from 'k6';
+import { options } from '../lib/options.js';
+export { options };
 
 const BASE_URL = __ENV.PURSER_HTTP_URL || 'http://localhost:7474';
 const LIBRARY_ENTRY_SERVICE = `${BASE_URL}/purser.domain.v1.LibraryEntryService`;

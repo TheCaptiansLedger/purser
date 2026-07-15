@@ -7,6 +7,8 @@
 // ItemPerson) before BrowseService has anything to compose over.
 import grpc from 'k6/net/grpc';
 import { check } from 'k6';
+import { options } from '../lib/options.js';
+export { options };
 
 const ADDR = __ENV.PURSER_GRPC_ADDR || 'localhost:7474';
 
@@ -30,34 +32,34 @@ function invoke(method, request) {
 export default () => {
   client.connect(ADDR, { plaintext: true });
 
-  const suffix = `${__VU}-${__ITER}-${Date.now()}`;
-  const networkId = `k6-grpc-browse-network-${suffix}`;
-  const studioId = `k6-grpc-browse-studio-${suffix}`;
-  const personId = `k6-grpc-browse-person-${suffix}`;
-  const sceneId = `k6-grpc-browse-scene-${suffix}`;
-
+  // ids are server-generated (docs/adr/0020-server-generated-kernel-entity-ids.md)
+  // — never sent on Create, always read back from the response.
   let res = invoke('purser.domain.v1.LibraryEntryService/CreateLibraryEntry', {
-    libraryEntry: { id: networkId, contentType: 'adult', kind: 'network', name: 'K6 Browse Network', monitorMode: 'MONITOR_MODE_NONE' },
+    libraryEntry: { contentType: 'adult', kind: 'network', name: 'K6 Browse Network', monitorMode: 'MONITOR_MODE_NONE' },
   });
   check(res, { 'CreateLibraryEntry(network) status is OK': (r) => r && r.status === grpc.StatusOK });
+  const networkId = res.message.libraryEntry.id;
 
   res = invoke('purser.domain.v1.LibraryEntryService/CreateLibraryEntry', {
-    libraryEntry: { id: studioId, contentType: 'adult', kind: 'studio', parentId: networkId, name: 'K6 Browse Studio', monitorMode: 'MONITOR_MODE_NONE' },
+    libraryEntry: { contentType: 'adult', kind: 'studio', parentId: networkId, name: 'K6 Browse Studio', monitorMode: 'MONITOR_MODE_NONE' },
   });
   check(res, { 'CreateLibraryEntry(studio) status is OK': (r) => r && r.status === grpc.StatusOK });
+  const studioId = res.message.libraryEntry.id;
 
   res = invoke('purser.domain.v1.PersonService/CreatePerson', {
-    person: { id: personId, name: 'K6 Browse Performer', gender: 'GENDER_UNKNOWN', monitorMode: 'MONITOR_MODE_NONE' },
+    person: { name: 'K6 Browse Performer', gender: 'GENDER_UNKNOWN', monitorMode: 'MONITOR_MODE_NONE' },
   });
   check(res, { 'CreatePerson status is OK': (r) => r && r.status === grpc.StatusOK });
+  const personId = res.message.person.id;
 
   res = invoke('purser.afterdark.v1.PerformerProfileService/CreatePerformerProfile', { performerProfile: { personId: personId } });
   check(res, { 'CreatePerformerProfile status is OK': (r) => r && r.status === grpc.StatusOK });
 
   res = invoke('purser.domain.v1.ItemService/CreateItem', {
-    item: { id: sceneId, contentType: 'adult', libraryEntryId: studioId, title: 'K6 Browse Scene', status: 'ITEM_STATUS_WANTED' },
+    item: { contentType: 'adult', libraryEntryId: studioId, title: 'K6 Browse Scene', status: 'ITEM_STATUS_WANTED' },
   });
   check(res, { 'CreateItem status is OK': (r) => r && r.status === grpc.StatusOK });
+  const sceneId = res.message.item.id;
 
   res = invoke('purser.domain.v1.ItemPersonService/CreateItemPerson', {
     itemPerson: { itemId: sceneId, personId: personId, role: 'performer' },

@@ -12,6 +12,8 @@
 // — the naming pattern is real, the actual names here are invented.
 import grpc from 'k6/net/grpc';
 import { check, fail } from 'k6';
+import { options } from '../lib/options.js';
+export { options };
 
 const ADDR = __ENV.PURSER_GRPC_ADDR || 'localhost:7474';
 

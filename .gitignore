@@ -19,6 +19,12 @@ web/node_modules/
 # deliberate exception, not part of this tree.
 /.local/
 
+# Standalone-app data dir for `make k6-ci` (Badger-backed purser binary,
+# k6 assertion suite) — deliberately separate from /.local/ and wiped at
+# the start of every run, so it never inherits box-specific state. See
+# docs/adr/0022-k6-ci-enforcement.md.
+/.cidata/
+
 # Env with real secrets
 .env
 .envrc

@@ -8,6 +8,8 @@
 // test/k6/grpc/afterdark_browse_test.js for the same fixture graph.
 import http from 'k6/http';
 import { check } from 'k6';
+import { options } from '../lib/options.js';
+export { options };
 
 const BASE_URL = __ENV.PURSER_HTTP_URL || 'http://localhost:7474';
 const LIBRARY_ENTRY = `${BASE_URL}/purser.domain.v1.LibraryEntryService`;
@@ -25,44 +27,44 @@ function invoke(url, body, headers) {
 }
 
 export default () => {
-  const suffix = `${__VU}-${__ITER}-${Date.now()}`;
-  const networkId = `k6-http-browse-network-${suffix}`;
-  const studioId = `k6-http-browse-studio-${suffix}`;
-  const personId = `k6-http-browse-person-${suffix}`;
-  const sceneId = `k6-http-browse-scene-${suffix}`;
-
+  // ids are server-generated (docs/adr/0020-server-generated-kernel-entity-ids.md)
+  // — never sent on Create, always read back from the response.
   let res = invoke(
     `${LIBRARY_ENTRY}/CreateLibraryEntry`,
-    JSON.stringify({ libraryEntry: { id: networkId, contentType: 'adult', kind: 'network', name: 'K6 Browse Network', monitorMode: 'MONITOR_MODE_NONE' } }),
+    JSON.stringify({ libraryEntry: { contentType: 'adult', kind: 'network', name: 'K6 Browse Network', monitorMode: 'MONITOR_MODE_NONE' } }),
     HEADERS
   );
   check(res, { 'CreateLibraryEntry(network) status is 200': (r) => r.status === 200 });
+  const networkId = res.json('libraryEntry.id');
 
   res = invoke(
     `${LIBRARY_ENTRY}/CreateLibraryEntry`,
     JSON.stringify({
-      libraryEntry: { id: studioId, contentType: 'adult', kind: 'studio', parentId: networkId, name: 'K6 Browse Studio', monitorMode: 'MONITOR_MODE_NONE' },
+      libraryEntry: { contentType: 'adult', kind: 'studio', parentId: networkId, name: 'K6 Browse Studio', monitorMode: 'MONITOR_MODE_NONE' },
     }),
     HEADERS
   );
   check(res, { 'CreateLibraryEntry(studio) status is 200': (r) => r.status === 200 });
+  const studioId = res.json('libraryEntry.id');
 
   res = invoke(
     `${PERSON}/CreatePerson`,
-    JSON.stringify({ person: { id: personId, name: 'K6 Browse Performer', gender: 'GENDER_UNKNOWN', monitorMode: 'MONITOR_MODE_NONE' } }),
+    JSON.stringify({ person: { name: 'K6 Browse Performer', gender: 'GENDER_UNKNOWN', monitorMode: 'MONITOR_MODE_NONE' } }),
     HEADERS
   );
   check(res, { 'CreatePerson status is 200': (r) => r.status === 200 });
+  const personId = res.json('person.id');
 
   res = invoke(`${PERFORMER_PROFILE}/CreatePerformerProfile`, JSON.stringify({ performerProfile: { personId: personId } }), HEADERS);
   check(res, { 'CreatePerformerProfile status is 200': (r) => r.status === 200 });
 
   res = invoke(
     `${ITEM}/CreateItem`,
-    JSON.stringify({ item: { id: sceneId, contentType: 'adult', libraryEntryId: studioId, title: 'K6 Browse Scene', status: 'ITEM_STATUS_WANTED' } }),
+    JSON.stringify({ item: { contentType: 'adult', libraryEntryId: studioId, title: 'K6 Browse Scene', status: 'ITEM_STATUS_WANTED' } }),
     HEADERS
   );
   check(res, { 'CreateItem status is 200': (r) => r.status === 200 });
+  const sceneId = res.json('item.id');
 
   res = invoke(
     `${ITEM_PERSON}/CreateItemPerson`,

@@ -40,6 +40,7 @@ ADR wins.
 | [0019](0019-tag-identity-and-get-or-create.md) | Tag Identity: (Scope, Key, Value) Uniqueness via a Reservation Document | Accepted |
 | [0020](0020-server-generated-kernel-entity-ids.md) | Server-Generated Kernel Entity IDs (UUIDv7) | Accepted |
 | [0021](0021-music-domain-model.md) | Music Domain Model: Artist/Release Group/Release/Track on the Shared Kernel | Accepted |
+| [0022](0022-k6-ci-enforcement.md) | k6 CI Enforcement: Failing Thresholds, a Standalone-Badger CI Job | Accepted |
 
 ## Adding a new ADR
 

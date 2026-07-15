@@ -2,6 +2,8 @@
 // test/k6/http/person_test.js for the pattern this follows.
 import http from 'k6/http';
 import { check } from 'k6';
+import { options } from '../lib/options.js';
+export { options };
 
 const BASE_URL = __ENV.PURSER_HTTP_URL || 'http://localhost:7474';
 const SERVICE = `${BASE_URL}/purser.afterdark.v1.PerformerProfileService`;

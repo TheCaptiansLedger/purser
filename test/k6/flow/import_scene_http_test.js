@@ -10,6 +10,8 @@
 // note.
 import http from 'k6/http';
 import { check, fail } from 'k6';
+import { options } from '../lib/options.js';
+export { options };
 
 const BASE_URL = __ENV.PURSER_HTTP_URL || 'http://localhost:7474';
 const LIBRARY_ENTRY = `${BASE_URL}/purser.domain.v1.LibraryEntryService`;

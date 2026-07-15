@@ -5,6 +5,8 @@
 // follows.
 import grpc from 'k6/net/grpc';
 import { check } from 'k6';
+import { options } from '../lib/options.js';
+export { options };
 
 const ADDR = __ENV.PURSER_GRPC_ADDR || 'localhost:7474';
 

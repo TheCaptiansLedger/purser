@@ -173,6 +173,11 @@ Documentation under `docs/` (architecture overview, development guides, technica
 - [docs/adr/0010-configuration.md](docs/adr/0010-configuration.md)
 - [docs/adr/0012-datastore-persistence.md](docs/adr/0012-datastore-persistence.md) — if it touches Postgres as a `database.driver` option
 
+### Changing k6 tests, k6 CI wiring, or Makefile k6 targets (`test/k6/**`, `.github/workflows/pr.yml`'s `k6` job)
+- [docs/adr/0022-k6-ci-enforcement.md](docs/adr/0022-k6-ci-enforcement.md)
+- [docs/adr/0020-server-generated-kernel-entity-ids.md](docs/adr/0020-server-generated-kernel-entity-ids.md) — every k6 fixture that creates a kernel entity must read the id back from the Create response, never send one
+- [docs/adr/0018-local-development-environment.md](docs/adr/0018-local-development-environment.md) — `.local/` dev-state convention for any new k6-CI-local directory
+
 ### Committing or creating a PR
 - Hard ban above still applies: produce the message, do not run the command.
 - [docs/adr/0006-commit-conventions.md](docs/adr/0006-commit-conventions.md)

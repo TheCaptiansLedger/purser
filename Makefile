@@ -15,7 +15,7 @@ GORELEASER_VERSION := v2.17.0
 # compose does need real docker-compose flags sometimes; see its recipe.
 .PHONY: build _build-web _build-go _build-image \
 	test _test-unit _test-integration \
-	k6 _k6-endpoint _k6-flow \
+	k6 _k6-endpoint _k6-flow k6-ci _k6-app-start _k6-app-stop \
 	compose reset dev run \
 	install-hooks tools proto-gen help
 
@@ -105,6 +105,31 @@ _k6-flow: $(GOBIN)/k6
 		echo "no k6 flow tests yet (test/k6/flow/*.js) — skipping"; \
 	fi
 
+# k6-ci runs the full k6 suite against a standalone purser process — no
+# compose stack, no Postgres — see docs/adr/0022-k6-ci-enforcement.md.
+# .cidata/ is wiped at the *start* of _k6-app-start, not just cleaned up
+# after, so a run is hermetic even if a prior run's teardown was skipped
+# (Ctrl-C, CI runner killed mid-job) — it can never inherit state left on
+# the box, local or CI runner.
+_k6-app-start: $(GOBIN)/k6
+	rm -rf .cidata
+	mkdir -p .cidata
+	go build -o .cidata/purser ./cmd/purser
+	PURSER_PATHS_DATA_DIR=$(CURDIR)/.cidata/data .cidata/purser serve & echo $$! > .cidata/purser.pid
+	@for i in $$(seq 1 60); do nc -z localhost 7474 2>/dev/null && exit 0; sleep 0.5; done; \
+		echo "purser serve did not come up on :7474 within 30s" >&2; exit 1
+
+_k6-app-stop:
+	@if [ -f .cidata/purser.pid ]; then \
+		pid="$$(cat .cidata/purser.pid)"; \
+		kill "$$pid" 2>/dev/null || true; \
+		for i in $$(seq 1 20); do kill -0 "$$pid" 2>/dev/null || break; sleep 0.5; done; \
+	fi
+	rm -rf .cidata
+
+k6-ci: _k6-app-start ## Build+run the app standalone (Badger, telemetry off, hermetic .cidata/) and run the full k6 suite against it — no compose stack needed
+	@$(MAKE) k6; status=$$?; $(MAKE) _k6-app-stop; exit $$status
+
 # ── Local dev stack (Postgres + Grafana + Prometheus + Tempo [+ app]) ────────
 # One compose file, one Postgres instance — see
 # docs/adr/0018-local-development-environment.md. `app` sits behind the
@@ -159,6 +184,7 @@ help: ## Show this help
 	@echo "  k6                    Run every k6 suite against a running server (endpoint + flow)"
 	@echo "    k6 endpoint         Run the k6 single-endpoint suites (grpc + http)"
 	@echo "    k6 flow             Run the k6 multi-step flow suite (no-ops until it exists)"
+	@echo "  k6-ci                 Build+run purser standalone (Badger, hermetic .cidata/) and run the full k6 suite — no compose stack"
 	@echo "  compose <cmd>         Manage Postgres/Grafana/Prometheus/Tempo (app NOT included — run it natively with"
 	@echo "                        'make run', or use 'make dev' for the containerized app too): up, down, logs, ps,"
 	@echo "                        or any docker compose command — flags need quoting: make compose \"logs -f app\""
