@@ -3,6 +3,7 @@ package apiconnect
 import (
 	"purser/internal/domain/music"
 
+	"google.golang.org/protobuf/types/known/fieldmaskpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	musicv1 "purser/gen/go/purser/music/v1"
@@ -101,4 +102,80 @@ func musicReleaseFromProto(pb *musicv1.Release) *music.Release {
 		r.UpdatedAt = &t
 	}
 	return r
+}
+
+// applyMusicReleaseFieldMask merges incoming onto a copy of existing,
+// restricted to the field-mask paths named. See applyGroupFieldMask for
+// the convention. Id, AddedAt, and UpdatedAt are never mask-updatable —
+// Id is immutable, and AddedAt/UpdatedAt aren't populated by any service
+// yet, so they're excluded rather than exposed for a caller to set.
+func applyMusicReleaseFieldMask(existing *music.Release, incoming *musicv1.Release, mask *fieldmaskpb.FieldMask) *music.Release {
+	full := musicReleaseFromProto(incoming)
+	full.ID = existing.ID
+	full.AddedAt = existing.AddedAt
+	full.UpdatedAt = existing.UpdatedAt
+
+	if mask == nil || len(mask.GetPaths()) == 0 {
+		return full
+	}
+
+	merged := *existing
+	for _, path := range mask.GetPaths() {
+		if applyMusicReleaseIdentityFieldMaskPath(&merged, full, path) {
+			continue
+		}
+		applyMusicReleasePressingFieldMaskPath(&merged, full, path)
+	}
+	return &merged
+}
+
+// applyMusicReleaseIdentityFieldMaskPath applies path if it names one of
+// Release's identity/attribution fields, reporting whether it matched.
+// Split from applyMusicReleasePressingFieldMaskPath purely to keep each
+// function's cyclomatic complexity under the project's cyclop limit —
+// Release has more field-mask paths than any other entity's convert file.
+func applyMusicReleaseIdentityFieldMaskPath(merged, full *music.Release, path string) bool {
+	switch path {
+	case "group_id":
+		merged.GroupID = full.GroupID
+	case "library_entry_id":
+		merged.LibraryEntryID = full.LibraryEntryID
+	case "title":
+		merged.Title = full.Title
+	case "country":
+		merged.Country = full.Country
+	case "date":
+		merged.Date = full.Date
+	case "label":
+		merged.Label = full.Label
+	case "catalog_number":
+		merged.CatalogNumber = full.CatalogNumber
+	default:
+		return false
+	}
+	return true
+}
+
+// applyMusicReleasePressingFieldMaskPath applies path if it names one of
+// Release's pressing/acquisition fields — see
+// applyMusicReleaseIdentityFieldMaskPath.
+func applyMusicReleasePressingFieldMaskPath(merged, full *music.Release, path string) {
+	switch path {
+	case "barcode":
+		merged.Barcode = full.Barcode
+	case "format":
+		merged.Format = full.Format
+	case "medium_count":
+		merged.MediumCount = full.MediumCount
+	case "track_count":
+		merged.TrackCount = full.TrackCount
+	case "is_default":
+		merged.IsDefault = full.IsDefault
+	case "monitored":
+		merged.Monitored = full.Monitored
+	case "status":
+		merged.Status = full.Status
+	case "mbid":
+		merged.MBID = full.MBID
+	}
 }

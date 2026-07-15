@@ -1,8 +1,7 @@
 // k6 HTTP/JSON suite for MusicReleaseService — Connect's HTTP/JSON
 // transport. See test/k6/http/group_test.js for the pattern this follows.
-// Only Create/Get exist yet — this file is extended by every later
-// sub-issue in the Music Release API epic, not replaced. See
-// docs/adr/0021-music-domain-model.md.
+// This file is extended by every later sub-issue in the Music Release API
+// epic, not replaced. See docs/adr/0021-music-domain-model.md.
 import http from 'k6/http';
 import { check } from 'k6';
 
@@ -66,4 +65,26 @@ export default () => {
     'GetMusicRelease status is 200': (r) => r.status === 200,
     'GetMusicRelease returns the created title': (r) => r.json('musicRelease.title') === 'K6 HTTP Release',
   });
+
+  res = invoke(
+    `${MUSIC_RELEASE_SERVICE}/UpdateMusicRelease`,
+    JSON.stringify({ musicRelease: { id: id, title: 'K6 HTTP Release Updated' }, updateMask: 'title' }),
+    HEADERS
+  );
+  check(res, {
+    'UpdateMusicRelease status is 200': (r) => r.status === 200,
+    'UpdateMusicRelease applied the field-masked title': (r) => r.json('musicRelease.title') === 'K6 HTTP Release Updated',
+  });
+
+  res = invoke(`${MUSIC_RELEASE_SERVICE}/ListMusicReleases`, JSON.stringify({ pageSize: 10 }), HEADERS);
+  check(res, {
+    'ListMusicReleases status is 200': (r) => r.status === 200,
+    'ListMusicReleases includes the updated release': (r) => (r.json('musicReleases') || []).some((rel) => rel.id === id),
+  });
+
+  res = invoke(`${MUSIC_RELEASE_SERVICE}/DeleteMusicRelease`, JSON.stringify({ id: id }), HEADERS);
+  check(res, { 'DeleteMusicRelease status is 200': (r) => r.status === 200 });
+
+  res = invoke(`${MUSIC_RELEASE_SERVICE}/GetMusicRelease`, JSON.stringify({ id: id }), HEADERS);
+  check(res, { 'GetMusicRelease after Delete is 404 (NotFound)': (r) => r.status === 404 });
 };

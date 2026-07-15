@@ -2,6 +2,7 @@ syntax = "proto3";
 
 package purser.music.v1;
 
+import "google/protobuf/field_mask.proto";
 import "google/protobuf/timestamp.proto";
 
 option go_package = "purser/gen/go/purser/music/v1;musicv1";
@@ -59,13 +60,49 @@ message GetMusicReleaseResponse {
   Release music_release = 1;
 }
 
+message UpdateMusicReleaseRequest {
+  Release music_release = 1;
+  google.protobuf.FieldMask update_mask = 2;
+}
+
+message UpdateMusicReleaseResponse {
+  Release music_release = 1;
+}
+
+message DeleteMusicReleaseRequest {
+  string id = 1;
+  // cascade has no effect yet — this issue's Delete is intentionally the
+  // simple, unconditional version (no deletion-impact accounting or
+  // Unlink semantics). Present for API-shape consistency with every other
+  // entity's DeleteXxxRequest, same as DeleteGroupRequest.cascade. See
+  // docs/adr/0021-music-domain-model.md and
+  // docs/adr/0015-deletion-impact-and-composing-services.md.
+  bool cascade = 2;
+}
+
+message DeleteMusicReleaseResponse {}
+
+message ListMusicReleasesRequest {
+  int32 page_size = 1;
+  string page_token = 2;
+  // No filters yet (e.g. by Group or LibraryEntry) — a later sub-issue in
+  // the Music Release API epic adds them. See
+  // docs/adr/0021-music-domain-model.md.
+}
+
+message ListMusicReleasesResponse {
+  repeated Release music_releases = 1;
+  string next_page_token = 2;
+}
+
 // MusicReleaseService owns exactly one entity — Release — per
-// docs/adr/0011-api-design.md's SRP-per-entity rule. Only Create/Get are
-// defined in this walking-skeleton pass; Update/Delete/List and further
-// lookups (GetByMBID, GetByBarcode, ListByGroup, ListByEntry) are added by
-// later sub-issues in the Music Release API epic, extending this same
-// service.
+// docs/adr/0011-api-design.md's SRP-per-entity rule. GetByMBID,
+// GetByBarcode, ListByGroup, and ListByEntry are added by later sub-issues
+// in the Music Release API epic, extending this same service.
 service MusicReleaseService {
   rpc CreateMusicRelease(CreateMusicReleaseRequest) returns (CreateMusicReleaseResponse);
   rpc GetMusicRelease(GetMusicReleaseRequest) returns (GetMusicReleaseResponse);
+  rpc UpdateMusicRelease(UpdateMusicReleaseRequest) returns (UpdateMusicReleaseResponse);
+  rpc DeleteMusicRelease(DeleteMusicReleaseRequest) returns (DeleteMusicReleaseResponse);
+  rpc ListMusicReleases(ListMusicReleasesRequest) returns (ListMusicReleasesResponse);
 }

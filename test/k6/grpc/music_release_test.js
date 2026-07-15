@@ -1,7 +1,7 @@
 // k6 gRPC suite for MusicReleaseService. See test/k6/grpc/group_test.js
-// for the pattern this follows. Only Create/Get exist yet — this file is
-// extended by every later sub-issue in the Music Release API epic, not
-// replaced. See docs/adr/0021-music-domain-model.md.
+// for the pattern this follows. This file is extended by every later
+// sub-issue in the Music Release API epic, not replaced. See
+// docs/adr/0021-music-domain-model.md.
 import grpc from 'k6/net/grpc';
 import { check } from 'k6';
 
@@ -63,6 +63,27 @@ export default () => {
     'GetMusicRelease status is OK': (r) => r && r.status === grpc.StatusOK,
     'GetMusicRelease returns the created title': (r) => r && r.message && r.message.musicRelease && r.message.musicRelease.title === 'K6 gRPC Release',
   });
+
+  res = invoke('purser.music.v1.MusicReleaseService/UpdateMusicRelease', {
+    musicRelease: { id: id, title: 'K6 gRPC Release Updated' },
+    updateMask: 'title',
+  });
+  check(res, {
+    'UpdateMusicRelease status is OK': (r) => r && r.status === grpc.StatusOK,
+    'UpdateMusicRelease applied the field-masked title': (r) => r && r.message && r.message.musicRelease && r.message.musicRelease.title === 'K6 gRPC Release Updated',
+  });
+
+  res = invoke('purser.music.v1.MusicReleaseService/ListMusicReleases', { pageSize: 10 });
+  check(res, {
+    'ListMusicReleases status is OK': (r) => r && r.status === grpc.StatusOK,
+    'ListMusicReleases includes the updated release': (r) => r && r.message && r.message.musicReleases && r.message.musicReleases.some((rel) => rel.id === id),
+  });
+
+  res = invoke('purser.music.v1.MusicReleaseService/DeleteMusicRelease', { id: id });
+  check(res, { 'DeleteMusicRelease status is OK': (r) => r && r.status === grpc.StatusOK });
+
+  res = invoke('purser.music.v1.MusicReleaseService/GetMusicRelease', { id: id });
+  check(res, { 'GetMusicRelease after Delete is NotFound': (r) => r && r.status === grpc.StatusNotFound });
 
   client.close();
 };

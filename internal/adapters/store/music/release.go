@@ -4,8 +4,8 @@
 // store.Repository[T]/store.FilteredRepository[T] — because later
 // sub-issues in the Music Release API epic need independent filtered
 // listing (by Group, by LibraryEntry) plus two unique point-lookups (MBID,
-// Barcode) neither generic shape covers in one type. This walking-skeleton
-// pass implements only Create/Get and writes no secondary index yet — see
+// Barcode) neither generic shape covers in one type. List is bare
+// (no filter) for now and no secondary index is written yet — see
 // docs/adr/0021-music-domain-model.md and
 // docs/adr/0012-datastore-persistence.md.
 package music
@@ -73,6 +73,9 @@ type Repository struct {
 
 	creates metric.Int64Counter
 	gets    metric.Int64Counter
+	updates metric.Int64Counter
+	deletes metric.Int64Counter
+	lists   metric.Int64Counter
 }
 
 var _ ports.MusicReleaseRepository = (*Repository)(nil)
@@ -105,6 +108,15 @@ func New(name string, ds datastore.Datastore, opts ...Option) (*Repository, erro
 	}
 	if r.gets, err = meter.Int64Counter(collection+"_repository.gets", metric.WithDescription(collection+" Get calls")); err != nil {
 		return nil, fmt.Errorf("adapters/store/music: creating gets counter: %w", err)
+	}
+	if r.updates, err = meter.Int64Counter(collection+"_repository.updates", metric.WithDescription(collection+" records updated")); err != nil {
+		return nil, fmt.Errorf("adapters/store/music: creating updates counter: %w", err)
+	}
+	if r.deletes, err = meter.Int64Counter(collection+"_repository.deletes", metric.WithDescription(collection+" records deleted")); err != nil {
+		return nil, fmt.Errorf("adapters/store/music: creating deletes counter: %w", err)
+	}
+	if r.lists, err = meter.Int64Counter(collection+"_repository.lists", metric.WithDescription(collection+" List calls")); err != nil {
+		return nil, fmt.Errorf("adapters/store/music: creating lists counter: %w", err)
 	}
 
 	r.logger.Info(collection + " repository created")
@@ -154,4 +166,67 @@ func (r *Repository) Get(ctx context.Context, id string) (*music.Release, error)
 		return nil, fmt.Errorf("adapters/store/music: unmarshal music release %s: %w", id, err)
 	}
 	return &rel, nil
+}
+
+// Update implements ports.MusicReleaseRepository. Returns ports.ErrNotFound
+// if no release with rel.ID exists.
+func (r *Repository) Update(ctx context.Context, rel *music.Release) error {
+	ctx, span := r.tracer.Start(ctx, collection+"_repository.update",
+		trace.WithAttributes(attribute.String("repository.name", r.name), attribute.String("music_release.id", rel.ID)))
+	defer span.End()
+
+	data, err := json.Marshal(rel)
+	if err != nil {
+		return fmt.Errorf("adapters/store/music: marshal music release %s: %w", rel.ID, err)
+	}
+
+	if err := r.ds.Update(ctx, datastore.Document{Collection: collection, ID: rel.ID, Data: data}); err != nil {
+		return err
+	}
+
+	r.updates.Add(ctx, 1, metric.WithAttributes(attribute.String("repository.name", r.name)))
+	r.logger.DebugContext(ctx, "music release updated", "music_release.id", rel.ID)
+	return nil
+}
+
+// Delete implements ports.MusicReleaseRepository. Returns ports.ErrNotFound
+// if no release with id exists.
+func (r *Repository) Delete(ctx context.Context, id string) error {
+	ctx, span := r.tracer.Start(ctx, collection+"_repository.delete",
+		trace.WithAttributes(attribute.String("repository.name", r.name), attribute.String("music_release.id", id)))
+	defer span.End()
+
+	if err := r.ds.Delete(ctx, collection, id); err != nil {
+		return err
+	}
+
+	r.deletes.Add(ctx, 1, metric.WithAttributes(attribute.String("repository.name", r.name)))
+	r.logger.DebugContext(ctx, "music release deleted", "music_release.id", id)
+	return nil
+}
+
+// List implements ports.MusicReleaseRepository. No filter is applied yet —
+// see the package doc comment.
+func (r *Repository) List(ctx context.Context, pageSize int, pageToken string) ([]*music.Release, string, error) {
+	ctx, span := r.tracer.Start(ctx, collection+"_repository.list",
+		trace.WithAttributes(attribute.String("repository.name", r.name)))
+	defer span.End()
+
+	docs, nextToken, err := r.ds.List(ctx, collection, nil, pageSize, pageToken)
+	if err != nil {
+		return nil, "", err
+	}
+
+	releases := make([]*music.Release, 0, len(docs))
+	for _, doc := range docs {
+		var rel music.Release
+		if err := json.Unmarshal(doc.Data, &rel); err != nil {
+			return nil, "", fmt.Errorf("adapters/store/music: unmarshal music release %s: %w", doc.ID, err)
+		}
+		releases = append(releases, &rel)
+	}
+
+	r.lists.Add(ctx, 1, metric.WithAttributes(attribute.String("repository.name", r.name)))
+	r.logger.DebugContext(ctx, "music release list", "count", len(releases), "next_page_token", nextToken)
+	return releases, nextToken, nil
 }

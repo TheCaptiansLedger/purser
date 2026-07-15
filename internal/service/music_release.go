@@ -38,3 +38,29 @@ func (s *MusicReleaseService) Create(ctx context.Context, r *music.Release) (*mu
 func (s *MusicReleaseService) Get(ctx context.Context, id string) (*music.Release, error) {
 	return s.repo.Get(ctx, id)
 }
+
+// Update validates r and persists it in place of the existing record.
+func (s *MusicReleaseService) Update(ctx context.Context, r *music.Release) (*music.Release, error) {
+	if err := r.Validate(); err != nil {
+		return nil, err
+	}
+	if err := s.repo.Update(ctx, r); err != nil {
+		return nil, err
+	}
+	return r, nil
+}
+
+// Delete removes the Release with the given ID, or returns
+// ports.ErrNotFound. This is the bare, unconditional delete this issue
+// scopes — no deletion-impact accounting or Unlink semantics yet; a later
+// sub-issue replaces this with a composing deletion service. See
+// docs/adr/0021-music-domain-model.md.
+func (s *MusicReleaseService) Delete(ctx context.Context, id string) error {
+	return s.repo.Delete(ctx, id)
+}
+
+// List returns a page of Release records. No filter args yet — see
+// docs/adr/0021-music-domain-model.md.
+func (s *MusicReleaseService) List(ctx context.Context, pageSize int, pageToken string) ([]*music.Release, string, error) {
+	return s.repo.List(ctx, pageSize, pageToken)
+}

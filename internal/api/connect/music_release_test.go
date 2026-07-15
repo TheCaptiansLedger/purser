@@ -2,12 +2,14 @@ package apiconnect_test
 
 import (
 	"context"
+	"errors"
 	"purser/internal/domain"
 	"purser/internal/domain/music"
 	"purser/internal/ports"
 	"testing"
 
 	"connectrpc.com/connect"
+	"google.golang.org/protobuf/types/known/fieldmaskpb"
 
 	musicv1 "purser/gen/go/purser/music/v1"
 	apiconnect "purser/internal/api/connect"
@@ -17,6 +19,9 @@ type fakeMusicReleaseService struct {
 	byID      map[string]*music.Release
 	createErr error
 	getErr    error
+	updateErr error
+	deleteErr error
+	listErr   error
 }
 
 func newFakeMusicReleaseService() *fakeMusicReleaseService {
@@ -41,6 +46,33 @@ func (f *fakeMusicReleaseService) Get(_ context.Context, id string) (*music.Rele
 		return nil, ports.ErrNotFound
 	}
 	return r, nil
+}
+
+func (f *fakeMusicReleaseService) Update(_ context.Context, r *music.Release) (*music.Release, error) {
+	if f.updateErr != nil {
+		return nil, f.updateErr
+	}
+	f.byID[r.ID] = r
+	return r, nil
+}
+
+func (f *fakeMusicReleaseService) Delete(_ context.Context, id string) error {
+	if f.deleteErr != nil {
+		return f.deleteErr
+	}
+	delete(f.byID, id)
+	return nil
+}
+
+func (f *fakeMusicReleaseService) List(_ context.Context, _ int, _ string) ([]*music.Release, string, error) {
+	if f.listErr != nil {
+		return nil, "", f.listErr
+	}
+	releases := make([]*music.Release, 0, len(f.byID))
+	for _, r := range f.byID {
+		releases = append(releases, r)
+	}
+	return releases, "", nil
 }
 
 func validProtoMusicRelease() *musicv1.Release {
@@ -99,4 +131,88 @@ func TestMusicReleaseHandler_GetMusicRelease(t *testing.T) {
 	if connect.CodeOf(err) != connect.CodeNotFound {
 		t.Fatalf("GetMusicRelease on missing ID returned code %v, want %v", connect.CodeOf(err), connect.CodeNotFound)
 	}
+}
+
+func TestMusicReleaseHandler_UpdateMusicRelease(t *testing.T) {
+	t.Run("field mask restricts the applied fields", func(t *testing.T) {
+		svc := newFakeMusicReleaseService()
+		h := apiconnect.NewMusicReleaseHandler(svc, nil)
+		svc.byID["r1"] = &music.Release{ID: "r1", GroupID: "group1", LibraryEntryID: "entry1", Title: "Original", Country: "Original Country", Status: music.ReleaseStatusStub}
+
+		req := &musicv1.UpdateMusicReleaseRequest{
+			MusicRelease: &musicv1.Release{Id: "r1", Title: "New Title", Country: "Should be ignored"},
+			UpdateMask:   &fieldmaskpb.FieldMask{Paths: []string{"title"}},
+		}
+		res, err := h.UpdateMusicRelease(context.Background(), connect.NewRequest(req))
+		if err != nil {
+			t.Fatalf("UpdateMusicRelease returned error: %v", err)
+		}
+		if res.Msg.GetMusicRelease().GetTitle() != "New Title" {
+			t.Fatalf("UpdateMusicRelease applied Title %q, want %q", res.Msg.GetMusicRelease().GetTitle(), "New Title")
+		}
+		if res.Msg.GetMusicRelease().GetCountry() != "Original Country" {
+			t.Fatalf("UpdateMusicRelease touched Country: got %q", res.Msg.GetMusicRelease().GetCountry())
+		}
+	})
+
+	t.Run("get failure maps through mapError", func(t *testing.T) {
+		svc := newFakeMusicReleaseService()
+		h := apiconnect.NewMusicReleaseHandler(svc, nil)
+
+		_, err := h.UpdateMusicRelease(context.Background(), connect.NewRequest(&musicv1.UpdateMusicReleaseRequest{MusicRelease: &musicv1.Release{Id: "missing"}}))
+		if connect.CodeOf(err) != connect.CodeNotFound {
+			t.Fatalf("UpdateMusicRelease on missing id returned code %v, want %v", connect.CodeOf(err), connect.CodeNotFound)
+		}
+	})
+}
+
+func TestMusicReleaseHandler_DeleteMusicRelease(t *testing.T) {
+	t.Run("valid delete succeeds", func(t *testing.T) {
+		svc := newFakeMusicReleaseService()
+		h := apiconnect.NewMusicReleaseHandler(svc, nil)
+		svc.byID["r1"] = &music.Release{ID: "r1"}
+
+		if _, err := h.DeleteMusicRelease(context.Background(), connect.NewRequest(&musicv1.DeleteMusicReleaseRequest{Id: "r1"})); err != nil {
+			t.Fatalf("DeleteMusicRelease returned error: %v", err)
+		}
+	})
+
+	t.Run("service error maps through mapError", func(t *testing.T) {
+		svc := newFakeMusicReleaseService()
+		svc.deleteErr = ports.ErrNotFound
+		h := apiconnect.NewMusicReleaseHandler(svc, nil)
+
+		_, err := h.DeleteMusicRelease(context.Background(), connect.NewRequest(&musicv1.DeleteMusicReleaseRequest{Id: "missing"}))
+		if connect.CodeOf(err) != connect.CodeNotFound {
+			t.Fatalf("DeleteMusicRelease on missing id returned code %v, want %v", connect.CodeOf(err), connect.CodeNotFound)
+		}
+	})
+}
+
+func TestMusicReleaseHandler_ListMusicReleases(t *testing.T) {
+	t.Run("valid list succeeds", func(t *testing.T) {
+		svc := newFakeMusicReleaseService()
+		h := apiconnect.NewMusicReleaseHandler(svc, nil)
+		svc.byID["r1"] = &music.Release{ID: "r1"}
+		svc.byID["r2"] = &music.Release{ID: "r2"}
+
+		res, err := h.ListMusicReleases(context.Background(), connect.NewRequest(&musicv1.ListMusicReleasesRequest{PageSize: 10}))
+		if err != nil {
+			t.Fatalf("ListMusicReleases returned error: %v", err)
+		}
+		if len(res.Msg.GetMusicReleases()) != 2 {
+			t.Fatalf("ListMusicReleases returned %d releases, want 2", len(res.Msg.GetMusicReleases()))
+		}
+	})
+
+	t.Run("service error maps through mapError", func(t *testing.T) {
+		svc := newFakeMusicReleaseService()
+		svc.listErr = errors.New("boom")
+		h := apiconnect.NewMusicReleaseHandler(svc, nil)
+
+		_, err := h.ListMusicReleases(context.Background(), connect.NewRequest(&musicv1.ListMusicReleasesRequest{PageSize: 10}))
+		if connect.CodeOf(err) != connect.CodeInternal {
+			t.Fatalf("ListMusicReleases with a service error returned code %v, want %v", connect.CodeOf(err), connect.CodeInternal)
+		}
+	})
 }
