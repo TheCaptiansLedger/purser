@@ -440,6 +440,182 @@ func (x *GetMusicReleaseResponse) GetMusicRelease() *Release {
 	return nil
 }
 
+type GetMusicReleaseByMBIDRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Mbid          string                 `protobuf:"bytes,1,opt,name=mbid,proto3" json:"mbid,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetMusicReleaseByMBIDRequest) Reset() {
+	*x = GetMusicReleaseByMBIDRequest{}
+	mi := &file_purser_music_v1_release_proto_msgTypes[5]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetMusicReleaseByMBIDRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetMusicReleaseByMBIDRequest) ProtoMessage() {}
+
+func (x *GetMusicReleaseByMBIDRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_purser_music_v1_release_proto_msgTypes[5]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetMusicReleaseByMBIDRequest.ProtoReflect.Descriptor instead.
+func (*GetMusicReleaseByMBIDRequest) Descriptor() ([]byte, []int) {
+	return file_purser_music_v1_release_proto_rawDescGZIP(), []int{5}
+}
+
+func (x *GetMusicReleaseByMBIDRequest) GetMbid() string {
+	if x != nil {
+		return x.Mbid
+	}
+	return ""
+}
+
+type GetMusicReleaseByMBIDResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	MusicRelease  *Release               `protobuf:"bytes,1,opt,name=music_release,json=musicRelease,proto3" json:"music_release,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetMusicReleaseByMBIDResponse) Reset() {
+	*x = GetMusicReleaseByMBIDResponse{}
+	mi := &file_purser_music_v1_release_proto_msgTypes[6]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetMusicReleaseByMBIDResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetMusicReleaseByMBIDResponse) ProtoMessage() {}
+
+func (x *GetMusicReleaseByMBIDResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_purser_music_v1_release_proto_msgTypes[6]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetMusicReleaseByMBIDResponse.ProtoReflect.Descriptor instead.
+func (*GetMusicReleaseByMBIDResponse) Descriptor() ([]byte, []int) {
+	return file_purser_music_v1_release_proto_rawDescGZIP(), []int{6}
+}
+
+func (x *GetMusicReleaseByMBIDResponse) GetMusicRelease() *Release {
+	if x != nil {
+		return x.MusicRelease
+	}
+	return nil
+}
+
+type GetMusicReleaseByBarcodeRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Barcode       string                 `protobuf:"bytes,1,opt,name=barcode,proto3" json:"barcode,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetMusicReleaseByBarcodeRequest) Reset() {
+	*x = GetMusicReleaseByBarcodeRequest{}
+	mi := &file_purser_music_v1_release_proto_msgTypes[7]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetMusicReleaseByBarcodeRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetMusicReleaseByBarcodeRequest) ProtoMessage() {}
+
+func (x *GetMusicReleaseByBarcodeRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_purser_music_v1_release_proto_msgTypes[7]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetMusicReleaseByBarcodeRequest.ProtoReflect.Descriptor instead.
+func (*GetMusicReleaseByBarcodeRequest) Descriptor() ([]byte, []int) {
+	return file_purser_music_v1_release_proto_rawDescGZIP(), []int{7}
+}
+
+func (x *GetMusicReleaseByBarcodeRequest) GetBarcode() string {
+	if x != nil {
+		return x.Barcode
+	}
+	return ""
+}
+
+type GetMusicReleaseByBarcodeResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	MusicRelease  *Release               `protobuf:"bytes,1,opt,name=music_release,json=musicRelease,proto3" json:"music_release,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetMusicReleaseByBarcodeResponse) Reset() {
+	*x = GetMusicReleaseByBarcodeResponse{}
+	mi := &file_purser_music_v1_release_proto_msgTypes[8]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetMusicReleaseByBarcodeResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetMusicReleaseByBarcodeResponse) ProtoMessage() {}
+
+func (x *GetMusicReleaseByBarcodeResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_purser_music_v1_release_proto_msgTypes[8]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetMusicReleaseByBarcodeResponse.ProtoReflect.Descriptor instead.
+func (*GetMusicReleaseByBarcodeResponse) Descriptor() ([]byte, []int) {
+	return file_purser_music_v1_release_proto_rawDescGZIP(), []int{8}
+}
+
+func (x *GetMusicReleaseByBarcodeResponse) GetMusicRelease() *Release {
+	if x != nil {
+		return x.MusicRelease
+	}
+	return nil
+}
+
 type UpdateMusicReleaseRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	MusicRelease  *Release               `protobuf:"bytes,1,opt,name=music_release,json=musicRelease,proto3" json:"music_release,omitempty"`
@@ -450,7 +626,7 @@ type UpdateMusicReleaseRequest struct {
 
 func (x *UpdateMusicReleaseRequest) Reset() {
 	*x = UpdateMusicReleaseRequest{}
-	mi := &file_purser_music_v1_release_proto_msgTypes[5]
+	mi := &file_purser_music_v1_release_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -462,7 +638,7 @@ func (x *UpdateMusicReleaseRequest) String() string {
 func (*UpdateMusicReleaseRequest) ProtoMessage() {}
 
 func (x *UpdateMusicReleaseRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_purser_music_v1_release_proto_msgTypes[5]
+	mi := &file_purser_music_v1_release_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -475,7 +651,7 @@ func (x *UpdateMusicReleaseRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpdateMusicReleaseRequest.ProtoReflect.Descriptor instead.
 func (*UpdateMusicReleaseRequest) Descriptor() ([]byte, []int) {
-	return file_purser_music_v1_release_proto_rawDescGZIP(), []int{5}
+	return file_purser_music_v1_release_proto_rawDescGZIP(), []int{9}
 }
 
 func (x *UpdateMusicReleaseRequest) GetMusicRelease() *Release {
@@ -501,7 +677,7 @@ type UpdateMusicReleaseResponse struct {
 
 func (x *UpdateMusicReleaseResponse) Reset() {
 	*x = UpdateMusicReleaseResponse{}
-	mi := &file_purser_music_v1_release_proto_msgTypes[6]
+	mi := &file_purser_music_v1_release_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -513,7 +689,7 @@ func (x *UpdateMusicReleaseResponse) String() string {
 func (*UpdateMusicReleaseResponse) ProtoMessage() {}
 
 func (x *UpdateMusicReleaseResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_purser_music_v1_release_proto_msgTypes[6]
+	mi := &file_purser_music_v1_release_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -526,7 +702,7 @@ func (x *UpdateMusicReleaseResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpdateMusicReleaseResponse.ProtoReflect.Descriptor instead.
 func (*UpdateMusicReleaseResponse) Descriptor() ([]byte, []int) {
-	return file_purser_music_v1_release_proto_rawDescGZIP(), []int{6}
+	return file_purser_music_v1_release_proto_rawDescGZIP(), []int{10}
 }
 
 func (x *UpdateMusicReleaseResponse) GetMusicRelease() *Release {
@@ -552,7 +728,7 @@ type DeleteMusicReleaseRequest struct {
 
 func (x *DeleteMusicReleaseRequest) Reset() {
 	*x = DeleteMusicReleaseRequest{}
-	mi := &file_purser_music_v1_release_proto_msgTypes[7]
+	mi := &file_purser_music_v1_release_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -564,7 +740,7 @@ func (x *DeleteMusicReleaseRequest) String() string {
 func (*DeleteMusicReleaseRequest) ProtoMessage() {}
 
 func (x *DeleteMusicReleaseRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_purser_music_v1_release_proto_msgTypes[7]
+	mi := &file_purser_music_v1_release_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -577,7 +753,7 @@ func (x *DeleteMusicReleaseRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteMusicReleaseRequest.ProtoReflect.Descriptor instead.
 func (*DeleteMusicReleaseRequest) Descriptor() ([]byte, []int) {
-	return file_purser_music_v1_release_proto_rawDescGZIP(), []int{7}
+	return file_purser_music_v1_release_proto_rawDescGZIP(), []int{11}
 }
 
 func (x *DeleteMusicReleaseRequest) GetId() string {
@@ -602,7 +778,7 @@ type DeleteMusicReleaseResponse struct {
 
 func (x *DeleteMusicReleaseResponse) Reset() {
 	*x = DeleteMusicReleaseResponse{}
-	mi := &file_purser_music_v1_release_proto_msgTypes[8]
+	mi := &file_purser_music_v1_release_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -614,7 +790,7 @@ func (x *DeleteMusicReleaseResponse) String() string {
 func (*DeleteMusicReleaseResponse) ProtoMessage() {}
 
 func (x *DeleteMusicReleaseResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_purser_music_v1_release_proto_msgTypes[8]
+	mi := &file_purser_music_v1_release_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -627,20 +803,25 @@ func (x *DeleteMusicReleaseResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteMusicReleaseResponse.ProtoReflect.Descriptor instead.
 func (*DeleteMusicReleaseResponse) Descriptor() ([]byte, []int) {
-	return file_purser_music_v1_release_proto_rawDescGZIP(), []int{8}
+	return file_purser_music_v1_release_proto_rawDescGZIP(), []int{12}
 }
 
 type ListMusicReleasesRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	PageSize      int32                  `protobuf:"varint,1,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
-	PageToken     string                 `protobuf:"bytes,2,opt,name=page_token,json=pageToken,proto3" json:"page_token,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state     protoimpl.MessageState `protogen:"open.v1"`
+	PageSize  int32                  `protobuf:"varint,1,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
+	PageToken string                 `protobuf:"bytes,2,opt,name=page_token,json=pageToken,proto3" json:"page_token,omitempty"`
+	// group_id and library_entry_id are independent, optional filters — leave
+	// both unset for no filter. If both are set, group_id takes precedence
+	// and library_entry_id is ignored.
+	GroupId        string `protobuf:"bytes,3,opt,name=group_id,json=groupId,proto3" json:"group_id,omitempty"`
+	LibraryEntryId string `protobuf:"bytes,4,opt,name=library_entry_id,json=libraryEntryId,proto3" json:"library_entry_id,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
 }
 
 func (x *ListMusicReleasesRequest) Reset() {
 	*x = ListMusicReleasesRequest{}
-	mi := &file_purser_music_v1_release_proto_msgTypes[9]
+	mi := &file_purser_music_v1_release_proto_msgTypes[13]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -652,7 +833,7 @@ func (x *ListMusicReleasesRequest) String() string {
 func (*ListMusicReleasesRequest) ProtoMessage() {}
 
 func (x *ListMusicReleasesRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_purser_music_v1_release_proto_msgTypes[9]
+	mi := &file_purser_music_v1_release_proto_msgTypes[13]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -665,7 +846,7 @@ func (x *ListMusicReleasesRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListMusicReleasesRequest.ProtoReflect.Descriptor instead.
 func (*ListMusicReleasesRequest) Descriptor() ([]byte, []int) {
-	return file_purser_music_v1_release_proto_rawDescGZIP(), []int{9}
+	return file_purser_music_v1_release_proto_rawDescGZIP(), []int{13}
 }
 
 func (x *ListMusicReleasesRequest) GetPageSize() int32 {
@@ -682,6 +863,20 @@ func (x *ListMusicReleasesRequest) GetPageToken() string {
 	return ""
 }
 
+func (x *ListMusicReleasesRequest) GetGroupId() string {
+	if x != nil {
+		return x.GroupId
+	}
+	return ""
+}
+
+func (x *ListMusicReleasesRequest) GetLibraryEntryId() string {
+	if x != nil {
+		return x.LibraryEntryId
+	}
+	return ""
+}
+
 type ListMusicReleasesResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	MusicReleases []*Release             `protobuf:"bytes,1,rep,name=music_releases,json=musicReleases,proto3" json:"music_releases,omitempty"`
@@ -692,7 +887,7 @@ type ListMusicReleasesResponse struct {
 
 func (x *ListMusicReleasesResponse) Reset() {
 	*x = ListMusicReleasesResponse{}
-	mi := &file_purser_music_v1_release_proto_msgTypes[10]
+	mi := &file_purser_music_v1_release_proto_msgTypes[14]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -704,7 +899,7 @@ func (x *ListMusicReleasesResponse) String() string {
 func (*ListMusicReleasesResponse) ProtoMessage() {}
 
 func (x *ListMusicReleasesResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_purser_music_v1_release_proto_msgTypes[10]
+	mi := &file_purser_music_v1_release_proto_msgTypes[14]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -717,7 +912,7 @@ func (x *ListMusicReleasesResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListMusicReleasesResponse.ProtoReflect.Descriptor instead.
 func (*ListMusicReleasesResponse) Descriptor() ([]byte, []int) {
-	return file_purser_music_v1_release_proto_rawDescGZIP(), []int{10}
+	return file_purser_music_v1_release_proto_rawDescGZIP(), []int{14}
 }
 
 func (x *ListMusicReleasesResponse) GetMusicReleases() []*Release {
@@ -769,6 +964,14 @@ const file_purser_music_v1_release_proto_rawDesc = "" +
 	"\x16GetMusicReleaseRequest\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\"X\n" +
 	"\x17GetMusicReleaseResponse\x12=\n" +
+	"\rmusic_release\x18\x01 \x01(\v2\x18.purser.music.v1.ReleaseR\fmusicRelease\"2\n" +
+	"\x1cGetMusicReleaseByMBIDRequest\x12\x12\n" +
+	"\x04mbid\x18\x01 \x01(\tR\x04mbid\"^\n" +
+	"\x1dGetMusicReleaseByMBIDResponse\x12=\n" +
+	"\rmusic_release\x18\x01 \x01(\v2\x18.purser.music.v1.ReleaseR\fmusicRelease\";\n" +
+	"\x1fGetMusicReleaseByBarcodeRequest\x12\x18\n" +
+	"\abarcode\x18\x01 \x01(\tR\abarcode\"a\n" +
+	" GetMusicReleaseByBarcodeResponse\x12=\n" +
 	"\rmusic_release\x18\x01 \x01(\v2\x18.purser.music.v1.ReleaseR\fmusicRelease\"\x97\x01\n" +
 	"\x19UpdateMusicReleaseRequest\x12=\n" +
 	"\rmusic_release\x18\x01 \x01(\v2\x18.purser.music.v1.ReleaseR\fmusicRelease\x12;\n" +
@@ -779,11 +982,13 @@ const file_purser_music_v1_release_proto_rawDesc = "" +
 	"\x19DeleteMusicReleaseRequest\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x18\n" +
 	"\acascade\x18\x02 \x01(\bR\acascade\"\x1c\n" +
-	"\x1aDeleteMusicReleaseResponse\"V\n" +
+	"\x1aDeleteMusicReleaseResponse\"\x9b\x01\n" +
 	"\x18ListMusicReleasesRequest\x12\x1b\n" +
 	"\tpage_size\x18\x01 \x01(\x05R\bpageSize\x12\x1d\n" +
 	"\n" +
-	"page_token\x18\x02 \x01(\tR\tpageToken\"\x84\x01\n" +
+	"page_token\x18\x02 \x01(\tR\tpageToken\x12\x19\n" +
+	"\bgroup_id\x18\x03 \x01(\tR\agroupId\x12(\n" +
+	"\x10library_entry_id\x18\x04 \x01(\tR\x0elibraryEntryId\"\x84\x01\n" +
 	"\x19ListMusicReleasesResponse\x12?\n" +
 	"\x0emusic_releases\x18\x01 \x03(\v2\x18.purser.music.v1.ReleaseR\rmusicReleases\x12&\n" +
 	"\x0fnext_page_token\x18\x02 \x01(\tR\rnextPageToken*\x81\x01\n" +
@@ -791,10 +996,12 @@ const file_purser_music_v1_release_proto_rawDesc = "" +
 	"\x1aRELEASE_STATUS_UNSPECIFIED\x10\x00\x12\x17\n" +
 	"\x13RELEASE_STATUS_STUB\x10\x01\x12\x1a\n" +
 	"\x16RELEASE_STATUS_PARTIAL\x10\x02\x12\x1b\n" +
-	"\x17RELEASE_STATUS_IMPORTED\x10\x032\xb4\x04\n" +
+	"\x17RELEASE_STATUS_IMPORTED\x10\x032\xad\x06\n" +
 	"\x13MusicReleaseService\x12m\n" +
 	"\x12CreateMusicRelease\x12*.purser.music.v1.CreateMusicReleaseRequest\x1a+.purser.music.v1.CreateMusicReleaseResponse\x12d\n" +
-	"\x0fGetMusicRelease\x12'.purser.music.v1.GetMusicReleaseRequest\x1a(.purser.music.v1.GetMusicReleaseResponse\x12m\n" +
+	"\x0fGetMusicRelease\x12'.purser.music.v1.GetMusicReleaseRequest\x1a(.purser.music.v1.GetMusicReleaseResponse\x12v\n" +
+	"\x15GetMusicReleaseByMBID\x12-.purser.music.v1.GetMusicReleaseByMBIDRequest\x1a..purser.music.v1.GetMusicReleaseByMBIDResponse\x12\x7f\n" +
+	"\x18GetMusicReleaseByBarcode\x120.purser.music.v1.GetMusicReleaseByBarcodeRequest\x1a1.purser.music.v1.GetMusicReleaseByBarcodeResponse\x12m\n" +
 	"\x12UpdateMusicRelease\x12*.purser.music.v1.UpdateMusicReleaseRequest\x1a+.purser.music.v1.UpdateMusicReleaseResponse\x12m\n" +
 	"\x12DeleteMusicRelease\x12*.purser.music.v1.DeleteMusicReleaseRequest\x1a+.purser.music.v1.DeleteMusicReleaseResponse\x12j\n" +
 	"\x11ListMusicReleases\x12).purser.music.v1.ListMusicReleasesRequest\x1a*.purser.music.v1.ListMusicReleasesResponseB'Z%purser/gen/go/purser/music/v1;musicv1b\x06proto3"
@@ -812,50 +1019,60 @@ func file_purser_music_v1_release_proto_rawDescGZIP() []byte {
 }
 
 var file_purser_music_v1_release_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_purser_music_v1_release_proto_msgTypes = make([]protoimpl.MessageInfo, 11)
+var file_purser_music_v1_release_proto_msgTypes = make([]protoimpl.MessageInfo, 15)
 var file_purser_music_v1_release_proto_goTypes = []any{
-	(ReleaseStatus)(0),                 // 0: purser.music.v1.ReleaseStatus
-	(*Release)(nil),                    // 1: purser.music.v1.Release
-	(*CreateMusicReleaseRequest)(nil),  // 2: purser.music.v1.CreateMusicReleaseRequest
-	(*CreateMusicReleaseResponse)(nil), // 3: purser.music.v1.CreateMusicReleaseResponse
-	(*GetMusicReleaseRequest)(nil),     // 4: purser.music.v1.GetMusicReleaseRequest
-	(*GetMusicReleaseResponse)(nil),    // 5: purser.music.v1.GetMusicReleaseResponse
-	(*UpdateMusicReleaseRequest)(nil),  // 6: purser.music.v1.UpdateMusicReleaseRequest
-	(*UpdateMusicReleaseResponse)(nil), // 7: purser.music.v1.UpdateMusicReleaseResponse
-	(*DeleteMusicReleaseRequest)(nil),  // 8: purser.music.v1.DeleteMusicReleaseRequest
-	(*DeleteMusicReleaseResponse)(nil), // 9: purser.music.v1.DeleteMusicReleaseResponse
-	(*ListMusicReleasesRequest)(nil),   // 10: purser.music.v1.ListMusicReleasesRequest
-	(*ListMusicReleasesResponse)(nil),  // 11: purser.music.v1.ListMusicReleasesResponse
-	(*timestamppb.Timestamp)(nil),      // 12: google.protobuf.Timestamp
-	(*fieldmaskpb.FieldMask)(nil),      // 13: google.protobuf.FieldMask
+	(ReleaseStatus)(0),                       // 0: purser.music.v1.ReleaseStatus
+	(*Release)(nil),                          // 1: purser.music.v1.Release
+	(*CreateMusicReleaseRequest)(nil),        // 2: purser.music.v1.CreateMusicReleaseRequest
+	(*CreateMusicReleaseResponse)(nil),       // 3: purser.music.v1.CreateMusicReleaseResponse
+	(*GetMusicReleaseRequest)(nil),           // 4: purser.music.v1.GetMusicReleaseRequest
+	(*GetMusicReleaseResponse)(nil),          // 5: purser.music.v1.GetMusicReleaseResponse
+	(*GetMusicReleaseByMBIDRequest)(nil),     // 6: purser.music.v1.GetMusicReleaseByMBIDRequest
+	(*GetMusicReleaseByMBIDResponse)(nil),    // 7: purser.music.v1.GetMusicReleaseByMBIDResponse
+	(*GetMusicReleaseByBarcodeRequest)(nil),  // 8: purser.music.v1.GetMusicReleaseByBarcodeRequest
+	(*GetMusicReleaseByBarcodeResponse)(nil), // 9: purser.music.v1.GetMusicReleaseByBarcodeResponse
+	(*UpdateMusicReleaseRequest)(nil),        // 10: purser.music.v1.UpdateMusicReleaseRequest
+	(*UpdateMusicReleaseResponse)(nil),       // 11: purser.music.v1.UpdateMusicReleaseResponse
+	(*DeleteMusicReleaseRequest)(nil),        // 12: purser.music.v1.DeleteMusicReleaseRequest
+	(*DeleteMusicReleaseResponse)(nil),       // 13: purser.music.v1.DeleteMusicReleaseResponse
+	(*ListMusicReleasesRequest)(nil),         // 14: purser.music.v1.ListMusicReleasesRequest
+	(*ListMusicReleasesResponse)(nil),        // 15: purser.music.v1.ListMusicReleasesResponse
+	(*timestamppb.Timestamp)(nil),            // 16: google.protobuf.Timestamp
+	(*fieldmaskpb.FieldMask)(nil),            // 17: google.protobuf.FieldMask
 }
 var file_purser_music_v1_release_proto_depIdxs = []int32{
-	12, // 0: purser.music.v1.Release.date:type_name -> google.protobuf.Timestamp
+	16, // 0: purser.music.v1.Release.date:type_name -> google.protobuf.Timestamp
 	0,  // 1: purser.music.v1.Release.status:type_name -> purser.music.v1.ReleaseStatus
-	12, // 2: purser.music.v1.Release.added_at:type_name -> google.protobuf.Timestamp
-	12, // 3: purser.music.v1.Release.updated_at:type_name -> google.protobuf.Timestamp
+	16, // 2: purser.music.v1.Release.added_at:type_name -> google.protobuf.Timestamp
+	16, // 3: purser.music.v1.Release.updated_at:type_name -> google.protobuf.Timestamp
 	1,  // 4: purser.music.v1.CreateMusicReleaseRequest.music_release:type_name -> purser.music.v1.Release
 	1,  // 5: purser.music.v1.CreateMusicReleaseResponse.music_release:type_name -> purser.music.v1.Release
 	1,  // 6: purser.music.v1.GetMusicReleaseResponse.music_release:type_name -> purser.music.v1.Release
-	1,  // 7: purser.music.v1.UpdateMusicReleaseRequest.music_release:type_name -> purser.music.v1.Release
-	13, // 8: purser.music.v1.UpdateMusicReleaseRequest.update_mask:type_name -> google.protobuf.FieldMask
-	1,  // 9: purser.music.v1.UpdateMusicReleaseResponse.music_release:type_name -> purser.music.v1.Release
-	1,  // 10: purser.music.v1.ListMusicReleasesResponse.music_releases:type_name -> purser.music.v1.Release
-	2,  // 11: purser.music.v1.MusicReleaseService.CreateMusicRelease:input_type -> purser.music.v1.CreateMusicReleaseRequest
-	4,  // 12: purser.music.v1.MusicReleaseService.GetMusicRelease:input_type -> purser.music.v1.GetMusicReleaseRequest
-	6,  // 13: purser.music.v1.MusicReleaseService.UpdateMusicRelease:input_type -> purser.music.v1.UpdateMusicReleaseRequest
-	8,  // 14: purser.music.v1.MusicReleaseService.DeleteMusicRelease:input_type -> purser.music.v1.DeleteMusicReleaseRequest
-	10, // 15: purser.music.v1.MusicReleaseService.ListMusicReleases:input_type -> purser.music.v1.ListMusicReleasesRequest
-	3,  // 16: purser.music.v1.MusicReleaseService.CreateMusicRelease:output_type -> purser.music.v1.CreateMusicReleaseResponse
-	5,  // 17: purser.music.v1.MusicReleaseService.GetMusicRelease:output_type -> purser.music.v1.GetMusicReleaseResponse
-	7,  // 18: purser.music.v1.MusicReleaseService.UpdateMusicRelease:output_type -> purser.music.v1.UpdateMusicReleaseResponse
-	9,  // 19: purser.music.v1.MusicReleaseService.DeleteMusicRelease:output_type -> purser.music.v1.DeleteMusicReleaseResponse
-	11, // 20: purser.music.v1.MusicReleaseService.ListMusicReleases:output_type -> purser.music.v1.ListMusicReleasesResponse
-	16, // [16:21] is the sub-list for method output_type
-	11, // [11:16] is the sub-list for method input_type
-	11, // [11:11] is the sub-list for extension type_name
-	11, // [11:11] is the sub-list for extension extendee
-	0,  // [0:11] is the sub-list for field type_name
+	1,  // 7: purser.music.v1.GetMusicReleaseByMBIDResponse.music_release:type_name -> purser.music.v1.Release
+	1,  // 8: purser.music.v1.GetMusicReleaseByBarcodeResponse.music_release:type_name -> purser.music.v1.Release
+	1,  // 9: purser.music.v1.UpdateMusicReleaseRequest.music_release:type_name -> purser.music.v1.Release
+	17, // 10: purser.music.v1.UpdateMusicReleaseRequest.update_mask:type_name -> google.protobuf.FieldMask
+	1,  // 11: purser.music.v1.UpdateMusicReleaseResponse.music_release:type_name -> purser.music.v1.Release
+	1,  // 12: purser.music.v1.ListMusicReleasesResponse.music_releases:type_name -> purser.music.v1.Release
+	2,  // 13: purser.music.v1.MusicReleaseService.CreateMusicRelease:input_type -> purser.music.v1.CreateMusicReleaseRequest
+	4,  // 14: purser.music.v1.MusicReleaseService.GetMusicRelease:input_type -> purser.music.v1.GetMusicReleaseRequest
+	6,  // 15: purser.music.v1.MusicReleaseService.GetMusicReleaseByMBID:input_type -> purser.music.v1.GetMusicReleaseByMBIDRequest
+	8,  // 16: purser.music.v1.MusicReleaseService.GetMusicReleaseByBarcode:input_type -> purser.music.v1.GetMusicReleaseByBarcodeRequest
+	10, // 17: purser.music.v1.MusicReleaseService.UpdateMusicRelease:input_type -> purser.music.v1.UpdateMusicReleaseRequest
+	12, // 18: purser.music.v1.MusicReleaseService.DeleteMusicRelease:input_type -> purser.music.v1.DeleteMusicReleaseRequest
+	14, // 19: purser.music.v1.MusicReleaseService.ListMusicReleases:input_type -> purser.music.v1.ListMusicReleasesRequest
+	3,  // 20: purser.music.v1.MusicReleaseService.CreateMusicRelease:output_type -> purser.music.v1.CreateMusicReleaseResponse
+	5,  // 21: purser.music.v1.MusicReleaseService.GetMusicRelease:output_type -> purser.music.v1.GetMusicReleaseResponse
+	7,  // 22: purser.music.v1.MusicReleaseService.GetMusicReleaseByMBID:output_type -> purser.music.v1.GetMusicReleaseByMBIDResponse
+	9,  // 23: purser.music.v1.MusicReleaseService.GetMusicReleaseByBarcode:output_type -> purser.music.v1.GetMusicReleaseByBarcodeResponse
+	11, // 24: purser.music.v1.MusicReleaseService.UpdateMusicRelease:output_type -> purser.music.v1.UpdateMusicReleaseResponse
+	13, // 25: purser.music.v1.MusicReleaseService.DeleteMusicRelease:output_type -> purser.music.v1.DeleteMusicReleaseResponse
+	15, // 26: purser.music.v1.MusicReleaseService.ListMusicReleases:output_type -> purser.music.v1.ListMusicReleasesResponse
+	20, // [20:27] is the sub-list for method output_type
+	13, // [13:20] is the sub-list for method input_type
+	13, // [13:13] is the sub-list for extension type_name
+	13, // [13:13] is the sub-list for extension extendee
+	0,  // [0:13] is the sub-list for field type_name
 }
 
 func init() { file_purser_music_v1_release_proto_init() }
@@ -869,7 +1086,7 @@ func file_purser_music_v1_release_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_purser_music_v1_release_proto_rawDesc), len(file_purser_music_v1_release_proto_rawDesc)),
 			NumEnums:      1,
-			NumMessages:   11,
+			NumMessages:   15,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

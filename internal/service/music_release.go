@@ -39,6 +39,17 @@ func (s *MusicReleaseService) Get(ctx context.Context, id string) (*music.Releas
 	return s.repo.Get(ctx, id)
 }
 
+// GetByMBID returns the Release with the given MBID, or ports.ErrNotFound.
+func (s *MusicReleaseService) GetByMBID(ctx context.Context, mbid string) (*music.Release, error) {
+	return s.repo.GetByMBID(ctx, mbid)
+}
+
+// GetByBarcode returns the Release with the given barcode, or
+// ports.ErrNotFound.
+func (s *MusicReleaseService) GetByBarcode(ctx context.Context, barcode string) (*music.Release, error) {
+	return s.repo.GetByBarcode(ctx, barcode)
+}
+
 // Update validates r and persists it in place of the existing record.
 func (s *MusicReleaseService) Update(ctx context.Context, r *music.Release) (*music.Release, error) {
 	if err := r.Validate(); err != nil {
@@ -59,8 +70,18 @@ func (s *MusicReleaseService) Delete(ctx context.Context, id string) error {
 	return s.repo.Delete(ctx, id)
 }
 
-// List returns a page of Release records. No filter args yet — see
-// docs/adr/0021-music-domain-model.md.
+// List returns an unfiltered page of Release records.
 func (s *MusicReleaseService) List(ctx context.Context, pageSize int, pageToken string) ([]*music.Release, string, error) {
 	return s.repo.List(ctx, pageSize, pageToken)
+}
+
+// ListByGroup returns a page of Release records belonging to groupID.
+func (s *MusicReleaseService) ListByGroup(ctx context.Context, groupID string, pageSize int, pageToken string) ([]*music.Release, string, error) {
+	return s.repo.ListByGroup(ctx, groupID, pageSize, pageToken)
+}
+
+// ListByEntry returns a page of Release records belonging to
+// libraryEntryID.
+func (s *MusicReleaseService) ListByEntry(ctx context.Context, libraryEntryID string, pageSize int, pageToken string) ([]*music.Release, string, error) {
+	return s.repo.ListByEntry(ctx, libraryEntryID, pageSize, pageToken)
 }

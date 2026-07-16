@@ -39,6 +39,12 @@ const (
 	// MusicReleaseServiceGetMusicReleaseProcedure is the fully-qualified name of the
 	// MusicReleaseService's GetMusicRelease RPC.
 	MusicReleaseServiceGetMusicReleaseProcedure = "/purser.music.v1.MusicReleaseService/GetMusicRelease"
+	// MusicReleaseServiceGetMusicReleaseByMBIDProcedure is the fully-qualified name of the
+	// MusicReleaseService's GetMusicReleaseByMBID RPC.
+	MusicReleaseServiceGetMusicReleaseByMBIDProcedure = "/purser.music.v1.MusicReleaseService/GetMusicReleaseByMBID"
+	// MusicReleaseServiceGetMusicReleaseByBarcodeProcedure is the fully-qualified name of the
+	// MusicReleaseService's GetMusicReleaseByBarcode RPC.
+	MusicReleaseServiceGetMusicReleaseByBarcodeProcedure = "/purser.music.v1.MusicReleaseService/GetMusicReleaseByBarcode"
 	// MusicReleaseServiceUpdateMusicReleaseProcedure is the fully-qualified name of the
 	// MusicReleaseService's UpdateMusicRelease RPC.
 	MusicReleaseServiceUpdateMusicReleaseProcedure = "/purser.music.v1.MusicReleaseService/UpdateMusicRelease"
@@ -54,6 +60,8 @@ const (
 type MusicReleaseServiceClient interface {
 	CreateMusicRelease(context.Context, *connect.Request[v1.CreateMusicReleaseRequest]) (*connect.Response[v1.CreateMusicReleaseResponse], error)
 	GetMusicRelease(context.Context, *connect.Request[v1.GetMusicReleaseRequest]) (*connect.Response[v1.GetMusicReleaseResponse], error)
+	GetMusicReleaseByMBID(context.Context, *connect.Request[v1.GetMusicReleaseByMBIDRequest]) (*connect.Response[v1.GetMusicReleaseByMBIDResponse], error)
+	GetMusicReleaseByBarcode(context.Context, *connect.Request[v1.GetMusicReleaseByBarcodeRequest]) (*connect.Response[v1.GetMusicReleaseByBarcodeResponse], error)
 	UpdateMusicRelease(context.Context, *connect.Request[v1.UpdateMusicReleaseRequest]) (*connect.Response[v1.UpdateMusicReleaseResponse], error)
 	DeleteMusicRelease(context.Context, *connect.Request[v1.DeleteMusicReleaseRequest]) (*connect.Response[v1.DeleteMusicReleaseResponse], error)
 	ListMusicReleases(context.Context, *connect.Request[v1.ListMusicReleasesRequest]) (*connect.Response[v1.ListMusicReleasesResponse], error)
@@ -82,6 +90,18 @@ func NewMusicReleaseServiceClient(httpClient connect.HTTPClient, baseURL string,
 			connect.WithSchema(musicReleaseServiceMethods.ByName("GetMusicRelease")),
 			connect.WithClientOptions(opts...),
 		),
+		getMusicReleaseByMBID: connect.NewClient[v1.GetMusicReleaseByMBIDRequest, v1.GetMusicReleaseByMBIDResponse](
+			httpClient,
+			baseURL+MusicReleaseServiceGetMusicReleaseByMBIDProcedure,
+			connect.WithSchema(musicReleaseServiceMethods.ByName("GetMusicReleaseByMBID")),
+			connect.WithClientOptions(opts...),
+		),
+		getMusicReleaseByBarcode: connect.NewClient[v1.GetMusicReleaseByBarcodeRequest, v1.GetMusicReleaseByBarcodeResponse](
+			httpClient,
+			baseURL+MusicReleaseServiceGetMusicReleaseByBarcodeProcedure,
+			connect.WithSchema(musicReleaseServiceMethods.ByName("GetMusicReleaseByBarcode")),
+			connect.WithClientOptions(opts...),
+		),
 		updateMusicRelease: connect.NewClient[v1.UpdateMusicReleaseRequest, v1.UpdateMusicReleaseResponse](
 			httpClient,
 			baseURL+MusicReleaseServiceUpdateMusicReleaseProcedure,
@@ -105,11 +125,13 @@ func NewMusicReleaseServiceClient(httpClient connect.HTTPClient, baseURL string,
 
 // musicReleaseServiceClient implements MusicReleaseServiceClient.
 type musicReleaseServiceClient struct {
-	createMusicRelease *connect.Client[v1.CreateMusicReleaseRequest, v1.CreateMusicReleaseResponse]
-	getMusicRelease    *connect.Client[v1.GetMusicReleaseRequest, v1.GetMusicReleaseResponse]
-	updateMusicRelease *connect.Client[v1.UpdateMusicReleaseRequest, v1.UpdateMusicReleaseResponse]
-	deleteMusicRelease *connect.Client[v1.DeleteMusicReleaseRequest, v1.DeleteMusicReleaseResponse]
-	listMusicReleases  *connect.Client[v1.ListMusicReleasesRequest, v1.ListMusicReleasesResponse]
+	createMusicRelease       *connect.Client[v1.CreateMusicReleaseRequest, v1.CreateMusicReleaseResponse]
+	getMusicRelease          *connect.Client[v1.GetMusicReleaseRequest, v1.GetMusicReleaseResponse]
+	getMusicReleaseByMBID    *connect.Client[v1.GetMusicReleaseByMBIDRequest, v1.GetMusicReleaseByMBIDResponse]
+	getMusicReleaseByBarcode *connect.Client[v1.GetMusicReleaseByBarcodeRequest, v1.GetMusicReleaseByBarcodeResponse]
+	updateMusicRelease       *connect.Client[v1.UpdateMusicReleaseRequest, v1.UpdateMusicReleaseResponse]
+	deleteMusicRelease       *connect.Client[v1.DeleteMusicReleaseRequest, v1.DeleteMusicReleaseResponse]
+	listMusicReleases        *connect.Client[v1.ListMusicReleasesRequest, v1.ListMusicReleasesResponse]
 }
 
 // CreateMusicRelease calls purser.music.v1.MusicReleaseService.CreateMusicRelease.
@@ -120,6 +142,16 @@ func (c *musicReleaseServiceClient) CreateMusicRelease(ctx context.Context, req 
 // GetMusicRelease calls purser.music.v1.MusicReleaseService.GetMusicRelease.
 func (c *musicReleaseServiceClient) GetMusicRelease(ctx context.Context, req *connect.Request[v1.GetMusicReleaseRequest]) (*connect.Response[v1.GetMusicReleaseResponse], error) {
 	return c.getMusicRelease.CallUnary(ctx, req)
+}
+
+// GetMusicReleaseByMBID calls purser.music.v1.MusicReleaseService.GetMusicReleaseByMBID.
+func (c *musicReleaseServiceClient) GetMusicReleaseByMBID(ctx context.Context, req *connect.Request[v1.GetMusicReleaseByMBIDRequest]) (*connect.Response[v1.GetMusicReleaseByMBIDResponse], error) {
+	return c.getMusicReleaseByMBID.CallUnary(ctx, req)
+}
+
+// GetMusicReleaseByBarcode calls purser.music.v1.MusicReleaseService.GetMusicReleaseByBarcode.
+func (c *musicReleaseServiceClient) GetMusicReleaseByBarcode(ctx context.Context, req *connect.Request[v1.GetMusicReleaseByBarcodeRequest]) (*connect.Response[v1.GetMusicReleaseByBarcodeResponse], error) {
+	return c.getMusicReleaseByBarcode.CallUnary(ctx, req)
 }
 
 // UpdateMusicRelease calls purser.music.v1.MusicReleaseService.UpdateMusicRelease.
@@ -142,6 +174,8 @@ func (c *musicReleaseServiceClient) ListMusicReleases(ctx context.Context, req *
 type MusicReleaseServiceHandler interface {
 	CreateMusicRelease(context.Context, *connect.Request[v1.CreateMusicReleaseRequest]) (*connect.Response[v1.CreateMusicReleaseResponse], error)
 	GetMusicRelease(context.Context, *connect.Request[v1.GetMusicReleaseRequest]) (*connect.Response[v1.GetMusicReleaseResponse], error)
+	GetMusicReleaseByMBID(context.Context, *connect.Request[v1.GetMusicReleaseByMBIDRequest]) (*connect.Response[v1.GetMusicReleaseByMBIDResponse], error)
+	GetMusicReleaseByBarcode(context.Context, *connect.Request[v1.GetMusicReleaseByBarcodeRequest]) (*connect.Response[v1.GetMusicReleaseByBarcodeResponse], error)
 	UpdateMusicRelease(context.Context, *connect.Request[v1.UpdateMusicReleaseRequest]) (*connect.Response[v1.UpdateMusicReleaseResponse], error)
 	DeleteMusicRelease(context.Context, *connect.Request[v1.DeleteMusicReleaseRequest]) (*connect.Response[v1.DeleteMusicReleaseResponse], error)
 	ListMusicReleases(context.Context, *connect.Request[v1.ListMusicReleasesRequest]) (*connect.Response[v1.ListMusicReleasesResponse], error)
@@ -164,6 +198,18 @@ func NewMusicReleaseServiceHandler(svc MusicReleaseServiceHandler, opts ...conne
 		MusicReleaseServiceGetMusicReleaseProcedure,
 		svc.GetMusicRelease,
 		connect.WithSchema(musicReleaseServiceMethods.ByName("GetMusicRelease")),
+		connect.WithHandlerOptions(opts...),
+	)
+	musicReleaseServiceGetMusicReleaseByMBIDHandler := connect.NewUnaryHandler(
+		MusicReleaseServiceGetMusicReleaseByMBIDProcedure,
+		svc.GetMusicReleaseByMBID,
+		connect.WithSchema(musicReleaseServiceMethods.ByName("GetMusicReleaseByMBID")),
+		connect.WithHandlerOptions(opts...),
+	)
+	musicReleaseServiceGetMusicReleaseByBarcodeHandler := connect.NewUnaryHandler(
+		MusicReleaseServiceGetMusicReleaseByBarcodeProcedure,
+		svc.GetMusicReleaseByBarcode,
+		connect.WithSchema(musicReleaseServiceMethods.ByName("GetMusicReleaseByBarcode")),
 		connect.WithHandlerOptions(opts...),
 	)
 	musicReleaseServiceUpdateMusicReleaseHandler := connect.NewUnaryHandler(
@@ -190,6 +236,10 @@ func NewMusicReleaseServiceHandler(svc MusicReleaseServiceHandler, opts ...conne
 			musicReleaseServiceCreateMusicReleaseHandler.ServeHTTP(w, r)
 		case MusicReleaseServiceGetMusicReleaseProcedure:
 			musicReleaseServiceGetMusicReleaseHandler.ServeHTTP(w, r)
+		case MusicReleaseServiceGetMusicReleaseByMBIDProcedure:
+			musicReleaseServiceGetMusicReleaseByMBIDHandler.ServeHTTP(w, r)
+		case MusicReleaseServiceGetMusicReleaseByBarcodeProcedure:
+			musicReleaseServiceGetMusicReleaseByBarcodeHandler.ServeHTTP(w, r)
 		case MusicReleaseServiceUpdateMusicReleaseProcedure:
 			musicReleaseServiceUpdateMusicReleaseHandler.ServeHTTP(w, r)
 		case MusicReleaseServiceDeleteMusicReleaseProcedure:
@@ -211,6 +261,14 @@ func (UnimplementedMusicReleaseServiceHandler) CreateMusicRelease(context.Contex
 
 func (UnimplementedMusicReleaseServiceHandler) GetMusicRelease(context.Context, *connect.Request[v1.GetMusicReleaseRequest]) (*connect.Response[v1.GetMusicReleaseResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("purser.music.v1.MusicReleaseService.GetMusicRelease is not implemented"))
+}
+
+func (UnimplementedMusicReleaseServiceHandler) GetMusicReleaseByMBID(context.Context, *connect.Request[v1.GetMusicReleaseByMBIDRequest]) (*connect.Response[v1.GetMusicReleaseByMBIDResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("purser.music.v1.MusicReleaseService.GetMusicReleaseByMBID is not implemented"))
+}
+
+func (UnimplementedMusicReleaseServiceHandler) GetMusicReleaseByBarcode(context.Context, *connect.Request[v1.GetMusicReleaseByBarcodeRequest]) (*connect.Response[v1.GetMusicReleaseByBarcodeResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("purser.music.v1.MusicReleaseService.GetMusicReleaseByBarcode is not implemented"))
 }
 
 func (UnimplementedMusicReleaseServiceHandler) UpdateMusicRelease(context.Context, *connect.Request[v1.UpdateMusicReleaseRequest]) (*connect.Response[v1.UpdateMusicReleaseResponse], error) {

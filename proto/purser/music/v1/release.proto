@@ -60,6 +60,22 @@ message GetMusicReleaseResponse {
   Release music_release = 1;
 }
 
+message GetMusicReleaseByMBIDRequest {
+  string mbid = 1;
+}
+
+message GetMusicReleaseByMBIDResponse {
+  Release music_release = 1;
+}
+
+message GetMusicReleaseByBarcodeRequest {
+  string barcode = 1;
+}
+
+message GetMusicReleaseByBarcodeResponse {
+  Release music_release = 1;
+}
+
 message UpdateMusicReleaseRequest {
   Release music_release = 1;
   google.protobuf.FieldMask update_mask = 2;
@@ -85,9 +101,11 @@ message DeleteMusicReleaseResponse {}
 message ListMusicReleasesRequest {
   int32 page_size = 1;
   string page_token = 2;
-  // No filters yet (e.g. by Group or LibraryEntry) — a later sub-issue in
-  // the Music Release API epic adds them. See
-  // docs/adr/0021-music-domain-model.md.
+  // group_id and library_entry_id are independent, optional filters — leave
+  // both unset for no filter. If both are set, group_id takes precedence
+  // and library_entry_id is ignored.
+  string group_id = 3;
+  string library_entry_id = 4;
 }
 
 message ListMusicReleasesResponse {
@@ -96,12 +114,16 @@ message ListMusicReleasesResponse {
 }
 
 // MusicReleaseService owns exactly one entity — Release — per
-// docs/adr/0011-api-design.md's SRP-per-entity rule. GetByMBID,
-// GetByBarcode, ListByGroup, and ListByEntry are added by later sub-issues
-// in the Music Release API epic, extending this same service.
+// docs/adr/0011-api-design.md's SRP-per-entity rule. ListByGroup/ListByEntry
+// are exposed as optional filters on ListMusicReleases, the same pattern
+// GroupService's ListGroups(library_entry_id) and ImageService's
+// ListImages(owner_type, owner_id) already establish, rather than as
+// dedicated RPCs.
 service MusicReleaseService {
   rpc CreateMusicRelease(CreateMusicReleaseRequest) returns (CreateMusicReleaseResponse);
   rpc GetMusicRelease(GetMusicReleaseRequest) returns (GetMusicReleaseResponse);
+  rpc GetMusicReleaseByMBID(GetMusicReleaseByMBIDRequest) returns (GetMusicReleaseByMBIDResponse);
+  rpc GetMusicReleaseByBarcode(GetMusicReleaseByBarcodeRequest) returns (GetMusicReleaseByBarcodeResponse);
   rpc UpdateMusicRelease(UpdateMusicReleaseRequest) returns (UpdateMusicReleaseResponse);
   rpc DeleteMusicRelease(DeleteMusicReleaseRequest) returns (DeleteMusicReleaseResponse);
   rpc ListMusicReleases(ListMusicReleasesRequest) returns (ListMusicReleasesResponse);

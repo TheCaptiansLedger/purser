@@ -1,7 +1,6 @@
 // Package musicreleasetest is the shared contract test suite for the
 // ports.MusicReleaseRepository port. See internal/ports/grouptest for the
-// convention this follows. List has no filter test yet — the port takes no
-// filter args, per docs/adr/0021-music-domain-model.md.
+// convention this follows.
 package musicreleasetest
 
 import (
@@ -30,6 +29,12 @@ func TestMusicReleaseRepository(t *testing.T, newRepo NewRepositoryFunc) {
 	t.Run("delete removes a release", func(t *testing.T) { testDelete(t, newRepo) })
 	t.Run("delete on a missing release returns ErrNotFound", func(t *testing.T) { testDeleteMissing(t, newRepo) })
 	t.Run("list returns every created release across pages", func(t *testing.T) { testListPaginates(t, newRepo) })
+	t.Run("GetByMBID returns the release with that MBID", func(t *testing.T) { testGetByMBID(t, newRepo) })
+	t.Run("GetByMBID on an unknown MBID returns ErrNotFound", func(t *testing.T) { testGetByMBIDNotFound(t, newRepo) })
+	t.Run("GetByBarcode returns the release with that barcode", func(t *testing.T) { testGetByBarcode(t, newRepo) })
+	t.Run("GetByBarcode on an unknown barcode returns ErrNotFound", func(t *testing.T) { testGetByBarcodeNotFound(t, newRepo) })
+	t.Run("ListByGroup returns only releases in that Group", func(t *testing.T) { testListByGroup(t, newRepo) })
+	t.Run("ListByEntry returns only releases under that LibraryEntry", func(t *testing.T) { testListByEntry(t, newRepo) })
 }
 
 func mustCreate(t *testing.T, r ports.MusicReleaseRepository, rel *music.Release) {
@@ -164,5 +169,107 @@ func sampleRelease(id string) *music.Release {
 		LibraryEntryID: "entry1",
 		Title:          "Test Release",
 		Status:         music.ReleaseStatusStub,
+	}
+}
+
+// sampleReleaseWithFields builds a release with explicit GroupID,
+// LibraryEntryID, MBID, and Barcode — used by the point-lookup and
+// filtered-List tests, which need distinct values across fixtures.
+func sampleReleaseWithFields(id, groupID, libraryEntryID, mbid, barcode string) *music.Release {
+	rel := sampleRelease(id)
+	rel.GroupID = groupID
+	rel.LibraryEntryID = libraryEntryID
+	rel.MBID = mbid
+	rel.Barcode = barcode
+	return rel
+}
+
+func testGetByMBID(t *testing.T, newRepo NewRepositoryFunc) {
+	r := newRepo(t)
+	mustCreate(t, r, sampleReleaseWithFields("r1", "group1", "entry1", "mbid-1", "barcode-1"))
+	mustCreate(t, r, sampleReleaseWithFields("r2", "group1", "entry1", "mbid-2", "barcode-2"))
+
+	got, err := r.GetByMBID(context.Background(), "mbid-2")
+	if err != nil {
+		t.Fatalf("GetByMBID returned error: %v", err)
+	}
+	if got.ID != "r2" {
+		t.Fatalf("GetByMBID returned release %q, want %q", got.ID, "r2")
+	}
+}
+
+func testGetByMBIDNotFound(t *testing.T, newRepo NewRepositoryFunc) {
+	r := newRepo(t)
+	mustCreate(t, r, sampleReleaseWithFields("r1", "group1", "entry1", "mbid-1", "barcode-1"))
+
+	_, err := r.GetByMBID(context.Background(), "missing-mbid")
+	if !errors.Is(err, ports.ErrNotFound) {
+		t.Fatalf("GetByMBID on unknown MBID returned %v, want ErrNotFound", err)
+	}
+}
+
+func testGetByBarcode(t *testing.T, newRepo NewRepositoryFunc) {
+	r := newRepo(t)
+	mustCreate(t, r, sampleReleaseWithFields("r1", "group1", "entry1", "mbid-1", "barcode-1"))
+	mustCreate(t, r, sampleReleaseWithFields("r2", "group1", "entry1", "mbid-2", "barcode-2"))
+
+	got, err := r.GetByBarcode(context.Background(), "barcode-2")
+	if err != nil {
+		t.Fatalf("GetByBarcode returned error: %v", err)
+	}
+	if got.ID != "r2" {
+		t.Fatalf("GetByBarcode returned release %q, want %q", got.ID, "r2")
+	}
+}
+
+func testGetByBarcodeNotFound(t *testing.T, newRepo NewRepositoryFunc) {
+	r := newRepo(t)
+	mustCreate(t, r, sampleReleaseWithFields("r1", "group1", "entry1", "mbid-1", "barcode-1"))
+
+	_, err := r.GetByBarcode(context.Background(), "missing-barcode")
+	if !errors.Is(err, ports.ErrNotFound) {
+		t.Fatalf("GetByBarcode on unknown barcode returned %v, want ErrNotFound", err)
+	}
+}
+
+func testListByGroup(t *testing.T, newRepo NewRepositoryFunc) {
+	r := newRepo(t)
+	ctx := context.Background()
+
+	mustCreate(t, r, sampleReleaseWithFields("r1", "groupA", "entry1", "mbid-a1", "barcode-a1"))
+	mustCreate(t, r, sampleReleaseWithFields("r2", "groupA", "entry1", "mbid-a2", "barcode-a2"))
+	mustCreate(t, r, sampleReleaseWithFields("r3", "groupB", "entry1", "mbid-b1", "barcode-b1"))
+
+	releases, _, err := r.ListByGroup(ctx, "groupA", 10, "")
+	if err != nil {
+		t.Fatalf("ListByGroup returned error: %v", err)
+	}
+	got := map[string]bool{}
+	for _, rel := range releases {
+		got[rel.ID] = true
+	}
+	if len(got) != 2 || !got["r1"] || !got["r2"] {
+		t.Fatalf("ListByGroup(groupA) returned %v, want exactly {r1, r2}", got)
+	}
+}
+
+func testListByEntry(t *testing.T, newRepo NewRepositoryFunc) {
+	r := newRepo(t)
+	ctx := context.Background()
+
+	mustCreate(t, r, sampleReleaseWithFields("r1", "group1", "entryA", "mbid-a1", "barcode-a1"))
+	mustCreate(t, r, sampleReleaseWithFields("r2", "group2", "entryA", "mbid-a2", "barcode-a2"))
+	mustCreate(t, r, sampleReleaseWithFields("r3", "group3", "entryB", "mbid-b1", "barcode-b1"))
+
+	releases, _, err := r.ListByEntry(ctx, "entryA", 10, "")
+	if err != nil {
+		t.Fatalf("ListByEntry returned error: %v", err)
+	}
+	got := map[string]bool{}
+	for _, rel := range releases {
+		got[rel.ID] = true
+	}
+	if len(got) != 2 || !got["r1"] || !got["r2"] {
+		t.Fatalf("ListByEntry(entryA) returned %v, want exactly {r1, r2}", got)
 	}
 }

@@ -16,12 +16,14 @@ import (
 )
 
 type fakeMusicReleaseService struct {
-	byID      map[string]*music.Release
-	createErr error
-	getErr    error
-	updateErr error
-	deleteErr error
-	listErr   error
+	byID          map[string]*music.Release
+	createErr     error
+	getErr        error
+	getByMBIDErr  error
+	getByBcodeErr error
+	updateErr     error
+	deleteErr     error
+	listErr       error
 }
 
 func newFakeMusicReleaseService() *fakeMusicReleaseService {
@@ -48,6 +50,30 @@ func (f *fakeMusicReleaseService) Get(_ context.Context, id string) (*music.Rele
 	return r, nil
 }
 
+func (f *fakeMusicReleaseService) GetByMBID(_ context.Context, mbid string) (*music.Release, error) {
+	if f.getByMBIDErr != nil {
+		return nil, f.getByMBIDErr
+	}
+	for _, r := range f.byID {
+		if r.MBID == mbid {
+			return r, nil
+		}
+	}
+	return nil, ports.ErrNotFound
+}
+
+func (f *fakeMusicReleaseService) GetByBarcode(_ context.Context, barcode string) (*music.Release, error) {
+	if f.getByBcodeErr != nil {
+		return nil, f.getByBcodeErr
+	}
+	for _, r := range f.byID {
+		if r.Barcode == barcode {
+			return r, nil
+		}
+	}
+	return nil, ports.ErrNotFound
+}
+
 func (f *fakeMusicReleaseService) Update(_ context.Context, r *music.Release) (*music.Release, error) {
 	if f.updateErr != nil {
 		return nil, f.updateErr
@@ -71,6 +97,32 @@ func (f *fakeMusicReleaseService) List(_ context.Context, _ int, _ string) ([]*m
 	releases := make([]*music.Release, 0, len(f.byID))
 	for _, r := range f.byID {
 		releases = append(releases, r)
+	}
+	return releases, "", nil
+}
+
+func (f *fakeMusicReleaseService) ListByGroup(_ context.Context, groupID string, _ int, _ string) ([]*music.Release, string, error) {
+	if f.listErr != nil {
+		return nil, "", f.listErr
+	}
+	var releases []*music.Release
+	for _, r := range f.byID {
+		if r.GroupID == groupID {
+			releases = append(releases, r)
+		}
+	}
+	return releases, "", nil
+}
+
+func (f *fakeMusicReleaseService) ListByEntry(_ context.Context, libraryEntryID string, _ int, _ string) ([]*music.Release, string, error) {
+	if f.listErr != nil {
+		return nil, "", f.listErr
+	}
+	var releases []*music.Release
+	for _, r := range f.byID {
+		if r.LibraryEntryID == libraryEntryID {
+			releases = append(releases, r)
+		}
 	}
 	return releases, "", nil
 }
@@ -130,6 +182,44 @@ func TestMusicReleaseHandler_GetMusicRelease(t *testing.T) {
 	_, err = h.GetMusicRelease(context.Background(), connect.NewRequest(&musicv1.GetMusicReleaseRequest{Id: "missing"}))
 	if connect.CodeOf(err) != connect.CodeNotFound {
 		t.Fatalf("GetMusicRelease on missing ID returned code %v, want %v", connect.CodeOf(err), connect.CodeNotFound)
+	}
+}
+
+func TestMusicReleaseHandler_GetMusicReleaseByMBID(t *testing.T) {
+	svc := newFakeMusicReleaseService()
+	h := apiconnect.NewMusicReleaseHandler(svc, nil)
+	svc.byID["r1"] = &music.Release{ID: "r1", GroupID: "group1", LibraryEntryID: "entry1", Title: "Existing", Status: music.ReleaseStatusStub, MBID: "mbid-1"}
+
+	res, err := h.GetMusicReleaseByMBID(context.Background(), connect.NewRequest(&musicv1.GetMusicReleaseByMBIDRequest{Mbid: "mbid-1"}))
+	if err != nil {
+		t.Fatalf("GetMusicReleaseByMBID returned error: %v", err)
+	}
+	if res.Msg.GetMusicRelease().GetId() != "r1" {
+		t.Fatalf("GetMusicReleaseByMBID returned Id %q, want %q", res.Msg.GetMusicRelease().GetId(), "r1")
+	}
+
+	_, err = h.GetMusicReleaseByMBID(context.Background(), connect.NewRequest(&musicv1.GetMusicReleaseByMBIDRequest{Mbid: "missing"}))
+	if connect.CodeOf(err) != connect.CodeNotFound {
+		t.Fatalf("GetMusicReleaseByMBID on unknown MBID returned code %v, want %v", connect.CodeOf(err), connect.CodeNotFound)
+	}
+}
+
+func TestMusicReleaseHandler_GetMusicReleaseByBarcode(t *testing.T) {
+	svc := newFakeMusicReleaseService()
+	h := apiconnect.NewMusicReleaseHandler(svc, nil)
+	svc.byID["r1"] = &music.Release{ID: "r1", GroupID: "group1", LibraryEntryID: "entry1", Title: "Existing", Status: music.ReleaseStatusStub, Barcode: "barcode-1"}
+
+	res, err := h.GetMusicReleaseByBarcode(context.Background(), connect.NewRequest(&musicv1.GetMusicReleaseByBarcodeRequest{Barcode: "barcode-1"}))
+	if err != nil {
+		t.Fatalf("GetMusicReleaseByBarcode returned error: %v", err)
+	}
+	if res.Msg.GetMusicRelease().GetId() != "r1" {
+		t.Fatalf("GetMusicReleaseByBarcode returned Id %q, want %q", res.Msg.GetMusicRelease().GetId(), "r1")
+	}
+
+	_, err = h.GetMusicReleaseByBarcode(context.Background(), connect.NewRequest(&musicv1.GetMusicReleaseByBarcodeRequest{Barcode: "missing"}))
+	if connect.CodeOf(err) != connect.CodeNotFound {
+		t.Fatalf("GetMusicReleaseByBarcode on unknown barcode returned code %v, want %v", connect.CodeOf(err), connect.CodeNotFound)
 	}
 }
 
@@ -213,6 +303,36 @@ func TestMusicReleaseHandler_ListMusicReleases(t *testing.T) {
 		_, err := h.ListMusicReleases(context.Background(), connect.NewRequest(&musicv1.ListMusicReleasesRequest{PageSize: 10}))
 		if connect.CodeOf(err) != connect.CodeInternal {
 			t.Fatalf("ListMusicReleases with a service error returned code %v, want %v", connect.CodeOf(err), connect.CodeInternal)
+		}
+	})
+
+	t.Run("group_id filter dispatches to ListByGroup", func(t *testing.T) {
+		svc := newFakeMusicReleaseService()
+		h := apiconnect.NewMusicReleaseHandler(svc, nil)
+		svc.byID["r1"] = &music.Release{ID: "r1", GroupID: "groupA"}
+		svc.byID["r2"] = &music.Release{ID: "r2", GroupID: "groupB"}
+
+		res, err := h.ListMusicReleases(context.Background(), connect.NewRequest(&musicv1.ListMusicReleasesRequest{PageSize: 10, GroupId: "groupA"}))
+		if err != nil {
+			t.Fatalf("ListMusicReleases returned error: %v", err)
+		}
+		if len(res.Msg.GetMusicReleases()) != 1 || res.Msg.GetMusicReleases()[0].GetId() != "r1" {
+			t.Fatalf("ListMusicReleases(group_id=groupA) returned %v, want exactly [r1]", res.Msg.GetMusicReleases())
+		}
+	})
+
+	t.Run("library_entry_id filter dispatches to ListByEntry", func(t *testing.T) {
+		svc := newFakeMusicReleaseService()
+		h := apiconnect.NewMusicReleaseHandler(svc, nil)
+		svc.byID["r1"] = &music.Release{ID: "r1", LibraryEntryID: "entryA"}
+		svc.byID["r2"] = &music.Release{ID: "r2", LibraryEntryID: "entryB"}
+
+		res, err := h.ListMusicReleases(context.Background(), connect.NewRequest(&musicv1.ListMusicReleasesRequest{PageSize: 10, LibraryEntryId: "entryA"}))
+		if err != nil {
+			t.Fatalf("ListMusicReleases returned error: %v", err)
+		}
+		if len(res.Msg.GetMusicReleases()) != 1 || res.Msg.GetMusicReleases()[0].GetId() != "r1" {
+			t.Fatalf("ListMusicReleases(library_entry_id=entryA) returned %v, want exactly [r1]", res.Msg.GetMusicReleases())
 		}
 	})
 }

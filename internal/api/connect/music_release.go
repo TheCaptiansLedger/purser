@@ -16,9 +16,13 @@ import (
 type musicReleaseService interface {
 	Create(ctx context.Context, r *music.Release) (*music.Release, error)
 	Get(ctx context.Context, id string) (*music.Release, error)
+	GetByMBID(ctx context.Context, mbid string) (*music.Release, error)
+	GetByBarcode(ctx context.Context, barcode string) (*music.Release, error)
 	Update(ctx context.Context, r *music.Release) (*music.Release, error)
 	Delete(ctx context.Context, id string) error
 	List(ctx context.Context, pageSize int, pageToken string) ([]*music.Release, string, error)
+	ListByGroup(ctx context.Context, groupID string, pageSize int, pageToken string) ([]*music.Release, string, error)
+	ListByEntry(ctx context.Context, libraryEntryID string, pageSize int, pageToken string) ([]*music.Release, string, error)
 }
 
 // MusicReleaseHandler implements
@@ -58,6 +62,26 @@ func (h *MusicReleaseHandler) GetMusicRelease(ctx context.Context, req *connect.
 	return connect.NewResponse(&musicv1.GetMusicReleaseResponse{MusicRelease: musicReleaseToProto(r)}), nil
 }
 
+// GetMusicReleaseByMBID implements
+// musicv1connect.MusicReleaseServiceHandler as an indexed point lookup.
+func (h *MusicReleaseHandler) GetMusicReleaseByMBID(ctx context.Context, req *connect.Request[musicv1.GetMusicReleaseByMBIDRequest]) (*connect.Response[musicv1.GetMusicReleaseByMBIDResponse], error) {
+	r, err := h.svc.GetByMBID(ctx, req.Msg.GetMbid())
+	if err != nil {
+		return nil, mapError(ctx, h.logger, err)
+	}
+	return connect.NewResponse(&musicv1.GetMusicReleaseByMBIDResponse{MusicRelease: musicReleaseToProto(r)}), nil
+}
+
+// GetMusicReleaseByBarcode implements
+// musicv1connect.MusicReleaseServiceHandler as an indexed point lookup.
+func (h *MusicReleaseHandler) GetMusicReleaseByBarcode(ctx context.Context, req *connect.Request[musicv1.GetMusicReleaseByBarcodeRequest]) (*connect.Response[musicv1.GetMusicReleaseByBarcodeResponse], error) {
+	r, err := h.svc.GetByBarcode(ctx, req.Msg.GetBarcode())
+	if err != nil {
+		return nil, mapError(ctx, h.logger, err)
+	}
+	return connect.NewResponse(&musicv1.GetMusicReleaseByBarcodeResponse{MusicRelease: musicReleaseToProto(r)}), nil
+}
+
 // UpdateMusicRelease implements musicv1connect.MusicReleaseServiceHandler.
 func (h *MusicReleaseHandler) UpdateMusicRelease(ctx context.Context, req *connect.Request[musicv1.UpdateMusicReleaseRequest]) (*connect.Response[musicv1.UpdateMusicReleaseResponse], error) {
 	existing, err := h.svc.Get(ctx, req.Msg.GetMusicRelease().GetId())
@@ -85,8 +109,23 @@ func (h *MusicReleaseHandler) DeleteMusicRelease(ctx context.Context, req *conne
 }
 
 // ListMusicReleases implements musicv1connect.MusicReleaseServiceHandler.
+// group_id and library_entry_id are independent, optional filters; if both
+// are set, group_id takes precedence — see ListMusicReleasesRequest's doc
+// comment.
 func (h *MusicReleaseHandler) ListMusicReleases(ctx context.Context, req *connect.Request[musicv1.ListMusicReleasesRequest]) (*connect.Response[musicv1.ListMusicReleasesResponse], error) {
-	releases, next, err := h.svc.List(ctx, int(req.Msg.GetPageSize()), req.Msg.GetPageToken())
+	pageSize, pageToken := int(req.Msg.GetPageSize()), req.Msg.GetPageToken()
+
+	var releases []*music.Release
+	var next string
+	var err error
+	switch {
+	case req.Msg.GetGroupId() != "":
+		releases, next, err = h.svc.ListByGroup(ctx, req.Msg.GetGroupId(), pageSize, pageToken)
+	case req.Msg.GetLibraryEntryId() != "":
+		releases, next, err = h.svc.ListByEntry(ctx, req.Msg.GetLibraryEntryId(), pageSize, pageToken)
+	default:
+		releases, next, err = h.svc.List(ctx, pageSize, pageToken)
+	}
 	if err != nil {
 		return nil, mapError(ctx, h.logger, err)
 	}

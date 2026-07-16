@@ -40,6 +40,26 @@ func (f *fakeMusicReleaseRepository) Get(_ context.Context, id string) (*musicdo
 	return &stored, nil
 }
 
+func (f *fakeMusicReleaseRepository) GetByMBID(_ context.Context, mbid string) (*musicdomain.Release, error) {
+	for _, r := range f.byID {
+		if r.MBID == mbid {
+			stored := *r
+			return &stored, nil
+		}
+	}
+	return nil, ports.ErrNotFound
+}
+
+func (f *fakeMusicReleaseRepository) GetByBarcode(_ context.Context, barcode string) (*musicdomain.Release, error) {
+	for _, r := range f.byID {
+		if r.Barcode == barcode {
+			stored := *r
+			return &stored, nil
+		}
+	}
+	return nil, ports.ErrNotFound
+}
+
 func (f *fakeMusicReleaseRepository) Update(_ context.Context, r *musicdomain.Release) error {
 	if _, exists := f.byID[r.ID]; !exists {
 		return ports.ErrNotFound
@@ -62,6 +82,34 @@ func (f *fakeMusicReleaseRepository) List(_ context.Context, pageSize int, _ str
 	for _, r := range f.byID {
 		stored := *r
 		releases = append(releases, &stored)
+	}
+	if pageSize > 0 && len(releases) > pageSize {
+		releases = releases[:pageSize]
+	}
+	return releases, "", nil
+}
+
+func (f *fakeMusicReleaseRepository) ListByGroup(_ context.Context, groupID string, pageSize int, _ string) ([]*musicdomain.Release, string, error) {
+	var releases []*musicdomain.Release
+	for _, r := range f.byID {
+		if r.GroupID == groupID {
+			stored := *r
+			releases = append(releases, &stored)
+		}
+	}
+	if pageSize > 0 && len(releases) > pageSize {
+		releases = releases[:pageSize]
+	}
+	return releases, "", nil
+}
+
+func (f *fakeMusicReleaseRepository) ListByEntry(_ context.Context, libraryEntryID string, pageSize int, _ string) ([]*musicdomain.Release, string, error) {
+	var releases []*musicdomain.Release
+	for _, r := range f.byID {
+		if r.LibraryEntryID == libraryEntryID {
+			stored := *r
+			releases = append(releases, &stored)
+		}
 	}
 	if pageSize > 0 && len(releases) > pageSize {
 		releases = releases[:pageSize]
@@ -130,6 +178,52 @@ func TestMusicReleaseService_Get(t *testing.T) {
 	}
 	if _, err := svc.Get(context.Background(), "missing"); !errors.Is(err, ports.ErrNotFound) {
 		t.Fatalf("Get on missing release returned %v, want ErrNotFound", err)
+	}
+}
+
+func TestMusicReleaseService_GetByMBID(t *testing.T) {
+	repo := newFakeMusicReleaseRepository()
+	svc := service.NewMusicReleaseService(repo)
+
+	rel := validRelease("r1")
+	rel.MBID = "mbid-1"
+	created, err := svc.Create(context.Background(), rel)
+	if err != nil {
+		t.Fatalf("Create returned error: %v", err)
+	}
+
+	got, err := svc.GetByMBID(context.Background(), "mbid-1")
+	if err != nil {
+		t.Fatalf("GetByMBID returned error: %v", err)
+	}
+	if got.ID != created.ID {
+		t.Fatalf("GetByMBID returned ID %q, want %q", got.ID, created.ID)
+	}
+	if _, err := svc.GetByMBID(context.Background(), "missing"); !errors.Is(err, ports.ErrNotFound) {
+		t.Fatalf("GetByMBID on unknown MBID returned %v, want ErrNotFound", err)
+	}
+}
+
+func TestMusicReleaseService_GetByBarcode(t *testing.T) {
+	repo := newFakeMusicReleaseRepository()
+	svc := service.NewMusicReleaseService(repo)
+
+	rel := validRelease("r1")
+	rel.Barcode = "barcode-1"
+	created, err := svc.Create(context.Background(), rel)
+	if err != nil {
+		t.Fatalf("Create returned error: %v", err)
+	}
+
+	got, err := svc.GetByBarcode(context.Background(), "barcode-1")
+	if err != nil {
+		t.Fatalf("GetByBarcode returned error: %v", err)
+	}
+	if got.ID != created.ID {
+		t.Fatalf("GetByBarcode returned ID %q, want %q", got.ID, created.ID)
+	}
+	if _, err := svc.GetByBarcode(context.Background(), "missing"); !errors.Is(err, ports.ErrNotFound) {
+		t.Fatalf("GetByBarcode on unknown barcode returned %v, want ErrNotFound", err)
 	}
 }
 
@@ -216,5 +310,53 @@ func TestMusicReleaseService_List(t *testing.T) {
 	}
 	if len(releases) != 2 {
 		t.Fatalf("List returned %d releases, want 2", len(releases))
+	}
+}
+
+func TestMusicReleaseService_ListByGroup(t *testing.T) {
+	repo := newFakeMusicReleaseRepository()
+	svc := service.NewMusicReleaseService(repo)
+
+	relA := validRelease("r1")
+	relA.GroupID = "groupA"
+	relB := validRelease("r2")
+	relB.GroupID = "groupB"
+	if _, err := svc.Create(context.Background(), relA); err != nil {
+		t.Fatalf("Create(r1) returned error: %v", err)
+	}
+	if _, err := svc.Create(context.Background(), relB); err != nil {
+		t.Fatalf("Create(r2) returned error: %v", err)
+	}
+
+	releases, _, err := svc.ListByGroup(context.Background(), "groupA", 10, "")
+	if err != nil {
+		t.Fatalf("ListByGroup returned error: %v", err)
+	}
+	if len(releases) != 1 || releases[0].GroupID != "groupA" {
+		t.Fatalf("ListByGroup(groupA) returned %v, want exactly one release in groupA", releases)
+	}
+}
+
+func TestMusicReleaseService_ListByEntry(t *testing.T) {
+	repo := newFakeMusicReleaseRepository()
+	svc := service.NewMusicReleaseService(repo)
+
+	relA := validRelease("r1")
+	relA.LibraryEntryID = "entryA"
+	relB := validRelease("r2")
+	relB.LibraryEntryID = "entryB"
+	if _, err := svc.Create(context.Background(), relA); err != nil {
+		t.Fatalf("Create(r1) returned error: %v", err)
+	}
+	if _, err := svc.Create(context.Background(), relB); err != nil {
+		t.Fatalf("Create(r2) returned error: %v", err)
+	}
+
+	releases, _, err := svc.ListByEntry(context.Background(), "entryA", 10, "")
+	if err != nil {
+		t.Fatalf("ListByEntry returned error: %v", err)
+	}
+	if len(releases) != 1 || releases[0].LibraryEntryID != "entryA" {
+		t.Fatalf("ListByEntry(entryA) returned %v, want exactly one release in entryA", releases)
 	}
 }

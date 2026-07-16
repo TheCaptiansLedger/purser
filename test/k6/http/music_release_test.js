@@ -39,33 +39,90 @@ export default () => {
   check(res, { 'CreateGroup status is 200': (r) => r.status === 200 });
   const groupId = res.json('group.id');
 
-  // ids are server-generated (docs/adr/0020-server-generated-kernel-entity-ids.md)
-  // — never sent on Create, always read back from the response. A
-  // caller-supplied id is explicitly sent here and must be discarded.
-  res = invoke(
-    `${MUSIC_RELEASE_SERVICE}/CreateMusicRelease`,
-    JSON.stringify({
-      musicRelease: {
-        id: 'should-be-ignored',
-        groupId: groupId,
-        libraryEntryId: libraryEntryId,
-        title: 'K6 HTTP Release',
-        status: 'RELEASE_STATUS_STUB',
-      },
-    }),
-    HEADERS
-  );
-  check(res, {
-    'CreateMusicRelease status is 200': (r) => r.status === 200,
-    'CreateMusicRelease returns an id': (r) => !!r.json('musicRelease.id'),
-    'CreateMusicRelease discards the caller-supplied id': (r) => r.json('musicRelease.id') !== 'should-be-ignored',
-  });
-  const id = res.json('musicRelease.id');
+  // Seed 3 releases with distinct MBIDs/barcodes under the one Group, to
+  // prove GetByMBID/GetByBarcode/ListByGroup/ListByEntry each return the
+  // correct release(s), not just "a" release.
+  const seeded = [];
+  for (let i = 0; i < 3; i++) {
+    // ids are server-generated (docs/adr/0020-server-generated-kernel-entity-ids.md)
+    // — never sent on Create, always read back from the response. A
+    // caller-supplied id is explicitly sent here (on the first iteration)
+    // and must be discarded.
+    res = invoke(
+      `${MUSIC_RELEASE_SERVICE}/CreateMusicRelease`,
+      JSON.stringify({
+        musicRelease: {
+          id: i === 0 ? 'should-be-ignored' : '',
+          groupId: groupId,
+          libraryEntryId: libraryEntryId,
+          title: `K6 HTTP Release ${i}`,
+          status: 'RELEASE_STATUS_STUB',
+          mbid: `k6-http-mbid-${i}-${__VU}-${__ITER}`,
+          barcode: `k6-http-barcode-${i}-${__VU}-${__ITER}`,
+        },
+      }),
+      HEADERS
+    );
+    check(res, {
+      [`CreateMusicRelease[${i}] status is 200`]: (r) => r.status === 200,
+      [`CreateMusicRelease[${i}] returns an id`]: (r) => !!r.json('musicRelease.id'),
+    });
+    if (i === 0) {
+      check(res, { 'CreateMusicRelease discards the caller-supplied id': (r) => r.json('musicRelease.id') !== 'should-be-ignored' });
+    }
+    seeded.push(res.json('musicRelease'));
+  }
+  const id = seeded[0].id;
 
   res = invoke(`${MUSIC_RELEASE_SERVICE}/GetMusicRelease`, JSON.stringify({ id: id }), HEADERS);
   check(res, {
     'GetMusicRelease status is 200': (r) => r.status === 200,
-    'GetMusicRelease returns the created title': (r) => r.json('musicRelease.title') === 'K6 HTTP Release',
+    'GetMusicRelease returns the created title': (r) => r.json('musicRelease.title') === 'K6 HTTP Release 0',
+  });
+
+  // GetMusicReleaseByMBID/GetMusicReleaseByBarcode: for each of the 3
+  // seeded releases, prove the lookup returns the correct release, not
+  // just any release under the shared Group.
+  for (const rel of seeded) {
+    res = invoke(`${MUSIC_RELEASE_SERVICE}/GetMusicReleaseByMBID`, JSON.stringify({ mbid: rel.mbid }), HEADERS);
+    check(res, {
+      [`GetMusicReleaseByMBID(${rel.mbid}) status is 200`]: (r) => r.status === 200,
+      [`GetMusicReleaseByMBID(${rel.mbid}) returns the matching release`]: (r) => r.json('musicRelease.id') === rel.id,
+    });
+
+    res = invoke(`${MUSIC_RELEASE_SERVICE}/GetMusicReleaseByBarcode`, JSON.stringify({ barcode: rel.barcode }), HEADERS);
+    check(res, {
+      [`GetMusicReleaseByBarcode(${rel.barcode}) status is 200`]: (r) => r.status === 200,
+      [`GetMusicReleaseByBarcode(${rel.barcode}) returns the matching release`]: (r) => r.json('musicRelease.id') === rel.id,
+    });
+  }
+
+  res = invoke(`${MUSIC_RELEASE_SERVICE}/GetMusicReleaseByMBID`, JSON.stringify({ mbid: 'no-such-mbid' }), HEADERS);
+  check(res, { 'GetMusicReleaseByMBID on unknown MBID is 404 (NotFound)': (r) => r.status === 404 });
+
+  res = invoke(`${MUSIC_RELEASE_SERVICE}/GetMusicReleaseByBarcode`, JSON.stringify({ barcode: 'no-such-barcode' }), HEADERS);
+  check(res, { 'GetMusicReleaseByBarcode on unknown barcode is 404 (NotFound)': (r) => r.status === 404 });
+
+  // ListMusicReleases filtered by group_id: exactly the 3 seeded releases,
+  // no others.
+  res = invoke(`${MUSIC_RELEASE_SERVICE}/ListMusicReleases`, JSON.stringify({ pageSize: 10, groupId: groupId }), HEADERS);
+  check(res, {
+    'ListMusicReleases(group_id) status is 200': (r) => r.status === 200,
+    'ListMusicReleases(group_id) returns exactly the 3 seeded releases': (r) => {
+      const ids = (r.json('musicReleases') || []).map((rel) => rel.id).sort();
+      return ids.length === 3 && ids.join(',') === seeded.map((rel) => rel.id).sort().join(',');
+    },
+  });
+
+  // ListMusicReleases filtered by library_entry_id: same 3 releases, since
+  // they all share the one seeded LibraryEntry.
+  res = invoke(`${MUSIC_RELEASE_SERVICE}/ListMusicReleases`, JSON.stringify({ pageSize: 10, libraryEntryId: libraryEntryId }), HEADERS);
+  check(res, {
+    'ListMusicReleases(library_entry_id) status is 200': (r) => r.status === 200,
+    'ListMusicReleases(library_entry_id) returns exactly the 3 seeded releases': (r) => {
+      const ids = (r.json('musicReleases') || []).map((rel) => rel.id).sort();
+      return ids.length === 3 && ids.join(',') === seeded.map((rel) => rel.id).sort().join(',');
+    },
   });
 
   res = invoke(
@@ -84,8 +141,10 @@ export default () => {
     'ListMusicReleases includes the updated release': (r) => (r.json('musicReleases') || []).some((rel) => rel.id === id),
   });
 
-  res = invoke(`${MUSIC_RELEASE_SERVICE}/DeleteMusicRelease`, JSON.stringify({ id: id }), HEADERS);
-  check(res, { 'DeleteMusicRelease status is 200': (r) => r.status === 200 });
+  for (const rel of seeded) {
+    res = invoke(`${MUSIC_RELEASE_SERVICE}/DeleteMusicRelease`, JSON.stringify({ id: rel.id }), HEADERS);
+    check(res, { [`DeleteMusicRelease(${rel.id}) status is 200`]: (r) => r.status === 200 });
+  }
 
   res = invoke(`${MUSIC_RELEASE_SERVICE}/GetMusicRelease`, JSON.stringify({ id: id }), HEADERS);
   check(res, { 'GetMusicRelease after Delete is 404 (NotFound)': (r) => r.status === 404 });
