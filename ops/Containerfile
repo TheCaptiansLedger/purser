@@ -11,7 +11,7 @@
 # `make compose build` — it runs `goreleaser build --single-target
 # --snapshot` first and stages the binary at the repo root before calling
 # `docker build`, so this Dockerfile never needs a separate "dev" variant.
-FROM debian:12-slim
+FROM debian:13-slim
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
       ca-certificates \
