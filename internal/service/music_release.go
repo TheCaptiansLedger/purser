@@ -85,3 +85,10 @@ func (s *MusicReleaseService) ListByGroup(ctx context.Context, groupID string, p
 func (s *MusicReleaseService) ListByEntry(ctx context.Context, libraryEntryID string, pageSize int, pageToken string) ([]*music.Release, string, error) {
 	return s.repo.ListByEntry(ctx, libraryEntryID, pageSize, pageToken)
 }
+
+// ListTracksByRelease returns a page of Item(ContentType=music) tracks
+// whose Metadata["release_id"] is releaseID, or ports.ErrNotFound if
+// releaseID doesn't exist.
+func (s *MusicReleaseService) ListTracksByRelease(ctx context.Context, releaseID string, pageSize int, pageToken string) ([]*domain.Item, string, error) {
+	return s.repo.ListTracksByRelease(ctx, releaseID, pageSize, pageToken)
+}

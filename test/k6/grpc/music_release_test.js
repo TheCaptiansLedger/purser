@@ -14,7 +14,8 @@ client.load(
   ['../../../proto'],
   'purser/music/v1/release.proto',
   'purser/domain/v1/library_entry.proto',
-  'purser/domain/v1/group.proto'
+  'purser/domain/v1/group.proto',
+  'purser/domain/v1/item.proto'
 );
 
 function invoke(method, request) {
@@ -123,6 +124,64 @@ export default () => {
       const ids = (r.message.musicReleases || []).map((rel) => rel.id).sort();
       return ids.length === 3 && ids.join(',') === seeded.map((rel) => rel.id).sort().join(',');
     },
+  });
+
+  // ListMusicReleaseTracks: prove Track ↔ Release linkage and isolation.
+  // Tracks are created via the existing, unmodified
+  // purser.domain.v1.ItemService/CreateItem — contentType "music", GroupId
+  // set to the shared Release Group, Metadata.release_id set to the
+  // specific release a track belongs to. See
+  // docs/adr/0021-music-domain-model.md's "Track ↔ Release linkage"
+  // section.
+  const releaseA = seeded[0];
+  const releaseB = seeded[1];
+
+  res = invoke('purser.domain.v1.ItemService/CreateItem', {
+    item: {
+      contentType: 'music',
+      libraryEntryId: libraryEntryId,
+      groupId: groupId,
+      title: 'K6 gRPC Track A',
+      status: 'ITEM_STATUS_IMPORTED',
+      metadata: { release_id: releaseA.id },
+    },
+  });
+  check(res, {
+    'CreateItem(trackA) status is OK': (r) => r && r.status === grpc.StatusOK,
+    'CreateItem(trackA) returns an id': (r) => r && r.message && r.message.item && !!r.message.item.id,
+  });
+  const trackA = res.message.item;
+
+  res = invoke('purser.music.v1.MusicReleaseService/ListMusicReleaseTracks', { releaseId: releaseA.id, pageSize: 10 });
+  check(res, {
+    'ListMusicReleaseTracks(releaseA) status is OK': (r) => r && r.status === grpc.StatusOK,
+    'ListMusicReleaseTracks(releaseA) includes trackA': (r) => r && r.message && (r.message.tracks || []).some((i) => i.id === trackA.id),
+  });
+
+  // A second Track under releaseB — same Release Group as trackA, a
+  // different release — proves isolation is by release_id, not just by
+  // group_id.
+  res = invoke('purser.domain.v1.ItemService/CreateItem', {
+    item: {
+      contentType: 'music',
+      libraryEntryId: libraryEntryId,
+      groupId: groupId,
+      title: 'K6 gRPC Track B',
+      status: 'ITEM_STATUS_IMPORTED',
+      metadata: { release_id: releaseB.id },
+    },
+  });
+  check(res, {
+    'CreateItem(trackB) status is OK': (r) => r && r.status === grpc.StatusOK,
+    'CreateItem(trackB) returns an id': (r) => r && r.message && r.message.item && !!r.message.item.id,
+  });
+  const trackB = res.message.item;
+
+  res = invoke('purser.music.v1.MusicReleaseService/ListMusicReleaseTracks', { releaseId: releaseA.id, pageSize: 10 });
+  check(res, {
+    'ListMusicReleaseTracks(releaseA) after trackB status is OK': (r) => r && r.status === grpc.StatusOK,
+    'ListMusicReleaseTracks(releaseA) still includes trackA': (r) => r && r.message && (r.message.tracks || []).some((i) => i.id === trackA.id),
+    'ListMusicReleaseTracks(releaseA) excludes trackB': (r) => r && r.message && !(r.message.tracks || []).some((i) => i.id === trackB.id),
   });
 
   res = invoke('purser.music.v1.MusicReleaseService/UpdateMusicRelease', {

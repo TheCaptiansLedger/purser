@@ -11,12 +11,16 @@ import (
 )
 
 type fakeMusicReleaseRepository struct {
-	byID          map[string]*musicdomain.Release
-	forceConflict bool
+	byID            map[string]*musicdomain.Release
+	forceConflict   bool
+	tracksByRelease map[string][]*domain.Item
 }
 
 func newFakeMusicReleaseRepository() *fakeMusicReleaseRepository {
-	return &fakeMusicReleaseRepository{byID: make(map[string]*musicdomain.Release)}
+	return &fakeMusicReleaseRepository{
+		byID:            make(map[string]*musicdomain.Release),
+		tracksByRelease: make(map[string][]*domain.Item),
+	}
 }
 
 func (f *fakeMusicReleaseRepository) Create(_ context.Context, r *musicdomain.Release) error {
@@ -115,6 +119,21 @@ func (f *fakeMusicReleaseRepository) ListByEntry(_ context.Context, libraryEntry
 		releases = releases[:pageSize]
 	}
 	return releases, "", nil
+}
+
+// ListTracksByRelease implements ports.MusicReleaseRepository. Mirrors the
+// real repository's ErrNotFound-on-unknown-release behavior; tracksByRelease
+// is seeded directly by tests, since this fake has no backing Item store of
+// its own.
+func (f *fakeMusicReleaseRepository) ListTracksByRelease(_ context.Context, releaseID string, pageSize int, _ string) ([]*domain.Item, string, error) {
+	if _, ok := f.byID[releaseID]; !ok {
+		return nil, "", ports.ErrNotFound
+	}
+	tracks := f.tracksByRelease[releaseID]
+	if pageSize > 0 && len(tracks) > pageSize {
+		tracks = tracks[:pageSize]
+	}
+	return tracks, "", nil
 }
 
 func validRelease(id string) *musicdomain.Release {
@@ -358,5 +377,29 @@ func TestMusicReleaseService_ListByEntry(t *testing.T) {
 	}
 	if len(releases) != 1 || releases[0].LibraryEntryID != "entryA" {
 		t.Fatalf("ListByEntry(entryA) returned %v, want exactly one release in entryA", releases)
+	}
+}
+
+func TestMusicReleaseService_ListTracksByRelease(t *testing.T) {
+	repo := newFakeMusicReleaseRepository()
+	svc := service.NewMusicReleaseService(repo)
+
+	created, err := svc.Create(context.Background(), validRelease("r1"))
+	if err != nil {
+		t.Fatalf("Create returned error: %v", err)
+	}
+	track := &domain.Item{ID: "item1", ContentType: domain.ContentTypeMusic, LibraryEntryID: "entry1", GroupID: "group1", Title: "Track 1", Status: domain.ItemStatusImported}
+	repo.tracksByRelease[created.ID] = []*domain.Item{track}
+
+	tracks, _, err := svc.ListTracksByRelease(context.Background(), created.ID, 10, "")
+	if err != nil {
+		t.Fatalf("ListTracksByRelease returned error: %v", err)
+	}
+	if len(tracks) != 1 || tracks[0].ID != "item1" {
+		t.Fatalf("ListTracksByRelease returned %v, want exactly track item1", tracks)
+	}
+
+	if _, _, err := svc.ListTracksByRelease(context.Background(), "missing", 10, ""); !errors.Is(err, ports.ErrNotFound) {
+		t.Fatalf("ListTracksByRelease on missing release returned %v, want ErrNotFound", err)
 	}
 }

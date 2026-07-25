@@ -4,6 +4,7 @@ import (
 	"context"
 	"log/slog"
 	"purser/gen/go/purser/music/v1/musicv1connect"
+	"purser/internal/domain"
 	"purser/internal/domain/music"
 
 	"connectrpc.com/connect"
@@ -23,6 +24,7 @@ type musicReleaseService interface {
 	List(ctx context.Context, pageSize int, pageToken string) ([]*music.Release, string, error)
 	ListByGroup(ctx context.Context, groupID string, pageSize int, pageToken string) ([]*music.Release, string, error)
 	ListByEntry(ctx context.Context, libraryEntryID string, pageSize int, pageToken string) ([]*music.Release, string, error)
+	ListTracksByRelease(ctx context.Context, releaseID string, pageSize int, pageToken string) ([]*domain.Item, string, error)
 }
 
 // MusicReleaseHandler implements
@@ -134,4 +136,17 @@ func (h *MusicReleaseHandler) ListMusicReleases(ctx context.Context, req *connec
 		pbReleases = append(pbReleases, musicReleaseToProto(r))
 	}
 	return connect.NewResponse(&musicv1.ListMusicReleasesResponse{MusicReleases: pbReleases, NextPageToken: next}), nil
+}
+
+// ListMusicReleaseTracks implements
+// musicv1connect.MusicReleaseServiceHandler. Returns purser.domain.v1.Item
+// directly via the shared itemsToProto helper (also used by BrowseHandler's
+// scene-listing RPCs) — a track is an ordinary kernel Item, not a
+// Music-specific wire type.
+func (h *MusicReleaseHandler) ListMusicReleaseTracks(ctx context.Context, req *connect.Request[musicv1.ListMusicReleaseTracksRequest]) (*connect.Response[musicv1.ListMusicReleaseTracksResponse], error) {
+	tracks, next, err := h.svc.ListTracksByRelease(ctx, req.Msg.GetReleaseId(), int(req.Msg.GetPageSize()), req.Msg.GetPageToken())
+	if err != nil {
+		return nil, mapError(ctx, h.logger, err)
+	}
+	return connect.NewResponse(&musicv1.ListMusicReleaseTracksResponse{Tracks: itemsToProto(tracks), NextPageToken: next}), nil
 }

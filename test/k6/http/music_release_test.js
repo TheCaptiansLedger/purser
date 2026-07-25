@@ -10,6 +10,7 @@ export { options };
 const BASE_URL = __ENV.PURSER_HTTP_URL || 'http://localhost:7474';
 const LIBRARY_ENTRY_SERVICE = `${BASE_URL}/purser.domain.v1.LibraryEntryService`;
 const GROUP_SERVICE = `${BASE_URL}/purser.domain.v1.GroupService`;
+const ITEM_SERVICE = `${BASE_URL}/purser.domain.v1.ItemService`;
 const MUSIC_RELEASE_SERVICE = `${BASE_URL}/purser.music.v1.MusicReleaseService`;
 const HEADERS = { headers: { 'Content-Type': 'application/json' } };
 
@@ -123,6 +124,72 @@ export default () => {
       const ids = (r.json('musicReleases') || []).map((rel) => rel.id).sort();
       return ids.length === 3 && ids.join(',') === seeded.map((rel) => rel.id).sort().join(',');
     },
+  });
+
+  // ListMusicReleaseTracks: prove Track ↔ Release linkage and isolation.
+  // Tracks are created via the existing, unmodified
+  // purser.domain.v1.ItemService/CreateItem — contentType "music", GroupId
+  // set to the shared Release Group, Metadata.release_id set to the
+  // specific release a track belongs to. See
+  // docs/adr/0021-music-domain-model.md's "Track ↔ Release linkage"
+  // section.
+  const releaseA = seeded[0];
+  const releaseB = seeded[1];
+
+  res = invoke(
+    `${ITEM_SERVICE}/CreateItem`,
+    JSON.stringify({
+      item: {
+        contentType: 'music',
+        libraryEntryId: libraryEntryId,
+        groupId: groupId,
+        title: 'K6 HTTP Track A',
+        status: 'ITEM_STATUS_IMPORTED',
+        metadata: { release_id: releaseA.id },
+      },
+    }),
+    HEADERS
+  );
+  check(res, {
+    'CreateItem(trackA) status is 200': (r) => r.status === 200,
+    'CreateItem(trackA) returns an id': (r) => !!r.json('item.id'),
+  });
+  const trackA = res.json('item');
+
+  res = invoke(`${MUSIC_RELEASE_SERVICE}/ListMusicReleaseTracks`, JSON.stringify({ releaseId: releaseA.id, pageSize: 10 }), HEADERS);
+  check(res, {
+    'ListMusicReleaseTracks(releaseA) status is 200': (r) => r.status === 200,
+    'ListMusicReleaseTracks(releaseA) includes trackA': (r) => (r.json('tracks') || []).some((i) => i.id === trackA.id),
+  });
+
+  // A second Track under releaseB — same Release Group as trackA, a
+  // different release — proves isolation is by release_id, not just by
+  // group_id.
+  res = invoke(
+    `${ITEM_SERVICE}/CreateItem`,
+    JSON.stringify({
+      item: {
+        contentType: 'music',
+        libraryEntryId: libraryEntryId,
+        groupId: groupId,
+        title: 'K6 HTTP Track B',
+        status: 'ITEM_STATUS_IMPORTED',
+        metadata: { release_id: releaseB.id },
+      },
+    }),
+    HEADERS
+  );
+  check(res, {
+    'CreateItem(trackB) status is 200': (r) => r.status === 200,
+    'CreateItem(trackB) returns an id': (r) => !!r.json('item.id'),
+  });
+  const trackB = res.json('item');
+
+  res = invoke(`${MUSIC_RELEASE_SERVICE}/ListMusicReleaseTracks`, JSON.stringify({ releaseId: releaseA.id, pageSize: 10 }), HEADERS);
+  check(res, {
+    'ListMusicReleaseTracks(releaseA) after trackB status is 200': (r) => r.status === 200,
+    'ListMusicReleaseTracks(releaseA) still includes trackA': (r) => (r.json('tracks') || []).some((i) => i.id === trackA.id),
+    'ListMusicReleaseTracks(releaseA) excludes trackB': (r) => !(r.json('tracks') || []).some((i) => i.id === trackB.id),
   });
 
   res = invoke(

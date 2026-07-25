@@ -4,6 +4,7 @@ package purser.music.v1;
 
 import "google/protobuf/field_mask.proto";
 import "google/protobuf/timestamp.proto";
+import "purser/domain/v1/item.proto";
 
 option go_package = "purser/gen/go/purser/music/v1;musicv1";
 
@@ -113,12 +114,32 @@ message ListMusicReleasesResponse {
   string next_page_token = 2;
 }
 
+message ListMusicReleaseTracksRequest {
+  string release_id = 1;
+  int32 page_size = 2;
+  string page_token = 3;
+}
+
+// ListMusicReleaseTracksResponse returns purser.domain.v1.Item directly —
+// mirroring purser.afterdark.v1.BrowseService's ListScenesInNetwork — since
+// a track is an ordinary kernel Item(ContentType=music), not a
+// Music-specific wire type. See docs/adr/0021-music-domain-model.md's
+// "Track ↔ Release linkage" section.
+message ListMusicReleaseTracksResponse {
+  repeated purser.domain.v1.Item tracks = 1;
+  string next_page_token = 2;
+}
+
 // MusicReleaseService owns exactly one entity — Release — per
 // docs/adr/0011-api-design.md's SRP-per-entity rule. ListByGroup/ListByEntry
 // are exposed as optional filters on ListMusicReleases, the same pattern
 // GroupService's ListGroups(library_entry_id) and ImageService's
 // ListImages(owner_type, owner_id) already establish, rather than as
-// dedicated RPCs.
+// dedicated RPCs. ListMusicReleaseTracks is the one exception: it returns a
+// different entity (Item) than the rest of the service, so it can't be
+// folded into ListMusicReleases as another filter — the same reasoning
+// GetMusicReleaseByMBID/GetMusicReleaseByBarcode already establish for
+// point lookups.
 service MusicReleaseService {
   rpc CreateMusicRelease(CreateMusicReleaseRequest) returns (CreateMusicReleaseResponse);
   rpc GetMusicRelease(GetMusicReleaseRequest) returns (GetMusicReleaseResponse);
@@ -127,4 +148,5 @@ service MusicReleaseService {
   rpc UpdateMusicRelease(UpdateMusicReleaseRequest) returns (UpdateMusicReleaseResponse);
   rpc DeleteMusicRelease(DeleteMusicReleaseRequest) returns (DeleteMusicReleaseResponse);
   rpc ListMusicReleases(ListMusicReleasesRequest) returns (ListMusicReleasesResponse);
+  rpc ListMusicReleaseTracks(ListMusicReleaseTracksRequest) returns (ListMusicReleaseTracksResponse);
 }

@@ -16,18 +16,20 @@ import (
 )
 
 type fakeMusicReleaseService struct {
-	byID          map[string]*music.Release
-	createErr     error
-	getErr        error
-	getByMBIDErr  error
-	getByBcodeErr error
-	updateErr     error
-	deleteErr     error
-	listErr       error
+	byID            map[string]*music.Release
+	tracksByRelease map[string][]*domain.Item
+	createErr       error
+	getErr          error
+	getByMBIDErr    error
+	getByBcodeErr   error
+	updateErr       error
+	deleteErr       error
+	listErr         error
+	listTracksErr   error
 }
 
 func newFakeMusicReleaseService() *fakeMusicReleaseService {
-	return &fakeMusicReleaseService{byID: make(map[string]*music.Release)}
+	return &fakeMusicReleaseService{byID: make(map[string]*music.Release), tracksByRelease: make(map[string][]*domain.Item)}
 }
 
 func (f *fakeMusicReleaseService) Create(_ context.Context, r *music.Release) (*music.Release, error) {
@@ -125,6 +127,16 @@ func (f *fakeMusicReleaseService) ListByEntry(_ context.Context, libraryEntryID 
 		}
 	}
 	return releases, "", nil
+}
+
+func (f *fakeMusicReleaseService) ListTracksByRelease(_ context.Context, releaseID string, _ int, _ string) ([]*domain.Item, string, error) {
+	if f.listTracksErr != nil {
+		return nil, "", f.listTracksErr
+	}
+	if _, ok := f.byID[releaseID]; !ok {
+		return nil, "", ports.ErrNotFound
+	}
+	return f.tracksByRelease[releaseID], "", nil
 }
 
 func validProtoMusicRelease() *musicv1.Release {
@@ -333,6 +345,35 @@ func TestMusicReleaseHandler_ListMusicReleases(t *testing.T) {
 		}
 		if len(res.Msg.GetMusicReleases()) != 1 || res.Msg.GetMusicReleases()[0].GetId() != "r1" {
 			t.Fatalf("ListMusicReleases(library_entry_id=entryA) returned %v, want exactly [r1]", res.Msg.GetMusicReleases())
+		}
+	})
+}
+
+func TestMusicReleaseHandler_ListMusicReleaseTracks(t *testing.T) {
+	t.Run("valid request returns the release's tracks as domain.v1.Item", func(t *testing.T) {
+		svc := newFakeMusicReleaseService()
+		h := apiconnect.NewMusicReleaseHandler(svc, nil)
+		svc.byID["r1"] = &music.Release{ID: "r1"}
+		svc.tracksByRelease["r1"] = []*domain.Item{
+			{ID: "item1", ContentType: domain.ContentTypeMusic, LibraryEntryID: "entry1", GroupID: "group1", Title: "Track 1", Status: domain.ItemStatusImported},
+		}
+
+		res, err := h.ListMusicReleaseTracks(context.Background(), connect.NewRequest(&musicv1.ListMusicReleaseTracksRequest{ReleaseId: "r1", PageSize: 10}))
+		if err != nil {
+			t.Fatalf("ListMusicReleaseTracks returned error: %v", err)
+		}
+		if len(res.Msg.GetTracks()) != 1 || res.Msg.GetTracks()[0].GetId() != "item1" {
+			t.Fatalf("ListMusicReleaseTracks returned %v, want exactly [item1]", res.Msg.GetTracks())
+		}
+	})
+
+	t.Run("unknown release maps to CodeNotFound", func(t *testing.T) {
+		svc := newFakeMusicReleaseService()
+		h := apiconnect.NewMusicReleaseHandler(svc, nil)
+
+		_, err := h.ListMusicReleaseTracks(context.Background(), connect.NewRequest(&musicv1.ListMusicReleaseTracksRequest{ReleaseId: "missing"}))
+		if connect.CodeOf(err) != connect.CodeNotFound {
+			t.Fatalf("ListMusicReleaseTracks on unknown release returned code %v, want %v", connect.CodeOf(err), connect.CodeNotFound)
 		}
 	})
 }

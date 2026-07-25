@@ -54,6 +54,9 @@ const (
 	// MusicReleaseServiceListMusicReleasesProcedure is the fully-qualified name of the
 	// MusicReleaseService's ListMusicReleases RPC.
 	MusicReleaseServiceListMusicReleasesProcedure = "/purser.music.v1.MusicReleaseService/ListMusicReleases"
+	// MusicReleaseServiceListMusicReleaseTracksProcedure is the fully-qualified name of the
+	// MusicReleaseService's ListMusicReleaseTracks RPC.
+	MusicReleaseServiceListMusicReleaseTracksProcedure = "/purser.music.v1.MusicReleaseService/ListMusicReleaseTracks"
 )
 
 // MusicReleaseServiceClient is a client for the purser.music.v1.MusicReleaseService service.
@@ -65,6 +68,7 @@ type MusicReleaseServiceClient interface {
 	UpdateMusicRelease(context.Context, *connect.Request[v1.UpdateMusicReleaseRequest]) (*connect.Response[v1.UpdateMusicReleaseResponse], error)
 	DeleteMusicRelease(context.Context, *connect.Request[v1.DeleteMusicReleaseRequest]) (*connect.Response[v1.DeleteMusicReleaseResponse], error)
 	ListMusicReleases(context.Context, *connect.Request[v1.ListMusicReleasesRequest]) (*connect.Response[v1.ListMusicReleasesResponse], error)
+	ListMusicReleaseTracks(context.Context, *connect.Request[v1.ListMusicReleaseTracksRequest]) (*connect.Response[v1.ListMusicReleaseTracksResponse], error)
 }
 
 // NewMusicReleaseServiceClient constructs a client for the purser.music.v1.MusicReleaseService
@@ -120,6 +124,12 @@ func NewMusicReleaseServiceClient(httpClient connect.HTTPClient, baseURL string,
 			connect.WithSchema(musicReleaseServiceMethods.ByName("ListMusicReleases")),
 			connect.WithClientOptions(opts...),
 		),
+		listMusicReleaseTracks: connect.NewClient[v1.ListMusicReleaseTracksRequest, v1.ListMusicReleaseTracksResponse](
+			httpClient,
+			baseURL+MusicReleaseServiceListMusicReleaseTracksProcedure,
+			connect.WithSchema(musicReleaseServiceMethods.ByName("ListMusicReleaseTracks")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
@@ -132,6 +142,7 @@ type musicReleaseServiceClient struct {
 	updateMusicRelease       *connect.Client[v1.UpdateMusicReleaseRequest, v1.UpdateMusicReleaseResponse]
 	deleteMusicRelease       *connect.Client[v1.DeleteMusicReleaseRequest, v1.DeleteMusicReleaseResponse]
 	listMusicReleases        *connect.Client[v1.ListMusicReleasesRequest, v1.ListMusicReleasesResponse]
+	listMusicReleaseTracks   *connect.Client[v1.ListMusicReleaseTracksRequest, v1.ListMusicReleaseTracksResponse]
 }
 
 // CreateMusicRelease calls purser.music.v1.MusicReleaseService.CreateMusicRelease.
@@ -169,6 +180,11 @@ func (c *musicReleaseServiceClient) ListMusicReleases(ctx context.Context, req *
 	return c.listMusicReleases.CallUnary(ctx, req)
 }
 
+// ListMusicReleaseTracks calls purser.music.v1.MusicReleaseService.ListMusicReleaseTracks.
+func (c *musicReleaseServiceClient) ListMusicReleaseTracks(ctx context.Context, req *connect.Request[v1.ListMusicReleaseTracksRequest]) (*connect.Response[v1.ListMusicReleaseTracksResponse], error) {
+	return c.listMusicReleaseTracks.CallUnary(ctx, req)
+}
+
 // MusicReleaseServiceHandler is an implementation of the purser.music.v1.MusicReleaseService
 // service.
 type MusicReleaseServiceHandler interface {
@@ -179,6 +195,7 @@ type MusicReleaseServiceHandler interface {
 	UpdateMusicRelease(context.Context, *connect.Request[v1.UpdateMusicReleaseRequest]) (*connect.Response[v1.UpdateMusicReleaseResponse], error)
 	DeleteMusicRelease(context.Context, *connect.Request[v1.DeleteMusicReleaseRequest]) (*connect.Response[v1.DeleteMusicReleaseResponse], error)
 	ListMusicReleases(context.Context, *connect.Request[v1.ListMusicReleasesRequest]) (*connect.Response[v1.ListMusicReleasesResponse], error)
+	ListMusicReleaseTracks(context.Context, *connect.Request[v1.ListMusicReleaseTracksRequest]) (*connect.Response[v1.ListMusicReleaseTracksResponse], error)
 }
 
 // NewMusicReleaseServiceHandler builds an HTTP handler from the service implementation. It returns
@@ -230,6 +247,12 @@ func NewMusicReleaseServiceHandler(svc MusicReleaseServiceHandler, opts ...conne
 		connect.WithSchema(musicReleaseServiceMethods.ByName("ListMusicReleases")),
 		connect.WithHandlerOptions(opts...),
 	)
+	musicReleaseServiceListMusicReleaseTracksHandler := connect.NewUnaryHandler(
+		MusicReleaseServiceListMusicReleaseTracksProcedure,
+		svc.ListMusicReleaseTracks,
+		connect.WithSchema(musicReleaseServiceMethods.ByName("ListMusicReleaseTracks")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/purser.music.v1.MusicReleaseService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case MusicReleaseServiceCreateMusicReleaseProcedure:
@@ -246,6 +269,8 @@ func NewMusicReleaseServiceHandler(svc MusicReleaseServiceHandler, opts ...conne
 			musicReleaseServiceDeleteMusicReleaseHandler.ServeHTTP(w, r)
 		case MusicReleaseServiceListMusicReleasesProcedure:
 			musicReleaseServiceListMusicReleasesHandler.ServeHTTP(w, r)
+		case MusicReleaseServiceListMusicReleaseTracksProcedure:
+			musicReleaseServiceListMusicReleaseTracksHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -281,4 +306,8 @@ func (UnimplementedMusicReleaseServiceHandler) DeleteMusicRelease(context.Contex
 
 func (UnimplementedMusicReleaseServiceHandler) ListMusicReleases(context.Context, *connect.Request[v1.ListMusicReleasesRequest]) (*connect.Response[v1.ListMusicReleasesResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("purser.music.v1.MusicReleaseService.ListMusicReleases is not implemented"))
+}
+
+func (UnimplementedMusicReleaseServiceHandler) ListMusicReleaseTracks(context.Context, *connect.Request[v1.ListMusicReleaseTracksRequest]) (*connect.Response[v1.ListMusicReleaseTracksResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("purser.music.v1.MusicReleaseService.ListMusicReleaseTracks is not implemented"))
 }
