@@ -8,8 +8,9 @@ import (
 	"time"
 
 	"connectrpc.com/connect"
+	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/pterm/pterm"
+	"github.com/charmbracelet/lipgloss"
 
 	jobv1 "purser/gen/go/purser/job/v1"
 )
@@ -26,11 +27,12 @@ type jobEventStream interface {
 
 var _ jobEventStream = (*connect.ServerStreamForClient[jobv1.JobEvent])(nil)
 
-type screen int
+// pane identifies which of the two split panes has keyboard focus.
+type pane int
 
 const (
-	screenList screen = iota
-	screenDetail
+	paneList pane = iota
+	paneDetail
 )
 
 const (
@@ -38,28 +40,53 @@ const (
 	jobsListPageSize    = 50
 )
 
-// jobsModel is the Bubble Tea model backing `purser jobs`. It has two
-// screens: a polled list of recent jobs, and a streamed detail view of one
-// selected job's tasks/steps.
+// jobsModel is the Bubble Tea model backing `purser jobs`. It renders a
+// single split-pane screen: a polled, scrollable list of recent jobs on the
+// left, and a live-streamed (WatchJob) detail view of tasks/steps for
+// whichever job is currently highlighted on the right. The watched job
+// follows the list highlight automatically — moving the cursor swaps the
+// stream, no separate "open detail" step is needed.
 type jobsModel struct {
 	ctx    context.Context
 	client jobv1connect.JobServiceClient
+	addr   string
 
-	screen screen
+	width  int
+	height int
+	ready  bool
+
+	focus pane
 
 	jobs    []*jobv1.Job
 	cursor  int
 	listErr error
 
+	listViewport viewport.Model
+
+	// selectedID is the id of the job the detail pane is currently
+	// watching. It's tracked separately from m.jobs[m.cursor] so a
+	// background list refresh that reshuffles job order doesn't spuriously
+	// look like a highlight change and restart the stream.
+	selectedID string
 	selected   *jobv1.Job
+
 	stream     jobEventStream
+	streamGen  int // incremented on every selectJob; guards stale async stream messages
 	taskCursor int
 	streamErr  error
 	streamDone bool
+
+	detailViewport viewport.Model
 }
 
 func newJobsModel(ctx context.Context, client jobv1connect.JobServiceClient) jobsModel {
-	return jobsModel{ctx: ctx, client: client}
+	return jobsModel{
+		ctx:            ctx,
+		client:         client,
+		focus:          paneList,
+		listViewport:   viewport.New(0, 0),
+		detailViewport: viewport.New(0, 0),
+	}
 }
 
 func (m jobsModel) Init() tea.Cmd {
@@ -74,19 +101,24 @@ type jobsLoadedMsg struct {
 type tickMsg struct{}
 
 type streamOpenedMsg struct {
+	gen    int
 	stream jobEventStream
 	err    error
 }
 
 type jobEventMsg struct {
+	gen   int
 	event *jobv1.JobEvent
 }
 
 type streamErrMsg struct {
+	gen int
 	err error
 }
 
-type streamClosedMsg struct{}
+type streamClosedMsg struct {
+	gen int
+}
 
 func fetchJobsCmd(ctx context.Context, client jobv1connect.JobServiceClient) tea.Cmd {
 	return func() tea.Msg {
@@ -102,63 +134,77 @@ func tickCmd() tea.Cmd {
 	return tea.Tick(jobsRefreshInterval, func(time.Time) tea.Msg { return tickMsg{} })
 }
 
-func openWatchCmd(ctx context.Context, client jobv1connect.JobServiceClient, jobID string) tea.Cmd {
+func openWatchCmd(ctx context.Context, client jobv1connect.JobServiceClient, jobID string, gen int) tea.Cmd {
 	return func() tea.Msg {
 		stream, err := client.WatchJob(ctx, connect.NewRequest(&jobv1.WatchJobRequest{JobId: jobID}))
 		if err != nil {
-			return streamOpenedMsg{err: err}
+			return streamOpenedMsg{gen: gen, err: err}
 		}
-		return streamOpenedMsg{stream: stream}
+		return streamOpenedMsg{gen: gen, stream: stream}
 	}
 }
 
 // waitForJobEventCmd blocks on stream.Receive(). This is safe because
 // Bubble Tea runs each tea.Cmd in its own goroutine; Update re-issues this
-// command after every event to keep listening.
-func waitForJobEventCmd(stream jobEventStream) tea.Cmd {
+// command after every event to keep listening. gen ties the resulting
+// message back to the stream generation it came from, so Update can drop
+// events from a stream that's since been superseded by a highlight change.
+func waitForJobEventCmd(stream jobEventStream, gen int) tea.Cmd {
 	return func() tea.Msg {
 		if stream.Receive() {
-			return jobEventMsg{event: stream.Msg()}
+			return jobEventMsg{gen: gen, event: stream.Msg()}
 		}
 		if err := stream.Err(); err != nil {
-			return streamErrMsg{err: err}
+			return streamErrMsg{gen: gen, err: err}
 		}
-		return streamClosedMsg{}
+		return streamClosedMsg{gen: gen}
 	}
 }
 
 func (m jobsModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
+	case tea.WindowSizeMsg:
+		m.width = msg.Width
+		m.height = msg.Height
+		m.ready = true
+		m.applySize()
+		return m, nil
 	case tea.KeyMsg:
 		return m.handleKey(msg)
 	case jobsLoadedMsg:
-		m.listErr = msg.err
-		if msg.err == nil {
-			m.jobs = msg.jobs
-			m.cursor = clampCursor(m.cursor, len(m.jobs))
-		}
-		return m, nil
+		return m.handleJobsLoaded(msg)
 	case tickMsg:
-		if m.screen != screenList {
-			return m, nil
-		}
 		return m, tea.Batch(fetchJobsCmd(m.ctx, m.client), tickCmd())
 	case streamOpenedMsg:
+		if msg.gen != m.streamGen {
+			return m, nil
+		}
 		m.streamErr = msg.err
 		m.stream = msg.stream
 		if msg.err != nil {
 			return m, nil
 		}
-		return m, waitForJobEventCmd(m.stream)
+		return m, waitForJobEventCmd(m.stream, m.streamGen)
 	case jobEventMsg:
+		if msg.gen != m.streamGen {
+			return m, nil
+		}
 		if job := msg.event.GetJob(); job != nil {
 			m.selected = job
+			m.taskCursor = clampCursor(m.taskCursor, len(job.GetTasks()))
+			m.updateDetailViewportContent()
 		}
-		return m, waitForJobEventCmd(m.stream)
+		return m, waitForJobEventCmd(m.stream, m.streamGen)
 	case streamErrMsg:
+		if msg.gen != m.streamGen {
+			return m, nil
+		}
 		m.streamErr = msg.err
 		return m, nil
 	case streamClosedMsg:
+		if msg.gen != m.streamGen {
+			return m, nil
+		}
 		m.streamDone = true
 		return m, nil
 	}
@@ -168,11 +214,21 @@ func (m jobsModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 func (m jobsModel) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "ctrl+c", "q":
+		if m.stream != nil {
+			_ = m.stream.Close()
+		}
 		return m, tea.Quit
+	case "tab":
+		if m.focus == paneList {
+			m.focus = paneDetail
+		} else {
+			m.focus = paneList
+		}
+		return m, nil
 	}
 
-	switch m.screen {
-	case screenDetail:
+	switch m.focus {
+	case paneDetail:
 		return m.handleDetailKey(msg)
 	default:
 		return m.handleListKey(msg)
@@ -191,20 +247,13 @@ func (m jobsModel) handleListKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 	case "r":
 		return m, fetchJobsCmd(m.ctx, m.client)
-	case "enter":
-		if len(m.jobs) == 0 {
-			return m, nil
-		}
-		job := m.jobs[m.cursor]
-		m.screen = screenDetail
-		m.selected = job
-		m.taskCursor = 0
-		m.stream = nil
-		m.streamErr = nil
-		m.streamDone = false
-		return m, openWatchCmd(m.ctx, m.client, job.GetId())
+	default:
+		var cmd tea.Cmd
+		m.listViewport, cmd = m.listViewport.Update(msg)
+		return m, cmd
 	}
-	return m, nil
+	m.updateListViewportContent()
+	return m.syncSelection()
 }
 
 func (m jobsModel) handleDetailKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
@@ -213,22 +262,74 @@ func (m jobsModel) handleDetailKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if m.taskCursor > 0 {
 			m.taskCursor--
 		}
+		m.updateDetailViewportContent()
+		return m, nil
 	case "down", "j":
 		if m.selected != nil && m.taskCursor < len(m.selected.GetTasks())-1 {
 			m.taskCursor++
 		}
-	case "esc", "b":
-		if m.stream != nil {
-			_ = m.stream.Close()
-		}
-		m.screen = screenList
-		m.stream = nil
-		m.selected = nil
-		m.streamErr = nil
-		m.streamDone = false
-		return m, tea.Batch(fetchJobsCmd(m.ctx, m.client), tickCmd())
+		m.updateDetailViewportContent()
+		return m, nil
+	default:
+		var cmd tea.Cmd
+		m.detailViewport, cmd = m.detailViewport.Update(msg)
+		return m, cmd
 	}
-	return m, nil
+}
+
+func (m jobsModel) handleJobsLoaded(msg jobsLoadedMsg) (tea.Model, tea.Cmd) {
+	m.listErr = msg.err
+	if msg.err != nil {
+		return m, nil
+	}
+	m.jobs = msg.jobs
+	if idx := indexOfJob(m.jobs, m.selectedID); m.selectedID != "" && idx >= 0 {
+		m.cursor = idx
+	} else {
+		m.cursor = clampCursor(m.cursor, len(m.jobs))
+	}
+	m.updateListViewportContent()
+	return m.syncSelection()
+}
+
+// syncSelection opens a watch stream for whatever job is now highlighted,
+// if it differs from the job already being watched.
+func (m jobsModel) syncSelection() (jobsModel, tea.Cmd) {
+	if len(m.jobs) == 0 {
+		return m, nil
+	}
+	job := m.jobs[m.cursor]
+	if job.GetId() == m.selectedID {
+		return m, nil
+	}
+	return m.selectJob(job)
+}
+
+// selectJob closes any stream currently open, then opens a new WatchJob
+// stream for job. streamGen is bumped so in-flight messages from the old
+// stream are recognized as stale and dropped by Update.
+func (m jobsModel) selectJob(job *jobv1.Job) (jobsModel, tea.Cmd) {
+	if m.stream != nil {
+		_ = m.stream.Close()
+	}
+	m.stream = nil
+	m.streamErr = nil
+	m.streamDone = false
+	m.taskCursor = 0
+	m.selectedID = job.GetId()
+	m.selected = job
+	m.streamGen++
+	m.updateDetailViewportContent()
+	return m, openWatchCmd(m.ctx, m.client, job.GetId(), m.streamGen)
+}
+
+func indexOfJob(jobs []*jobv1.Job, id string) int {
+	for i, j := range jobs {
+		if j.GetId() == id {
+			return i
+		}
+	}
+	return -1
 }
 
 func clampCursor(cursor, length int) int {
@@ -244,70 +345,113 @@ func clampCursor(cursor, length int) int {
 	}
 }
 
-func (m jobsModel) View() string {
-	if m.screen == screenDetail {
-		return m.viewDetail()
+// applySize recomputes both viewports' dimensions from the current
+// terminal size and re-renders their content at the new size. The list and
+// detail panes are stacked vertically, each spanning the full terminal
+// width, so neither pane's columns get squeezed into a narrow half-screen.
+func (m *jobsModel) applySize() {
+	w := m.width - 2 // left/right border
+	if w < 1 {
+		w = 1
 	}
-	return m.viewList()
+	m.listViewport.Width = w
+	m.detailViewport.Width = w
+
+	bodyHeight := m.height - jobsHeaderHeight - jobsFooterHeight
+	listOuter, detailOuter := splitPaneHeights(bodyHeight)
+	m.listViewport.Height = paneViewportHeight(listOuter)
+	m.detailViewport.Height = paneViewportHeight(detailOuter)
+
+	m.updateListViewportContent()
+	m.updateDetailViewportContent()
 }
 
-func (m jobsModel) viewList() string {
-	var b strings.Builder
-	b.WriteString("Jobs  (↑/↓ move, enter watch, r refresh, q quit)\n\n")
-	if m.listErr != nil {
-		b.WriteString(pterm.LightRed(fmt.Sprintf("error listing jobs: %v\n\n", m.listErr)))
-	}
+// updateListViewportContent re-renders the job table into the list
+// viewport and scrolls it to keep the highlighted row visible.
+func (m *jobsModel) updateListViewportContent() {
+	rows := make([]string, 0, len(m.jobs)+1)
+	rows = append(rows, renderJobListHeaderRow())
 	if len(m.jobs) == 0 {
-		b.WriteString("no jobs yet\n")
-		return b.String()
+		rows = append(rows, "no jobs yet")
 	}
 	for i, job := range m.jobs {
-		cursor := "  "
-		if i == m.cursor {
-			cursor = "> "
-		}
-		fmt.Fprintf(&b, "%s%-36s %-20s %-11s %s\n", cursor, job.GetId(), job.GetKind(), jobStatusLabel(job.GetStatus()), formatProgress(job.GetProgress()))
+		rows = append(rows, renderJobRow(job, i == m.cursor))
 	}
-	return b.String()
+	m.listViewport.SetContent(strings.Join(rows, "\n"))
+	ensureRowVisible(&m.listViewport, m.cursor+1)
 }
 
-func (m jobsModel) viewDetail() string {
-	var b strings.Builder
+// updateDetailViewportContent re-renders the highlighted job's tasks/steps
+// into the detail viewport and scrolls it to keep the selected task
+// visible.
+func (m *jobsModel) updateDetailViewportContent() {
 	if m.selected == nil {
-		b.WriteString("loading job...\n")
-		return b.String()
+		m.detailViewport.SetContent("loading job...")
+		return
 	}
 	job := m.selected
-	fmt.Fprintf(&b, "Job %s  kind=%s  status=%s  progress=%s\n", job.GetId(), job.GetKind(), jobStatusLabel(job.GetStatus()), formatProgress(job.GetProgress()))
-	b.WriteString("(esc/b: back, ↑/↓: select task, q: quit)\n\n")
-
-	switch {
-	case m.streamErr != nil:
-		b.WriteString(pterm.LightRed(fmt.Sprintf("stream error: %v\n\n", m.streamErr)))
-	case m.streamDone:
-		b.WriteString(pterm.Gray("stream closed\n\n"))
+	rows := []string{
+		fmt.Sprintf("kind: %s   status: %s   progress: %s", job.GetKind(), jobStatusLabel(job.GetStatus()), formatProgress(job.GetProgress())),
+		"",
 	}
 
 	tasks := job.GetTasks()
+	taskCursorRow := -1
 	if len(tasks) == 0 {
-		b.WriteString("no tasks yet\n")
-		return b.String()
-	}
-
-	b.WriteString("Tasks:\n")
-	for i, task := range tasks {
-		cursor := "  "
-		if i == m.taskCursor {
-			cursor = "> "
+		rows = append(rows, "no tasks yet")
+	} else {
+		rows = append(rows, "Tasks:")
+		for i, task := range tasks {
+			if i == m.taskCursor {
+				taskCursorRow = len(rows)
+			}
+			rows = append(rows, renderTaskRow(task, i == m.taskCursor))
 		}
-		fmt.Fprintf(&b, "%s%-40s %-11s %s\n", cursor, task.GetLabel(), jobStatusLabel(task.GetStatus()), formatProgress(task.GetProgress()))
+		taskCursor := clampCursor(m.taskCursor, len(tasks))
+		selectedTask := tasks[taskCursor]
+		rows = append(rows, "", fmt.Sprintf("Steps for %s:", selectedTask.GetLabel()))
+		for _, step := range selectedTask.GetSteps() {
+			rows = append(rows, renderStepRow(step))
+		}
+	}
+	m.detailViewport.SetContent(strings.Join(rows, "\n"))
+	if taskCursorRow >= 0 {
+		ensureRowVisible(&m.detailViewport, taskCursorRow)
+	}
+}
+
+// ensureRowVisible scrolls vp just enough to bring row into view.
+func ensureRowVisible(vp *viewport.Model, row int) {
+	if vp.Height <= 0 {
+		return
+	}
+	switch {
+	case row < vp.YOffset:
+		vp.SetYOffset(row)
+	case row >= vp.YOffset+vp.Height:
+		vp.SetYOffset(row - vp.Height + 1)
+	}
+}
+
+func (m jobsModel) View() string {
+	if !m.ready {
+		return "loading..."
 	}
 
-	taskCursor := clampCursor(m.taskCursor, len(tasks))
-	selectedTask := tasks[taskCursor]
-	fmt.Fprintf(&b, "\nSteps for %s:\n", selectedTask.GetLabel())
-	for _, step := range selectedTask.GetSteps() {
-		fmt.Fprintf(&b, "  %-24s %-11s %-10s %s\n", step.GetName(), jobStatusLabel(step.GetStatus()), formatDuration(step.GetStartedAt(), step.GetFinishedAt()), step.GetMessage())
+	header := renderHeader(m.addr, m.listErr)
+	footer := renderFooter(m.focus, m.streamErr, m.streamDone)
+
+	listTitle := fmt.Sprintf("JOBS (%d)", len(m.jobs))
+	detailTitle := "DETAIL"
+	if m.selected != nil {
+		detailTitle = fmt.Sprintf("DETAIL — %s", m.selected.GetId())
 	}
-	return b.String()
+
+	listInterior := m.listViewport.Height + jobsPaneTitleRows
+	detailInterior := m.detailViewport.Height + jobsPaneTitleRows
+
+	listPane := renderPane(listTitle, m.listViewport.View(), m.listViewport.Width, listInterior, m.focus == paneList)
+	detailPane := renderPane(detailTitle, m.detailViewport.View(), m.detailViewport.Width, detailInterior, m.focus == paneDetail)
+
+	return lipgloss.JoinVertical(lipgloss.Left, header, listPane, detailPane, footer)
 }

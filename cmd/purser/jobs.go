@@ -16,10 +16,11 @@ func newJobsCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "jobs",
 		Short: "Watch the job queue in an interactive TUI",
-		Long: "Opens a full-screen terminal UI against a running purser serve\n" +
-			"instance's purser.job.v1.JobService: a polled list of recent jobs, and\n" +
-			"a live-streamed (WatchJob) detail view of one job's tasks and steps.\n" +
-			"See docs/adr/0023-job-queue.md.",
+		Long: "Opens a full-screen, split-pane terminal UI against a running purser\n" +
+			"serve instance's purser.job.v1.JobService: a polled, scrollable list of\n" +
+			"recent jobs on the left, and a live-streamed (WatchJob) detail view of\n" +
+			"the highlighted job's tasks and steps on the right. Tab switches focus\n" +
+			"between panes. See docs/adr/0023-job-queue.md.",
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			httpClient := &http.Client{Timeout: 30 * time.Second}
 			client := jobv1connect.NewJobServiceClient(httpClient, addr)
@@ -28,6 +29,7 @@ func newJobsCmd() *cobra.Command {
 			defer cancel()
 
 			m := newJobsModel(ctx, client)
+			m.addr = addr
 			_, err := tea.NewProgram(m, tea.WithAltScreen()).Run()
 			return err
 		},
