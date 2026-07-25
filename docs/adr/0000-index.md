@@ -41,6 +41,8 @@ ADR wins.
 | [0020](0020-server-generated-kernel-entity-ids.md) | Server-Generated Kernel Entity IDs (UUIDv7) | Accepted |
 | [0021](0021-music-domain-model.md) | Music Domain Model: Artist/Release Group/Release/Track on the Shared Kernel | Accepted |
 | [0022](0022-k6-ci-enforcement.md) | k6 CI Enforcement: Failing Thresholds, a Standalone-Badger CI Job | Accepted |
+| [0023](0023-job-queue.md) | Job Queue: Ephemeral In-Process Job/Task/Step Tracking, Polled and Streamed | Accepted |
+| [0024](0024-pipeline-core.md) | Pipeline Core: Scan, Fingerprint, Identify, and Organize | Accepted |
 
 ## Adding a new ADR
 

@@ -38,6 +38,8 @@ Do not read all project documentation. Determine what the task touches, then loa
 - [docs/adr/0019-tag-identity-and-get-or-create.md](docs/adr/0019-tag-identity-and-get-or-create.md) — Tag's `(Scope, Key, Value)` uniqueness and the reservation-document pattern; required for any `internal/adapters/store/tag` change, any `TagService`/`TagDeletionService` change, or any new entity that needs a uniqueness constraint beyond its own `(collection, id)` primary key
 - [docs/adr/0020-server-generated-kernel-entity-ids.md](docs/adr/0020-server-generated-kernel-entity-ids.md) — server-generated UUIDv7 `ID`s via `domain.NewID()`; required for any kernel entity's `Create` flow, any new single-ID kernel entity, or any change to `internal/domain/id.go`
 - [docs/adr/0021-music-domain-model.md](docs/adr/0021-music-domain-model.md) — Music's Artist/Release Group/Release/Track model on the shared kernel; required for any `internal/domain/music`, `internal/adapters/store/music`, Music `internal/service`/`internal/ports` code, or `proto/purser/music/v1` change
+- [docs/adr/0023-job-queue.md](docs/adr/0023-job-queue.md) — ephemeral in-process Job/Task/Step tracking, polled and streamed; required for any `pkg/jobqueue`, `internal/adapters/jobqueue`, or long-running-operation code
+- [docs/adr/0024-pipeline-core.md](docs/adr/0024-pipeline-core.md) — scan/fingerprint/identify/organize architecture shared across content types; required for any disk-scan, `UnmatchedFile`, `FileFingerprinter`/identifier, or Organizer code
 
 **After finishing any ask/task/session:** run the self-audit checklist in [0001](docs/adr/0001-hexagonal-architecture.md) and [0002](docs/adr/0002-solid-design-principles.md) (and [0003](docs/adr/0003-go-testing-standards.md)/[0004](docs/adr/0004-typescript-react-testing-standards.md) if tests were written) and state the result explicitly — do not skip this silently.
 
@@ -152,6 +154,29 @@ Documentation under `docs/` (architecture overview, development guides, technica
 - [docs/adr/0015-deletion-impact-and-composing-services.md](docs/adr/0015-deletion-impact-and-composing-services.md) — the Music release deletion service, and the required `GroupDeletionService`/`LibraryEntryDeletionService` referrer updates
 - [docs/adr/0011-api-design.md](docs/adr/0011-api-design.md)
 - [docs/adr/0020-server-generated-kernel-entity-ids.md](docs/adr/0020-server-generated-kernel-entity-ids.md)
+- [docs/adr/0001-hexagonal-architecture.md](docs/adr/0001-hexagonal-architecture.md)
+- [docs/adr/0002-solid-design-principles.md](docs/adr/0002-solid-design-principles.md)
+- [docs/adr/0003-go-testing-standards.md](docs/adr/0003-go-testing-standards.md)
+- [docs/adr/0007-telemetry.md](docs/adr/0007-telemetry.md)
+- [docs/adr/0008-structured-logging.md](docs/adr/0008-structured-logging.md)
+
+### Building the job queue (`pkg/jobqueue`, `internal/adapters/jobqueue`, `JobService`)
+- [docs/adr/0023-job-queue.md](docs/adr/0023-job-queue.md)
+- [docs/adr/0011-api-design.md](docs/adr/0011-api-design.md) — the `JobService` poll/stream RPCs
+- [docs/adr/0001-hexagonal-architecture.md](docs/adr/0001-hexagonal-architecture.md)
+- [docs/adr/0002-solid-design-principles.md](docs/adr/0002-solid-design-principles.md)
+- [docs/adr/0003-go-testing-standards.md](docs/adr/0003-go-testing-standards.md) — `pkg/jobqueue` targets 80%, same as `pkg/**`
+- [docs/adr/0007-telemetry.md](docs/adr/0007-telemetry.md)
+- [docs/adr/0008-structured-logging.md](docs/adr/0008-structured-logging.md)
+
+### Building the scan/import pipeline (disk scan, `UnmatchedFile`, `FileFingerprinter`/identifier, Organizer)
+- [docs/adr/0024-pipeline-core.md](docs/adr/0024-pipeline-core.md)
+- [docs/adr/0023-job-queue.md](docs/adr/0023-job-queue.md) — every scan/identify/organize operation reports progress through a `Job`
+- [docs/adr/0021-music-domain-model.md](docs/adr/0021-music-domain-model.md) — Music's confidence-scoring formula is explicitly deferred past this ADR; read both before starting Music-specific identification work
+- [docs/adr/0012-datastore-persistence.md](docs/adr/0012-datastore-persistence.md) — `UnmatchedFile`'s hand-written translator
+- [docs/adr/0020-server-generated-kernel-entity-ids.md](docs/adr/0020-server-generated-kernel-entity-ids.md)
+- [docs/adr/0010-configuration.md](docs/adr/0010-configuration.md) — hashing toggles, scan roots, confidence threshold, naming templates
+- [docs/adr/0011-api-design.md](docs/adr/0011-api-design.md)
 - [docs/adr/0001-hexagonal-architecture.md](docs/adr/0001-hexagonal-architecture.md)
 - [docs/adr/0002-solid-design-principles.md](docs/adr/0002-solid-design-principles.md)
 - [docs/adr/0003-go-testing-standards.md](docs/adr/0003-go-testing-standards.md)
