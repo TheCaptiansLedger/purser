@@ -30,6 +30,14 @@ func (f *fakeJobPublisher) Trigger(_ context.Context, kind string, taskLabels []
 type fakeJobReader struct {
 	job *jobqueue.Job
 	err error
+
+	listJobs          []*jobqueue.Job
+	listNextPageToken string
+	listErr           error
+	listKind          string
+	listStatus        jobqueue.Status
+	listPageSize      int
+	listPageToken     string
 }
 
 func (f *fakeJobReader) Get(_ context.Context, _ string) (*jobqueue.Job, error) {
@@ -37,6 +45,17 @@ func (f *fakeJobReader) Get(_ context.Context, _ string) (*jobqueue.Job, error) 
 		return nil, f.err
 	}
 	return f.job, nil
+}
+
+func (f *fakeJobReader) List(_ context.Context, kind string, status jobqueue.Status, pageSize int, pageToken string) ([]*jobqueue.Job, string, error) {
+	f.listKind = kind
+	f.listStatus = status
+	f.listPageSize = pageSize
+	f.listPageToken = pageToken
+	if f.listErr != nil {
+		return nil, "", f.listErr
+	}
+	return f.listJobs, f.listNextPageToken, nil
 }
 
 func TestJobService_Trigger(t *testing.T) {
@@ -89,5 +108,32 @@ func TestJobService_Get_NotFound(t *testing.T) {
 
 	if _, err := svc.Get(context.Background(), "missing"); !errors.Is(err, ports.ErrNotFound) {
 		t.Fatalf("Get returned %v, want ports.ErrNotFound", err)
+	}
+}
+
+func TestJobService_List(t *testing.T) {
+	jobs := []*jobqueue.Job{{ID: "job-1"}, {ID: "job-2"}}
+	reader := &fakeJobReader{listJobs: jobs, listNextPageToken: "job-2"}
+	svc := service.NewJobService(&fakeJobPublisher{}, reader)
+
+	got, next, err := svc.List(context.Background(), "diagnostic", jobqueue.StatusPartial, 2, "token")
+	if err != nil {
+		t.Fatalf("List returned error: %v", err)
+	}
+	if len(got) != 2 || next != "job-2" {
+		t.Fatalf("List returned (%v, %q), want (%v, %q)", got, next, jobs, "job-2")
+	}
+	if reader.listKind != "diagnostic" || reader.listStatus != jobqueue.StatusPartial || reader.listPageSize != 2 || reader.listPageToken != "token" {
+		t.Fatalf("List passed (kind=%q, status=%q, pageSize=%d, pageToken=%q), want (diagnostic, partial, 2, token)",
+			reader.listKind, reader.listStatus, reader.listPageSize, reader.listPageToken)
+	}
+}
+
+func TestJobService_List_Error(t *testing.T) {
+	wantErr := errors.New("boom")
+	svc := service.NewJobService(&fakeJobPublisher{}, &fakeJobReader{listErr: wantErr})
+
+	if _, _, err := svc.List(context.Background(), "", "", 0, ""); !errors.Is(err, wantErr) {
+		t.Fatalf("List returned %v, want %v", err, wantErr)
 	}
 }

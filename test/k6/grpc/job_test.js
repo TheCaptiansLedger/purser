@@ -123,5 +123,53 @@ export default () => {
     'every task failed': (j) => j.tasks.every((t) => t.status === 'JOB_STATUS_FAILED'),
   });
 
+  // ListJobs (#483): page_size=2 must show exactly 2 results plus a
+  // next_page_token on the first call, then the remainder on the
+  // follow-up call using that token — no overlap, no gap. The server is
+  // long-lived across k6 runs (in-memory job store, not reset per test),
+  // so this pages through *every* "diagnostic" job rather than assuming
+  // only the 3 triggered above exist, and asserts no id repeats across
+  // pages and that the 3 known jobs are all present exactly once.
+  res = invoke('purser.job.v1.JobService/ListJobs', { kind: 'diagnostic', pageSize: 2 });
+  check(res, {
+    'ListJobs (page 1) status is OK': (r) => r && r.status === grpc.StatusOK,
+    'ListJobs (page 1) returns 2 jobs': (r) => r && r.message && r.message.jobs && r.message.jobs.length === 2,
+    'ListJobs (page 1) returns a next_page_token': (r) => r && r.message && !!r.message.nextPageToken,
+  });
+  const page1Ids = res.message.jobs.map((j) => j.id);
+  const nextPageToken = res.message.nextPageToken;
+
+  res = invoke('purser.job.v1.JobService/ListJobs', { kind: 'diagnostic', pageSize: 2, pageToken: nextPageToken });
+  check(res, { 'ListJobs (page 2) status is OK': (r) => r && r.status === grpc.StatusOK });
+  const page2Ids = res.message.jobs.map((j) => j.id);
+
+  const allIds = page1Ids.concat(page2Ids);
+  let token = res.message.nextPageToken;
+  while (token) {
+    res = invoke('purser.job.v1.JobService/ListJobs', { kind: 'diagnostic', pageSize: 2, pageToken: token });
+    check(res, { 'ListJobs (paging through) status is OK': (r) => r && r.status === grpc.StatusOK });
+    allIds.push(...(res.message.jobs || []).map((j) => j.id));
+    token = res.message.nextPageToken;
+  }
+
+  check(
+    { allIds: allIds },
+    {
+      'ListJobs(kind=diagnostic) paginated with no id repeated across pages': (v) => new Set(v.allIds).size === v.allIds.length,
+      'ListJobs(kind=diagnostic) paginated through all 3 triggered jobs, no gap': (v) =>
+        [jobId, partialJobId, failedJobId].every((id) => v.allIds.indexOf(id) !== -1),
+    }
+  );
+
+  // ListJobs filtered by status=partial must include the triggered partial
+  // job, and every result must actually be partial.
+  res = invoke('purser.job.v1.JobService/ListJobs', { kind: 'diagnostic', status: 'JOB_STATUS_PARTIAL', pageSize: 50 });
+  check(res, {
+    'ListJobs (status=partial) status is OK': (r) => r && r.status === grpc.StatusOK,
+    'ListJobs (status=partial) includes the partial job': (r) =>
+      r && r.message && r.message.jobs && r.message.jobs.some((j) => j.id === partialJobId),
+    'ListJobs (status=partial) every returned job is partial': (r) => r.message.jobs.every((j) => j.status === 'JOB_STATUS_PARTIAL'),
+  });
+
   client.close();
 };

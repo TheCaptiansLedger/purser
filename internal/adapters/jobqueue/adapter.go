@@ -43,3 +43,8 @@ func (a *Adapter) Get(ctx context.Context, id string) (*pkgjobqueue.Job, error) 
 	}
 	return job, nil
 }
+
+// List implements ports.JobReader.
+func (a *Adapter) List(ctx context.Context, kind string, status pkgjobqueue.Status, pageSize int, pageToken string) ([]*pkgjobqueue.Job, string, error) {
+	return a.engine.List(ctx, kind, status, pageSize, pageToken)
+}

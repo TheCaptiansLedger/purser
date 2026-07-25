@@ -32,6 +32,8 @@ func TestStore(t *testing.T, newStore NewStoreFunc) {
 	t.Run("update persists changes visible to a later get", func(t *testing.T) { testUpdatePersists(t, newStore) })
 	t.Run("update on unknown id is not found", func(t *testing.T) { testUpdateUnknown(t, newStore) })
 	t.Run("list paginates in creation order", func(t *testing.T) { testListPaginates(t, newStore) })
+	t.Run("list filters by kind", func(t *testing.T) { testListFiltersByKind(t, newStore) })
+	t.Run("list filters by status", func(t *testing.T) { testListFiltersByStatus(t, newStore) })
 }
 
 func newTestJob(id, kind string) *jobqueue.Job {
@@ -175,7 +177,7 @@ func testListPaginates(t *testing.T, newStore NewStoreFunc) {
 	seen := map[string]bool{}
 	token := ""
 	for {
-		page, next, err := s.ListJobs(ctx, 2, token)
+		page, next, err := s.ListJobs(ctx, "", "", 2, token)
 		if err != nil {
 			t.Fatalf("ListJobs returned error: %v", err)
 		}
@@ -196,5 +198,63 @@ func testListPaginates(t *testing.T, newStore NewStoreFunc) {
 
 	if len(seen) != n {
 		t.Fatalf("ListJobs paginated through %d jobs, want %d", len(seen), n)
+	}
+}
+
+func testListFiltersByKind(t *testing.T, newStore NewStoreFunc) {
+	s := newStore(t)
+	ctx := context.Background()
+
+	for i, kind := range []string{"diagnostic", "scan", "diagnostic", "scan", "diagnostic"} {
+		job := newTestJob(string(rune('a'+i)), kind)
+		job.CreatedAt = time.Now()
+		if err := s.CreateJob(ctx, job); err != nil {
+			t.Fatalf("CreateJob(%d) returned error: %v", i, err)
+		}
+	}
+
+	page, next, err := s.ListJobs(ctx, "scan", "", 10, "")
+	if err != nil {
+		t.Fatalf("ListJobs returned error: %v", err)
+	}
+	if next != "" {
+		t.Fatalf("ListJobs next_page_token = %q, want empty (only 2 matching jobs, page_size 10)", next)
+	}
+	if len(page) != 2 {
+		t.Fatalf("ListJobs(kind=scan) returned %d jobs, want 2", len(page))
+	}
+	for _, j := range page {
+		if j.Kind != "scan" {
+			t.Fatalf("ListJobs(kind=scan) returned a job with kind %q", j.Kind)
+		}
+	}
+}
+
+func testListFiltersByStatus(t *testing.T, newStore NewStoreFunc) {
+	s := newStore(t)
+	ctx := context.Background()
+
+	statuses := []jobqueue.Status{jobqueue.StatusSucceeded, jobqueue.StatusFailed, jobqueue.StatusPartial, jobqueue.StatusSucceeded}
+	for i, status := range statuses {
+		job := newTestJob(string(rune('a'+i)), "diagnostic")
+		job.CreatedAt = time.Now()
+		job.Status = status
+		if err := s.CreateJob(ctx, job); err != nil {
+			t.Fatalf("CreateJob(%d) returned error: %v", i, err)
+		}
+	}
+
+	page, next, err := s.ListJobs(ctx, "", jobqueue.StatusPartial, 10, "")
+	if err != nil {
+		t.Fatalf("ListJobs returned error: %v", err)
+	}
+	if next != "" {
+		t.Fatalf("ListJobs next_page_token = %q, want empty (only 1 matching job, page_size 10)", next)
+	}
+	if len(page) != 1 {
+		t.Fatalf("ListJobs(status=partial) returned %d jobs, want 1", len(page))
+	}
+	if page[0].Status != jobqueue.StatusPartial {
+		t.Fatalf("ListJobs(status=partial) returned a job with status %q", page[0].Status)
 	}
 }

@@ -53,6 +53,50 @@ func TestAdapter_Get_NotFound(t *testing.T) {
 	}
 }
 
+func TestAdapter_List(t *testing.T) {
+	a := newAdapter()
+	ctx := context.Background()
+
+	id, err := a.Trigger(ctx, "diagnostic", []string{"one"}, nil)
+	if err != nil {
+		t.Fatalf("Trigger returned error: %v", err)
+	}
+
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		job, err := a.Get(ctx, id)
+		if err != nil {
+			t.Fatalf("Get returned error: %v", err)
+		}
+		if job.Status == pkgjobqueue.StatusSucceeded {
+			break
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+
+	page, _, err := a.List(ctx, "diagnostic", "", 10, "")
+	if err != nil {
+		t.Fatalf("List returned error: %v", err)
+	}
+	found := false
+	for _, j := range page {
+		if j.ID == id {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("List(kind=diagnostic) did not include triggered job %q", id)
+	}
+
+	page, _, err = a.List(ctx, "nonexistent-kind", "", 10, "")
+	if err != nil {
+		t.Fatalf("List returned error: %v", err)
+	}
+	if len(page) != 0 {
+		t.Fatalf("List(kind=nonexistent-kind) returned %d jobs, want 0", len(page))
+	}
+}
+
 func TestAdapter_Get_WaitsForCompletion(t *testing.T) {
 	a := newAdapter()
 	ctx := context.Background()

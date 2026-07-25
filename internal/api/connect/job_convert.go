@@ -26,6 +26,26 @@ func jobStatusToProto(s jobqueue.Status) jobv1.JobStatus {
 	}
 }
 
+// protoToJobStatus is the reverse of jobStatusToProto, used to convert a
+// ListJobs request's status filter. JOB_STATUS_UNSPECIFIED (and any
+// unrecognized value) maps to "" — no filter on that dimension.
+func protoToJobStatus(s jobv1.JobStatus) jobqueue.Status {
+	switch s {
+	case jobv1.JobStatus_JOB_STATUS_PENDING:
+		return jobqueue.StatusPending
+	case jobv1.JobStatus_JOB_STATUS_RUNNING:
+		return jobqueue.StatusRunning
+	case jobv1.JobStatus_JOB_STATUS_SUCCEEDED:
+		return jobqueue.StatusSucceeded
+	case jobv1.JobStatus_JOB_STATUS_FAILED:
+		return jobqueue.StatusFailed
+	case jobv1.JobStatus_JOB_STATUS_PARTIAL:
+		return jobqueue.StatusPartial
+	default:
+		return ""
+	}
+}
+
 // timestampToProto returns nil for a zero Time (not yet started/finished)
 // rather than a Timestamp pointing at the Unix epoch.
 func timestampToProto(t time.Time) *timestamppb.Timestamp {

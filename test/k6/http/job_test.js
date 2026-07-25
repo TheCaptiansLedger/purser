@@ -119,4 +119,51 @@ export default () => {
     'failed job status is JOB_STATUS_FAILED': (j) => j.status === 'JOB_STATUS_FAILED',
     'every task failed': (j) => j.tasks.every((t) => t.status === 'JOB_STATUS_FAILED'),
   });
+
+  // ListJobs (#483): page_size=2 must show exactly 2 results plus a
+  // next_page_token on the first call, then the remainder on the
+  // follow-up call using that token — no overlap, no gap. The server is
+  // long-lived across k6 runs (in-memory job store, not reset per test),
+  // so this pages through *every* "diagnostic" job rather than assuming
+  // only the 3 triggered above exist, and asserts no id repeats across
+  // pages and that the 3 known jobs are all present exactly once.
+  res = invoke(`${SERVICE}/ListJobs`, JSON.stringify({ kind: 'diagnostic', pageSize: 2 }), HEADERS);
+  check(res, {
+    'ListJobs (page 1) status is 200': (r) => r.status === 200,
+    'ListJobs (page 1) returns 2 jobs': (r) => (r.json('jobs') || []).length === 2,
+    'ListJobs (page 1) returns a next_page_token': (r) => !!r.json('nextPageToken'),
+  });
+  const page1Ids = res.json('jobs').map((j) => j.id);
+  const nextPageToken = res.json('nextPageToken');
+
+  res = invoke(`${SERVICE}/ListJobs`, JSON.stringify({ kind: 'diagnostic', pageSize: 2, pageToken: nextPageToken }), HEADERS);
+  check(res, { 'ListJobs (page 2) status is 200': (r) => r.status === 200 });
+  const page2Ids = (res.json('jobs') || []).map((j) => j.id);
+
+  const allIds = page1Ids.concat(page2Ids);
+  let token = res.json('nextPageToken');
+  while (token) {
+    res = invoke(`${SERVICE}/ListJobs`, JSON.stringify({ kind: 'diagnostic', pageSize: 2, pageToken: token }), HEADERS);
+    check(res, { 'ListJobs (paging through) status is 200': (r) => r.status === 200 });
+    allIds.push(...(res.json('jobs') || []).map((j) => j.id));
+    token = res.json('nextPageToken');
+  }
+
+  check(
+    { allIds: allIds },
+    {
+      'ListJobs(kind=diagnostic) paginated with no id repeated across pages': (v) => new Set(v.allIds).size === v.allIds.length,
+      'ListJobs(kind=diagnostic) paginated through all 3 triggered jobs, no gap': (v) =>
+        [jobId, partialJobId, failedJobId].every((id) => v.allIds.indexOf(id) !== -1),
+    }
+  );
+
+  // ListJobs filtered by status=partial must include the triggered partial
+  // job, and every result must actually be partial.
+  res = invoke(`${SERVICE}/ListJobs`, JSON.stringify({ kind: 'diagnostic', status: 'JOB_STATUS_PARTIAL', pageSize: 50 }), HEADERS);
+  check(res, {
+    'ListJobs (status=partial) status is 200': (r) => r.status === 200,
+    'ListJobs (status=partial) includes the partial job': (r) => (r.json('jobs') || []).some((j) => j.id === partialJobId),
+    'ListJobs (status=partial) every returned job is partial': (r) => r.json('jobs').every((j) => j.status === 'JOB_STATUS_PARTIAL'),
+  });
 };

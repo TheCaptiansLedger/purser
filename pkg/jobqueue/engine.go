@@ -143,6 +143,13 @@ func (e *Engine) Get(ctx context.Context, id string) (*Job, error) {
 	return e.store.GetJob(ctx, id)
 }
 
+// List returns a page of Jobs, optionally filtered by kind and/or status
+// (empty kind / empty status means no filter on that dimension), using
+// opaque cursor pagination per docs/adr/0011-api-design.md.
+func (e *Engine) List(ctx context.Context, kind string, status Status, pageSize int, pageToken string) ([]*Job, string, error) {
+	return e.store.ListJobs(ctx, kind, status, pageSize, pageToken)
+}
+
 // run drives a single Job's Executor to completion and records the final
 // Status. It runs in its own goroutine, started by Trigger.
 func (e *Engine) run(ctx context.Context, jobID string, exec Executor) {

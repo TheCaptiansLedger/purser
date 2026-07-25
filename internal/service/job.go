@@ -32,3 +32,10 @@ func (s *JobService) Trigger(ctx context.Context, kind string, taskLabels []stri
 func (s *JobService) Get(ctx context.Context, id string) (*jobqueue.Job, error) {
 	return s.reader.Get(ctx, id)
 }
+
+// List returns a page of Jobs, optionally filtered by kind and/or status
+// (empty kind / empty status means no filter on that dimension), using
+// opaque cursor pagination.
+func (s *JobService) List(ctx context.Context, kind string, status jobqueue.Status, pageSize int, pageToken string) ([]*jobqueue.Job, string, error) {
+	return s.reader.List(ctx, kind, status, pageSize, pageToken)
+}

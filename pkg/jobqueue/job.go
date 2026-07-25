@@ -156,6 +156,20 @@ func (j *Job) Clone() *Job {
 	return &cp
 }
 
+// MatchesFilter reports whether j satisfies a ListJobs kind/status filter —
+// an empty kind or empty status means no constraint on that dimension. It
+// lives on Job (not a Store implementation) so every Store adapter applies
+// the identical filter semantics.
+func (j *Job) MatchesFilter(kind string, status Status) bool {
+	if kind != "" && j.Kind != kind {
+		return false
+	}
+	if status != "" && j.Status != status {
+		return false
+	}
+	return true
+}
+
 // findTask returns the Task in j with the given id, or nil.
 func findTask(j *Job, taskID string) *Task {
 	for _, t := range j.Tasks {

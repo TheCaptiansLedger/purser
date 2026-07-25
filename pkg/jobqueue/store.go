@@ -40,5 +40,8 @@ type Store interface {
 	// first — UUIDv7 IDs sort chronologically), using opaque cursor
 	// pagination: pageToken is the previous call's nextPageToken, empty
 	// for the first page. pageSize <= 0 means the Store's own default.
-	ListJobs(ctx context.Context, pageSize int, pageToken string) (jobs []*Job, nextPageToken string, err error)
+	// kind/status are optional filters — empty kind or empty status means
+	// no filter on that dimension. Filtering happens before pagination is
+	// applied, so page boundaries never skip or repeat a matching Job.
+	ListJobs(ctx context.Context, kind string, status Status, pageSize int, pageToken string) (jobs []*Job, nextPageToken string, err error)
 }

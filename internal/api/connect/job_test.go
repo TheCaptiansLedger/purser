@@ -23,6 +23,14 @@ type fakeJobService struct {
 
 	getJob *jobqueue.Job
 	getErr error
+
+	listJobs          []*jobqueue.Job
+	listNextPageToken string
+	listErr           error
+	listKind          string
+	listStatus        jobqueue.Status
+	listPageSize      int
+	listPageToken     string
 }
 
 func (f *fakeJobService) Trigger(_ context.Context, kind string, taskLabels []string, params map[string]string) (string, error) {
@@ -40,6 +48,17 @@ func (f *fakeJobService) Get(_ context.Context, _ string) (*jobqueue.Job, error)
 		return nil, f.getErr
 	}
 	return f.getJob, nil
+}
+
+func (f *fakeJobService) List(_ context.Context, kind string, status jobqueue.Status, pageSize int, pageToken string) ([]*jobqueue.Job, string, error) {
+	f.listKind = kind
+	f.listStatus = status
+	f.listPageSize = pageSize
+	f.listPageToken = pageToken
+	if f.listErr != nil {
+		return nil, "", f.listErr
+	}
+	return f.listJobs, f.listNextPageToken, nil
 }
 
 func TestJobHandler_TriggerJob(t *testing.T) {
@@ -131,5 +150,60 @@ func TestJobHandler_GetJob_NotFound(t *testing.T) {
 	}
 	if connErr.Code() != connect.CodeNotFound {
 		t.Fatalf("GetJob returned code %v, want %v", connErr.Code(), connect.CodeNotFound)
+	}
+}
+
+func TestJobHandler_ListJobs(t *testing.T) {
+	jobs := []*jobqueue.Job{
+		{ID: "job-1", Kind: "diagnostic", Status: jobqueue.StatusPartial},
+	}
+	svc := &fakeJobService{listJobs: jobs, listNextPageToken: "job-1"}
+	h := apiconnect.NewJobHandler(svc, nil)
+
+	resp, err := h.ListJobs(context.Background(), connect.NewRequest(&jobv1.ListJobsRequest{
+		PageSize:  2,
+		PageToken: "prev-token",
+		Kind:      "diagnostic",
+		Status:    jobv1.JobStatus_JOB_STATUS_PARTIAL,
+	}))
+	if err != nil {
+		t.Fatalf("ListJobs returned error: %v", err)
+	}
+	if len(resp.Msg.GetJobs()) != 1 || resp.Msg.GetJobs()[0].GetId() != "job-1" {
+		t.Fatalf("ListJobs returned unexpected jobs: %+v", resp.Msg.GetJobs())
+	}
+	if resp.Msg.GetNextPageToken() != "job-1" {
+		t.Fatalf("ListJobs returned next_page_token %q, want %q", resp.Msg.GetNextPageToken(), "job-1")
+	}
+	if svc.listKind != "diagnostic" || svc.listStatus != jobqueue.StatusPartial || svc.listPageSize != 2 || svc.listPageToken != "prev-token" {
+		t.Fatalf("ListJobs passed (kind=%q, status=%q, pageSize=%d, pageToken=%q), want (diagnostic, partial, 2, prev-token)",
+			svc.listKind, svc.listStatus, svc.listPageSize, svc.listPageToken)
+	}
+}
+
+func TestJobHandler_ListJobs_NoFilter(t *testing.T) {
+	svc := &fakeJobService{}
+	h := apiconnect.NewJobHandler(svc, nil)
+
+	_, err := h.ListJobs(context.Background(), connect.NewRequest(&jobv1.ListJobsRequest{}))
+	if err != nil {
+		t.Fatalf("ListJobs returned error: %v", err)
+	}
+	if svc.listKind != "" || svc.listStatus != "" {
+		t.Fatalf("ListJobs passed (kind=%q, status=%q) for an unset request, want empty filters", svc.listKind, svc.listStatus)
+	}
+}
+
+func TestJobHandler_ListJobs_Error(t *testing.T) {
+	svc := &fakeJobService{listErr: ports.ErrNotFound}
+	h := apiconnect.NewJobHandler(svc, nil)
+
+	_, err := h.ListJobs(context.Background(), connect.NewRequest(&jobv1.ListJobsRequest{}))
+	var connErr *connect.Error
+	if !errors.As(err, &connErr) {
+		t.Fatalf("ListJobs returned %v, want a *connect.Error", err)
+	}
+	if connErr.Code() != connect.CodeNotFound {
+		t.Fatalf("ListJobs returned code %v, want %v", connErr.Code(), connect.CodeNotFound)
 	}
 }

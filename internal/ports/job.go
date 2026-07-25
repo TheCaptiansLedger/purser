@@ -20,10 +20,16 @@ type JobPublisher interface {
 }
 
 // JobReader lets the API layer read Job state without importing
-// pkg/jobqueue directly. List and Watch are added by later sub-issues. See
+// pkg/jobqueue directly. Watch is added by a later sub-issue. See
 // docs/adr/0023-job-queue.md.
 type JobReader interface {
 	// Get returns the full current state of the Job (all Tasks, all
 	// Steps), or ErrNotFound.
 	Get(ctx context.Context, id string) (*jobqueue.Job, error)
+
+	// List returns a page of Jobs, optionally filtered by kind and/or
+	// status (empty kind / empty status means no filter on that
+	// dimension), using opaque cursor pagination per
+	// docs/adr/0011-api-design.md.
+	List(ctx context.Context, kind string, status jobqueue.Status, pageSize int, pageToken string) (jobs []*jobqueue.Job, nextPageToken string, err error)
 }

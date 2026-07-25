@@ -64,8 +64,10 @@ func (s *Store) GetJob(_ context.Context, id string) (*jobqueue.Job, error) {
 
 // ListJobs implements jobqueue.Store, paginating over insertion order.
 // pageToken is the ID of the last job returned by the previous page, or
-// empty for the first page.
-func (s *Store) ListJobs(_ context.Context, pageSize int, pageToken string) ([]*jobqueue.Job, string, error) {
+// empty for the first page. kind/status filter which jobs count towards
+// pageSize before pagination is applied, so page boundaries never skip or
+// repeat a matching job.
+func (s *Store) ListJobs(_ context.Context, kind string, status jobqueue.Status, pageSize int, pageToken string) ([]*jobqueue.Job, string, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
@@ -83,19 +85,20 @@ func (s *Store) ListJobs(_ context.Context, pageSize int, pageToken string) ([]*
 		}
 	}
 
-	if start >= len(s.order) {
-		return nil, "", nil
-	}
-
-	end := min(start+pageSize, len(s.order))
-	page := make([]*jobqueue.Job, 0, end-start)
-	for _, id := range s.order[start:end] {
-		page = append(page, s.jobs[id].Clone())
-	}
-
+	page := make([]*jobqueue.Job, 0, pageSize)
 	nextPageToken := ""
-	if end < len(s.order) {
-		nextPageToken = s.order[end-1]
+	for i := start; i < len(s.order); i++ {
+		j := s.jobs[s.order[i]]
+		if !j.MatchesFilter(kind, status) {
+			continue
+		}
+		page = append(page, j.Clone())
+		if len(page) == pageSize {
+			if i+1 < len(s.order) {
+				nextPageToken = s.order[i]
+			}
+			break
+		}
 	}
 	return page, nextPageToken, nil
 }

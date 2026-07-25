@@ -37,12 +37,15 @@ const (
 	JobServiceTriggerJobProcedure = "/purser.job.v1.JobService/TriggerJob"
 	// JobServiceGetJobProcedure is the fully-qualified name of the JobService's GetJob RPC.
 	JobServiceGetJobProcedure = "/purser.job.v1.JobService/GetJob"
+	// JobServiceListJobsProcedure is the fully-qualified name of the JobService's ListJobs RPC.
+	JobServiceListJobsProcedure = "/purser.job.v1.JobService/ListJobs"
 )
 
 // JobServiceClient is a client for the purser.job.v1.JobService service.
 type JobServiceClient interface {
 	TriggerJob(context.Context, *connect.Request[v1.TriggerJobRequest]) (*connect.Response[v1.TriggerJobResponse], error)
 	GetJob(context.Context, *connect.Request[v1.GetJobRequest]) (*connect.Response[v1.GetJobResponse], error)
+	ListJobs(context.Context, *connect.Request[v1.ListJobsRequest]) (*connect.Response[v1.ListJobsResponse], error)
 }
 
 // NewJobServiceClient constructs a client for the purser.job.v1.JobService service. By default, it
@@ -68,6 +71,12 @@ func NewJobServiceClient(httpClient connect.HTTPClient, baseURL string, opts ...
 			connect.WithSchema(jobServiceMethods.ByName("GetJob")),
 			connect.WithClientOptions(opts...),
 		),
+		listJobs: connect.NewClient[v1.ListJobsRequest, v1.ListJobsResponse](
+			httpClient,
+			baseURL+JobServiceListJobsProcedure,
+			connect.WithSchema(jobServiceMethods.ByName("ListJobs")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
@@ -75,6 +84,7 @@ func NewJobServiceClient(httpClient connect.HTTPClient, baseURL string, opts ...
 type jobServiceClient struct {
 	triggerJob *connect.Client[v1.TriggerJobRequest, v1.TriggerJobResponse]
 	getJob     *connect.Client[v1.GetJobRequest, v1.GetJobResponse]
+	listJobs   *connect.Client[v1.ListJobsRequest, v1.ListJobsResponse]
 }
 
 // TriggerJob calls purser.job.v1.JobService.TriggerJob.
@@ -87,10 +97,16 @@ func (c *jobServiceClient) GetJob(ctx context.Context, req *connect.Request[v1.G
 	return c.getJob.CallUnary(ctx, req)
 }
 
+// ListJobs calls purser.job.v1.JobService.ListJobs.
+func (c *jobServiceClient) ListJobs(ctx context.Context, req *connect.Request[v1.ListJobsRequest]) (*connect.Response[v1.ListJobsResponse], error) {
+	return c.listJobs.CallUnary(ctx, req)
+}
+
 // JobServiceHandler is an implementation of the purser.job.v1.JobService service.
 type JobServiceHandler interface {
 	TriggerJob(context.Context, *connect.Request[v1.TriggerJobRequest]) (*connect.Response[v1.TriggerJobResponse], error)
 	GetJob(context.Context, *connect.Request[v1.GetJobRequest]) (*connect.Response[v1.GetJobResponse], error)
+	ListJobs(context.Context, *connect.Request[v1.ListJobsRequest]) (*connect.Response[v1.ListJobsResponse], error)
 }
 
 // NewJobServiceHandler builds an HTTP handler from the service implementation. It returns the path
@@ -112,12 +128,20 @@ func NewJobServiceHandler(svc JobServiceHandler, opts ...connect.HandlerOption) 
 		connect.WithSchema(jobServiceMethods.ByName("GetJob")),
 		connect.WithHandlerOptions(opts...),
 	)
+	jobServiceListJobsHandler := connect.NewUnaryHandler(
+		JobServiceListJobsProcedure,
+		svc.ListJobs,
+		connect.WithSchema(jobServiceMethods.ByName("ListJobs")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/purser.job.v1.JobService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case JobServiceTriggerJobProcedure:
 			jobServiceTriggerJobHandler.ServeHTTP(w, r)
 		case JobServiceGetJobProcedure:
 			jobServiceGetJobHandler.ServeHTTP(w, r)
+		case JobServiceListJobsProcedure:
+			jobServiceListJobsHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -133,4 +157,8 @@ func (UnimplementedJobServiceHandler) TriggerJob(context.Context, *connect.Reque
 
 func (UnimplementedJobServiceHandler) GetJob(context.Context, *connect.Request[v1.GetJobRequest]) (*connect.Response[v1.GetJobResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("purser.job.v1.JobService.GetJob is not implemented"))
+}
+
+func (UnimplementedJobServiceHandler) ListJobs(context.Context, *connect.Request[v1.ListJobsRequest]) (*connect.Response[v1.ListJobsResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("purser.job.v1.JobService.ListJobs is not implemented"))
 }

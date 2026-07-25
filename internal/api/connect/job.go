@@ -16,6 +16,7 @@ import (
 type jobService interface {
 	Trigger(ctx context.Context, kind string, taskLabels []string, params map[string]string) (string, error)
 	Get(ctx context.Context, id string) (*jobqueue.Job, error)
+	List(ctx context.Context, kind string, status jobqueue.Status, pageSize int, pageToken string) ([]*jobqueue.Job, string, error)
 }
 
 // JobHandler implements jobv1connect.JobServiceHandler. Job isn't
@@ -52,4 +53,17 @@ func (h *JobHandler) GetJob(ctx context.Context, req *connect.Request[jobv1.GetJ
 		return nil, mapError(ctx, h.logger, err)
 	}
 	return connect.NewResponse(&jobv1.GetJobResponse{Job: jobToProto(job)}), nil
+}
+
+// ListJobs implements jobv1connect.JobServiceHandler.
+func (h *JobHandler) ListJobs(ctx context.Context, req *connect.Request[jobv1.ListJobsRequest]) (*connect.Response[jobv1.ListJobsResponse], error) {
+	jobs, next, err := h.svc.List(ctx, req.Msg.GetKind(), protoToJobStatus(req.Msg.GetStatus()), int(req.Msg.GetPageSize()), req.Msg.GetPageToken())
+	if err != nil {
+		return nil, mapError(ctx, h.logger, err)
+	}
+	pbJobs := make([]*jobv1.Job, 0, len(jobs))
+	for _, j := range jobs {
+		pbJobs = append(pbJobs, jobToProto(j))
+	}
+	return connect.NewResponse(&jobv1.ListJobsResponse{Jobs: pbJobs, NextPageToken: next}), nil
 }

@@ -143,6 +143,38 @@ func TestEngine_Trigger_PartialOnMixedTaskOutcomes(t *testing.T) {
 	}
 }
 
+func TestEngine_List(t *testing.T) {
+	eng := jobqueue.NewEngine(memory.New(), jobqueue.WithLogger(discardLogger()))
+
+	job, err := eng.Trigger(context.Background(), "diagnostic", []string{"one"}, nil)
+	if err != nil {
+		t.Fatalf("Trigger returned error: %v", err)
+	}
+	waitForTerminal(t, eng, job.ID)
+
+	page, _, err := eng.List(context.Background(), "diagnostic", "", 10, "")
+	if err != nil {
+		t.Fatalf("List returned error: %v", err)
+	}
+	found := false
+	for _, j := range page {
+		if j.ID == job.ID {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("List(kind=diagnostic) did not include triggered job %q", job.ID)
+	}
+
+	page, _, err = eng.List(context.Background(), "nonexistent-kind", "", 10, "")
+	if err != nil {
+		t.Fatalf("List returned error: %v", err)
+	}
+	if len(page) != 0 {
+		t.Fatalf("List(kind=nonexistent-kind) returned %d jobs, want 0", len(page))
+	}
+}
+
 // executorFunc adapts a plain function to jobqueue.Executor.
 type executorFunc func(ctx context.Context, r *jobqueue.Runner) error
 

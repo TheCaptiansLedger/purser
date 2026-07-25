@@ -577,6 +577,129 @@ func (x *GetJobResponse) GetJob() *Job {
 	return nil
 }
 
+type ListJobsRequest struct {
+	state     protoimpl.MessageState `protogen:"open.v1"`
+	PageSize  int32                  `protobuf:"varint,1,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
+	PageToken string                 `protobuf:"bytes,2,opt,name=page_token,json=pageToken,proto3" json:"page_token,omitempty"`
+	// kind is an optional filter — leave unset ("") for no filter.
+	Kind string `protobuf:"bytes,3,opt,name=kind,proto3" json:"kind,omitempty"`
+	// status is an optional filter — leave JOB_STATUS_UNSPECIFIED for no
+	// filter.
+	Status        JobStatus `protobuf:"varint,4,opt,name=status,proto3,enum=purser.job.v1.JobStatus" json:"status,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListJobsRequest) Reset() {
+	*x = ListJobsRequest{}
+	mi := &file_purser_job_v1_job_proto_msgTypes[7]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListJobsRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListJobsRequest) ProtoMessage() {}
+
+func (x *ListJobsRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_purser_job_v1_job_proto_msgTypes[7]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListJobsRequest.ProtoReflect.Descriptor instead.
+func (*ListJobsRequest) Descriptor() ([]byte, []int) {
+	return file_purser_job_v1_job_proto_rawDescGZIP(), []int{7}
+}
+
+func (x *ListJobsRequest) GetPageSize() int32 {
+	if x != nil {
+		return x.PageSize
+	}
+	return 0
+}
+
+func (x *ListJobsRequest) GetPageToken() string {
+	if x != nil {
+		return x.PageToken
+	}
+	return ""
+}
+
+func (x *ListJobsRequest) GetKind() string {
+	if x != nil {
+		return x.Kind
+	}
+	return ""
+}
+
+func (x *ListJobsRequest) GetStatus() JobStatus {
+	if x != nil {
+		return x.Status
+	}
+	return JobStatus_JOB_STATUS_UNSPECIFIED
+}
+
+type ListJobsResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Jobs          []*Job                 `protobuf:"bytes,1,rep,name=jobs,proto3" json:"jobs,omitempty"`
+	NextPageToken string                 `protobuf:"bytes,2,opt,name=next_page_token,json=nextPageToken,proto3" json:"next_page_token,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListJobsResponse) Reset() {
+	*x = ListJobsResponse{}
+	mi := &file_purser_job_v1_job_proto_msgTypes[8]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListJobsResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListJobsResponse) ProtoMessage() {}
+
+func (x *ListJobsResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_purser_job_v1_job_proto_msgTypes[8]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListJobsResponse.ProtoReflect.Descriptor instead.
+func (*ListJobsResponse) Descriptor() ([]byte, []int) {
+	return file_purser_job_v1_job_proto_rawDescGZIP(), []int{8}
+}
+
+func (x *ListJobsResponse) GetJobs() []*Job {
+	if x != nil {
+		return x.Jobs
+	}
+	return nil
+}
+
+func (x *ListJobsResponse) GetNextPageToken() string {
+	if x != nil {
+		return x.NextPageToken
+	}
+	return ""
+}
+
 var File_purser_job_v1_job_proto protoreflect.FileDescriptor
 
 const file_purser_job_v1_job_proto_rawDesc = "" +
@@ -630,19 +753,29 @@ const file_purser_job_v1_job_proto_rawDesc = "" +
 	"\rGetJobRequest\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\"6\n" +
 	"\x0eGetJobResponse\x12$\n" +
-	"\x03job\x18\x01 \x01(\v2\x12.purser.job.v1.JobR\x03job*\xa0\x01\n" +
+	"\x03job\x18\x01 \x01(\v2\x12.purser.job.v1.JobR\x03job\"\x93\x01\n" +
+	"\x0fListJobsRequest\x12\x1b\n" +
+	"\tpage_size\x18\x01 \x01(\x05R\bpageSize\x12\x1d\n" +
+	"\n" +
+	"page_token\x18\x02 \x01(\tR\tpageToken\x12\x12\n" +
+	"\x04kind\x18\x03 \x01(\tR\x04kind\x120\n" +
+	"\x06status\x18\x04 \x01(\x0e2\x18.purser.job.v1.JobStatusR\x06status\"b\n" +
+	"\x10ListJobsResponse\x12&\n" +
+	"\x04jobs\x18\x01 \x03(\v2\x12.purser.job.v1.JobR\x04jobs\x12&\n" +
+	"\x0fnext_page_token\x18\x02 \x01(\tR\rnextPageToken*\xa0\x01\n" +
 	"\tJobStatus\x12\x1a\n" +
 	"\x16JOB_STATUS_UNSPECIFIED\x10\x00\x12\x16\n" +
 	"\x12JOB_STATUS_PENDING\x10\x01\x12\x16\n" +
 	"\x12JOB_STATUS_RUNNING\x10\x02\x12\x18\n" +
 	"\x14JOB_STATUS_SUCCEEDED\x10\x03\x12\x15\n" +
 	"\x11JOB_STATUS_FAILED\x10\x04\x12\x16\n" +
-	"\x12JOB_STATUS_PARTIAL\x10\x052\xa6\x01\n" +
+	"\x12JOB_STATUS_PARTIAL\x10\x052\xf3\x01\n" +
 	"\n" +
 	"JobService\x12Q\n" +
 	"\n" +
 	"TriggerJob\x12 .purser.job.v1.TriggerJobRequest\x1a!.purser.job.v1.TriggerJobResponse\x12E\n" +
-	"\x06GetJob\x12\x1c.purser.job.v1.GetJobRequest\x1a\x1d.purser.job.v1.GetJobResponseB#Z!purser/gen/go/purser/job/v1;jobv1b\x06proto3"
+	"\x06GetJob\x12\x1c.purser.job.v1.GetJobRequest\x1a\x1d.purser.job.v1.GetJobResponse\x12K\n" +
+	"\bListJobs\x12\x1e.purser.job.v1.ListJobsRequest\x1a\x1f.purser.job.v1.ListJobsResponseB#Z!purser/gen/go/purser/job/v1;jobv1b\x06proto3"
 
 var (
 	file_purser_job_v1_job_proto_rawDescOnce sync.Once
@@ -657,7 +790,7 @@ func file_purser_job_v1_job_proto_rawDescGZIP() []byte {
 }
 
 var file_purser_job_v1_job_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_purser_job_v1_job_proto_msgTypes = make([]protoimpl.MessageInfo, 9)
+var file_purser_job_v1_job_proto_msgTypes = make([]protoimpl.MessageInfo, 11)
 var file_purser_job_v1_job_proto_goTypes = []any{
 	(JobStatus)(0),                // 0: purser.job.v1.JobStatus
 	(*Step)(nil),                  // 1: purser.job.v1.Step
@@ -667,35 +800,41 @@ var file_purser_job_v1_job_proto_goTypes = []any{
 	(*TriggerJobResponse)(nil),    // 5: purser.job.v1.TriggerJobResponse
 	(*GetJobRequest)(nil),         // 6: purser.job.v1.GetJobRequest
 	(*GetJobResponse)(nil),        // 7: purser.job.v1.GetJobResponse
-	nil,                           // 8: purser.job.v1.Step.DetailEntry
-	nil,                           // 9: purser.job.v1.TriggerJobRequest.ParamsEntry
-	(*timestamppb.Timestamp)(nil), // 10: google.protobuf.Timestamp
+	(*ListJobsRequest)(nil),       // 8: purser.job.v1.ListJobsRequest
+	(*ListJobsResponse)(nil),      // 9: purser.job.v1.ListJobsResponse
+	nil,                           // 10: purser.job.v1.Step.DetailEntry
+	nil,                           // 11: purser.job.v1.TriggerJobRequest.ParamsEntry
+	(*timestamppb.Timestamp)(nil), // 12: google.protobuf.Timestamp
 }
 var file_purser_job_v1_job_proto_depIdxs = []int32{
 	0,  // 0: purser.job.v1.Step.status:type_name -> purser.job.v1.JobStatus
-	10, // 1: purser.job.v1.Step.started_at:type_name -> google.protobuf.Timestamp
-	10, // 2: purser.job.v1.Step.finished_at:type_name -> google.protobuf.Timestamp
-	8,  // 3: purser.job.v1.Step.detail:type_name -> purser.job.v1.Step.DetailEntry
+	12, // 1: purser.job.v1.Step.started_at:type_name -> google.protobuf.Timestamp
+	12, // 2: purser.job.v1.Step.finished_at:type_name -> google.protobuf.Timestamp
+	10, // 3: purser.job.v1.Step.detail:type_name -> purser.job.v1.Step.DetailEntry
 	0,  // 4: purser.job.v1.Task.status:type_name -> purser.job.v1.JobStatus
-	10, // 5: purser.job.v1.Task.started_at:type_name -> google.protobuf.Timestamp
-	10, // 6: purser.job.v1.Task.finished_at:type_name -> google.protobuf.Timestamp
+	12, // 5: purser.job.v1.Task.started_at:type_name -> google.protobuf.Timestamp
+	12, // 6: purser.job.v1.Task.finished_at:type_name -> google.protobuf.Timestamp
 	1,  // 7: purser.job.v1.Task.steps:type_name -> purser.job.v1.Step
 	0,  // 8: purser.job.v1.Job.status:type_name -> purser.job.v1.JobStatus
-	10, // 9: purser.job.v1.Job.created_at:type_name -> google.protobuf.Timestamp
-	10, // 10: purser.job.v1.Job.started_at:type_name -> google.protobuf.Timestamp
-	10, // 11: purser.job.v1.Job.finished_at:type_name -> google.protobuf.Timestamp
+	12, // 9: purser.job.v1.Job.created_at:type_name -> google.protobuf.Timestamp
+	12, // 10: purser.job.v1.Job.started_at:type_name -> google.protobuf.Timestamp
+	12, // 11: purser.job.v1.Job.finished_at:type_name -> google.protobuf.Timestamp
 	2,  // 12: purser.job.v1.Job.tasks:type_name -> purser.job.v1.Task
-	9,  // 13: purser.job.v1.TriggerJobRequest.params:type_name -> purser.job.v1.TriggerJobRequest.ParamsEntry
+	11, // 13: purser.job.v1.TriggerJobRequest.params:type_name -> purser.job.v1.TriggerJobRequest.ParamsEntry
 	3,  // 14: purser.job.v1.GetJobResponse.job:type_name -> purser.job.v1.Job
-	4,  // 15: purser.job.v1.JobService.TriggerJob:input_type -> purser.job.v1.TriggerJobRequest
-	6,  // 16: purser.job.v1.JobService.GetJob:input_type -> purser.job.v1.GetJobRequest
-	5,  // 17: purser.job.v1.JobService.TriggerJob:output_type -> purser.job.v1.TriggerJobResponse
-	7,  // 18: purser.job.v1.JobService.GetJob:output_type -> purser.job.v1.GetJobResponse
-	17, // [17:19] is the sub-list for method output_type
-	15, // [15:17] is the sub-list for method input_type
-	15, // [15:15] is the sub-list for extension type_name
-	15, // [15:15] is the sub-list for extension extendee
-	0,  // [0:15] is the sub-list for field type_name
+	0,  // 15: purser.job.v1.ListJobsRequest.status:type_name -> purser.job.v1.JobStatus
+	3,  // 16: purser.job.v1.ListJobsResponse.jobs:type_name -> purser.job.v1.Job
+	4,  // 17: purser.job.v1.JobService.TriggerJob:input_type -> purser.job.v1.TriggerJobRequest
+	6,  // 18: purser.job.v1.JobService.GetJob:input_type -> purser.job.v1.GetJobRequest
+	8,  // 19: purser.job.v1.JobService.ListJobs:input_type -> purser.job.v1.ListJobsRequest
+	5,  // 20: purser.job.v1.JobService.TriggerJob:output_type -> purser.job.v1.TriggerJobResponse
+	7,  // 21: purser.job.v1.JobService.GetJob:output_type -> purser.job.v1.GetJobResponse
+	9,  // 22: purser.job.v1.JobService.ListJobs:output_type -> purser.job.v1.ListJobsResponse
+	20, // [20:23] is the sub-list for method output_type
+	17, // [17:20] is the sub-list for method input_type
+	17, // [17:17] is the sub-list for extension type_name
+	17, // [17:17] is the sub-list for extension extendee
+	0,  // [0:17] is the sub-list for field type_name
 }
 
 func init() { file_purser_job_v1_job_proto_init() }
@@ -709,7 +848,7 @@ func file_purser_job_v1_job_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_purser_job_v1_job_proto_rawDesc), len(file_purser_job_v1_job_proto_rawDesc)),
 			NumEnums:      1,
-			NumMessages:   9,
+			NumMessages:   11,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
