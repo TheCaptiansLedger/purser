@@ -14,5 +14,6 @@ func newRootCmd() *cobra.Command {
 	}
 	cmd.AddCommand(newServeCmd())
 	cmd.AddCommand(newSeedVariousArtistsCmd())
+	cmd.AddCommand(newJobsCmd())
 	return cmd
 }
