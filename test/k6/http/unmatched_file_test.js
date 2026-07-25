@@ -1,11 +1,16 @@
 // k6 HTTP/JSON suite for UnmatchedFileService. See test/k6/http/scan_test.js
 // for the fixture/polling pattern this reuses to seed real UnmatchedFile
-// rows — TriggerScan's queue step details (#487) carry the ids this suite
-// reads. UnmatchedFile is Datastore-backed (durable,
+// rows — TriggerScan's check_known/queue step details (#487, #489) carry
+// the ids this suite reads. UnmatchedFile is Datastore-backed (durable,
 // docs/adr/0024-pipeline-core.md), so the server-side store accumulates
 // across k6 runs the same way Job's in-memory store does (see
 // test/k6/http/job_test.js) — this suite proves the seeded ids show up
-// correctly rather than asserting an exact total record count.
+// correctly rather than asserting an exact total record count. Per
+// ADR-0024's "already known" short-circuit (#489), a fixture file already
+// known from an earlier scan (this suite's own prior run, or
+// test/k6/http/scan_test.js which runs first alphabetically) resolves
+// matched_unmatched_file instead of queuing a new row — the id is read
+// from whichever step actually carried it.
 import http from 'k6/http';
 import { check, sleep } from 'k6';
 import { options } from '../lib/options.js';
@@ -41,6 +46,23 @@ function waitForTerminalJob(jobId) {
   return job;
 }
 
+// unmatchedFileIdOf reads a task's unmatched_file.id regardless of which
+// step actually carried it: a "new" outcome (#487) creates it in the
+// "queue" step, while a "matched_unmatched_file" outcome (#489) reports
+// the pre-existing id straight from "check_known" instead (no queue step
+// runs at all). A "matched_media_file" outcome has no unmatched_file.id at
+// all — that would mean this fixture file collided with some other
+// suite's MediaFile, which none of these suites are supposed to leave
+// behind (see test/k6/http/scan_test.js's cleanup).
+function unmatchedFileIdOf(task) {
+  const checkKnown = task.steps.find((s) => s.name === 'check_known');
+  if (checkKnown.detail.outcome === 'matched_unmatched_file') {
+    return checkKnown.detail['unmatched_file.id'];
+  }
+  const queue = task.steps.find((s) => s.name === 'queue');
+  return queue && queue.detail['unmatched_file.id'];
+}
+
 function triggerScanAndCollectIds(root, wantCount) {
   const res = invoke(`${SCAN_SERVICE}/TriggerScan`, JSON.stringify({ root: root }), HEADERS);
   check(res, {
@@ -51,8 +73,9 @@ function triggerScanAndCollectIds(root, wantCount) {
   check(job, {
     'scan job succeeded': (j) => j && j.status === 'JOB_STATUS_SUCCEEDED',
     [`scan job has ${wantCount} tasks`]: (j) => j && j.tasks && j.tasks.length === wantCount,
+    'every task resolves to a real unmatched_file.id': (j) => j.tasks.every((t) => !!unmatchedFileIdOf(t)),
   });
-  return job.tasks.map((t) => t.steps[1].detail['unmatched_file.id']);
+  return job.tasks.map(unmatchedFileIdOf);
 }
 
 export default () => {

@@ -69,6 +69,12 @@ func (f *fakeMediaFileRepository) List(_ context.Context, _ string, _ int, _ str
 	return files, "", nil
 }
 
+// GetByHash is unused by MediaFileService's tests — present solely to
+// satisfy ports.MediaFileRepository.
+func (f *fakeMediaFileRepository) GetByHash(context.Context, string, string, string, string) (*domain.MediaFile, error) {
+	return nil, ports.ErrNotFound
+}
+
 func validMediaFile(id string) *domain.MediaFile {
 	return &domain.MediaFile{ID: id, ItemID: "item1", Path: "/media/test.mkv"}
 }

@@ -11,6 +11,7 @@ import (
 	"os/signal"
 	"purser/internal/adapters/datastore"
 	"purser/internal/config"
+	"purser/internal/ports"
 	"purser/internal/service"
 	"syscall"
 	"time"
@@ -400,7 +401,7 @@ func newServeMux(logger *slog.Logger, ds datastore.Datastore, enableMD5, enableS
 	// Common Scan Pipeline: split into its own function purely to keep
 	// newServeMux's cyclomatic complexity under budget — no behavior
 	// difference from being inlined here. See docs/adr/0024-pipeline-core.md.
-	if err := wireScanPipeline(mux, ds, logger, interceptors, jobEngine, jobAdapter, enableMD5, enableSHA512); err != nil {
+	if err := wireScanPipeline(mux, ds, logger, interceptors, jobEngine, jobAdapter, mediaFileRepo, enableMD5, enableSHA512); err != nil {
 		return nil, err
 	}
 
@@ -434,14 +435,17 @@ func newServeMux(logger *slog.Logger, ds datastore.Datastore, enableMD5, enableS
 // jobEngine (exactly like "diagnostic" self-registers inside
 // pkgjobqueue.NewEngine), and mounts ScanService and UnmatchedFileService
 // on mux. jobAdapter is reused as ScanService's ports.JobPublisher —
-// neither service imports pkg/jobqueue directly. See
-// docs/adr/0023-job-queue.md, docs/adr/0024-pipeline-core.md.
-func wireScanPipeline(mux *http.ServeMux, ds datastore.Datastore, logger *slog.Logger, interceptors connect.HandlerOption, jobEngine *pkgjobqueue.Engine, jobAdapter *adapterjobqueue.Adapter, enableMD5, enableSHA512 bool) error {
+// neither service imports pkg/jobqueue directly. mediaFileRepo is the
+// already-constructed ports.MediaFileRepository (built alongside
+// MediaFileService above) — ScanExecutor needs it for the "already known"
+// short-circuit's MediaFile-side lookup. See docs/adr/0023-job-queue.md,
+// docs/adr/0024-pipeline-core.md.
+func wireScanPipeline(mux *http.ServeMux, ds datastore.Datastore, logger *slog.Logger, interceptors connect.HandlerOption, jobEngine *pkgjobqueue.Engine, jobAdapter *adapterjobqueue.Adapter, mediaFileRepo ports.MediaFileRepository, enableMD5, enableSHA512 bool) error {
 	unmatchedFileRepo, err := storeunmatchedfile.New("unmatched_file", ds, storeunmatchedfile.WithLogger(logger))
 	if err != nil {
 		return fmt.Errorf("cmd/purser: constructing unmatched file repository: %w", err)
 	}
-	jobEngine.Register("scan", adapterpipeline.NewScanExecutor(unmatchedFileRepo))
+	jobEngine.Register("scan", adapterpipeline.NewScanExecutor(unmatchedFileRepo, mediaFileRepo))
 
 	fileWalker, err := filewalkerlocal.New(filewalkerlocal.WithLogger(logger))
 	if err != nil {

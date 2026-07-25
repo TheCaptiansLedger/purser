@@ -42,6 +42,16 @@ func (f *fakeUnmatchedFileRepository) List(_ context.Context, status domain.Unma
 	return f.listFiles, f.listNextPageToken, nil
 }
 
+func (f *fakeUnmatchedFileRepository) Update(_ context.Context, _ *domain.UnmatchedFile) error {
+	return nil
+}
+
+// GetByHash is unused by UnmatchedFileService's tests — present solely to
+// satisfy ports.UnmatchedFileRepository.
+func (f *fakeUnmatchedFileRepository) GetByHash(context.Context, string, string, string, string) (*domain.UnmatchedFile, error) {
+	return nil, ports.ErrNotFound
+}
+
 func TestUnmatchedFileService_Get(t *testing.T) {
 	file := &domain.UnmatchedFile{ID: "uf-1", Status: domain.UnmatchedFileStatusPending}
 	svc := service.NewUnmatchedFileService(&fakeUnmatchedFileRepository{getFile: file})

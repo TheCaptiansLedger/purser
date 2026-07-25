@@ -161,6 +161,12 @@ func (f *deletionFakeMediaFileRepository) List(_ context.Context, itemID string,
 	return matched, "", nil
 }
 
+// GetByHash is unused by ItemDeletionService's tests — present solely to
+// satisfy ports.MediaFileRepository.
+func (f *deletionFakeMediaFileRepository) GetByHash(context.Context, string, string, string, string) (*domain.MediaFile, error) {
+	return nil, ports.ErrNotFound
+}
+
 type deletionFakeExternalIDRepository struct {
 	rows      []*domain.ExternalID
 	listErr   error

@@ -30,6 +30,12 @@ func TestMediaFileRepository(t *testing.T, newRepo NewRepositoryFunc) {
 	t.Run("delete on a missing media file returns ErrNotFound", func(t *testing.T) { testDeleteMissing(t, newRepo) })
 	t.Run("list filters by item independently", func(t *testing.T) { testListFilters(t, newRepo) })
 	t.Run("list returns every created media file across pages", func(t *testing.T) { testListPaginates(t, newRepo) })
+	t.Run("get by hash matches on oshash", func(t *testing.T) { testGetByHashOSHash(t, newRepo) })
+	t.Run("get by hash matches on sha1", func(t *testing.T) { testGetByHashSHA1(t, newRepo) })
+	t.Run("get by hash matches on md5", func(t *testing.T) { testGetByHashMD5(t, newRepo) })
+	t.Run("get by hash matches on sha512", func(t *testing.T) { testGetByHashSHA512(t, newRepo) })
+	t.Run("get by hash returns ErrNotFound when nothing matches", func(t *testing.T) { testGetByHashNoMatch(t, newRepo) })
+	t.Run("get by hash skips empty inputs", func(t *testing.T) { testGetByHashSkipsEmpty(t, newRepo) })
 }
 
 func mustCreate(t *testing.T, r ports.MediaFileRepository, m *domain.MediaFile) {
@@ -187,4 +193,86 @@ func sampleMediaFileForItem(id, itemID string) *domain.MediaFile {
 	m := sampleMediaFile(id)
 	m.ItemID = itemID
 	return m
+}
+
+func sampleMediaFileWithHashes(id string) *domain.MediaFile {
+	m := sampleMediaFile(id)
+	m.OSHash = "oshash-" + id
+	m.SHA1 = "sha1-" + id
+	m.MD5 = "md5-" + id
+	m.SHA512 = "sha512-" + id
+	return m
+}
+
+func testGetByHashOSHash(t *testing.T, newRepo NewRepositoryFunc) {
+	r := newRepo(t)
+	mustCreate(t, r, sampleMediaFileWithHashes("m1"))
+
+	got, err := r.GetByHash(context.Background(), "oshash-m1", "", "", "")
+	if err != nil {
+		t.Fatalf("GetByHash(oshash) returned error: %v", err)
+	}
+	if got.ID != "m1" {
+		t.Fatalf("GetByHash(oshash) returned ID %q, want %q", got.ID, "m1")
+	}
+}
+
+func testGetByHashSHA1(t *testing.T, newRepo NewRepositoryFunc) {
+	r := newRepo(t)
+	mustCreate(t, r, sampleMediaFileWithHashes("m1"))
+
+	got, err := r.GetByHash(context.Background(), "", "sha1-m1", "", "")
+	if err != nil {
+		t.Fatalf("GetByHash(sha1) returned error: %v", err)
+	}
+	if got.ID != "m1" {
+		t.Fatalf("GetByHash(sha1) returned ID %q, want %q", got.ID, "m1")
+	}
+}
+
+func testGetByHashMD5(t *testing.T, newRepo NewRepositoryFunc) {
+	r := newRepo(t)
+	mustCreate(t, r, sampleMediaFileWithHashes("m1"))
+
+	got, err := r.GetByHash(context.Background(), "", "", "md5-m1", "")
+	if err != nil {
+		t.Fatalf("GetByHash(md5) returned error: %v", err)
+	}
+	if got.ID != "m1" {
+		t.Fatalf("GetByHash(md5) returned ID %q, want %q", got.ID, "m1")
+	}
+}
+
+func testGetByHashSHA512(t *testing.T, newRepo NewRepositoryFunc) {
+	r := newRepo(t)
+	mustCreate(t, r, sampleMediaFileWithHashes("m1"))
+
+	got, err := r.GetByHash(context.Background(), "", "", "", "sha512-m1")
+	if err != nil {
+		t.Fatalf("GetByHash(sha512) returned error: %v", err)
+	}
+	if got.ID != "m1" {
+		t.Fatalf("GetByHash(sha512) returned ID %q, want %q", got.ID, "m1")
+	}
+}
+
+func testGetByHashNoMatch(t *testing.T, newRepo NewRepositoryFunc) {
+	r := newRepo(t)
+	mustCreate(t, r, sampleMediaFileWithHashes("m1"))
+
+	_, err := r.GetByHash(context.Background(), "no-such-hash", "no-such-hash", "no-such-hash", "no-such-hash")
+	if !errors.Is(err, ports.ErrNotFound) {
+		t.Fatalf("GetByHash with no match returned %v, want ErrNotFound", err)
+	}
+}
+
+func testGetByHashSkipsEmpty(t *testing.T, newRepo NewRepositoryFunc) {
+	r := newRepo(t)
+	// A record that has never computed MD5/SHA512 stores them as "".
+	mustCreate(t, r, sampleMediaFile("m1"))
+
+	_, err := r.GetByHash(context.Background(), "", "", "", "")
+	if !errors.Is(err, ports.ErrNotFound) {
+		t.Fatalf("GetByHash with all-empty inputs returned %v, want ErrNotFound (must not match empty-hash records)", err)
+	}
 }

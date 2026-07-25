@@ -11,6 +11,7 @@ package pipeline
 
 import (
 	"context"
+	"errors"
 	"os"
 	"purser/internal/domain"
 	"purser/internal/ports"
@@ -21,28 +22,42 @@ import (
 )
 
 const (
-	stepHash  = "hash"
-	stepQueue = "queue"
+	stepHash       = "hash"
+	stepCheckKnown = "check_known"
+	stepQueue      = "queue"
+
+	// outcome values recorded on the "check_known" Step's Detail — see
+	// checkKnown and docs/adr/0024-pipeline-core.md's "already known"
+	// short-circuit.
+	outcomeMatchedMediaFile     = "matched_media_file"
+	outcomeMatchedUnmatchedFile = "matched_unmatched_file"
+	outcomeNew                  = "new"
 )
 
 // ScanExecutor implements pkgjobqueue.Executor for "scan" Jobs. Each
 // Task's Label is the discovered file's full path (set by
 // internal/service.ScanService.Trigger). Per Task: compute hashes (Step
-// "hash"), then create an UnmatchedFile (Step "queue"). It imports
-// pkg/jobqueue directly — unlike internal/service/scan.go — because it's
-// the adapter glue registered on the concrete *pkgjobqueue.Engine; it also
-// needs ports.UnmatchedFileRepository/domain.UnmatchedFile/pkg/filehash,
-// a combination pkg/jobqueue itself can never import (its "zero Purser
-// knowledge" rule), which is why this type can't live in pkg/jobqueue.
+// "hash"), then check whether the file is already known by hash (Step
+// "check_known") before either short-circuiting (a MediaFile or
+// UnmatchedFile hit just gets its Path updated) or creating a new
+// UnmatchedFile (Step "queue"). It imports pkg/jobqueue directly — unlike
+// internal/service/scan.go — because it's the adapter glue registered on
+// the concrete *pkgjobqueue.Engine; it also needs
+// ports.UnmatchedFileRepository/ports.MediaFileRepository/
+// domain.UnmatchedFile/pkg/filehash, a combination pkg/jobqueue itself can
+// never import (its "zero Purser knowledge" rule), which is why this type
+// can't live in pkg/jobqueue.
 type ScanExecutor struct {
-	repo ports.UnmatchedFileRepository
+	repo          ports.UnmatchedFileRepository
+	mediaFileRepo ports.MediaFileRepository
 }
 
 var _ pkgjobqueue.Executor = (*ScanExecutor)(nil)
 
-// NewScanExecutor constructs a ScanExecutor backed by repo.
-func NewScanExecutor(repo ports.UnmatchedFileRepository) *ScanExecutor {
-	return &ScanExecutor{repo: repo}
+// NewScanExecutor constructs a ScanExecutor backed by repo and
+// mediaFileRepo.
+func NewScanExecutor(repo ports.UnmatchedFileRepository, mediaFileRepo ports.MediaFileRepository) *ScanExecutor {
+	return &ScanExecutor{repo: repo, mediaFileRepo: mediaFileRepo}
 }
 
 // Execute implements pkgjobqueue.Executor.
@@ -67,8 +82,10 @@ func (e *ScanExecutor) Execute(ctx context.Context, r *pkgjobqueue.Runner) error
 	return nil
 }
 
-// runTask hashes and queues the file at path (task.Label), driving both
-// Steps and the terminal Task status for taskID.
+// runTask hashes the file at path (task.Label), checks whether it's
+// already known by hash, and either short-circuits or queues it as a new
+// UnmatchedFile — driving every Step and the terminal Task status for
+// taskID.
 func (e *ScanExecutor) runTask(ctx context.Context, r *pkgjobqueue.Runner, taskID, path string, enableMD5, enableSHA512 bool) error {
 	oshash, sha1sum, md5sum, sha512sum, hashDetail, hashErr := computeHashes(path, enableMD5, enableSHA512)
 
@@ -86,6 +103,49 @@ func (e *ScanExecutor) runTask(ctx context.Context, r *pkgjobqueue.Runner, taskI
 		return err
 	}
 
+	proceed, err := e.runCheckKnownStep(ctx, r, taskID, path, oshash, sha1sum, md5sum, sha512sum)
+	if err != nil || !proceed {
+		return err
+	}
+
+	return e.runQueueStep(ctx, r, taskID, path, oshash, sha1sum, md5sum, sha512sum)
+}
+
+// runCheckKnownStep runs the "check_known" Step: a MediaFile or
+// UnmatchedFile hit short-circuits (updates that record's Path, finishes
+// the Task successfully) and reports proceed=false; a miss records
+// outcome=new and reports proceed=true so runTask moves on to "queue". A
+// repository error finishes the Step and Task as failed and reports
+// proceed=false with a non-nil error.
+func (e *ScanExecutor) runCheckKnownStep(ctx context.Context, r *pkgjobqueue.Runner, taskID, path, oshash, sha1sum, md5sum, sha512sum string) (proceed bool, err error) {
+	checkHandle, err := r.StartStep(ctx, taskID, stepCheckKnown)
+	if err != nil {
+		return false, err
+	}
+
+	detail, matched, checkErr := e.checkKnown(ctx, path, oshash, sha1sum, md5sum, sha512sum)
+	if checkErr != nil {
+		if fErr := r.FinishStep(checkHandle, pkgjobqueue.StatusFailed, checkErr.Error(), nil, checkErr); fErr != nil {
+			return false, fErr
+		}
+		return false, r.FinishTask(ctx, taskID, pkgjobqueue.StatusFailed)
+	}
+	if matched {
+		if err := r.FinishStep(checkHandle, pkgjobqueue.StatusSucceeded, "", detail, nil); err != nil {
+			return false, err
+		}
+		return false, r.FinishTask(ctx, taskID, pkgjobqueue.StatusSucceeded)
+	}
+	if err := r.FinishStep(checkHandle, pkgjobqueue.StatusSucceeded, "", map[string]string{"outcome": outcomeNew}, nil); err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
+// runQueueStep runs the "queue" Step for a genuinely new file: creates
+// and persists a new domain.UnmatchedFile, driving the Step and the
+// terminal Task status.
+func (e *ScanExecutor) runQueueStep(ctx context.Context, r *pkgjobqueue.Runner, taskID, path, oshash, sha1sum, md5sum, sha512sum string) error {
 	queueHandle, err := r.StartStep(ctx, taskID, stepQueue)
 	if err != nil {
 		return err
@@ -123,6 +183,43 @@ func (e *ScanExecutor) runTask(ctx context.Context, r *pkgjobqueue.Runner, taskI
 		return err
 	}
 	return r.FinishTask(ctx, taskID, pkgjobqueue.StatusSucceeded)
+}
+
+// checkKnown implements ADR-0024's "already known" short-circuit: a
+// MediaFile hit (a file already linked to a real Item that moved on disk)
+// or an UnmatchedFile hit (a file still sitting in the review queue that
+// moved before anyone resolved it) gets just its Path updated in place,
+// and checkKnown returns the Detail map to record on the "check_known"
+// Step alongside matched=true. A miss on both returns matched=false,
+// telling the caller to proceed with the existing create-new-UnmatchedFile
+// flow. MediaFile is checked before UnmatchedFile, per
+// docs/adr/0024-pipeline-core.md.
+func (e *ScanExecutor) checkKnown(ctx context.Context, path, oshash, sha1sum, md5sum, sha512sum string) (detail map[string]string, matched bool, err error) {
+	mf, err := e.mediaFileRepo.GetByHash(ctx, oshash, sha1sum, md5sum, sha512sum)
+	switch {
+	case err == nil:
+		mf.Path = path
+		if err := e.mediaFileRepo.Update(ctx, mf); err != nil {
+			return nil, false, err
+		}
+		return map[string]string{"outcome": outcomeMatchedMediaFile, "media_file.id": mf.ID}, true, nil
+	case !errors.Is(err, ports.ErrNotFound):
+		return nil, false, err
+	}
+
+	uf, err := e.repo.GetByHash(ctx, oshash, sha1sum, md5sum, sha512sum)
+	switch {
+	case err == nil:
+		uf.Path = path
+		if err := e.repo.Update(ctx, uf); err != nil {
+			return nil, false, err
+		}
+		return map[string]string{"outcome": outcomeMatchedUnmatchedFile, "unmatched_file.id": uf.ID}, true, nil
+	case !errors.Is(err, ports.ErrNotFound):
+		return nil, false, err
+	}
+
+	return nil, false, nil
 }
 
 // computeHashes runs filehash.OSHash/SHA1 unconditionally and

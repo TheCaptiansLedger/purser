@@ -28,6 +28,12 @@ func TestUnmatchedFileRepository(t *testing.T, newRepo NewRepositoryFunc) {
 	t.Run("list with no filter returns every record", func(t *testing.T) { testListNoFilter(t, newRepo) })
 	t.Run("list filtered by status returns only matching records", func(t *testing.T) { testListStatusFilter(t, newRepo) })
 	t.Run("list paginates across two calls", func(t *testing.T) { testListPagination(t, newRepo) })
+	t.Run("update replaces an existing unmatched file", func(t *testing.T) { testUpdate(t, newRepo) })
+	t.Run("update on a missing unmatched file returns ErrNotFound", func(t *testing.T) { testUpdateMissing(t, newRepo) })
+	t.Run("get by hash matches on oshash", func(t *testing.T) { testGetByHashOSHash(t, newRepo) })
+	t.Run("get by hash matches on sha1", func(t *testing.T) { testGetByHashSHA1(t, newRepo) })
+	t.Run("get by hash returns ErrNotFound when nothing matches", func(t *testing.T) { testGetByHashNoMatch(t, newRepo) })
+	t.Run("get by hash skips empty inputs", func(t *testing.T) { testGetByHashSkipsEmpty(t, newRepo) })
 }
 
 func mustCreate(t *testing.T, r ports.UnmatchedFileRepository, u *domain.UnmatchedFile) {
@@ -166,5 +172,81 @@ func sampleUnmatchedFileWithStatus(id string, status domain.UnmatchedFileStatus)
 		SHA1:         "a9993e364706816aba3e25717850c26c9cd0d89d",
 		DiscoveredAt: time.Unix(1700000000, 0).UTC(),
 		Status:       status,
+	}
+}
+
+func testUpdate(t *testing.T, newRepo NewRepositoryFunc) {
+	r := newRepo(t)
+	u := sampleUnmatchedFile("uf1")
+	mustCreate(t, r, u)
+
+	u.Path = "/media/incoming/moved.flac"
+	if err := r.Update(context.Background(), u); err != nil {
+		t.Fatalf("Update returned error: %v", err)
+	}
+
+	got, err := r.Get(context.Background(), "uf1")
+	if err != nil {
+		t.Fatalf("Get returned error: %v", err)
+	}
+	if got.Path != "/media/incoming/moved.flac" {
+		t.Fatalf("Get after Update returned Path %q, want %q", got.Path, "/media/incoming/moved.flac")
+	}
+}
+
+func testUpdateMissing(t *testing.T, newRepo NewRepositoryFunc) {
+	r := newRepo(t)
+	err := r.Update(context.Background(), sampleUnmatchedFile("missing"))
+	if !errors.Is(err, ports.ErrNotFound) {
+		t.Fatalf("Update on missing unmatched file returned %v, want ErrNotFound", err)
+	}
+}
+
+func testGetByHashOSHash(t *testing.T, newRepo NewRepositoryFunc) {
+	r := newRepo(t)
+	u := sampleUnmatchedFile("uf1")
+	mustCreate(t, r, u)
+
+	got, err := r.GetByHash(context.Background(), u.OSHash, "", "", "")
+	if err != nil {
+		t.Fatalf("GetByHash(oshash) returned error: %v", err)
+	}
+	if got.ID != "uf1" {
+		t.Fatalf("GetByHash(oshash) returned ID %q, want %q", got.ID, "uf1")
+	}
+}
+
+func testGetByHashSHA1(t *testing.T, newRepo NewRepositoryFunc) {
+	r := newRepo(t)
+	u := sampleUnmatchedFile("uf1")
+	mustCreate(t, r, u)
+
+	got, err := r.GetByHash(context.Background(), "", u.SHA1, "", "")
+	if err != nil {
+		t.Fatalf("GetByHash(sha1) returned error: %v", err)
+	}
+	if got.ID != "uf1" {
+		t.Fatalf("GetByHash(sha1) returned ID %q, want %q", got.ID, "uf1")
+	}
+}
+
+func testGetByHashNoMatch(t *testing.T, newRepo NewRepositoryFunc) {
+	r := newRepo(t)
+	mustCreate(t, r, sampleUnmatchedFile("uf1"))
+
+	_, err := r.GetByHash(context.Background(), "no-such-hash", "no-such-hash", "no-such-hash", "no-such-hash")
+	if !errors.Is(err, ports.ErrNotFound) {
+		t.Fatalf("GetByHash with no match returned %v, want ErrNotFound", err)
+	}
+}
+
+func testGetByHashSkipsEmpty(t *testing.T, newRepo NewRepositoryFunc) {
+	r := newRepo(t)
+	// A record that has never computed MD5/SHA512 stores them as "".
+	mustCreate(t, r, sampleUnmatchedFile("uf1"))
+
+	_, err := r.GetByHash(context.Background(), "", "", "", "")
+	if !errors.Is(err, ports.ErrNotFound) {
+		t.Fatalf("GetByHash with all-empty inputs returned %v, want ErrNotFound (must not match empty-hash records)", err)
 	}
 }

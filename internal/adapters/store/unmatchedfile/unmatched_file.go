@@ -48,10 +48,30 @@ func New(name string, ds datastore.Datastore, opts ...Option) (*Repository, erro
 
 func idOf(u *domain.UnmatchedFile) string { return u.ID }
 
-// indexOf writes Status into Document.Index — ADR-0024 names status as
-// the review queue's filter dimension, read back by List below.
+// indexOf writes Status plus every hash field into Document.Index —
+// Status is the review queue's filter dimension, read back by List below;
+// the hash fields back GetByHash (ADR-0024's "already known"
+// short-circuit), one indexed key per hash algorithm since Datastore's
+// List filter is an AND-match over the whole map, not an OR across keys.
 func indexOf(u *domain.UnmatchedFile) map[string]string {
-	return map[string]string{"status": string(u.Status)}
+	return map[string]string{
+		"status": string(u.Status),
+		"oshash": u.OSHash,
+		"sha1":   u.SHA1,
+		"md5":    u.MD5,
+		"sha512": u.SHA512,
+	}
+}
+
+// hashLookups pairs each hash algorithm's index key with the
+// caller-supplied value, in the order GetByHash checks them.
+func hashLookups(oshash, sha1, md5, sha512 string) []struct{ key, value string } {
+	return []struct{ key, value string }{
+		{"oshash", oshash},
+		{"sha1", sha1},
+		{"md5", md5},
+		{"sha512", sha512},
+	}
 }
 
 // Create implements ports.UnmatchedFileRepository.
@@ -71,4 +91,26 @@ func (r *Repository) List(ctx context.Context, status domain.UnmatchedFileStatus
 		filter = map[string]string{"status": string(status)}
 	}
 	return r.inner.List(ctx, filter, pageSize, pageToken)
+}
+
+// Update implements ports.UnmatchedFileRepository.
+func (r *Repository) Update(ctx context.Context, u *domain.UnmatchedFile) error {
+	return r.inner.Update(ctx, u)
+}
+
+// GetByHash implements ports.UnmatchedFileRepository.
+func (r *Repository) GetByHash(ctx context.Context, oshash, sha1, md5, sha512 string) (*domain.UnmatchedFile, error) {
+	for _, lookup := range hashLookups(oshash, sha1, md5, sha512) {
+		if lookup.value == "" {
+			continue
+		}
+		matches, _, err := r.inner.List(ctx, map[string]string{lookup.key: lookup.value}, 1, "")
+		if err != nil {
+			return nil, err
+		}
+		if len(matches) > 0 {
+			return matches[0], nil
+		}
+	}
+	return nil, ports.ErrNotFound
 }
