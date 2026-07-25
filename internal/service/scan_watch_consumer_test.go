@@ -100,6 +100,26 @@ func waitForCallCount(t *testing.T, pub *watchFakePublisher, want int) {
 	t.Fatalf("timed out waiting for %d Trigger call(s), got %d", want, pub.callCount())
 }
 
+// syncBuffer is a mutex-guarded bytes.Buffer — consumer.Run's goroutine
+// writes log records to it concurrently with the test goroutine polling
+// String(), which a plain bytes.Buffer doesn't allow race-free.
+type syncBuffer struct {
+	mu  sync.Mutex
+	buf bytes.Buffer
+}
+
+func (b *syncBuffer) Write(p []byte) (int, error) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.buf.Write(p)
+}
+
+func (b *syncBuffer) String() string {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.buf.String()
+}
+
 var errTestWatch = errors.New("boom: watch source failed")
 
 func TestScanWatchConsumer_Run_TriggersScanOnSettledEvent(t *testing.T) {
@@ -151,7 +171,7 @@ func TestScanWatchConsumer_Run_LogsWatcherErrorAndContinues(t *testing.T) {
 	walker := &watchFakeWalker{}
 	scanSvc := service.NewScanService(pub, walker, false, false)
 
-	var logBuf bytes.Buffer
+	var logBuf syncBuffer
 	logger := slog.New(slog.NewTextHandler(&logBuf, nil))
 	consumer := service.NewScanWatchConsumer(watcher, scanSvc, logger)
 
