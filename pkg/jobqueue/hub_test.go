@@ -7,7 +7,7 @@ import (
 
 func TestHub_SubscribePublishDelivers(t *testing.T) {
 	h := newHub(slog.Default())
-	ch, unsubscribe := h.subscribe("job-1")
+	ch, _, unsubscribe := h.subscribe("job-1")
 	defer unsubscribe()
 
 	evt := &Event{Kind: EventKindTask, TaskID: "task-1", Job: &Job{ID: "job-1", Status: StatusRunning}}
@@ -25,9 +25,9 @@ func TestHub_SubscribePublishDelivers(t *testing.T) {
 
 func TestHub_PublishOnlyReachesSubscribersOfThatJob(t *testing.T) {
 	h := newHub(slog.Default())
-	chA, unsubA := h.subscribe("job-a")
+	chA, _, unsubA := h.subscribe("job-a")
 	defer unsubA()
-	chB, unsubB := h.subscribe("job-b")
+	chB, _, unsubB := h.subscribe("job-b")
 	defer unsubB()
 
 	h.publish(&Event{Kind: EventKindJob, Job: &Job{ID: "job-a", Status: StatusRunning}})
@@ -46,9 +46,9 @@ func TestHub_PublishOnlyReachesSubscribersOfThatJob(t *testing.T) {
 
 func TestHub_MultipleSubscribersOfSameJobBothReceive(t *testing.T) {
 	h := newHub(slog.Default())
-	ch1, unsub1 := h.subscribe("job-1")
+	ch1, _, unsub1 := h.subscribe("job-1")
 	defer unsub1()
-	ch2, unsub2 := h.subscribe("job-1")
+	ch2, _, unsub2 := h.subscribe("job-1")
 	defer unsub2()
 
 	evt := &Event{Kind: EventKindJob, Job: &Job{ID: "job-1", Status: StatusRunning}}
@@ -68,8 +68,8 @@ func TestHub_MultipleSubscribersOfSameJobBothReceive(t *testing.T) {
 
 func TestHub_PublishClosesAllSubscribersOnTerminalStatus(t *testing.T) {
 	h := newHub(slog.Default())
-	ch1, _ := h.subscribe("job-1")
-	ch2, _ := h.subscribe("job-1")
+	ch1, _, _ := h.subscribe("job-1")
+	ch2, _, _ := h.subscribe("job-1")
 
 	h.publish(&Event{Kind: EventKindJob, Job: &Job{ID: "job-1", Status: StatusSucceeded}})
 
@@ -91,7 +91,7 @@ func TestHub_PublishClosesAllSubscribersOnTerminalStatus(t *testing.T) {
 
 func TestHub_UnsubscribeIsIdempotentAndSafeAfterTerminalClose(_ *testing.T) {
 	h := newHub(slog.Default())
-	_, unsubscribe := h.subscribe("job-1")
+	_, _, unsubscribe := h.subscribe("job-1")
 
 	h.publish(&Event{Kind: EventKindJob, Job: &Job{ID: "job-1", Status: StatusSucceeded}})
 
@@ -109,7 +109,7 @@ func TestHub_RemoveOnUnknownJobIsNoop(_ *testing.T) {
 
 func TestHub_PublishDropsBeyondSubscriberBufferInsteadOfBlocking(t *testing.T) {
 	h := newHub(slog.Default())
-	ch, unsubscribe := h.subscribe("job-1")
+	ch, _, unsubscribe := h.subscribe("job-1")
 	defer unsubscribe()
 
 	for i := 0; i < subscriberBuffer+5; i++ {

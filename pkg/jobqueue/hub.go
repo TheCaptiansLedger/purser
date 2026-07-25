@@ -56,11 +56,14 @@ func newHub(logger *slog.Logger) *hub {
 }
 
 // subscribe registers a new subscriber for jobID and returns its Event
-// channel plus an unsubscribe func. unsubscribe is safe to call more than
-// once — from a deferred cleanup and, independently, from publish once the
-// Job reaches a terminal status — and safe even if the subscriber was
-// never delivered anything.
-func (h *hub) subscribe(jobID string) (chan *Event, func()) {
+// channel, a prime func, and an unsubscribe func. unsubscribe is safe to
+// call more than once — from a deferred cleanup and, independently, from
+// publish once the Job reaches a terminal status — and safe even if the
+// subscriber was never delivered anything. prime delivers a single
+// caller-supplied Event to this subscriber only, synchronized against
+// publish/remove so it can never race with — or, worse, send on — a
+// channel concurrently closed by them; see its doc comment.
+func (h *hub) subscribe(jobID string) (ch chan *Event, prime func(*Event), unsubscribe func()) {
 	h.mu.Lock()
 	id := h.nextID
 	h.nextID++
@@ -71,7 +74,30 @@ func (h *hub) subscribe(jobID string) (chan *Event, func()) {
 	h.subs[jobID][id] = sub
 	h.mu.Unlock()
 
-	return sub.ch, func() { h.remove(jobID, id) }
+	return sub.ch, func(evt *Event) { h.prime(jobID, id, evt) }, func() { h.remove(jobID, id) }
+}
+
+// prime delivers evt to the subscriber id for jobID if it's still
+// registered, a no-op otherwise. Unlike publish, this always runs under
+// h.mu, so a caller priming a freshly subscribed channel with an initial
+// snapshot can never race with a concurrent publish/remove closing that
+// same channel — a raw, unsynchronized send on the subscriber's channel
+// would not just race but could panic outright if the close won.
+func (h *hub) prime(jobID string, id int, evt *Event) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	subs, ok := h.subs[jobID]
+	if !ok {
+		return
+	}
+	s, ok := subs[id]
+	if !ok {
+		return
+	}
+	select {
+	case s.ch <- evt:
+	default:
+	}
 }
 
 // remove deletes and closes the subscriber id for jobID if still

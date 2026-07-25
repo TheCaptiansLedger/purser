@@ -167,21 +167,19 @@ func (e *Engine) Watch(ctx context.Context, jobID string) (<-chan *Event, func()
 		return nil, nil, err
 	}
 
-	ch, unsubscribe := e.hub.subscribe(jobID)
+	ch, prime, unsubscribe := e.hub.subscribe(jobID)
 
 	job, err := e.store.GetJob(ctx, jobID)
 	if err != nil {
 		unsubscribe()
 		return nil, nil, err
 	}
-	select {
-	case ch <- &Event{Kind: EventKindJob, Job: job.Clone()}:
-	default:
-		// The buffer is sized well above what a single priming send
-		// needs; this only trips if real events already arrived between
-		// subscribe and here, in which case the caller already has
-		// fresher data than this snapshot would add.
-	}
+	// prime is synchronized against a concurrent publish/remove for this
+	// same subscriber (e.g. the Job reaching a terminal status between
+	// subscribe above and here), so it can't race with — or send on — a
+	// channel that publish already closed; it simply no-ops in that case,
+	// since publish will have already delivered the real terminal Event.
+	prime(&Event{Kind: EventKindJob, Job: job.Clone()})
 	if job.Status.terminal() {
 		unsubscribe()
 	}
