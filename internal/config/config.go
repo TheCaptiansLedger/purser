@@ -91,6 +91,7 @@ func Load(v *viper.Viper, configPath string) (Config, error) {
 	v.SetDefault("telemetry.metrics_addr", defaults.Telemetry.MetricsAddr)
 	v.SetDefault("pipeline.enable_md5", defaults.Pipeline.EnableMD5)
 	v.SetDefault("pipeline.enable_sha512", defaults.Pipeline.EnableSHA512)
+	v.SetDefault("pipeline.scan_roots", defaults.Pipeline.ScanRoots)
 
 	v.SetEnvPrefix("purser")
 	v.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))

@@ -13,6 +13,8 @@ import (
 	"purser/internal/config"
 	"purser/internal/ports"
 	"purser/internal/service"
+	"purser/pkg/fswatch"
+	"purser/pkg/fswatch/fsnotify"
 	"syscall"
 	"time"
 
@@ -47,6 +49,7 @@ import (
 	storetagassignment "purser/internal/adapters/store/tagassignment"
 	storeunmatchedfile "purser/internal/adapters/store/unmatchedfile"
 	apiconnect "purser/internal/api/connect"
+
 	pkgjobqueue "purser/pkg/jobqueue"
 	jobqueuememory "purser/pkg/jobqueue/memory"
 )
@@ -93,6 +96,13 @@ func runServe(ctx context.Context, configPath string) error {
 		}
 	}()
 
+	// sigCtx is created here (rather than immediately before srv.ListenAndServe,
+	// where it used to live) so it can also bound the filesystem watcher's
+	// lifetime below — both the HTTP server and the watcher/scan-trigger
+	// consumer goroutine shut down on the same signal.
+	sigCtx, stop := signal.NotifyContext(ctx, os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
 	ds, dsCloser, err := openDatastore(cfg.Database)
 	if err != nil {
 		return err
@@ -103,9 +113,16 @@ func runServe(ctx context.Context, configPath string) error {
 		}
 	}()
 
-	mux, err := newServeMux(logger, ds, cfg.Pipeline.EnableMD5, cfg.Pipeline.EnableSHA512)
+	mux, watcherCloser, err := newServeMux(sigCtx, logger, ds, cfg.Pipeline)
 	if err != nil {
 		return err
+	}
+	if watcherCloser != nil {
+		defer func() {
+			if closeErr := watcherCloser.Close(); closeErr != nil {
+				logger.Error("closing filesystem watcher", "error", closeErr)
+			}
+		}()
 	}
 
 	// Native gRPC requires HTTP/2. There's no TLS in front of this dev/local
@@ -131,9 +148,6 @@ func runServe(ctx context.Context, configPath string) error {
 			errCh <- serveErr
 		}
 	}()
-
-	sigCtx, stop := signal.NotifyContext(ctx, os.Interrupt, syscall.SIGTERM)
-	defer stop()
 
 	select {
 	case <-sigCtx.Done():
@@ -198,8 +212,11 @@ func openDatastore(cfg config.Database) (datastore.Datastore, io.Closer, error) 
 // rather than a signal to collapse it into a generic helper.
 //
 // Every entity is backed by the single shared ds — see
-// docs/adr/0012-datastore-persistence.md.
-func newServeMux(logger *slog.Logger, ds datastore.Datastore, enableMD5, enableSHA512 bool) (*http.ServeMux, error) {
+// docs/adr/0012-datastore-persistence.md. ctx bounds the lifetime of the
+// Common Scan Pipeline's filesystem watcher/consumer goroutine, if one is
+// started (see wireScanPipeline); the returned io.Closer stops it during
+// shutdown and is nil when pipelineCfg.ScanRoots is empty.
+func newServeMux(ctx context.Context, logger *slog.Logger, ds datastore.Datastore, pipelineCfg config.Pipeline) (*http.ServeMux, io.Closer, error) {
 	mux := http.NewServeMux()
 	interceptors := connect.WithInterceptors(apiconnect.NewLoggingInterceptor(logger))
 
@@ -210,7 +227,7 @@ func newServeMux(logger *slog.Logger, ds datastore.Datastore, enableMD5, enableS
 	// docs/adr/0015-deletion-impact-and-composing-services.md.
 	personRepo, err := storeperson.New("person", ds, storeperson.WithLogger(logger))
 	if err != nil {
-		return nil, fmt.Errorf("cmd/purser: constructing person repository: %w", err)
+		return nil, nil, fmt.Errorf("cmd/purser: constructing person repository: %w", err)
 	}
 
 	// libraryEntryRepo's handler (libraryEntryHandler) is constructed
@@ -220,7 +237,7 @@ func newServeMux(logger *slog.Logger, ds datastore.Datastore, enableMD5, enableS
 	// see docs/adr/0015-deletion-impact-and-composing-services.md.
 	libraryEntryRepo, err := storelibraryentry.New("library_entry", ds, storelibraryentry.WithLogger(logger))
 	if err != nil {
-		return nil, fmt.Errorf("cmd/purser: constructing library entry repository: %w", err)
+		return nil, nil, fmt.Errorf("cmd/purser: constructing library entry repository: %w", err)
 	}
 
 	// groupRepo's handler (groupHandler) is constructed further down, after
@@ -229,7 +246,7 @@ func newServeMux(logger *slog.Logger, ds datastore.Datastore, enableMD5, enableS
 	// docs/adr/0015-deletion-impact-and-composing-services.md.
 	groupRepo, err := storegroup.New("group", ds, storegroup.WithLogger(logger))
 	if err != nil {
-		return nil, fmt.Errorf("cmd/purser: constructing group repository: %w", err)
+		return nil, nil, fmt.Errorf("cmd/purser: constructing group repository: %w", err)
 	}
 
 	// itemRepo's handler (itemHandler) is constructed further down, after
@@ -238,12 +255,12 @@ func newServeMux(logger *slog.Logger, ds datastore.Datastore, enableMD5, enableS
 	// see docs/adr/0015-deletion-impact-and-composing-services.md.
 	itemRepo, err := storeitem.New("item", ds, storeitem.WithLogger(logger))
 	if err != nil {
-		return nil, fmt.Errorf("cmd/purser: constructing item repository: %w", err)
+		return nil, nil, fmt.Errorf("cmd/purser: constructing item repository: %w", err)
 	}
 
 	entryPersonRepo, err := storeentryperson.New("entry_person", ds, storeentryperson.WithLogger(logger))
 	if err != nil {
-		return nil, fmt.Errorf("cmd/purser: constructing entry person repository: %w", err)
+		return nil, nil, fmt.Errorf("cmd/purser: constructing entry person repository: %w", err)
 	}
 	entryPersonHandler := apiconnect.NewEntryPersonHandler(service.NewEntryPersonService(entryPersonRepo), logger)
 	entryPersonPath, entryPersonConnectHandler := domainv1connect.NewEntryPersonServiceHandler(entryPersonHandler, interceptors)
@@ -251,7 +268,7 @@ func newServeMux(logger *slog.Logger, ds datastore.Datastore, enableMD5, enableS
 
 	itemPersonRepo, err := storeitemperson.New("item_person", ds, storeitemperson.WithLogger(logger))
 	if err != nil {
-		return nil, fmt.Errorf("cmd/purser: constructing item person repository: %w", err)
+		return nil, nil, fmt.Errorf("cmd/purser: constructing item person repository: %w", err)
 	}
 	itemPersonHandler := apiconnect.NewItemPersonHandler(service.NewItemPersonService(itemPersonRepo), logger)
 	itemPersonPath, itemPersonConnectHandler := domainv1connect.NewItemPersonServiceHandler(itemPersonHandler, interceptors)
@@ -259,12 +276,12 @@ func newServeMux(logger *slog.Logger, ds datastore.Datastore, enableMD5, enableS
 
 	tagRepo, err := storetag.New("tag", ds, storetag.WithLogger(logger))
 	if err != nil {
-		return nil, fmt.Errorf("cmd/purser: constructing tag repository: %w", err)
+		return nil, nil, fmt.Errorf("cmd/purser: constructing tag repository: %w", err)
 	}
 
 	tagAssignmentRepo, err := storetagassignment.New("tag_assignment", ds, storetagassignment.WithLogger(logger))
 	if err != nil {
-		return nil, fmt.Errorf("cmd/purser: constructing tag assignment repository: %w", err)
+		return nil, nil, fmt.Errorf("cmd/purser: constructing tag assignment repository: %w", err)
 	}
 	tagAssignmentHandler := apiconnect.NewTagAssignmentHandler(service.NewTagAssignmentService(tagAssignmentRepo), logger)
 	tagAssignmentPath, tagAssignmentConnectHandler := domainv1connect.NewTagAssignmentServiceHandler(tagAssignmentHandler, interceptors)
@@ -280,7 +297,7 @@ func newServeMux(logger *slog.Logger, ds datastore.Datastore, enableMD5, enableS
 
 	externalIDRepo, err := storeexternalid.New("external_id", ds, storeexternalid.WithLogger(logger))
 	if err != nil {
-		return nil, fmt.Errorf("cmd/purser: constructing external id repository: %w", err)
+		return nil, nil, fmt.Errorf("cmd/purser: constructing external id repository: %w", err)
 	}
 	externalIDHandler := apiconnect.NewExternalIDHandler(service.NewExternalIDService(externalIDRepo), logger)
 	externalIDPath, externalIDConnectHandler := domainv1connect.NewExternalIDServiceHandler(externalIDHandler, interceptors)
@@ -288,7 +305,7 @@ func newServeMux(logger *slog.Logger, ds datastore.Datastore, enableMD5, enableS
 
 	imageRepo, err := storeimage.New("image", ds, storeimage.WithLogger(logger))
 	if err != nil {
-		return nil, fmt.Errorf("cmd/purser: constructing image repository: %w", err)
+		return nil, nil, fmt.Errorf("cmd/purser: constructing image repository: %w", err)
 	}
 	imageHandler := apiconnect.NewImageHandler(service.NewImageService(imageRepo), logger)
 	imagePath, imageConnectHandler := domainv1connect.NewImageServiceHandler(imageHandler, interceptors)
@@ -296,7 +313,7 @@ func newServeMux(logger *slog.Logger, ds datastore.Datastore, enableMD5, enableS
 
 	mediaFileRepo, err := storemediafile.New("media_file", ds, storemediafile.WithLogger(logger))
 	if err != nil {
-		return nil, fmt.Errorf("cmd/purser: constructing media file repository: %w", err)
+		return nil, nil, fmt.Errorf("cmd/purser: constructing media file repository: %w", err)
 	}
 	mediaFileHandler := apiconnect.NewMediaFileHandler(service.NewMediaFileService(mediaFileRepo), logger)
 	mediaFilePath, mediaFileConnectHandler := domainv1connect.NewMediaFileServiceHandler(mediaFileHandler, interceptors)
@@ -318,7 +335,7 @@ func newServeMux(logger *slog.Logger, ds datastore.Datastore, enableMD5, enableS
 	// further down, alongside the rest of the Music module.
 	musicReleaseRepo, err := storemusicrelease.New("music_release", ds, storemusicrelease.WithLogger(logger))
 	if err != nil {
-		return nil, fmt.Errorf("cmd/purser: constructing music release repository: %w", err)
+		return nil, nil, fmt.Errorf("cmd/purser: constructing music release repository: %w", err)
 	}
 	// MusicReleaseDeletionService is the composing-service exception per
 	// docs/adr/0015-deletion-impact-and-composing-services.md — it reuses
@@ -355,7 +372,7 @@ func newServeMux(logger *slog.Logger, ds datastore.Datastore, enableMD5, enableS
 	// line here is additive, nothing in the kernel wiring changed to add it.
 	performerProfileRepo, err := storeperformerprofile.New("performer_profile", ds, storeperformerprofile.WithLogger(logger))
 	if err != nil {
-		return nil, fmt.Errorf("cmd/purser: constructing performer profile repository: %w", err)
+		return nil, nil, fmt.Errorf("cmd/purser: constructing performer profile repository: %w", err)
 	}
 	performerProfileHandler := apiconnect.NewPerformerProfileHandler(service.NewPerformerProfileService(performerProfileRepo), logger)
 	performerProfilePath, performerProfileConnectHandler := afterdarkv1connect.NewPerformerProfileServiceHandler(performerProfileHandler, interceptors)
@@ -401,8 +418,9 @@ func newServeMux(logger *slog.Logger, ds datastore.Datastore, enableMD5, enableS
 	// Common Scan Pipeline: split into its own function purely to keep
 	// newServeMux's cyclomatic complexity under budget — no behavior
 	// difference from being inlined here. See docs/adr/0024-pipeline-core.md.
-	if err := wireScanPipeline(mux, ds, logger, interceptors, jobEngine, jobAdapter, mediaFileRepo, enableMD5, enableSHA512); err != nil {
-		return nil, err
+	watcherCloser, err := wireScanPipeline(ctx, mux, ds, logger, interceptors, jobEngine, jobAdapter, mediaFileRepo, pipelineCfg)
+	if err != nil {
+		return nil, nil, err
 	}
 
 	reflector := grpcreflect.NewStaticReflector(
@@ -427,7 +445,7 @@ func newServeMux(logger *slog.Logger, ds datastore.Datastore, enableMD5, enableS
 	mux.Handle(grpcreflect.NewHandlerV1(reflector))
 	mux.Handle(grpcreflect.NewHandlerV1Alpha(reflector))
 
-	return mux, nil
+	return mux, watcherCloser, nil
 }
 
 // wireScanPipeline builds the Common Scan Pipeline's adapters, services,
@@ -439,20 +457,22 @@ func newServeMux(logger *slog.Logger, ds datastore.Datastore, enableMD5, enableS
 // already-constructed ports.MediaFileRepository (built alongside
 // MediaFileService above) — ScanExecutor needs it for the "already known"
 // short-circuit's MediaFile-side lookup. See docs/adr/0023-job-queue.md,
-// docs/adr/0024-pipeline-core.md.
-func wireScanPipeline(mux *http.ServeMux, ds datastore.Datastore, logger *slog.Logger, interceptors connect.HandlerOption, jobEngine *pkgjobqueue.Engine, jobAdapter *adapterjobqueue.Adapter, mediaFileRepo ports.MediaFileRepository, enableMD5, enableSHA512 bool) error {
+// docs/adr/0024-pipeline-core.md. The returned io.Closer stops the
+// filesystem watcher started for pipelineCfg.ScanRoots (see
+// startScanWatcher); it is nil when no roots are configured.
+func wireScanPipeline(ctx context.Context, mux *http.ServeMux, ds datastore.Datastore, logger *slog.Logger, interceptors connect.HandlerOption, jobEngine *pkgjobqueue.Engine, jobAdapter *adapterjobqueue.Adapter, mediaFileRepo ports.MediaFileRepository, pipelineCfg config.Pipeline) (io.Closer, error) {
 	unmatchedFileRepo, err := storeunmatchedfile.New("unmatched_file", ds, storeunmatchedfile.WithLogger(logger))
 	if err != nil {
-		return fmt.Errorf("cmd/purser: constructing unmatched file repository: %w", err)
+		return nil, fmt.Errorf("cmd/purser: constructing unmatched file repository: %w", err)
 	}
 	jobEngine.Register("scan", adapterpipeline.NewScanExecutor(unmatchedFileRepo, mediaFileRepo))
 
 	fileWalker, err := filewalkerlocal.New(filewalkerlocal.WithLogger(logger))
 	if err != nil {
-		return fmt.Errorf("cmd/purser: constructing file walker: %w", err)
+		return nil, fmt.Errorf("cmd/purser: constructing file walker: %w", err)
 	}
 
-	scanSvc := service.NewScanService(jobAdapter, fileWalker, enableMD5, enableSHA512)
+	scanSvc := service.NewScanService(jobAdapter, fileWalker, pipelineCfg.EnableMD5, pipelineCfg.EnableSHA512)
 	scanHandler := apiconnect.NewScanHandler(scanSvc, logger)
 	scanPath, scanConnectHandler := pipelinev1connect.NewScanServiceHandler(scanHandler, interceptors)
 	mux.Handle(scanPath, scanConnectHandler)
@@ -461,5 +481,43 @@ func wireScanPipeline(mux *http.ServeMux, ds datastore.Datastore, logger *slog.L
 	unmatchedFileHandler := apiconnect.NewUnmatchedFileHandler(unmatchedFileSvc, logger)
 	unmatchedFilePath, unmatchedFileConnectHandler := pipelinev1connect.NewUnmatchedFileServiceHandler(unmatchedFileHandler, interceptors)
 	mux.Handle(unmatchedFilePath, unmatchedFileConnectHandler)
-	return nil
+
+	watcherCloser, err := startScanWatcher(ctx, pipelineCfg.ScanRoots, scanSvc, logger)
+	if err != nil {
+		return nil, err
+	}
+	return watcherCloser, nil
+}
+
+// startScanWatcher starts a live pkg/fswatch.Watcher over roots and a
+// ScanWatchConsumer goroutine driving scanSvc.Trigger from its settled
+// events — the automatic half of docs/adr/0024-pipeline-core.md's
+// "Discovery: both a watcher and an on-demand recursive scan, one code
+// path." Returns a nil io.Closer and no error when roots is empty: no
+// watched paths means no cost to opt out, the same convention
+// docs/adr/0007-telemetry.md established for telemetry. ctx bounds the
+// watcher's and the consumer's lifetime; the returned watcher should still
+// be Close()d during shutdown for a clean fsnotify handle teardown.
+func startScanWatcher(ctx context.Context, roots []string, scanSvc *service.ScanService, logger *slog.Logger) (io.Closer, error) {
+	if len(roots) == 0 {
+		return nil, nil //nolint:nilnil // deliberate: no configured roots means no watcher, not an error
+	}
+
+	src, err := fsnotify.New(fsnotify.WithLogger(logger))
+	if err != nil {
+		return nil, fmt.Errorf("cmd/purser: constructing fsnotify source: %w", err)
+	}
+
+	watcher, err := fswatch.New(src, roots, fswatch.DefaultConfig(), fswatch.WithLogger(logger))
+	if err != nil {
+		return nil, fmt.Errorf("cmd/purser: constructing filesystem watcher: %w", err)
+	}
+	if err := watcher.Start(ctx); err != nil {
+		return nil, fmt.Errorf("cmd/purser: starting filesystem watcher: %w", err)
+	}
+
+	consumer := service.NewScanWatchConsumer(watcher, scanSvc, logger)
+	go consumer.Run(ctx)
+
+	return watcher, nil
 }

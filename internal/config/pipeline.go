@@ -14,13 +14,22 @@ type Pipeline struct {
 	// EnableSHA512 turns on SHA512 hashing of every discovered file, in
 	// addition to the always-computed OSHash/SHA1.
 	EnableSHA512 bool `mapstructure:"enable_sha512"`
+
+	// ScanRoots are the directories a live pkg/fswatch.Watcher watches for
+	// changes, each debounced unit triggering the same ScanService.Trigger
+	// path an explicit TriggerScan RPC call does — see
+	// docs/adr/0024-pipeline-core.md's "Discovery" section. Empty means no
+	// watcher is started at all: no cost to opt out.
+	ScanRoots []string `mapstructure:"scan_roots"`
 }
 
-// DefaultPipeline returns Pipeline's defaults: both extra hashes off.
+// DefaultPipeline returns Pipeline's defaults: both extra hashes off, no
+// watched roots.
 func DefaultPipeline() Pipeline {
 	return Pipeline{
 		EnableMD5:    false,
 		EnableSHA512: false,
+		ScanRoots:    []string{},
 	}
 }
 

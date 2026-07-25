@@ -62,3 +62,8 @@ telemetry:
 pipeline:
   enable_md5: true
   enable_sha512: true
+  # Directories watched live for changes; each settled unit triggers the
+  # same scan TriggerScan invokes explicitly. Empty (the default) starts
+  # no watcher at all.
+  scan_roots:
+    - /media/incoming
