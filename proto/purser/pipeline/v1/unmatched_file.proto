@@ -3,6 +3,7 @@ syntax = "proto3";
 package purser.pipeline.v1;
 
 import "google/protobuf/timestamp.proto";
+import "purser/domain/v1/media_file.proto";
 
 option go_package = "purser/gen/go/purser/pipeline/v1;pipelinev1";
 
@@ -53,12 +54,36 @@ message ListUnmatchedFilesResponse {
   string next_page_token = 2;
 }
 
-// UnmatchedFileService is the review queue's Get/List surface — Resolve
-// (accept a candidate, or dismiss) is a later sub-issue of the Common Scan
-// Pipeline epic (#486). Follows the same handler/service/error-mapping
-// conventions as every other entity's Connect service
-// (docs/adr/0011-api-design.md). See docs/adr/0024-pipeline-core.md.
+// ResolveUnmatchedFileRequest resolves a review-queue entry one of two
+// ways: match it to an existing Item (item_id set — creates a real
+// MediaFile linking the file's path/hashes to that Item, then removes the
+// UnmatchedFile), or dismiss it (kept, not deleted, with
+// status=dismissed, so a later rescan's "already known" short-circuit
+// doesn't silently re-queue it). See docs/adr/0024-pipeline-core.md.
+message ResolveUnmatchedFileRequest {
+  string unmatched_file_id = 1;
+  oneof outcome {
+    string item_id = 2;
+    bool dismiss = 3;
+  }
+}
+
+message ResolveUnmatchedFileResponse {
+  // result is the real, resolved entity: the newly created MediaFile when
+  // outcome was item_id, or the UnmatchedFile (now status=dismissed) when
+  // outcome was dismiss.
+  oneof result {
+    purser.domain.v1.MediaFile media_file = 1;
+    UnmatchedFile unmatched_file = 2;
+  }
+}
+
+// UnmatchedFileService is the review queue's Get/List/Resolve surface.
+// Follows the same handler/service/error-mapping conventions as every
+// other entity's Connect service (docs/adr/0011-api-design.md). See
+// docs/adr/0024-pipeline-core.md.
 service UnmatchedFileService {
   rpc GetUnmatchedFile(GetUnmatchedFileRequest) returns (GetUnmatchedFileResponse);
   rpc ListUnmatchedFiles(ListUnmatchedFilesRequest) returns (ListUnmatchedFilesResponse);
+  rpc ResolveUnmatchedFile(ResolveUnmatchedFileRequest) returns (ResolveUnmatchedFileResponse);
 }

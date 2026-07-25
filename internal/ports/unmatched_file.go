@@ -5,13 +5,17 @@ import (
 	"purser/internal/domain"
 )
 
-// UnmatchedFileRepository is the persistence port for
-// domain.UnmatchedFile. Create/Get/List/Update/GetByHash for now — Resolve
-// is added by a later sub-issue of the Common Scan Pipeline epic as this
-// interface widens further. See docs/adr/0024-pipeline-core.md.
+// UnmatchedFileRepository is the persistence port for domain.UnmatchedFile.
+// See docs/adr/0024-pipeline-core.md.
 type UnmatchedFileRepository interface {
 	Create(ctx context.Context, u *domain.UnmatchedFile) error
 	Get(ctx context.Context, id string) (*domain.UnmatchedFile, error)
+
+	// Delete removes the UnmatchedFile with the given id — used by
+	// UnmatchedFileService.Resolve's match outcome, since a resolved
+	// entry leaves the review queue once its MediaFile takes its place.
+	// Returns ports.ErrNotFound if none exists.
+	Delete(ctx context.Context, id string) error
 
 	// Update replaces the record stored under u's own ID — used by the
 	// "already known" short-circuit to update Path when a queued file

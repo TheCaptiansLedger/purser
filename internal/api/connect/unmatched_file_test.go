@@ -25,6 +25,13 @@ type fakeUnmatchedFileService struct {
 	listStatus        domain.UnmatchedFileStatus
 	listPageSize      int
 	listPageToken     string
+
+	resolveMediaFile *domain.MediaFile
+	resolveFile      *domain.UnmatchedFile
+	resolveErr       error
+	resolveID        string
+	resolveItemID    string
+	resolveDismiss   bool
 }
 
 func (f *fakeUnmatchedFileService) Get(_ context.Context, _ string) (*domain.UnmatchedFile, error) {
@@ -42,6 +49,16 @@ func (f *fakeUnmatchedFileService) List(_ context.Context, status domain.Unmatch
 		return nil, "", f.listErr
 	}
 	return f.listFiles, f.listNextPageToken, nil
+}
+
+func (f *fakeUnmatchedFileService) Resolve(_ context.Context, id, itemID string, dismiss bool) (*domain.MediaFile, *domain.UnmatchedFile, error) {
+	f.resolveID = id
+	f.resolveItemID = itemID
+	f.resolveDismiss = dismiss
+	if f.resolveErr != nil {
+		return nil, nil, f.resolveErr
+	}
+	return f.resolveMediaFile, f.resolveFile, nil
 }
 
 func TestUnmatchedFileHandler_GetUnmatchedFile(t *testing.T) {
@@ -139,5 +156,72 @@ func TestUnmatchedFileHandler_ListUnmatchedFiles_Error(t *testing.T) {
 	}
 	if connErr.Code() != connect.CodeNotFound {
 		t.Fatalf("ListUnmatchedFiles returned code %v, want %v", connErr.Code(), connect.CodeNotFound)
+	}
+}
+
+func TestUnmatchedFileHandler_ResolveUnmatchedFile_Match(t *testing.T) {
+	mf := &domain.MediaFile{ID: "mf-1", ItemID: "item-1", Path: "/media/incoming/uf-1.flac"}
+	svc := &fakeUnmatchedFileService{resolveMediaFile: mf}
+	h := apiconnect.NewUnmatchedFileHandler(svc, nil)
+
+	resp, err := h.ResolveUnmatchedFile(context.Background(), connect.NewRequest(&pipelinev1.ResolveUnmatchedFileRequest{
+		UnmatchedFileId: "uf-1",
+		Outcome:         &pipelinev1.ResolveUnmatchedFileRequest_ItemId{ItemId: "item-1"},
+	}))
+	if err != nil {
+		t.Fatalf("ResolveUnmatchedFile returned error: %v", err)
+	}
+	if svc.resolveID != "uf-1" || svc.resolveItemID != "item-1" || svc.resolveDismiss {
+		t.Fatalf("ResolveUnmatchedFile passed (id=%q, itemID=%q, dismiss=%v), want (uf-1, item-1, false)",
+			svc.resolveID, svc.resolveItemID, svc.resolveDismiss)
+	}
+	got := resp.Msg.GetMediaFile()
+	if got == nil || got.GetId() != "mf-1" || got.GetItemId() != "item-1" {
+		t.Fatalf("ResolveUnmatchedFile returned MediaFile %+v, want the resolved MediaFile", got)
+	}
+	if resp.Msg.GetUnmatchedFile() != nil {
+		t.Fatalf("ResolveUnmatchedFile(match) also returned an UnmatchedFile: %+v", resp.Msg.GetUnmatchedFile())
+	}
+}
+
+func TestUnmatchedFileHandler_ResolveUnmatchedFile_Dismiss(t *testing.T) {
+	uf := &domain.UnmatchedFile{ID: "uf-1", Status: domain.UnmatchedFileStatusDismissed}
+	svc := &fakeUnmatchedFileService{resolveFile: uf}
+	h := apiconnect.NewUnmatchedFileHandler(svc, nil)
+
+	resp, err := h.ResolveUnmatchedFile(context.Background(), connect.NewRequest(&pipelinev1.ResolveUnmatchedFileRequest{
+		UnmatchedFileId: "uf-1",
+		Outcome:         &pipelinev1.ResolveUnmatchedFileRequest_Dismiss{Dismiss: true},
+	}))
+	if err != nil {
+		t.Fatalf("ResolveUnmatchedFile returned error: %v", err)
+	}
+	if svc.resolveID != "uf-1" || !svc.resolveDismiss || svc.resolveItemID != "" {
+		t.Fatalf("ResolveUnmatchedFile passed (id=%q, itemID=%q, dismiss=%v), want (uf-1, \"\", true)",
+			svc.resolveID, svc.resolveItemID, svc.resolveDismiss)
+	}
+	got := resp.Msg.GetUnmatchedFile()
+	if got == nil || got.GetId() != "uf-1" || got.GetStatus() != pipelinev1.UnmatchedFileStatus_UNMATCHED_FILE_STATUS_DISMISSED {
+		t.Fatalf("ResolveUnmatchedFile(dismiss) returned %+v, want status=dismissed", got)
+	}
+	if resp.Msg.GetMediaFile() != nil {
+		t.Fatalf("ResolveUnmatchedFile(dismiss) also returned a MediaFile: %+v", resp.Msg.GetMediaFile())
+	}
+}
+
+func TestUnmatchedFileHandler_ResolveUnmatchedFile_ItemNotFound(t *testing.T) {
+	svc := &fakeUnmatchedFileService{resolveErr: ports.ErrNotFound}
+	h := apiconnect.NewUnmatchedFileHandler(svc, nil)
+
+	_, err := h.ResolveUnmatchedFile(context.Background(), connect.NewRequest(&pipelinev1.ResolveUnmatchedFileRequest{
+		UnmatchedFileId: "uf-1",
+		Outcome:         &pipelinev1.ResolveUnmatchedFileRequest_ItemId{ItemId: "missing-item"},
+	}))
+	var connErr *connect.Error
+	if !errors.As(err, &connErr) {
+		t.Fatalf("ResolveUnmatchedFile returned %v, want a *connect.Error", err)
+	}
+	if connErr.Code() != connect.CodeNotFound {
+		t.Fatalf("ResolveUnmatchedFile returned code %v, want %v", connErr.Code(), connect.CodeNotFound)
 	}
 }

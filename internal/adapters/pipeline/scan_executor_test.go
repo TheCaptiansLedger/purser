@@ -65,6 +65,18 @@ func (f *fakeUnmatchedFileRepository) Update(_ context.Context, u *domain.Unmatc
 	return nil
 }
 
+// Delete is unused by ScanExecutor's tests (it only Creates/Gets/Updates)
+// — present solely to satisfy ports.UnmatchedFileRepository.
+func (f *fakeUnmatchedFileRepository) Delete(_ context.Context, id string) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if _, ok := f.files[id]; !ok {
+		return ports.ErrNotFound
+	}
+	delete(f.files, id)
+	return nil
+}
+
 // List is unused by ScanExecutor's tests (it only Creates/Gets/Updates) —
 // present solely to satisfy ports.UnmatchedFileRepository.
 func (f *fakeUnmatchedFileRepository) List(_ context.Context, status domain.UnmatchedFileStatus, _ int, _ string) ([]*domain.UnmatchedFile, string, error) {
@@ -620,6 +632,10 @@ func (a *alwaysFailUnmatchedFileRepository) Get(context.Context, string) (*domai
 }
 
 func (a *alwaysFailUnmatchedFileRepository) Update(context.Context, *domain.UnmatchedFile) error {
+	return a.err
+}
+
+func (a *alwaysFailUnmatchedFileRepository) Delete(context.Context, string) error {
 	return a.err
 }
 

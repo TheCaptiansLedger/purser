@@ -98,6 +98,11 @@ func (r *Repository) Update(ctx context.Context, u *domain.UnmatchedFile) error 
 	return r.inner.Update(ctx, u)
 }
 
+// Delete implements ports.UnmatchedFileRepository.
+func (r *Repository) Delete(ctx context.Context, id string) error {
+	return r.inner.Delete(ctx, id)
+}
+
 // GetByHash implements ports.UnmatchedFileRepository.
 func (r *Repository) GetByHash(ctx context.Context, oshash, sha1, md5, sha512 string) (*domain.UnmatchedFile, error) {
 	for _, lookup := range hashLookups(oshash, sha1, md5, sha512) {

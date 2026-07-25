@@ -11,6 +11,15 @@
 // test/k6/grpc/scan_test.js which runs first alphabetically) resolves
 // matched_unmatched_file instead of queuing a new row — the id is read
 // from whichever step actually carried it.
+//
+// This suite also exercises ResolveUnmatchedFile (#491) against two of
+// the three seeded fixture files: one is matched (its MediaFile/Item are
+// deleted again at the end, mirroring scan_test.js's own cleanup
+// contract, so the fixture path is collectible as a fresh UnmatchedFile
+// next run) and one is dismissed — dismiss is permanent by design, so a
+// rerun of this suite sees that same file already dismissed; see
+// statusOf/pendingSeededIds below for how the earlier list-completeness
+// checks stay correct either way.
 import grpc from 'k6/net/grpc';
 import { check, sleep } from 'k6';
 import { options } from '../lib/options.js';
@@ -21,7 +30,14 @@ const FIXTURE_ROOT = __ENV.PURSER_SCAN_FIXTURE_ROOT || '/media/content/scan';
 const FIXTURE_FILE_COUNT = parseInt(__ENV.PURSER_SCAN_FIXTURE_FILE_COUNT || '3', 10);
 
 const client = new grpc.Client();
-client.load(['../../../proto'], 'purser/pipeline/v1/scan.proto', 'purser/pipeline/v1/unmatched_file.proto', 'purser/job/v1/job.proto');
+client.load(
+  ['../../../proto'],
+  'purser/pipeline/v1/scan.proto',
+  'purser/pipeline/v1/unmatched_file.proto',
+  'purser/job/v1/job.proto',
+  'purser/domain/v1/item.proto',
+  'purser/domain/v1/media_file.proto'
+);
 
 function invoke(method, request) {
   const res = client.invoke(method, request);
@@ -82,9 +98,27 @@ export default () => {
 
   const seededIds = triggerScanAndCollectIds(FIXTURE_ROOT, FIXTURE_FILE_COUNT);
 
-  // GetUnmatchedFile on one of the seeded ids — the full hash set (OSHash/
-  // SHA1 always populated; MD5/SHA512 depend on the server's hashing
-  // toggles, so only presence of the always-on hashes is asserted here).
+  // Below, this suite resolves seededIds[2] (dismiss — permanent, by
+  // design) and seededIds[1] (match — cleaned up at the end of this run,
+  // back to a fresh pending row next time). seededIds[0] is never touched.
+  // A rerun of this suite against a long-lived store (the store
+  // "accumulates across k6 runs", see file header) will therefore find
+  // seededIds[2] already dismissed from a prior run — snapshotting each
+  // seeded id's real current status here, rather than assuming every one
+  // is freshly pending, keeps the list-completeness checks below correct
+  // on both a first-ever run and a rerun.
+  const statusOf = {};
+  seededIds.forEach((id) => {
+    const r = invoke('purser.pipeline.v1.UnmatchedFileService/GetUnmatchedFile', { id: id });
+    check(r, { [`GetUnmatchedFile(${id}) status is OK`]: (rr) => rr && rr.status === grpc.StatusOK });
+    statusOf[id] = r.message.unmatchedFile.status;
+  });
+  const pendingSeededIds = seededIds.filter((id) => statusOf[id] === 'UNMATCHED_FILE_STATUS_PENDING');
+
+  // GetUnmatchedFile on seededIds[0] specifically — this suite never
+  // resolves it, so it's always pending. The full hash set (OSHash/SHA1
+  // always populated; MD5/SHA512 depend on the server's hashing toggles,
+  // so only presence of the always-on hashes is asserted here).
   let res = invoke('purser.pipeline.v1.UnmatchedFileService/GetUnmatchedFile', { id: seededIds[0] });
   check(res, {
     'GetUnmatchedFile status is OK': (r) => r && r.status === grpc.StatusOK,
@@ -93,8 +127,9 @@ export default () => {
     'GetUnmatchedFile status is pending': (r) => r.message.unmatchedFile.status === 'UNMATCHED_FILE_STATUS_PENDING',
   });
 
-  // ListUnmatchedFiles with no filter must include every seeded id, each
-  // still pending.
+  // ListUnmatchedFiles with no filter must include every seeded id
+  // (dismissed rows are kept, not deleted — see docs/adr/0024-pipeline-core.md),
+  // each with its real, previously-snapshotted status.
   res = invoke('purser.pipeline.v1.UnmatchedFileService/ListUnmatchedFiles', { pageSize: 50 });
   check(res, {
     'ListUnmatchedFiles (no filter) status is OK': (r) => r && r.status === grpc.StatusOK,
@@ -102,24 +137,25 @@ export default () => {
       const gotIds = (r.message.unmatchedFiles || []).map((u) => u.id);
       return seededIds.every((id) => gotIds.indexOf(id) !== -1);
     },
-    'ListUnmatchedFiles (no filter) seeded records are pending': (r) => {
+    'ListUnmatchedFiles (no filter) seeded records match their real status': (r) => {
       const byId = {};
       (r.message.unmatchedFiles || []).forEach((u) => (byId[u.id] = u));
-      return seededIds.every((id) => byId[id] && byId[id].status === 'UNMATCHED_FILE_STATUS_PENDING');
+      return seededIds.every((id) => byId[id] && byId[id].status === statusOf[id]);
     },
   });
 
   // ListUnmatchedFiles filtered by status=pending must include every
-  // seeded id, and every returned record must actually be pending.
+  // seeded id that's actually still pending, and every returned record
+  // must actually be pending.
   res = invoke('purser.pipeline.v1.UnmatchedFileService/ListUnmatchedFiles', {
     pageSize: 50,
     status: 'UNMATCHED_FILE_STATUS_PENDING',
   });
   check(res, {
     'ListUnmatchedFiles (status=pending) status is OK': (r) => r && r.status === grpc.StatusOK,
-    'ListUnmatchedFiles (status=pending) includes every seeded id': (r) => {
+    'ListUnmatchedFiles (status=pending) includes every still-pending seeded id': (r) => {
       const gotIds = (r.message.unmatchedFiles || []).map((u) => u.id);
-      return seededIds.every((id) => gotIds.indexOf(id) !== -1);
+      return pendingSeededIds.every((id) => gotIds.indexOf(id) !== -1);
     },
     'ListUnmatchedFiles (status=pending) every result is pending': (r) =>
       (r.message.unmatchedFiles || []).every((u) => u.status === 'UNMATCHED_FILE_STATUS_PENDING'),
@@ -150,6 +186,106 @@ export default () => {
       'ListUnmatchedFiles paginated through every seeded id, no gap': (v) => seededIds.every((id) => v.allIds.indexOf(id) !== -1),
     }
   );
+
+  // ResolveUnmatchedFile: match. A real Item is created first (ids are
+  // server-generated, per docs/adr/0020-server-generated-kernel-entity-ids.md
+  // — read back from CreateItem's response, never sent).
+  res = invoke('purser.domain.v1.ItemService/CreateItem', {
+    item: { contentType: 'adult', libraryEntryId: 'k6-resolve-entry', title: 'K6 ResolveUnmatchedFile Item', status: 'ITEM_STATUS_WANTED' },
+  });
+  check(res, {
+    'CreateItem status is OK': (r) => r && r.status === grpc.StatusOK,
+    'CreateItem returns an id': (r) => r && r.message && r.message.item && !!r.message.item.id,
+  });
+  const itemId = res.message.item.id;
+  const matchId = seededIds[1];
+
+  res = invoke('purser.pipeline.v1.UnmatchedFileService/ResolveUnmatchedFile', { unmatchedFileId: matchId, itemId: itemId });
+  check(res, {
+    'ResolveUnmatchedFile (match) status is OK': (r) => r && r.status === grpc.StatusOK,
+    'ResolveUnmatchedFile (match) returns a MediaFile, not an UnmatchedFile': (r) => r && r.message && !!r.message.mediaFile && !r.message.unmatchedFile,
+    'ResolveUnmatchedFile (match) MediaFile is linked to the Item': (r) => r.message.mediaFile.itemId === itemId,
+    'ResolveUnmatchedFile (match) MediaFile carries the file\'s hashes': (r) => !!r.message.mediaFile.osHash && !!r.message.mediaFile.sha1,
+  });
+  const mediaFileId = res.message.mediaFile.id;
+
+  res = invoke('purser.domain.v1.MediaFileService/GetMediaFile', { id: mediaFileId });
+  check(res, {
+    'GetMediaFile after resolve (match) status is OK': (r) => r && r.status === grpc.StatusOK,
+    'GetMediaFile after resolve (match) is linked to the Item': (r) => r.message.mediaFile.itemId === itemId,
+    'GetMediaFile after resolve (match) carries the real path/hashes': (r) => !!r.message.mediaFile.path && !!r.message.mediaFile.osHash,
+  });
+
+  res = invoke('purser.pipeline.v1.UnmatchedFileService/ListUnmatchedFiles', { pageSize: 50 });
+  check(res, {
+    'ListUnmatchedFiles after resolve (match) no longer includes the resolved id': (r) =>
+      !(r.message.unmatchedFiles || []).some((u) => u.id === matchId),
+  });
+
+  // ResolveUnmatchedFile: dismiss.
+  const dismissId = seededIds[2];
+  res = invoke('purser.pipeline.v1.UnmatchedFileService/ResolveUnmatchedFile', { unmatchedFileId: dismissId, dismiss: true });
+  check(res, {
+    'ResolveUnmatchedFile (dismiss) status is OK': (r) => r && r.status === grpc.StatusOK,
+    'ResolveUnmatchedFile (dismiss) returns an UnmatchedFile, not a MediaFile': (r) => r && r.message && !!r.message.unmatchedFile && !r.message.mediaFile,
+    'ResolveUnmatchedFile (dismiss) status is dismissed': (r) => r.message.unmatchedFile.status === 'UNMATCHED_FILE_STATUS_DISMISSED',
+  });
+
+  res = invoke('purser.pipeline.v1.UnmatchedFileService/GetUnmatchedFile', { id: dismissId });
+  check(res, {
+    'GetUnmatchedFile after resolve (dismiss) status is OK': (r) => r && r.status === grpc.StatusOK,
+    'GetUnmatchedFile after resolve (dismiss) is dismissed': (r) => r.message.unmatchedFile.status === 'UNMATCHED_FILE_STATUS_DISMISSED',
+  });
+
+  // Rescan the same fixture root: the dismissed file (unchanged on disk)
+  // must resolve via ADR-0024's "already known" short-circuit — matched by
+  // hash against the same dismissed UnmatchedFile row, Path just
+  // refreshed — rather than being silently re-queued as a new pending
+  // entry. See #489's checkKnown, extended by this issue's acceptance
+  // criteria to prove it's dismissed-aware.
+  res = invoke('purser.pipeline.v1.ScanService/TriggerScan', { root: FIXTURE_ROOT });
+  check(res, { 'rescan TriggerScan status is OK': (r) => r && r.status === grpc.StatusOK });
+  const rescanJob = waitForTerminalJob(res.message.jobId);
+  check(rescanJob, {
+    'rescan job succeeded': (j) => j && j.status === 'JOB_STATUS_SUCCEEDED',
+    'rescan resolves the dismissed file via the already-known short-circuit, same id': (j) =>
+      j.tasks.some((t) => {
+        const checkKnown = t.steps.find((s) => s.name === 'check_known');
+        return checkKnown && checkKnown.detail.outcome === 'matched_unmatched_file' && checkKnown.detail['unmatched_file.id'] === dismissId;
+      }),
+  });
+
+  res = invoke('purser.pipeline.v1.UnmatchedFileService/GetUnmatchedFile', { id: dismissId });
+  check(res, {
+    'GetUnmatchedFile after rescan is still dismissed (not silently re-queued)': (r) =>
+      r && r.status === grpc.StatusOK && r.message.unmatchedFile.status === 'UNMATCHED_FILE_STATUS_DISMISSED',
+  });
+  res = invoke('purser.pipeline.v1.UnmatchedFileService/ListUnmatchedFiles', { pageSize: 50, status: 'UNMATCHED_FILE_STATUS_PENDING' });
+  check(res, {
+    'ListUnmatchedFiles (status=pending) after rescan does not include the dismissed id': (r) =>
+      r && r.status === grpc.StatusOK && !(r.message.unmatchedFiles || []).some((u) => u.id === dismissId),
+    'ListUnmatchedFiles (status=pending) after rescan still includes the untouched seeded id': (r) =>
+      r && (r.message.unmatchedFiles || []).some((u) => u.id === seededIds[0]),
+  });
+
+  // ResolveUnmatchedFile with a nonexistent item_id — a real NotFound
+  // error, not a silent no-op or a 500.
+  res = invoke('purser.pipeline.v1.UnmatchedFileService/ResolveUnmatchedFile', {
+    unmatchedFileId: seededIds[0],
+    itemId: 'k6-grpc-no-such-item',
+  });
+  check(res, { 'ResolveUnmatchedFile with a nonexistent item_id is NotFound': (r) => r && r.status === grpc.StatusNotFound });
+
+  // Clean up the match's MediaFile/Item — unlike dismiss (permanent, by
+  // design), a match consumes one of the shared fixture files; deleting
+  // both here reverts that path to "no known record" so the next run (or
+  // test/k6/grpc/scan_test.js, which shares this same fixture root) sees
+  // it as new/collectible again, the same contract scan_test.js's own
+  // cleanup already documents.
+  res = invoke('purser.domain.v1.MediaFileService/DeleteMediaFile', { id: mediaFileId });
+  check(res, { 'DeleteMediaFile (cleanup) status is OK': (r) => r && r.status === grpc.StatusOK });
+  res = invoke('purser.domain.v1.ItemService/DeleteItem', { id: itemId });
+  check(res, { 'DeleteItem (cleanup) status is OK': (r) => r && r.status === grpc.StatusOK });
 
   client.close();
 };

@@ -418,7 +418,7 @@ func newServeMux(ctx context.Context, logger *slog.Logger, ds datastore.Datastor
 	// Common Scan Pipeline: split into its own function purely to keep
 	// newServeMux's cyclomatic complexity under budget — no behavior
 	// difference from being inlined here. See docs/adr/0024-pipeline-core.md.
-	watcherCloser, err := wireScanPipeline(ctx, mux, ds, logger, interceptors, jobEngine, jobAdapter, mediaFileRepo, pipelineCfg)
+	watcherCloser, err := wireScanPipeline(ctx, mux, ds, logger, interceptors, jobEngine, jobAdapter, itemRepo, mediaFileRepo, pipelineCfg)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -453,14 +453,17 @@ func newServeMux(ctx context.Context, logger *slog.Logger, ds datastore.Datastor
 // jobEngine (exactly like "diagnostic" self-registers inside
 // pkgjobqueue.NewEngine), and mounts ScanService and UnmatchedFileService
 // on mux. jobAdapter is reused as ScanService's ports.JobPublisher —
-// neither service imports pkg/jobqueue directly. mediaFileRepo is the
-// already-constructed ports.MediaFileRepository (built alongside
-// MediaFileService above) — ScanExecutor needs it for the "already known"
-// short-circuit's MediaFile-side lookup. See docs/adr/0023-job-queue.md,
+// neither service imports pkg/jobqueue directly. itemRepo/mediaFileRepo
+// are the already-constructed ports.ItemRepository/ports.MediaFileRepository
+// (built alongside ItemService/MediaFileService above) — ScanExecutor
+// needs mediaFileRepo for the "already known" short-circuit's MediaFile-
+// side lookup, and UnmatchedFileService needs both for Resolve's match
+// outcome (docs/adr/0015's composing-service exception, see
+// internal/service/unmatched_file.go). See docs/adr/0023-job-queue.md,
 // docs/adr/0024-pipeline-core.md. The returned io.Closer stops the
 // filesystem watcher started for pipelineCfg.ScanRoots (see
 // startScanWatcher); it is nil when no roots are configured.
-func wireScanPipeline(ctx context.Context, mux *http.ServeMux, ds datastore.Datastore, logger *slog.Logger, interceptors connect.HandlerOption, jobEngine *pkgjobqueue.Engine, jobAdapter *adapterjobqueue.Adapter, mediaFileRepo ports.MediaFileRepository, pipelineCfg config.Pipeline) (io.Closer, error) {
+func wireScanPipeline(ctx context.Context, mux *http.ServeMux, ds datastore.Datastore, logger *slog.Logger, interceptors connect.HandlerOption, jobEngine *pkgjobqueue.Engine, jobAdapter *adapterjobqueue.Adapter, itemRepo ports.ItemRepository, mediaFileRepo ports.MediaFileRepository, pipelineCfg config.Pipeline) (io.Closer, error) {
 	unmatchedFileRepo, err := storeunmatchedfile.New("unmatched_file", ds, storeunmatchedfile.WithLogger(logger))
 	if err != nil {
 		return nil, fmt.Errorf("cmd/purser: constructing unmatched file repository: %w", err)
@@ -477,7 +480,7 @@ func wireScanPipeline(ctx context.Context, mux *http.ServeMux, ds datastore.Data
 	scanPath, scanConnectHandler := pipelinev1connect.NewScanServiceHandler(scanHandler, interceptors)
 	mux.Handle(scanPath, scanConnectHandler)
 
-	unmatchedFileSvc := service.NewUnmatchedFileService(unmatchedFileRepo)
+	unmatchedFileSvc := service.NewUnmatchedFileService(unmatchedFileRepo, itemRepo, mediaFileRepo)
 	unmatchedFileHandler := apiconnect.NewUnmatchedFileHandler(unmatchedFileSvc, logger)
 	unmatchedFilePath, unmatchedFileConnectHandler := pipelinev1connect.NewUnmatchedFileServiceHandler(unmatchedFileHandler, interceptors)
 	mux.Handle(unmatchedFilePath, unmatchedFileConnectHandler)

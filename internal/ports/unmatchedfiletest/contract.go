@@ -30,10 +30,13 @@ func TestUnmatchedFileRepository(t *testing.T, newRepo NewRepositoryFunc) {
 	t.Run("list paginates across two calls", func(t *testing.T) { testListPagination(t, newRepo) })
 	t.Run("update replaces an existing unmatched file", func(t *testing.T) { testUpdate(t, newRepo) })
 	t.Run("update on a missing unmatched file returns ErrNotFound", func(t *testing.T) { testUpdateMissing(t, newRepo) })
+	t.Run("delete removes the unmatched file", func(t *testing.T) { testDelete(t, newRepo) })
+	t.Run("delete on a missing unmatched file returns ErrNotFound", func(t *testing.T) { testDeleteMissing(t, newRepo) })
 	t.Run("get by hash matches on oshash", func(t *testing.T) { testGetByHashOSHash(t, newRepo) })
 	t.Run("get by hash matches on sha1", func(t *testing.T) { testGetByHashSHA1(t, newRepo) })
 	t.Run("get by hash returns ErrNotFound when nothing matches", func(t *testing.T) { testGetByHashNoMatch(t, newRepo) })
 	t.Run("get by hash skips empty inputs", func(t *testing.T) { testGetByHashSkipsEmpty(t, newRepo) })
+	t.Run("get by hash matches a dismissed record", func(t *testing.T) { testGetByHashMatchesDismissed(t, newRepo) })
 }
 
 func mustCreate(t *testing.T, r ports.UnmatchedFileRepository, u *domain.UnmatchedFile) {
@@ -202,6 +205,26 @@ func testUpdateMissing(t *testing.T, newRepo NewRepositoryFunc) {
 	}
 }
 
+func testDelete(t *testing.T, newRepo NewRepositoryFunc) {
+	r := newRepo(t)
+	mustCreate(t, r, sampleUnmatchedFile("uf1"))
+
+	if err := r.Delete(context.Background(), "uf1"); err != nil {
+		t.Fatalf("Delete returned error: %v", err)
+	}
+	if _, err := r.Get(context.Background(), "uf1"); !errors.Is(err, ports.ErrNotFound) {
+		t.Fatalf("Get after Delete returned %v, want ErrNotFound", err)
+	}
+}
+
+func testDeleteMissing(t *testing.T, newRepo NewRepositoryFunc) {
+	r := newRepo(t)
+	err := r.Delete(context.Background(), "missing")
+	if !errors.Is(err, ports.ErrNotFound) {
+		t.Fatalf("Delete on missing unmatched file returned %v, want ErrNotFound", err)
+	}
+}
+
 func testGetByHashOSHash(t *testing.T, newRepo NewRepositoryFunc) {
 	r := newRepo(t)
 	u := sampleUnmatchedFile("uf1")
@@ -248,5 +271,24 @@ func testGetByHashSkipsEmpty(t *testing.T, newRepo NewRepositoryFunc) {
 	_, err := r.GetByHash(context.Background(), "", "", "", "")
 	if !errors.Is(err, ports.ErrNotFound) {
 		t.Fatalf("GetByHash with all-empty inputs returned %v, want ErrNotFound (must not match empty-hash records)", err)
+	}
+}
+
+// testGetByHashMatchesDismissed proves docs/adr/0024-pipeline-core.md's
+// "already known" short-circuit stays correct for a dismissed record:
+// GetByHash is a pure hash lookup with no implicit status filter, so a
+// dismissed file that moved on disk is still found (and just has its Path
+// updated) rather than being silently re-queued by the next rescan.
+func testGetByHashMatchesDismissed(t *testing.T, newRepo NewRepositoryFunc) {
+	r := newRepo(t)
+	u := sampleUnmatchedFileWithStatus("uf1", domain.UnmatchedFileStatusDismissed)
+	mustCreate(t, r, u)
+
+	got, err := r.GetByHash(context.Background(), u.OSHash, "", "", "")
+	if err != nil {
+		t.Fatalf("GetByHash(oshash) on a dismissed record returned error: %v", err)
+	}
+	if got.ID != "uf1" || got.Status != domain.UnmatchedFileStatusDismissed {
+		t.Fatalf("GetByHash(oshash) returned %+v, want dismissed record uf1", got)
 	}
 }

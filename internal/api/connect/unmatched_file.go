@@ -16,6 +16,7 @@ import (
 type unmatchedFileService interface {
 	Get(ctx context.Context, id string) (*domain.UnmatchedFile, error)
 	List(ctx context.Context, status domain.UnmatchedFileStatus, pageSize int, pageToken string) ([]*domain.UnmatchedFile, string, error)
+	Resolve(ctx context.Context, id, itemID string, dismiss bool) (*domain.MediaFile, *domain.UnmatchedFile, error)
 }
 
 // UnmatchedFileHandler implements
@@ -57,4 +58,25 @@ func (h *UnmatchedFileHandler) ListUnmatchedFiles(ctx context.Context, req *conn
 		pbFiles = append(pbFiles, unmatchedFileToProto(u))
 	}
 	return connect.NewResponse(&pipelinev1.ListUnmatchedFilesResponse{UnmatchedFiles: pbFiles, NextPageToken: next}), nil
+}
+
+// ResolveUnmatchedFile implements
+// pipelinev1connect.UnmatchedFileServiceHandler. It translates the wire
+// oneof to plain args — GetItemId()/GetDismiss() already return the zero
+// value for the case that wasn't set, so no switch on the oneof is needed
+// here; the service rejects the "neither set" shape as a
+// *domain.ValidationError, mapped the same way as any other invalid
+// argument.
+func (h *UnmatchedFileHandler) ResolveUnmatchedFile(ctx context.Context, req *connect.Request[pipelinev1.ResolveUnmatchedFileRequest]) (*connect.Response[pipelinev1.ResolveUnmatchedFileResponse], error) {
+	mf, uf, err := h.svc.Resolve(ctx, req.Msg.GetUnmatchedFileId(), req.Msg.GetItemId(), req.Msg.GetDismiss())
+	if err != nil {
+		return nil, mapError(ctx, h.logger, err)
+	}
+	resp := &pipelinev1.ResolveUnmatchedFileResponse{}
+	if mf != nil {
+		resp.Result = &pipelinev1.ResolveUnmatchedFileResponse_MediaFile{MediaFile: mediaFileToProto(mf)}
+	} else {
+		resp.Result = &pipelinev1.ResolveUnmatchedFileResponse_UnmatchedFile{UnmatchedFile: unmatchedFileToProto(uf)}
+	}
+	return connect.NewResponse(resp), nil
 }
