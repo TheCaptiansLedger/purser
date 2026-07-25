@@ -114,6 +114,8 @@ _k6-flow: $(GOBIN)/k6
 _k6-app-start: $(GOBIN)/k6
 	rm -rf .cidata
 	mkdir -p .cidata
+	mkdir -p .cidata/scan
+	@for f in one two three; do head -c 70000 /dev/urandom > .cidata/scan/$$f.bin; done
 	go build -o .cidata/purser ./cmd/purser
 	PURSER_PATHS_DATA_DIR=$(CURDIR)/.cidata/data .cidata/purser serve & echo $$! > .cidata/purser.pid
 	@for i in $$(seq 1 60); do nc -z localhost 7474 2>/dev/null && exit 0; sleep 0.5; done; \
@@ -127,8 +129,12 @@ _k6-app-stop:
 	fi
 	rm -rf .cidata
 
+# PURSER_SCAN_FIXTURE_ROOT overrides test/k6/{grpc,http}/scan_test.js's
+# compose-oriented default (/media/content/scan) with the hermetic fixture
+# _k6-app-start just created under .cidata/scan — see
+# docs/adr/0024-pipeline-core.md.
 k6-ci: _k6-app-start ## Build+run the app standalone (Badger, telemetry off, hermetic .cidata/) and run the full k6 suite against it — no compose stack needed
-	@$(MAKE) k6; status=$$?; $(MAKE) _k6-app-stop; exit $$status
+	@PURSER_SCAN_FIXTURE_ROOT=$(CURDIR)/.cidata/scan $(MAKE) k6; status=$$?; $(MAKE) _k6-app-stop; exit $$status
 
 # ── Local dev stack (Postgres + Grafana + Prometheus + Tempo [+ app]) ────────
 # One compose file, one Postgres instance — see

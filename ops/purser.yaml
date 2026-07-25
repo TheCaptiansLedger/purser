@@ -55,3 +55,10 @@ telemetry:
   otlp_endpoint: tempo:4317
   otlp_insecure: true
   metrics_addr: ":9464"
+
+# Common scan/hash/queue pipeline — see docs/adr/0024-pipeline-core.md.
+# OSHash and SHA1 are always computed; MD5/SHA512 are optional extra
+# hashes, off by default.
+pipeline:
+  enable_md5: false
+  enable_sha512: false

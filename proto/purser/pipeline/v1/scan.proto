@@ -1,0 +1,26 @@
+syntax = "proto3";
+
+package purser.pipeline.v1;
+
+option go_package = "purser/gen/go/purser/pipeline/v1;pipelinev1";
+
+// TriggerScanRequest starts a "scan" Job that walks root, hashes every
+// discovered file, and queues each as an UnmatchedFile. See
+// docs/adr/0024-pipeline-core.md.
+message TriggerScanRequest {
+  string root = 1;
+}
+
+message TriggerScanResponse {
+  string job_id = 1;
+}
+
+// ScanService follows the same handler/service conventions as JobService
+// (docs/adr/0011-api-design.md), even though it triggers a Job rather
+// than owning its own persistent entity. Progress is read via the
+// existing JobService.GetJob/WatchJob using the returned job_id — not
+// duplicated here. See docs/adr/0023-job-queue.md,
+// docs/adr/0024-pipeline-core.md.
+service ScanService {
+  rpc TriggerScan(TriggerScanRequest) returns (TriggerScanResponse);
+}

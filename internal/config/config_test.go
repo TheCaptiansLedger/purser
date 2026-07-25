@@ -228,3 +228,44 @@ func TestLoad_EnvOverridesTelemetryEnabled(t *testing.T) {
 		t.Fatalf("Load returned Telemetry.OTLPEndpoint %q, want %q", cfg.Telemetry.OTLPEndpoint, "tempo:4317")
 	}
 }
+
+func TestLoad_UsesDefaultPipelineSettings(t *testing.T) {
+	cfg, err := config.Load(viper.New(), "")
+	if err != nil {
+		t.Fatalf("Load returned error: %v", err)
+	}
+	if cfg.Pipeline.EnableMD5 {
+		t.Fatal("Load returned Pipeline.EnableMD5=true, want false by default")
+	}
+	if cfg.Pipeline.EnableSHA512 {
+		t.Fatal("Load returned Pipeline.EnableSHA512=true, want false by default")
+	}
+}
+
+func TestLoad_EnvOverridesPipelineHashToggles(t *testing.T) {
+	t.Setenv("PURSER_PIPELINE_ENABLE_MD5", "true")
+	t.Setenv("PURSER_PIPELINE_ENABLE_SHA512", "true")
+
+	cfg, err := config.Load(viper.New(), "")
+	if err != nil {
+		t.Fatalf("Load returned error: %v", err)
+	}
+	if !cfg.Pipeline.EnableMD5 {
+		t.Fatal("Load returned Pipeline.EnableMD5=false, want true")
+	}
+	if !cfg.Pipeline.EnableSHA512 {
+		t.Fatal("Load returned Pipeline.EnableSHA512=false, want true")
+	}
+}
+
+func TestConfig_Validate_AcceptsAnyPipelineToggleCombination(t *testing.T) {
+	cfg, err := config.Load(viper.New(), "")
+	if err != nil {
+		t.Fatalf("Load returned error: %v", err)
+	}
+	cfg.Pipeline.EnableMD5 = true
+	cfg.Pipeline.EnableSHA512 = true
+	if err := cfg.Validate(); err != nil {
+		t.Fatalf("Validate() = %v, want nil", err)
+	}
+}

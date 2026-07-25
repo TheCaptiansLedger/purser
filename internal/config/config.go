@@ -21,6 +21,7 @@ type Config struct {
 	Database  Database  `mapstructure:"database"`
 	Media     Media     `mapstructure:"media"`
 	Telemetry Telemetry `mapstructure:"telemetry"`
+	Pipeline  Pipeline  `mapstructure:"pipeline"`
 }
 
 // DefaultConfig returns the defaults every component starts from.
@@ -31,6 +32,7 @@ func DefaultConfig() Config {
 		Database:  DefaultDatabase(),
 		Media:     DefaultMedia(),
 		Telemetry: DefaultTelemetry(),
+		Pipeline:  DefaultPipeline(),
 	}
 	deriveDataDirDefaults(&cfg)
 	return cfg
@@ -53,6 +55,9 @@ func (c Config) Validate() error {
 		return fmt.Errorf("config: media.path must not be empty")
 	}
 	if err := c.Telemetry.Validate(); err != nil {
+		return fmt.Errorf("config: %w", err)
+	}
+	if err := c.Pipeline.Validate(); err != nil {
 		return fmt.Errorf("config: %w", err)
 	}
 	return nil
@@ -84,6 +89,8 @@ func Load(v *viper.Viper, configPath string) (Config, error) {
 	v.SetDefault("telemetry.otlp_endpoint", defaults.Telemetry.OTLPEndpoint)
 	v.SetDefault("telemetry.otlp_insecure", defaults.Telemetry.OTLPInsecure)
 	v.SetDefault("telemetry.metrics_addr", defaults.Telemetry.MetricsAddr)
+	v.SetDefault("pipeline.enable_md5", defaults.Pipeline.EnableMD5)
+	v.SetDefault("pipeline.enable_sha512", defaults.Pipeline.EnableSHA512)
 
 	v.SetEnvPrefix("purser")
 	v.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))

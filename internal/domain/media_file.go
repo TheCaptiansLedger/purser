@@ -15,6 +15,7 @@ type MediaFile struct {
 	OSHash string
 	MD5    string
 	SHA1   string
+	SHA512 string
 
 	Quality    string
 	Resolution string

@@ -25,9 +25,12 @@ import (
 	domainv1connect "purser/gen/go/purser/domain/v1/domainv1connect"
 	jobv1connect "purser/gen/go/purser/job/v1/jobv1connect"
 	musicv1connect "purser/gen/go/purser/music/v1/musicv1connect"
+	pipelinev1connect "purser/gen/go/purser/pipeline/v1/pipelinev1connect"
 	dsbadger "purser/internal/adapters/datastore/badger"
 	dssql "purser/internal/adapters/datastore/sql"
+	filewalkerlocal "purser/internal/adapters/filewalker/local"
 	adapterjobqueue "purser/internal/adapters/jobqueue"
+	adapterpipeline "purser/internal/adapters/pipeline"
 	storeentryperson "purser/internal/adapters/store/entryperson"
 	storeexternalid "purser/internal/adapters/store/externalid"
 	storegroup "purser/internal/adapters/store/group"
@@ -41,6 +44,7 @@ import (
 	storeperson "purser/internal/adapters/store/person"
 	storetag "purser/internal/adapters/store/tag"
 	storetagassignment "purser/internal/adapters/store/tagassignment"
+	storeunmatchedfile "purser/internal/adapters/store/unmatchedfile"
 	apiconnect "purser/internal/api/connect"
 	pkgjobqueue "purser/pkg/jobqueue"
 	jobqueuememory "purser/pkg/jobqueue/memory"
@@ -98,7 +102,7 @@ func runServe(ctx context.Context, configPath string) error {
 		}
 	}()
 
-	mux, err := newServeMux(logger, ds)
+	mux, err := newServeMux(logger, ds, cfg.Pipeline.EnableMD5, cfg.Pipeline.EnableSHA512)
 	if err != nil {
 		return err
 	}
@@ -194,7 +198,7 @@ func openDatastore(cfg config.Database) (datastore.Datastore, io.Closer, error) 
 //
 // Every entity is backed by the single shared ds — see
 // docs/adr/0012-datastore-persistence.md.
-func newServeMux(logger *slog.Logger, ds datastore.Datastore) (*http.ServeMux, error) {
+func newServeMux(logger *slog.Logger, ds datastore.Datastore, enableMD5, enableSHA512 bool) (*http.ServeMux, error) {
 	mux := http.NewServeMux()
 	interceptors := connect.WithInterceptors(apiconnect.NewLoggingInterceptor(logger))
 
@@ -393,6 +397,13 @@ func newServeMux(logger *slog.Logger, ds datastore.Datastore) (*http.ServeMux, e
 	jobPath, jobConnectHandler := jobv1connect.NewJobServiceHandler(jobHandler, interceptors)
 	mux.Handle(jobPath, jobConnectHandler)
 
+	// Common Scan Pipeline: split into its own function purely to keep
+	// newServeMux's cyclomatic complexity under budget — no behavior
+	// difference from being inlined here. See docs/adr/0024-pipeline-core.md.
+	if err := wireScanPipeline(mux, ds, logger, interceptors, jobEngine, jobAdapter, enableMD5, enableSHA512); err != nil {
+		return nil, err
+	}
+
 	reflector := grpcreflect.NewStaticReflector(
 		domainv1connect.PersonServiceName,
 		domainv1connect.LibraryEntryServiceName,
@@ -409,9 +420,35 @@ func newServeMux(logger *slog.Logger, ds datastore.Datastore) (*http.ServeMux, e
 		afterdarkv1connect.BrowseServiceName,
 		musicv1connect.MusicReleaseServiceName,
 		jobv1connect.JobServiceName,
+		pipelinev1connect.ScanServiceName,
 	)
 	mux.Handle(grpcreflect.NewHandlerV1(reflector))
 	mux.Handle(grpcreflect.NewHandlerV1Alpha(reflector))
 
 	return mux, nil
+}
+
+// wireScanPipeline builds the Common Scan Pipeline's adapters, service, and
+// Connect handler, registers the "scan" Executor directly on jobEngine
+// (exactly like "diagnostic" self-registers inside pkgjobqueue.NewEngine),
+// and mounts ScanService on mux. jobAdapter is reused as ScanService's
+// ports.JobPublisher — ScanService never imports pkg/jobqueue directly. See
+// docs/adr/0023-job-queue.md, docs/adr/0024-pipeline-core.md.
+func wireScanPipeline(mux *http.ServeMux, ds datastore.Datastore, logger *slog.Logger, interceptors connect.HandlerOption, jobEngine *pkgjobqueue.Engine, jobAdapter *adapterjobqueue.Adapter, enableMD5, enableSHA512 bool) error {
+	unmatchedFileRepo, err := storeunmatchedfile.New("unmatched_file", ds, storeunmatchedfile.WithLogger(logger))
+	if err != nil {
+		return fmt.Errorf("cmd/purser: constructing unmatched file repository: %w", err)
+	}
+	jobEngine.Register("scan", adapterpipeline.NewScanExecutor(unmatchedFileRepo))
+
+	fileWalker, err := filewalkerlocal.New(filewalkerlocal.WithLogger(logger))
+	if err != nil {
+		return fmt.Errorf("cmd/purser: constructing file walker: %w", err)
+	}
+
+	scanSvc := service.NewScanService(jobAdapter, fileWalker, enableMD5, enableSHA512)
+	scanHandler := apiconnect.NewScanHandler(scanSvc, logger)
+	scanPath, scanConnectHandler := pipelinev1connect.NewScanServiceHandler(scanHandler, interceptors)
+	mux.Handle(scanPath, scanConnectHandler)
+	return nil
 }
