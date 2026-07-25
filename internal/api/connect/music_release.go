@@ -20,7 +20,6 @@ type musicReleaseService interface {
 	GetByMBID(ctx context.Context, mbid string) (*music.Release, error)
 	GetByBarcode(ctx context.Context, barcode string) (*music.Release, error)
 	Update(ctx context.Context, r *music.Release) (*music.Release, error)
-	Delete(ctx context.Context, id string) error
 	List(ctx context.Context, pageSize int, pageToken string) ([]*music.Release, string, error)
 	ListByGroup(ctx context.Context, groupID string, pageSize int, pageToken string) ([]*music.Release, string, error)
 	ListByEntry(ctx context.Context, libraryEntryID string, pageSize int, pageToken string) ([]*music.Release, string, error)
@@ -33,16 +32,18 @@ type musicReleaseService interface {
 // file.
 type MusicReleaseHandler struct {
 	musicv1connect.UnimplementedMusicReleaseServiceHandler
-	svc    musicReleaseService
-	logger *slog.Logger
+	svc         musicReleaseService
+	deletionSvc entityDeletionService
+	logger      *slog.Logger
 }
 
-// NewMusicReleaseHandler constructs a MusicReleaseHandler backed by svc.
-func NewMusicReleaseHandler(svc musicReleaseService, logger *slog.Logger) *MusicReleaseHandler {
+// NewMusicReleaseHandler constructs a MusicReleaseHandler backed by svc and
+// deletionSvc.
+func NewMusicReleaseHandler(svc musicReleaseService, deletionSvc entityDeletionService, logger *slog.Logger) *MusicReleaseHandler {
 	if logger == nil {
 		logger = slog.Default()
 	}
-	return &MusicReleaseHandler{svc: svc, logger: logger.With("component", "api.connect", "service", "MusicReleaseService")}
+	return &MusicReleaseHandler{svc: svc, deletionSvc: deletionSvc, logger: logger.With("component", "api.connect", "service", "MusicReleaseService")}
 }
 
 // CreateMusicRelease implements musicv1connect.MusicReleaseServiceHandler.
@@ -104,10 +105,20 @@ func (h *MusicReleaseHandler) UpdateMusicRelease(ctx context.Context, req *conne
 // Cascade is intentionally unused — see DeleteMusicReleaseRequest.cascade's
 // doc comment.
 func (h *MusicReleaseHandler) DeleteMusicRelease(ctx context.Context, req *connect.Request[musicv1.DeleteMusicReleaseRequest]) (*connect.Response[musicv1.DeleteMusicReleaseResponse], error) {
-	if err := h.svc.Delete(ctx, req.Msg.GetId()); err != nil {
+	if err := h.deletionSvc.Delete(ctx, req.Msg.GetId(), req.Msg.GetCascade()); err != nil {
 		return nil, mapError(ctx, h.logger, err)
 	}
 	return connect.NewResponse(&musicv1.DeleteMusicReleaseResponse{}), nil
+}
+
+// GetMusicReleaseDeletionImpact implements
+// musicv1connect.MusicReleaseServiceHandler.
+func (h *MusicReleaseHandler) GetMusicReleaseDeletionImpact(ctx context.Context, req *connect.Request[musicv1.GetMusicReleaseDeletionImpactRequest]) (*connect.Response[musicv1.GetMusicReleaseDeletionImpactResponse], error) {
+	impact, err := h.deletionSvc.GetDeletionImpact(ctx, req.Msg.GetId())
+	if err != nil {
+		return nil, mapError(ctx, h.logger, err)
+	}
+	return connect.NewResponse(&musicv1.GetMusicReleaseDeletionImpactResponse{Impacts: deletionImpactRowsToProto(impact.Impacts)}), nil
 }
 
 // ListMusicReleases implements musicv1connect.MusicReleaseServiceHandler.

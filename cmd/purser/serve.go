@@ -353,15 +353,19 @@ func newServeMux(logger *slog.Logger, ds datastore.Datastore) (*http.ServeMux, e
 	mux.Handle(browsePath, browseConnectHandler)
 
 	// Music: the second module built on the shared kernel — every line here
-	// is additive, nothing above changed to add it. Only Create/Get exist
-	// yet (see docs/adr/0021-music-domain-model.md); Update/Delete/List and
-	// the GroupDeletionService/LibraryEntryDeletionService referrer wiring
-	// land with a later sub-issue.
+	// is additive, nothing above changed to add it. See
+	// docs/adr/0021-music-domain-model.md. The GroupDeletionService/
+	// LibraryEntryDeletionService referrer wiring that ADR's Services
+	// section also names lands with a later sub-issue, not here.
 	musicReleaseRepo, err := storemusicrelease.New("music_release", ds, storemusicrelease.WithLogger(logger))
 	if err != nil {
 		return nil, fmt.Errorf("cmd/purser: constructing music release repository: %w", err)
 	}
-	musicReleaseHandler := apiconnect.NewMusicReleaseHandler(service.NewMusicReleaseService(musicReleaseRepo), logger)
+	// MusicReleaseDeletionService is the composing-service exception per
+	// docs/adr/0015-deletion-impact-and-composing-services.md — it reuses
+	// the already-constructed musicReleaseRepo/itemRepo.
+	musicReleaseDeletionSvc := service.NewMusicReleaseDeletionService(musicReleaseRepo, itemRepo)
+	musicReleaseHandler := apiconnect.NewMusicReleaseHandler(service.NewMusicReleaseService(musicReleaseRepo), musicReleaseDeletionSvc, logger)
 	musicReleasePath, musicReleaseConnectHandler := musicv1connect.NewMusicReleaseServiceHandler(musicReleaseHandler, interceptors)
 	mux.Handle(musicReleasePath, musicReleaseConnectHandler)
 

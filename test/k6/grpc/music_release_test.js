@@ -199,6 +199,15 @@ export default () => {
     'ListMusicReleases includes the updated release': (r) => r && r.message && r.message.musicReleases && r.message.musicReleases.some((rel) => rel.id === id),
   });
 
+  // GetMusicReleaseDeletionImpact/DeleteMusicRelease: releaseA (== id) owns
+  // trackA, so its impact must report exactly one referencing item ("Tracks").
+  // See docs/adr/0015-deletion-impact-and-composing-services.md.
+  res = invoke('purser.music.v1.MusicReleaseService/GetMusicReleaseDeletionImpact', { id: releaseA.id });
+  check(res, {
+    'GetMusicReleaseDeletionImpact status is OK': (r) => r && r.status === grpc.StatusOK,
+    'GetMusicReleaseDeletionImpact reports the track': (r) => r && r.message && r.message.impacts && r.message.impacts.some((i) => i.kind === 'item' && i.count === 1),
+  });
+
   for (const rel of seeded) {
     res = invoke('purser.music.v1.MusicReleaseService/DeleteMusicRelease', { id: rel.id });
     check(res, { [`DeleteMusicRelease(${rel.id}) status is OK`]: (r) => r && r.status === grpc.StatusOK });
@@ -206,6 +215,19 @@ export default () => {
 
   res = invoke('purser.music.v1.MusicReleaseService/GetMusicRelease', { id: id });
   check(res, { 'GetMusicRelease after Delete is NotFound': (r) => r && r.status === grpc.StatusNotFound });
+
+  // trackA must survive releaseA's deletion, just detached — Unlink clears
+  // Metadata.release_id rather than deleting the track.
+  res = invoke('purser.domain.v1.ItemService/GetItem', { id: trackA.id });
+  check(res, {
+    'GetItem after MusicRelease Delete still finds trackA (detached, not deleted)': (r) => r && r.status === grpc.StatusOK,
+    'GetItem after MusicRelease Delete shows metadata.release_id cleared': (r) => r && r.message && r.message.item && !(r.message.item.metadata && 'release_id' in r.message.item.metadata),
+  });
+
+  res = invoke('purser.domain.v1.ItemService/DeleteItem', { id: trackA.id });
+  check(res, { 'cleanup: DeleteItem(trackA) status is OK': (r) => r && r.status === grpc.StatusOK });
+  res = invoke('purser.domain.v1.ItemService/DeleteItem', { id: trackB.id });
+  check(res, { 'cleanup: DeleteItem(trackB) status is OK': (r) => r && r.status === grpc.StatusOK });
 
   client.close();
 };

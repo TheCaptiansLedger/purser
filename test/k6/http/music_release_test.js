@@ -208,6 +208,15 @@ export default () => {
     'ListMusicReleases includes the updated release': (r) => (r.json('musicReleases') || []).some((rel) => rel.id === id),
   });
 
+  // GetMusicReleaseDeletionImpact/DeleteMusicRelease: releaseA (== id) owns
+  // trackA, so its impact must report exactly one referencing item ("Tracks").
+  // See docs/adr/0015-deletion-impact-and-composing-services.md.
+  res = invoke(`${MUSIC_RELEASE_SERVICE}/GetMusicReleaseDeletionImpact`, JSON.stringify({ id: releaseA.id }), HEADERS);
+  check(res, {
+    'GetMusicReleaseDeletionImpact status is 200': (r) => r.status === 200,
+    'GetMusicReleaseDeletionImpact reports the track': (r) => (r.json('impacts') || []).some((i) => i.kind === 'item' && i.count === 1),
+  });
+
   for (const rel of seeded) {
     res = invoke(`${MUSIC_RELEASE_SERVICE}/DeleteMusicRelease`, JSON.stringify({ id: rel.id }), HEADERS);
     check(res, { [`DeleteMusicRelease(${rel.id}) status is 200`]: (r) => r.status === 200 });
@@ -215,4 +224,20 @@ export default () => {
 
   res = invoke(`${MUSIC_RELEASE_SERVICE}/GetMusicRelease`, JSON.stringify({ id: id }), HEADERS);
   check(res, { 'GetMusicRelease after Delete is 404 (NotFound)': (r) => r.status === 404 });
+
+  // trackA must survive releaseA's deletion, just detached — Unlink clears
+  // metadata.release_id rather than deleting the track.
+  res = invoke(`${ITEM_SERVICE}/GetItem`, JSON.stringify({ id: trackA.id }), HEADERS);
+  check(res, {
+    'GetItem after MusicRelease Delete still finds trackA (detached, not deleted)': (r) => r.status === 200,
+    'GetItem after MusicRelease Delete shows metadata.release_id cleared': (r) => {
+      const metadata = r.json('item.metadata');
+      return !metadata || !('release_id' in metadata);
+    },
+  });
+
+  res = invoke(`${ITEM_SERVICE}/DeleteItem`, JSON.stringify({ id: trackA.id }), HEADERS);
+  check(res, { 'cleanup: DeleteItem(trackA) status is 200': (r) => r.status === 200 });
+  res = invoke(`${ITEM_SERVICE}/DeleteItem`, JSON.stringify({ id: trackB.id }), HEADERS);
+  check(res, { 'cleanup: DeleteItem(trackB) status is 200': (r) => r.status === 200 });
 };

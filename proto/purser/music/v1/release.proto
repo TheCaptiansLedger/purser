@@ -4,6 +4,7 @@ package purser.music.v1;
 
 import "google/protobuf/field_mask.proto";
 import "google/protobuf/timestamp.proto";
+import "purser/domain/v1/common.proto";
 import "purser/domain/v1/item.proto";
 
 option go_package = "purser/gen/go/purser/music/v1;musicv1";
@@ -88,16 +89,24 @@ message UpdateMusicReleaseResponse {
 
 message DeleteMusicReleaseRequest {
   string id = 1;
-  // cascade has no effect yet — this issue's Delete is intentionally the
-  // simple, unconditional version (no deletion-impact accounting or
-  // Unlink semantics). Present for API-shape consistency with every other
-  // entity's DeleteXxxRequest, same as DeleteGroupRequest.cascade. See
-  // docs/adr/0021-music-domain-model.md and
+  // cascade has no effect — Delete always runs Unlink (clearing
+  // Item.metadata["release_id"] on every referencing track, then deleting
+  // the release), the only mode this entity builds. Present for API-shape
+  // consistency with every other entity's DeleteXxxRequest, same as
+  // DeleteGroupRequest.cascade. See docs/adr/0021-music-domain-model.md and
   // docs/adr/0015-deletion-impact-and-composing-services.md.
   bool cascade = 2;
 }
 
 message DeleteMusicReleaseResponse {}
+
+message GetMusicReleaseDeletionImpactRequest {
+  string id = 1;
+}
+
+message GetMusicReleaseDeletionImpactResponse {
+  repeated purser.domain.v1.DeletionImpactRow impacts = 1;
+}
 
 message ListMusicReleasesRequest {
   int32 page_size = 1;
@@ -149,4 +158,8 @@ service MusicReleaseService {
   rpc DeleteMusicRelease(DeleteMusicReleaseRequest) returns (DeleteMusicReleaseResponse);
   rpc ListMusicReleases(ListMusicReleasesRequest) returns (ListMusicReleasesResponse);
   rpc ListMusicReleaseTracks(ListMusicReleaseTracksRequest) returns (ListMusicReleaseTracksResponse);
+  // GetMusicReleaseDeletionImpact reports what references this Release
+  // before Delete is called — see
+  // docs/adr/0015-deletion-impact-and-composing-services.md.
+  rpc GetMusicReleaseDeletionImpact(GetMusicReleaseDeletionImpactRequest) returns (GetMusicReleaseDeletionImpactResponse);
 }

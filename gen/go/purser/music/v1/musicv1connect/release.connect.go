@@ -57,6 +57,9 @@ const (
 	// MusicReleaseServiceListMusicReleaseTracksProcedure is the fully-qualified name of the
 	// MusicReleaseService's ListMusicReleaseTracks RPC.
 	MusicReleaseServiceListMusicReleaseTracksProcedure = "/purser.music.v1.MusicReleaseService/ListMusicReleaseTracks"
+	// MusicReleaseServiceGetMusicReleaseDeletionImpactProcedure is the fully-qualified name of the
+	// MusicReleaseService's GetMusicReleaseDeletionImpact RPC.
+	MusicReleaseServiceGetMusicReleaseDeletionImpactProcedure = "/purser.music.v1.MusicReleaseService/GetMusicReleaseDeletionImpact"
 )
 
 // MusicReleaseServiceClient is a client for the purser.music.v1.MusicReleaseService service.
@@ -69,6 +72,10 @@ type MusicReleaseServiceClient interface {
 	DeleteMusicRelease(context.Context, *connect.Request[v1.DeleteMusicReleaseRequest]) (*connect.Response[v1.DeleteMusicReleaseResponse], error)
 	ListMusicReleases(context.Context, *connect.Request[v1.ListMusicReleasesRequest]) (*connect.Response[v1.ListMusicReleasesResponse], error)
 	ListMusicReleaseTracks(context.Context, *connect.Request[v1.ListMusicReleaseTracksRequest]) (*connect.Response[v1.ListMusicReleaseTracksResponse], error)
+	// GetMusicReleaseDeletionImpact reports what references this Release
+	// before Delete is called — see
+	// docs/adr/0015-deletion-impact-and-composing-services.md.
+	GetMusicReleaseDeletionImpact(context.Context, *connect.Request[v1.GetMusicReleaseDeletionImpactRequest]) (*connect.Response[v1.GetMusicReleaseDeletionImpactResponse], error)
 }
 
 // NewMusicReleaseServiceClient constructs a client for the purser.music.v1.MusicReleaseService
@@ -130,19 +137,26 @@ func NewMusicReleaseServiceClient(httpClient connect.HTTPClient, baseURL string,
 			connect.WithSchema(musicReleaseServiceMethods.ByName("ListMusicReleaseTracks")),
 			connect.WithClientOptions(opts...),
 		),
+		getMusicReleaseDeletionImpact: connect.NewClient[v1.GetMusicReleaseDeletionImpactRequest, v1.GetMusicReleaseDeletionImpactResponse](
+			httpClient,
+			baseURL+MusicReleaseServiceGetMusicReleaseDeletionImpactProcedure,
+			connect.WithSchema(musicReleaseServiceMethods.ByName("GetMusicReleaseDeletionImpact")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
 // musicReleaseServiceClient implements MusicReleaseServiceClient.
 type musicReleaseServiceClient struct {
-	createMusicRelease       *connect.Client[v1.CreateMusicReleaseRequest, v1.CreateMusicReleaseResponse]
-	getMusicRelease          *connect.Client[v1.GetMusicReleaseRequest, v1.GetMusicReleaseResponse]
-	getMusicReleaseByMBID    *connect.Client[v1.GetMusicReleaseByMBIDRequest, v1.GetMusicReleaseByMBIDResponse]
-	getMusicReleaseByBarcode *connect.Client[v1.GetMusicReleaseByBarcodeRequest, v1.GetMusicReleaseByBarcodeResponse]
-	updateMusicRelease       *connect.Client[v1.UpdateMusicReleaseRequest, v1.UpdateMusicReleaseResponse]
-	deleteMusicRelease       *connect.Client[v1.DeleteMusicReleaseRequest, v1.DeleteMusicReleaseResponse]
-	listMusicReleases        *connect.Client[v1.ListMusicReleasesRequest, v1.ListMusicReleasesResponse]
-	listMusicReleaseTracks   *connect.Client[v1.ListMusicReleaseTracksRequest, v1.ListMusicReleaseTracksResponse]
+	createMusicRelease            *connect.Client[v1.CreateMusicReleaseRequest, v1.CreateMusicReleaseResponse]
+	getMusicRelease               *connect.Client[v1.GetMusicReleaseRequest, v1.GetMusicReleaseResponse]
+	getMusicReleaseByMBID         *connect.Client[v1.GetMusicReleaseByMBIDRequest, v1.GetMusicReleaseByMBIDResponse]
+	getMusicReleaseByBarcode      *connect.Client[v1.GetMusicReleaseByBarcodeRequest, v1.GetMusicReleaseByBarcodeResponse]
+	updateMusicRelease            *connect.Client[v1.UpdateMusicReleaseRequest, v1.UpdateMusicReleaseResponse]
+	deleteMusicRelease            *connect.Client[v1.DeleteMusicReleaseRequest, v1.DeleteMusicReleaseResponse]
+	listMusicReleases             *connect.Client[v1.ListMusicReleasesRequest, v1.ListMusicReleasesResponse]
+	listMusicReleaseTracks        *connect.Client[v1.ListMusicReleaseTracksRequest, v1.ListMusicReleaseTracksResponse]
+	getMusicReleaseDeletionImpact *connect.Client[v1.GetMusicReleaseDeletionImpactRequest, v1.GetMusicReleaseDeletionImpactResponse]
 }
 
 // CreateMusicRelease calls purser.music.v1.MusicReleaseService.CreateMusicRelease.
@@ -185,6 +199,12 @@ func (c *musicReleaseServiceClient) ListMusicReleaseTracks(ctx context.Context, 
 	return c.listMusicReleaseTracks.CallUnary(ctx, req)
 }
 
+// GetMusicReleaseDeletionImpact calls
+// purser.music.v1.MusicReleaseService.GetMusicReleaseDeletionImpact.
+func (c *musicReleaseServiceClient) GetMusicReleaseDeletionImpact(ctx context.Context, req *connect.Request[v1.GetMusicReleaseDeletionImpactRequest]) (*connect.Response[v1.GetMusicReleaseDeletionImpactResponse], error) {
+	return c.getMusicReleaseDeletionImpact.CallUnary(ctx, req)
+}
+
 // MusicReleaseServiceHandler is an implementation of the purser.music.v1.MusicReleaseService
 // service.
 type MusicReleaseServiceHandler interface {
@@ -196,6 +216,10 @@ type MusicReleaseServiceHandler interface {
 	DeleteMusicRelease(context.Context, *connect.Request[v1.DeleteMusicReleaseRequest]) (*connect.Response[v1.DeleteMusicReleaseResponse], error)
 	ListMusicReleases(context.Context, *connect.Request[v1.ListMusicReleasesRequest]) (*connect.Response[v1.ListMusicReleasesResponse], error)
 	ListMusicReleaseTracks(context.Context, *connect.Request[v1.ListMusicReleaseTracksRequest]) (*connect.Response[v1.ListMusicReleaseTracksResponse], error)
+	// GetMusicReleaseDeletionImpact reports what references this Release
+	// before Delete is called — see
+	// docs/adr/0015-deletion-impact-and-composing-services.md.
+	GetMusicReleaseDeletionImpact(context.Context, *connect.Request[v1.GetMusicReleaseDeletionImpactRequest]) (*connect.Response[v1.GetMusicReleaseDeletionImpactResponse], error)
 }
 
 // NewMusicReleaseServiceHandler builds an HTTP handler from the service implementation. It returns
@@ -253,6 +277,12 @@ func NewMusicReleaseServiceHandler(svc MusicReleaseServiceHandler, opts ...conne
 		connect.WithSchema(musicReleaseServiceMethods.ByName("ListMusicReleaseTracks")),
 		connect.WithHandlerOptions(opts...),
 	)
+	musicReleaseServiceGetMusicReleaseDeletionImpactHandler := connect.NewUnaryHandler(
+		MusicReleaseServiceGetMusicReleaseDeletionImpactProcedure,
+		svc.GetMusicReleaseDeletionImpact,
+		connect.WithSchema(musicReleaseServiceMethods.ByName("GetMusicReleaseDeletionImpact")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/purser.music.v1.MusicReleaseService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case MusicReleaseServiceCreateMusicReleaseProcedure:
@@ -271,6 +301,8 @@ func NewMusicReleaseServiceHandler(svc MusicReleaseServiceHandler, opts ...conne
 			musicReleaseServiceListMusicReleasesHandler.ServeHTTP(w, r)
 		case MusicReleaseServiceListMusicReleaseTracksProcedure:
 			musicReleaseServiceListMusicReleaseTracksHandler.ServeHTTP(w, r)
+		case MusicReleaseServiceGetMusicReleaseDeletionImpactProcedure:
+			musicReleaseServiceGetMusicReleaseDeletionImpactHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -310,4 +342,8 @@ func (UnimplementedMusicReleaseServiceHandler) ListMusicReleases(context.Context
 
 func (UnimplementedMusicReleaseServiceHandler) ListMusicReleaseTracks(context.Context, *connect.Request[v1.ListMusicReleaseTracksRequest]) (*connect.Response[v1.ListMusicReleaseTracksResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("purser.music.v1.MusicReleaseService.ListMusicReleaseTracks is not implemented"))
+}
+
+func (UnimplementedMusicReleaseServiceHandler) GetMusicReleaseDeletionImpact(context.Context, *connect.Request[v1.GetMusicReleaseDeletionImpactRequest]) (*connect.Response[v1.GetMusicReleaseDeletionImpactResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("purser.music.v1.MusicReleaseService.GetMusicReleaseDeletionImpact is not implemented"))
 }
