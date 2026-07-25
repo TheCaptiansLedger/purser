@@ -58,7 +58,7 @@ func waitForTerminal(t *testing.T, eng *jobqueue.Engine, id string) *jobqueue.Jo
 
 func TestEngine_Trigger_UnknownKind(t *testing.T) {
 	eng := jobqueue.NewEngine(memory.New(), jobqueue.WithLogger(discardLogger()))
-	_, err := eng.Trigger(context.Background(), "nonexistent", []string{"a"})
+	_, err := eng.Trigger(context.Background(), "nonexistent", []string{"a"}, nil)
 	if !errors.Is(err, jobqueue.ErrUnknownKind) {
 		t.Fatalf("Trigger with unknown kind returned %v, want ErrUnknownKind", err)
 	}
@@ -70,7 +70,7 @@ func TestEngine_Trigger_Lifecycle(t *testing.T) {
 	exec := &blockingExecutor{started: make(chan struct{}), proceed: make(chan struct{}), taskStatus: jobqueue.StatusSucceeded}
 	eng.Register("block", exec)
 
-	job, err := eng.Trigger(context.Background(), "block", []string{"only task"})
+	job, err := eng.Trigger(context.Background(), "block", []string{"only task"}, nil)
 	if err != nil {
 		t.Fatalf("Trigger returned error: %v", err)
 	}
@@ -132,7 +132,7 @@ func TestEngine_Trigger_PartialOnMixedTaskOutcomes(t *testing.T) {
 		return r.FinishTask(ctx, job.Tasks[1].ID, jobqueue.StatusFailed)
 	}))
 
-	job, err := eng.Trigger(context.Background(), "mixed", []string{"one", "two"})
+	job, err := eng.Trigger(context.Background(), "mixed", []string{"one", "two"}, nil)
 	if err != nil {
 		t.Fatalf("Trigger returned error: %v", err)
 	}

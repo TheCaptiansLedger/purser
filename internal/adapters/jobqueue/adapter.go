@@ -24,8 +24,8 @@ func New(engine *pkgjobqueue.Engine) *Adapter {
 }
 
 // Trigger implements ports.JobPublisher.
-func (a *Adapter) Trigger(ctx context.Context, kind string, taskLabels []string) (string, error) {
-	job, err := a.engine.Trigger(ctx, kind, taskLabels)
+func (a *Adapter) Trigger(ctx context.Context, kind string, taskLabels []string, params map[string]string) (string, error) {
+	job, err := a.engine.Trigger(ctx, kind, taskLabels, params)
 	if err != nil {
 		return "", err
 	}

@@ -98,9 +98,11 @@ func (e *Engine) executor(kind string) (Executor, bool) {
 // Trigger creates a new Job of the given kind with one pending Task per
 // label, persists it, and starts execution asynchronously in a detached
 // goroutine — the returned Job reflects only its initial (pending) state,
-// callers poll Get for progress. Returns ErrUnknownKind if kind has no
-// registered Executor.
-func (e *Engine) Trigger(ctx context.Context, kind string, taskLabels []string) (*Job, error) {
+// callers poll Get for progress. params is opaque, kind-specific
+// configuration the engine passes through unexamined — only the registered
+// Executor for kind interprets its keys. Returns ErrUnknownKind if kind has
+// no registered Executor.
+func (e *Engine) Trigger(ctx context.Context, kind string, taskLabels []string, params map[string]string) (*Job, error) {
 	exec, ok := e.executor(kind)
 	if !ok {
 		return nil, fmt.Errorf("%w: %q", ErrUnknownKind, kind)
@@ -112,6 +114,7 @@ func (e *Engine) Trigger(ctx context.Context, kind string, taskLabels []string) 
 		Kind:      kind,
 		Status:    StatusPending,
 		CreatedAt: now,
+		Params:    params,
 	}
 	for _, label := range taskLabels {
 		job.Tasks = append(job.Tasks, &Task{ID: newID(), Label: label, Status: StatusPending})

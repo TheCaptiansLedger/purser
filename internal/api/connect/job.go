@@ -14,7 +14,7 @@ import (
 // jobService is the narrow interface JobHandler depends on — see
 // personService for the DIP convention this follows.
 type jobService interface {
-	Trigger(ctx context.Context, kind string, taskLabels []string) (string, error)
+	Trigger(ctx context.Context, kind string, taskLabels []string, params map[string]string) (string, error)
 	Get(ctx context.Context, id string) (*jobqueue.Job, error)
 }
 
@@ -38,7 +38,7 @@ func NewJobHandler(svc jobService, logger *slog.Logger) *JobHandler {
 
 // TriggerJob implements jobv1connect.JobServiceHandler.
 func (h *JobHandler) TriggerJob(ctx context.Context, req *connect.Request[jobv1.TriggerJobRequest]) (*connect.Response[jobv1.TriggerJobResponse], error) {
-	id, err := h.svc.Trigger(ctx, req.Msg.GetKind(), req.Msg.GetTaskLabels())
+	id, err := h.svc.Trigger(ctx, req.Msg.GetKind(), req.Msg.GetTaskLabels(), req.Msg.GetParams())
 	if err != nil {
 		return nil, mapError(ctx, h.logger, err)
 	}

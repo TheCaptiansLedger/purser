@@ -64,6 +64,13 @@ message TriggerJobRequest {
   // "diagnostic" is the only kind this pass registers.
   string kind = 1;
   repeated string task_labels = 2;
+  // params is opaque, kind-specific configuration passed through to the
+  // registered Executor unexamined — this package/service never interprets
+  // its keys. The "diagnostic" kind reads "fail_at_step:<task label>" ->
+  // step index to make that task's step fail with a synthetic error, for
+  // exercising the partial/failed aggregation rule end-to-end. See
+  // docs/adr/0023-job-queue.md.
+  map<string, string> params = 3;
 }
 
 message TriggerJobResponse {

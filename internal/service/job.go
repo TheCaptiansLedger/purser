@@ -21,9 +21,10 @@ func NewJobService(pub ports.JobPublisher, reader ports.JobReader) *JobService {
 }
 
 // Trigger starts a new Job of the given kind with one Task per label,
-// running asynchronously, and returns its ID immediately.
-func (s *JobService) Trigger(ctx context.Context, kind string, taskLabels []string) (string, error) {
-	return s.pub.Trigger(ctx, kind, taskLabels)
+// running asynchronously, and returns its ID immediately. params is
+// opaque, kind-specific configuration passed through unexamined.
+func (s *JobService) Trigger(ctx context.Context, kind string, taskLabels []string, params map[string]string) (string, error) {
+	return s.pub.Trigger(ctx, kind, taskLabels, params)
 }
 
 // Get returns the full current state of the Job with the given id, or

@@ -94,7 +94,10 @@ func (t *Task) Progress() float64 {
 
 // Job is one overall operation (e.g. "scan /music/new-arrivals"). Kind is
 // an open string the engine's executor registry dispatches on — this
-// package has no built-in notion of what a "scan" is.
+// package has no built-in notion of what a "scan" is. Params is opaque,
+// kind-specific trigger-time configuration: the engine passes it through
+// unexamined, and only the registered Executor for Kind interprets its
+// keys — the same "open, caller-defined" treatment Kind itself gets.
 type Job struct {
 	ID         string
 	Kind       string
@@ -103,6 +106,7 @@ type Job struct {
 	StartedAt  time.Time
 	FinishedAt time.Time
 	Tasks      []*Task
+	Params     map[string]string
 }
 
 // Progress returns the fraction (0..1) of j's Tasks that have reached a
@@ -127,6 +131,12 @@ func (j *Job) Clone() *Job {
 		return nil
 	}
 	cp := *j
+	if j.Params != nil {
+		cp.Params = make(map[string]string, len(j.Params))
+		for k, v := range j.Params {
+			cp.Params[k] = v
+		}
+	}
 	cp.Tasks = make([]*Task, len(j.Tasks))
 	for i, t := range j.Tasks {
 		tcp := *t

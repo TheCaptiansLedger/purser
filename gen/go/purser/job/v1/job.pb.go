@@ -381,8 +381,15 @@ type TriggerJobRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// kind selects which registered pkg/jobqueue.Executor runs this Job —
 	// "diagnostic" is the only kind this pass registers.
-	Kind          string   `protobuf:"bytes,1,opt,name=kind,proto3" json:"kind,omitempty"`
-	TaskLabels    []string `protobuf:"bytes,2,rep,name=task_labels,json=taskLabels,proto3" json:"task_labels,omitempty"`
+	Kind       string   `protobuf:"bytes,1,opt,name=kind,proto3" json:"kind,omitempty"`
+	TaskLabels []string `protobuf:"bytes,2,rep,name=task_labels,json=taskLabels,proto3" json:"task_labels,omitempty"`
+	// params is opaque, kind-specific configuration passed through to the
+	// registered Executor unexamined — this package/service never interprets
+	// its keys. The "diagnostic" kind reads "fail_at_step:<task label>" ->
+	// step index to make that task's step fail with a synthetic error, for
+	// exercising the partial/failed aggregation rule end-to-end. See
+	// docs/adr/0023-job-queue.md.
+	Params        map[string]string `protobuf:"bytes,3,rep,name=params,proto3" json:"params,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -427,6 +434,13 @@ func (x *TriggerJobRequest) GetKind() string {
 func (x *TriggerJobRequest) GetTaskLabels() []string {
 	if x != nil {
 		return x.TaskLabels
+	}
+	return nil
+}
+
+func (x *TriggerJobRequest) GetParams() map[string]string {
+	if x != nil {
+		return x.Params
 	}
 	return nil
 }
@@ -602,11 +616,15 @@ const file_purser_job_v1_job_proto_rawDesc = "" +
 	"\vfinished_at\x18\x06 \x01(\v2\x1a.google.protobuf.TimestampR\n" +
 	"finishedAt\x12)\n" +
 	"\x05tasks\x18\a \x03(\v2\x13.purser.job.v1.TaskR\x05tasks\x12\x1a\n" +
-	"\bprogress\x18\b \x01(\x01R\bprogress\"H\n" +
+	"\bprogress\x18\b \x01(\x01R\bprogress\"\xc9\x01\n" +
 	"\x11TriggerJobRequest\x12\x12\n" +
 	"\x04kind\x18\x01 \x01(\tR\x04kind\x12\x1f\n" +
 	"\vtask_labels\x18\x02 \x03(\tR\n" +
-	"taskLabels\"+\n" +
+	"taskLabels\x12D\n" +
+	"\x06params\x18\x03 \x03(\v2,.purser.job.v1.TriggerJobRequest.ParamsEntryR\x06params\x1a9\n" +
+	"\vParamsEntry\x12\x10\n" +
+	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"+\n" +
 	"\x12TriggerJobResponse\x12\x15\n" +
 	"\x06job_id\x18\x01 \x01(\tR\x05jobId\"\x1f\n" +
 	"\rGetJobRequest\x12\x0e\n" +
@@ -639,7 +657,7 @@ func file_purser_job_v1_job_proto_rawDescGZIP() []byte {
 }
 
 var file_purser_job_v1_job_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_purser_job_v1_job_proto_msgTypes = make([]protoimpl.MessageInfo, 8)
+var file_purser_job_v1_job_proto_msgTypes = make([]protoimpl.MessageInfo, 9)
 var file_purser_job_v1_job_proto_goTypes = []any{
 	(JobStatus)(0),                // 0: purser.job.v1.JobStatus
 	(*Step)(nil),                  // 1: purser.job.v1.Step
@@ -650,32 +668,34 @@ var file_purser_job_v1_job_proto_goTypes = []any{
 	(*GetJobRequest)(nil),         // 6: purser.job.v1.GetJobRequest
 	(*GetJobResponse)(nil),        // 7: purser.job.v1.GetJobResponse
 	nil,                           // 8: purser.job.v1.Step.DetailEntry
-	(*timestamppb.Timestamp)(nil), // 9: google.protobuf.Timestamp
+	nil,                           // 9: purser.job.v1.TriggerJobRequest.ParamsEntry
+	(*timestamppb.Timestamp)(nil), // 10: google.protobuf.Timestamp
 }
 var file_purser_job_v1_job_proto_depIdxs = []int32{
 	0,  // 0: purser.job.v1.Step.status:type_name -> purser.job.v1.JobStatus
-	9,  // 1: purser.job.v1.Step.started_at:type_name -> google.protobuf.Timestamp
-	9,  // 2: purser.job.v1.Step.finished_at:type_name -> google.protobuf.Timestamp
+	10, // 1: purser.job.v1.Step.started_at:type_name -> google.protobuf.Timestamp
+	10, // 2: purser.job.v1.Step.finished_at:type_name -> google.protobuf.Timestamp
 	8,  // 3: purser.job.v1.Step.detail:type_name -> purser.job.v1.Step.DetailEntry
 	0,  // 4: purser.job.v1.Task.status:type_name -> purser.job.v1.JobStatus
-	9,  // 5: purser.job.v1.Task.started_at:type_name -> google.protobuf.Timestamp
-	9,  // 6: purser.job.v1.Task.finished_at:type_name -> google.protobuf.Timestamp
+	10, // 5: purser.job.v1.Task.started_at:type_name -> google.protobuf.Timestamp
+	10, // 6: purser.job.v1.Task.finished_at:type_name -> google.protobuf.Timestamp
 	1,  // 7: purser.job.v1.Task.steps:type_name -> purser.job.v1.Step
 	0,  // 8: purser.job.v1.Job.status:type_name -> purser.job.v1.JobStatus
-	9,  // 9: purser.job.v1.Job.created_at:type_name -> google.protobuf.Timestamp
-	9,  // 10: purser.job.v1.Job.started_at:type_name -> google.protobuf.Timestamp
-	9,  // 11: purser.job.v1.Job.finished_at:type_name -> google.protobuf.Timestamp
+	10, // 9: purser.job.v1.Job.created_at:type_name -> google.protobuf.Timestamp
+	10, // 10: purser.job.v1.Job.started_at:type_name -> google.protobuf.Timestamp
+	10, // 11: purser.job.v1.Job.finished_at:type_name -> google.protobuf.Timestamp
 	2,  // 12: purser.job.v1.Job.tasks:type_name -> purser.job.v1.Task
-	3,  // 13: purser.job.v1.GetJobResponse.job:type_name -> purser.job.v1.Job
-	4,  // 14: purser.job.v1.JobService.TriggerJob:input_type -> purser.job.v1.TriggerJobRequest
-	6,  // 15: purser.job.v1.JobService.GetJob:input_type -> purser.job.v1.GetJobRequest
-	5,  // 16: purser.job.v1.JobService.TriggerJob:output_type -> purser.job.v1.TriggerJobResponse
-	7,  // 17: purser.job.v1.JobService.GetJob:output_type -> purser.job.v1.GetJobResponse
-	16, // [16:18] is the sub-list for method output_type
-	14, // [14:16] is the sub-list for method input_type
-	14, // [14:14] is the sub-list for extension type_name
-	14, // [14:14] is the sub-list for extension extendee
-	0,  // [0:14] is the sub-list for field type_name
+	9,  // 13: purser.job.v1.TriggerJobRequest.params:type_name -> purser.job.v1.TriggerJobRequest.ParamsEntry
+	3,  // 14: purser.job.v1.GetJobResponse.job:type_name -> purser.job.v1.Job
+	4,  // 15: purser.job.v1.JobService.TriggerJob:input_type -> purser.job.v1.TriggerJobRequest
+	6,  // 16: purser.job.v1.JobService.GetJob:input_type -> purser.job.v1.GetJobRequest
+	5,  // 17: purser.job.v1.JobService.TriggerJob:output_type -> purser.job.v1.TriggerJobResponse
+	7,  // 18: purser.job.v1.JobService.GetJob:output_type -> purser.job.v1.GetJobResponse
+	17, // [17:19] is the sub-list for method output_type
+	15, // [15:17] is the sub-list for method input_type
+	15, // [15:15] is the sub-list for extension type_name
+	15, // [15:15] is the sub-list for extension extendee
+	0,  // [0:15] is the sub-list for field type_name
 }
 
 func init() { file_purser_job_v1_job_proto_init() }
@@ -689,7 +709,7 @@ func file_purser_job_v1_job_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_purser_job_v1_job_proto_rawDesc), len(file_purser_job_v1_job_proto_rawDesc)),
 			NumEnums:      1,
-			NumMessages:   8,
+			NumMessages:   9,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

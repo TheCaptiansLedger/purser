@@ -17,6 +17,7 @@ import (
 type fakeJobService struct {
 	triggerKind   string
 	triggerLabels []string
+	triggerParams map[string]string
 	triggerID     string
 	triggerErr    error
 
@@ -24,9 +25,10 @@ type fakeJobService struct {
 	getErr error
 }
 
-func (f *fakeJobService) Trigger(_ context.Context, kind string, taskLabels []string) (string, error) {
+func (f *fakeJobService) Trigger(_ context.Context, kind string, taskLabels []string, params map[string]string) (string, error) {
 	f.triggerKind = kind
 	f.triggerLabels = taskLabels
+	f.triggerParams = params
 	if f.triggerErr != nil {
 		return "", f.triggerErr
 	}
@@ -47,6 +49,7 @@ func TestJobHandler_TriggerJob(t *testing.T) {
 	resp, err := h.TriggerJob(context.Background(), connect.NewRequest(&jobv1.TriggerJobRequest{
 		Kind:       "diagnostic",
 		TaskLabels: []string{"a", "b"},
+		Params:     map[string]string{"fail_at_step:a": "1"},
 	}))
 	if err != nil {
 		t.Fatalf("TriggerJob returned error: %v", err)
@@ -59,6 +62,9 @@ func TestJobHandler_TriggerJob(t *testing.T) {
 	}
 	if len(svc.triggerLabels) != 2 {
 		t.Fatalf("TriggerJob passed %d task labels, want 2", len(svc.triggerLabels))
+	}
+	if svc.triggerParams["fail_at_step:a"] != "1" {
+		t.Fatalf("TriggerJob passed params %v, want fail_at_step:a=1", svc.triggerParams)
 	}
 }
 

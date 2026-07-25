@@ -13,8 +13,10 @@ import (
 // executor by Kind. See docs/adr/0023-job-queue.md.
 type JobPublisher interface {
 	// Trigger starts a new Job of the given kind with one Task per label,
-	// running asynchronously, and returns its ID immediately.
-	Trigger(ctx context.Context, kind string, taskLabels []string) (string, error)
+	// running asynchronously, and returns its ID immediately. params is
+	// opaque, kind-specific configuration passed through unexamined to the
+	// registered Executor.
+	Trigger(ctx context.Context, kind string, taskLabels []string, params map[string]string) (string, error)
 }
 
 // JobReader lets the API layer read Job state without importing

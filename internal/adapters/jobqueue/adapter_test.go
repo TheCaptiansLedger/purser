@@ -20,7 +20,7 @@ func TestAdapter_TriggerAndGet(t *testing.T) {
 	a := newAdapter()
 	ctx := context.Background()
 
-	id, err := a.Trigger(ctx, "diagnostic", []string{"one"})
+	id, err := a.Trigger(ctx, "diagnostic", []string{"one"}, nil)
 	if err != nil {
 		t.Fatalf("Trigger returned error: %v", err)
 	}
@@ -39,7 +39,7 @@ func TestAdapter_TriggerAndGet(t *testing.T) {
 
 func TestAdapter_Trigger_UnknownKind(t *testing.T) {
 	a := newAdapter()
-	_, err := a.Trigger(context.Background(), "nonexistent", nil)
+	_, err := a.Trigger(context.Background(), "nonexistent", nil, nil)
 	if !errors.Is(err, pkgjobqueue.ErrUnknownKind) {
 		t.Fatalf("Trigger with unknown kind returned %v, want ErrUnknownKind", err)
 	}
@@ -57,7 +57,7 @@ func TestAdapter_Get_WaitsForCompletion(t *testing.T) {
 	a := newAdapter()
 	ctx := context.Background()
 
-	id, err := a.Trigger(ctx, "diagnostic", []string{"one", "two"})
+	id, err := a.Trigger(ctx, "diagnostic", []string{"one", "two"}, nil)
 	if err != nil {
 		t.Fatalf("Trigger returned error: %v", err)
 	}

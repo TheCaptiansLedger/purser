@@ -56,5 +56,72 @@ export default () => {
     'job progress is 1': (j) => j.progress === 1,
   });
 
+  // Failure/partial-status handling (#482): a diagnostic job with exactly
+  // one task's step configured to fail must aggregate to JOB_STATUS_PARTIAL
+  // per docs/adr/0023-job-queue.md's rule — failed only if every task
+  // failed, partial if at least one succeeded and at least one failed.
+  res = invoke('purser.job.v1.JobService/TriggerJob', {
+    kind: 'diagnostic',
+    taskLabels: taskLabels,
+    params: { 'fail_at_step:track two': '1' },
+  });
+  check(res, {
+    'TriggerJob (partial case) status is OK': (r) => r && r.status === grpc.StatusOK,
+    'TriggerJob (partial case) returns a job id': (r) => r && r.message && !!r.message.jobId,
+  });
+  const partialJobId = res.message.jobId;
+
+  let partialJob = null;
+  for (let i = 0; i < 50; i++) {
+    res = invoke('purser.job.v1.JobService/GetJob', { id: partialJobId });
+    check(res, { 'GetJob (partial case) status is OK': (r) => r && r.status === grpc.StatusOK });
+    partialJob = res.message.job;
+    if (terminal.indexOf(partialJob.status) !== -1) {
+      break;
+    }
+    sleep(0.1);
+  }
+
+  check(partialJob, {
+    'partial job status is JOB_STATUS_PARTIAL': (j) => j.status === 'JOB_STATUS_PARTIAL',
+    'partial job has 3 tasks': (j) => j.tasks && j.tasks.length === 3,
+    'exactly one task failed': (j) => j.tasks.filter((t) => t.status === 'JOB_STATUS_FAILED').length === 1,
+    'the other two tasks succeeded': (j) => j.tasks.filter((t) => t.status === 'JOB_STATUS_SUCCEEDED').length === 2,
+    'the failed task has a step with populated detail': (j) => {
+      const failedTask = j.tasks.find((t) => t.status === 'JOB_STATUS_FAILED');
+      const failedStep = failedTask && failedTask.steps.find((s) => s.status === 'JOB_STATUS_FAILED');
+      return !!failedStep && !!failedStep.message && !!failedStep.detail && !!failedStep.detail.elapsed_ms;
+    },
+  });
+
+  // Every task's steps configured to fail must aggregate to
+  // JOB_STATUS_FAILED, the other half of the same rule.
+  const failParams = {};
+  taskLabels.forEach((label) => {
+    failParams[`fail_at_step:${label}`] = '0';
+  });
+  res = invoke('purser.job.v1.JobService/TriggerJob', { kind: 'diagnostic', taskLabels: taskLabels, params: failParams });
+  check(res, {
+    'TriggerJob (failed case) status is OK': (r) => r && r.status === grpc.StatusOK,
+    'TriggerJob (failed case) returns a job id': (r) => r && r.message && !!r.message.jobId,
+  });
+  const failedJobId = res.message.jobId;
+
+  let failedJob = null;
+  for (let i = 0; i < 50; i++) {
+    res = invoke('purser.job.v1.JobService/GetJob', { id: failedJobId });
+    check(res, { 'GetJob (failed case) status is OK': (r) => r && r.status === grpc.StatusOK });
+    failedJob = res.message.job;
+    if (terminal.indexOf(failedJob.status) !== -1) {
+      break;
+    }
+    sleep(0.1);
+  }
+
+  check(failedJob, {
+    'failed job status is JOB_STATUS_FAILED': (j) => j.status === 'JOB_STATUS_FAILED',
+    'every task failed': (j) => j.tasks.every((t) => t.status === 'JOB_STATUS_FAILED'),
+  });
+
   client.close();
 };

@@ -96,9 +96,14 @@ func (r *Runner) StartStep(ctx context.Context, taskID, name string) (*StepHandl
 
 // FinishStep records h's step as finished with status/message/detail,
 // closes its span, and records the step's duration metric and log line.
-func (r *Runner) FinishStep(h *StepHandle, status Status, message string, detail map[string]string) error {
+// err is the underlying cause when status is StatusFailed (nil otherwise):
+// it is never folded into message, only passed as a structured slog
+// attribute per docs/adr/0008-structured-logging.md, and its presence is
+// what selects Error- over Info-level logging for the "step finished"
+// event — success and failure are the same event, not two logging paths.
+func (r *Runner) FinishStep(h *StepHandle, status Status, message string, detail map[string]string, err error) error {
 	finished := time.Now()
-	err := r.mutateTask(h.ctx, h.taskID, func(t *Task) {
+	mutateErr := r.mutateTask(h.ctx, h.taskID, func(t *Task) {
 		s := findStep(t, h.stepID)
 		if s == nil {
 			return
@@ -120,12 +125,17 @@ func (r *Runner) FinishStep(h *StepHandle, status Status, message string, detail
 	h.span.SetAttributes(attribute.String("step.status", string(status)))
 	h.span.End()
 
-	r.engine.logger.InfoContext(h.ctx, "step finished",
+	logArgs := []any{
 		"job.id", r.jobID, "task.id", h.taskID, "step.name", h.name, "status", string(status),
 		"elapsed_ms", elapsed.Milliseconds(),
 		"trace_id", h.span.SpanContext().TraceID().String(),
 		"span_id", h.span.SpanContext().SpanID().String(),
-	)
+	}
+	if err != nil {
+		r.engine.logger.ErrorContext(h.ctx, "step finished", append(logArgs, "error", err)...)
+	} else {
+		r.engine.logger.InfoContext(h.ctx, "step finished", logArgs...)
+	}
 
-	return err
+	return mutateErr
 }
