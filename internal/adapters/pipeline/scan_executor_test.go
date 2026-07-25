@@ -51,6 +51,21 @@ func (f *fakeUnmatchedFileRepository) Get(_ context.Context, id string) (*domain
 	return &cp, nil
 }
 
+// List is unused by ScanExecutor's tests (it only Creates/Gets) — present
+// solely to satisfy ports.UnmatchedFileRepository.
+func (f *fakeUnmatchedFileRepository) List(_ context.Context, status domain.UnmatchedFileStatus, _ int, _ string) ([]*domain.UnmatchedFile, string, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	var out []*domain.UnmatchedFile
+	for _, u := range f.files {
+		if status == "" || u.Status == status {
+			cp := *u
+			out = append(out, &cp)
+		}
+	}
+	return out, "", nil
+}
+
 func newEngine(t *testing.T, repo ports.UnmatchedFileRepository) *pkgjobqueue.Engine {
 	t.Helper()
 	engine := pkgjobqueue.NewEngine(memory.New())
@@ -290,4 +305,8 @@ func (a *alwaysFailRepository) Create(context.Context, *domain.UnmatchedFile) er
 
 func (a *alwaysFailRepository) Get(context.Context, string) (*domain.UnmatchedFile, error) {
 	return nil, ports.ErrNotFound
+}
+
+func (a *alwaysFailRepository) List(context.Context, domain.UnmatchedFileStatus, int, string) ([]*domain.UnmatchedFile, string, error) {
+	return nil, "", a.err
 }

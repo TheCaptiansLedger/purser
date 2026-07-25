@@ -2,8 +2,8 @@
 // ports.UnmatchedFileRepository port — a thin wrapper over the shared
 // store.FilteredRepository[T] translator, per docs/adr/0012's
 // Image/Tag/MusicRelease hand-written-translator category (this entity
-// needs filtered List by Status in a later sub-issue, so it isn't forced
-// into the generic single-ID/no-filter store.Repository[T] shape). See
+// needs filtered List by Status, so it isn't forced into the generic
+// single-ID/no-filter store.Repository[T] shape). See
 // docs/adr/0024-pipeline-core.md.
 package unmatchedfile
 
@@ -48,10 +48,8 @@ func New(name string, ds datastore.Datastore, opts ...Option) (*Repository, erro
 
 func idOf(u *domain.UnmatchedFile) string { return u.ID }
 
-// indexOf writes Status into Document.Index now, even though this issue's
-// port doesn't expose a filtered List yet — ADR-0024 names status as the
-// review queue's near-future filter dimension, and indexing it here costs
-// nothing and avoids a later migration.
+// indexOf writes Status into Document.Index — ADR-0024 names status as
+// the review queue's filter dimension, read back by List below.
 func indexOf(u *domain.UnmatchedFile) map[string]string {
 	return map[string]string{"status": string(u.Status)}
 }
@@ -64,4 +62,13 @@ func (r *Repository) Create(ctx context.Context, u *domain.UnmatchedFile) error 
 // Get implements ports.UnmatchedFileRepository.
 func (r *Repository) Get(ctx context.Context, id string) (*domain.UnmatchedFile, error) {
 	return r.inner.Get(ctx, id)
+}
+
+// List implements ports.UnmatchedFileRepository.
+func (r *Repository) List(ctx context.Context, status domain.UnmatchedFileStatus, pageSize int, pageToken string) ([]*domain.UnmatchedFile, string, error) {
+	var filter map[string]string
+	if status != "" {
+		filter = map[string]string{"status": string(status)}
+	}
+	return r.inner.List(ctx, filter, pageSize, pageToken)
 }

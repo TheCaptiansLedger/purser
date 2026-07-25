@@ -1,7 +1,7 @@
 // Package unmatchedfiletest is the shared contract test suite for the
 // ports.UnmatchedFileRepository port. See internal/ports/mediafiletest for
-// the convention this follows, scoped down to the Create/Get methods this
-// issue's slice of the port actually has.
+// the convention this follows, scoped down to the Create/Get/List methods
+// this issue's slice of the port actually has.
 package unmatchedfiletest
 
 import (
@@ -25,6 +25,9 @@ func TestUnmatchedFileRepository(t *testing.T, newRepo NewRepositoryFunc) {
 	t.Run("get on empty repository returns ErrNotFound", func(t *testing.T) { testGetOnEmptyNotFound(t, newRepo) })
 	t.Run("create then get round-trips the unmatched file", func(t *testing.T) { testCreateThenGet(t, newRepo) })
 	t.Run("create with a duplicate ID returns ErrConflict", func(t *testing.T) { testCreateDuplicate(t, newRepo) })
+	t.Run("list with no filter returns every record", func(t *testing.T) { testListNoFilter(t, newRepo) })
+	t.Run("list filtered by status returns only matching records", func(t *testing.T) { testListStatusFilter(t, newRepo) })
+	t.Run("list paginates across two calls", func(t *testing.T) { testListPagination(t, newRepo) })
 }
 
 func mustCreate(t *testing.T, r ports.UnmatchedFileRepository, u *domain.UnmatchedFile) {
@@ -72,7 +75,89 @@ func testCreateDuplicate(t *testing.T, newRepo NewRepositoryFunc) {
 	}
 }
 
+func testListNoFilter(t *testing.T, newRepo NewRepositoryFunc) {
+	r := newRepo(t)
+	want := map[string]bool{"uf1": false, "uf2": false, "uf3": false}
+	for id := range want {
+		mustCreate(t, r, sampleUnmatchedFile(id))
+	}
+
+	got, next, err := r.List(context.Background(), "", 10, "")
+	if err != nil {
+		t.Fatalf("List returned error: %v", err)
+	}
+	if next != "" {
+		t.Fatalf("List with page_size >= total returned next_page_token %q, want empty", next)
+	}
+	if len(got) != len(want) {
+		t.Fatalf("List returned %d records, want %d", len(got), len(want))
+	}
+	for _, u := range got {
+		want[u.ID] = true
+	}
+	for id, found := range want {
+		if !found {
+			t.Fatalf("List did not include %q", id)
+		}
+	}
+}
+
+func testListStatusFilter(t *testing.T, newRepo NewRepositoryFunc) {
+	r := newRepo(t)
+	mustCreate(t, r, sampleUnmatchedFileWithStatus("uf-pending", domain.UnmatchedFileStatusPending))
+	mustCreate(t, r, sampleUnmatchedFileWithStatus("uf-matched", domain.UnmatchedFileStatusMatched))
+	mustCreate(t, r, sampleUnmatchedFileWithStatus("uf-dismissed", domain.UnmatchedFileStatusDismissed))
+
+	got, _, err := r.List(context.Background(), domain.UnmatchedFileStatusMatched, 10, "")
+	if err != nil {
+		t.Fatalf("List returned error: %v", err)
+	}
+	if len(got) != 1 || got[0].ID != "uf-matched" {
+		t.Fatalf("List(status=matched) returned %v, want exactly [uf-matched]", got)
+	}
+}
+
+func testListPagination(t *testing.T, newRepo NewRepositoryFunc) {
+	r := newRepo(t)
+	want := map[string]bool{"uf1": false, "uf2": false, "uf3": false, "uf4": false, "uf5": false}
+	for id := range want {
+		mustCreate(t, r, sampleUnmatchedFile(id))
+	}
+
+	var got []*domain.UnmatchedFile
+	token := ""
+	for range len(want) {
+		page, next, err := r.List(context.Background(), "", 2, token)
+		if err != nil {
+			t.Fatalf("List returned error: %v", err)
+		}
+		got = append(got, page...)
+		if next == "" {
+			break
+		}
+		token = next
+	}
+	if len(got) != len(want) {
+		t.Fatalf("List paginated to %d records, want %d", len(got), len(want))
+	}
+	for _, u := range got {
+		if want[u.ID] {
+			t.Fatalf("List returned %q more than once across pages", u.ID)
+		}
+		want[u.ID] = true
+	}
+	for id, found := range want {
+		if !found {
+			t.Fatalf("List paginated result did not include %q", id)
+		}
+	}
+}
+
 func sampleUnmatchedFile(id string) *domain.UnmatchedFile {
+	return sampleUnmatchedFileWithStatus(id, domain.UnmatchedFileStatusPending)
+}
+
+func sampleUnmatchedFileWithStatus(id string, status domain.UnmatchedFileStatus) *domain.UnmatchedFile {
 	return &domain.UnmatchedFile{
 		ID:           id,
 		Path:         "/media/incoming/" + id + ".flac",
@@ -80,6 +165,6 @@ func sampleUnmatchedFile(id string) *domain.UnmatchedFile {
 		OSHash:       "0123456789abcdef",
 		SHA1:         "a9993e364706816aba3e25717850c26c9cd0d89d",
 		DiscoveredAt: time.Unix(1700000000, 0).UTC(),
-		Status:       domain.UnmatchedFileStatusPending,
+		Status:       status,
 	}
 }

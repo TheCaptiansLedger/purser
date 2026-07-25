@@ -60,5 +60,5 @@ telemetry:
 # OSHash and SHA1 are always computed; MD5/SHA512 are optional extra
 # hashes, off by default.
 pipeline:
-  enable_md5: false
-  enable_sha512: false
+  enable_md5: true
+  enable_sha512: true

@@ -1,0 +1,64 @@
+syntax = "proto3";
+
+package purser.pipeline.v1;
+
+import "google/protobuf/timestamp.proto";
+
+option go_package = "purser/gen/go/purser/pipeline/v1;pipelinev1";
+
+// UnmatchedFileStatus mirrors domain.UnmatchedFileStatus — the review
+// queue's lifecycle state. See docs/adr/0024-pipeline-core.md.
+enum UnmatchedFileStatus {
+  UNMATCHED_FILE_STATUS_UNSPECIFIED = 0;
+  UNMATCHED_FILE_STATUS_PENDING = 1;
+  UNMATCHED_FILE_STATUS_MATCHED = 2;
+  UNMATCHED_FILE_STATUS_DISMISSED = 3;
+}
+
+// UnmatchedFile is a file the common scan pipeline discovered and hashed
+// but has not yet matched to a LibraryEntry/Item. See
+// docs/adr/0024-pipeline-core.md.
+message UnmatchedFile {
+  string id = 1;
+  string path = 2;
+  int64 size = 3;
+
+  string os_hash = 4;
+  string md5 = 5;
+  string sha1 = 6;
+  string sha512 = 7;
+
+  google.protobuf.Timestamp discovered_at = 8;
+  UnmatchedFileStatus status = 9;
+}
+
+message GetUnmatchedFileRequest {
+  string id = 1;
+}
+
+message GetUnmatchedFileResponse {
+  UnmatchedFile unmatched_file = 1;
+}
+
+message ListUnmatchedFilesRequest {
+  int32 page_size = 1;
+  string page_token = 2;
+  // status is an optional filter — leave UNMATCHED_FILE_STATUS_UNSPECIFIED
+  // for no filter.
+  UnmatchedFileStatus status = 3;
+}
+
+message ListUnmatchedFilesResponse {
+  repeated UnmatchedFile unmatched_files = 1;
+  string next_page_token = 2;
+}
+
+// UnmatchedFileService is the review queue's Get/List surface — Resolve
+// (accept a candidate, or dismiss) is a later sub-issue of the Common Scan
+// Pipeline epic (#486). Follows the same handler/service/error-mapping
+// conventions as every other entity's Connect service
+// (docs/adr/0011-api-design.md). See docs/adr/0024-pipeline-core.md.
+service UnmatchedFileService {
+  rpc GetUnmatchedFile(GetUnmatchedFileRequest) returns (GetUnmatchedFileResponse);
+  rpc ListUnmatchedFiles(ListUnmatchedFilesRequest) returns (ListUnmatchedFilesResponse);
+}

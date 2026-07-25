@@ -421,6 +421,7 @@ func newServeMux(logger *slog.Logger, ds datastore.Datastore, enableMD5, enableS
 		musicv1connect.MusicReleaseServiceName,
 		jobv1connect.JobServiceName,
 		pipelinev1connect.ScanServiceName,
+		pipelinev1connect.UnmatchedFileServiceName,
 	)
 	mux.Handle(grpcreflect.NewHandlerV1(reflector))
 	mux.Handle(grpcreflect.NewHandlerV1Alpha(reflector))
@@ -428,11 +429,12 @@ func newServeMux(logger *slog.Logger, ds datastore.Datastore, enableMD5, enableS
 	return mux, nil
 }
 
-// wireScanPipeline builds the Common Scan Pipeline's adapters, service, and
-// Connect handler, registers the "scan" Executor directly on jobEngine
-// (exactly like "diagnostic" self-registers inside pkgjobqueue.NewEngine),
-// and mounts ScanService on mux. jobAdapter is reused as ScanService's
-// ports.JobPublisher — ScanService never imports pkg/jobqueue directly. See
+// wireScanPipeline builds the Common Scan Pipeline's adapters, services,
+// and Connect handlers, registers the "scan" Executor directly on
+// jobEngine (exactly like "diagnostic" self-registers inside
+// pkgjobqueue.NewEngine), and mounts ScanService and UnmatchedFileService
+// on mux. jobAdapter is reused as ScanService's ports.JobPublisher —
+// neither service imports pkg/jobqueue directly. See
 // docs/adr/0023-job-queue.md, docs/adr/0024-pipeline-core.md.
 func wireScanPipeline(mux *http.ServeMux, ds datastore.Datastore, logger *slog.Logger, interceptors connect.HandlerOption, jobEngine *pkgjobqueue.Engine, jobAdapter *adapterjobqueue.Adapter, enableMD5, enableSHA512 bool) error {
 	unmatchedFileRepo, err := storeunmatchedfile.New("unmatched_file", ds, storeunmatchedfile.WithLogger(logger))
@@ -450,5 +452,10 @@ func wireScanPipeline(mux *http.ServeMux, ds datastore.Datastore, logger *slog.L
 	scanHandler := apiconnect.NewScanHandler(scanSvc, logger)
 	scanPath, scanConnectHandler := pipelinev1connect.NewScanServiceHandler(scanHandler, interceptors)
 	mux.Handle(scanPath, scanConnectHandler)
+
+	unmatchedFileSvc := service.NewUnmatchedFileService(unmatchedFileRepo)
+	unmatchedFileHandler := apiconnect.NewUnmatchedFileHandler(unmatchedFileSvc, logger)
+	unmatchedFilePath, unmatchedFileConnectHandler := pipelinev1connect.NewUnmatchedFileServiceHandler(unmatchedFileHandler, interceptors)
+	mux.Handle(unmatchedFilePath, unmatchedFileConnectHandler)
 	return nil
 }
