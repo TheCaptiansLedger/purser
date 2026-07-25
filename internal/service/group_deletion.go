@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"purser/internal/domain"
+	"purser/internal/domain/music"
 	"purser/internal/ports"
 )
 
@@ -21,12 +22,26 @@ import (
 // are ordinary attachment rows and are deleted on Unlink as usual. Group
 // never blocks a delete; cascade is accepted for API-shape consistency
 // but has no effect here.
+//
+// music.Release.GroupID is required, unlike Item.GroupID — a Release can't
+// be left pointing at nothing, so "detach" isn't a valid state for it. Per
+// docs/adr/0021-music-domain-model.md's "Ripple effects" section, Unlink
+// applied to Group instead deletes every referencing Release outright, each
+// going through musicReleaseDeletion's own Unlink step (clearing
+// Item.Metadata["release_id"] on their tracks) — the tracks themselves and
+// the Group's other referrers are untouched. Depending on both
+// ports.MusicReleaseRepository (to enumerate/count) and
+// *MusicReleaseDeletionService (to perform the per-release Unlink-delete)
+// from a kernel composing service is the same reach-across
+// PersonDeletionService already does for afterdark.PerformerProfileRepository.
 type GroupDeletionService struct {
-	groups         ports.GroupRepository
-	items          ports.ItemRepository
-	externalIDs    ports.ExternalIDRepository
-	images         ports.ImageRepository
-	tagAssignments ports.TagAssignmentRepository
+	groups               ports.GroupRepository
+	items                ports.ItemRepository
+	externalIDs          ports.ExternalIDRepository
+	images               ports.ImageRepository
+	tagAssignments       ports.TagAssignmentRepository
+	musicReleases        ports.MusicReleaseRepository
+	musicReleaseDeletion *MusicReleaseDeletionService
 }
 
 // NewGroupDeletionService constructs a GroupDeletionService backed by the
@@ -37,13 +52,17 @@ func NewGroupDeletionService(
 	externalIDs ports.ExternalIDRepository,
 	images ports.ImageRepository,
 	tagAssignments ports.TagAssignmentRepository,
+	musicReleases ports.MusicReleaseRepository,
+	musicReleaseDeletion *MusicReleaseDeletionService,
 ) *GroupDeletionService {
 	return &GroupDeletionService{
-		groups:         groups,
-		items:          items,
-		externalIDs:    externalIDs,
-		images:         images,
-		tagAssignments: tagAssignments,
+		groups:               groups,
+		items:                items,
+		externalIDs:          externalIDs,
+		images:               images,
+		tagAssignments:       tagAssignments,
+		musicReleases:        musicReleases,
+		musicReleaseDeletion: musicReleaseDeletion,
 	}
 }
 
@@ -70,6 +89,10 @@ func (s *GroupDeletionService) GetDeletionImpact(ctx context.Context, id string)
 	if err != nil {
 		return nil, err
 	}
+	musicReleases, err := s.drainMusicReleases(ctx, id)
+	if err != nil {
+		return nil, err
+	}
 
 	return &domain.DeletionImpact{
 		Impacts: []domain.DeletionImpactRow{
@@ -77,6 +100,7 @@ func (s *GroupDeletionService) GetDeletionImpact(ctx context.Context, id string)
 			{Kind: "external_id", Label: "External IDs", Count: len(externalIDs)},
 			{Kind: "image", Label: "Images", Count: len(images)},
 			{Kind: "tag_assignment", Label: "Tags", Count: len(tagAssignments)},
+			{Kind: "music_release", Label: "Releases (will be deleted, unlinking their tracks)", Count: len(musicReleases)},
 		},
 	}, nil
 }
@@ -87,6 +111,16 @@ func (s *GroupDeletionService) GetDeletionImpact(ctx context.Context, id string)
 // Group doesn't exist.
 func (s *GroupDeletionService) Delete(ctx context.Context, id string, _ bool) error {
 	if _, err := s.groups.Get(ctx, id); err != nil {
+		return err
+	}
+	// deleteMusicReleases must run before detachItems: MusicReleaseRepository
+	// finds a release's tracks by the track's (still-intact) GroupID (see
+	// ports.MusicReleaseRepository.ListTracksByRelease's adapter — it
+	// pre-filters Items by group_id, then narrows by
+	// Metadata["release_id"] in memory). Clearing GroupID first would make
+	// the release's own tracks invisible to that lookup, leaving their
+	// Metadata["release_id"] uncleared.
+	if err := s.deleteMusicReleases(ctx, id); err != nil {
 		return err
 	}
 	if err := s.detachItems(ctx, id); err != nil {
@@ -155,6 +189,40 @@ func (s *GroupDeletionService) unlinkTagAssignments(ctx context.Context, groupID
 		}
 	}
 	return nil
+}
+
+// deleteMusicReleases deletes every music.Release referencing groupID
+// outright, each via musicReleaseDeletion's own Unlink step (clearing
+// Item.Metadata["release_id"] on their tracks) — GroupID is required, so
+// unlike Item.GroupID there is no detached state to leave a Release in.
+func (s *GroupDeletionService) deleteMusicReleases(ctx context.Context, groupID string) error {
+	releases, err := s.drainMusicReleases(ctx, groupID)
+	if err != nil {
+		return err
+	}
+	for _, r := range releases {
+		if err := s.musicReleaseDeletion.Delete(ctx, r.ID, false); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (s *GroupDeletionService) drainMusicReleases(ctx context.Context, groupID string) ([]*music.Release, error) {
+	var out []*music.Release
+	pageToken := ""
+	for {
+		rows, next, err := s.musicReleases.ListByGroup(ctx, groupID, 100, pageToken)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, rows...)
+		if next == "" {
+			break
+		}
+		pageToken = next
+	}
+	return out, nil
 }
 
 func (s *GroupDeletionService) drainItems(ctx context.Context, groupID string) ([]*domain.Item, error) {

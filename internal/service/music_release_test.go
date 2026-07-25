@@ -14,6 +14,9 @@ type fakeMusicReleaseRepository struct {
 	byID            map[string]*musicdomain.Release
 	forceConflict   bool
 	tracksByRelease map[string][]*domain.Item
+	listByGroupErr  error
+	listByEntryErr  error
+	deleteErr       error
 }
 
 func newFakeMusicReleaseRepository() *fakeMusicReleaseRepository {
@@ -74,6 +77,9 @@ func (f *fakeMusicReleaseRepository) Update(_ context.Context, r *musicdomain.Re
 }
 
 func (f *fakeMusicReleaseRepository) Delete(_ context.Context, id string) error {
+	if f.deleteErr != nil {
+		return f.deleteErr
+	}
 	if _, exists := f.byID[id]; !exists {
 		return ports.ErrNotFound
 	}
@@ -94,6 +100,9 @@ func (f *fakeMusicReleaseRepository) List(_ context.Context, pageSize int, _ str
 }
 
 func (f *fakeMusicReleaseRepository) ListByGroup(_ context.Context, groupID string, pageSize int, _ string) ([]*musicdomain.Release, string, error) {
+	if f.listByGroupErr != nil {
+		return nil, "", f.listByGroupErr
+	}
 	var releases []*musicdomain.Release
 	for _, r := range f.byID {
 		if r.GroupID == groupID {
@@ -108,6 +117,9 @@ func (f *fakeMusicReleaseRepository) ListByGroup(_ context.Context, groupID stri
 }
 
 func (f *fakeMusicReleaseRepository) ListByEntry(_ context.Context, libraryEntryID string, pageSize int, _ string) ([]*musicdomain.Release, string, error) {
+	if f.listByEntryErr != nil {
+		return nil, "", f.listByEntryErr
+	}
 	var releases []*musicdomain.Release
 	for _, r := range f.byID {
 		if r.LibraryEntryID == libraryEntryID {
@@ -124,12 +136,24 @@ func (f *fakeMusicReleaseRepository) ListByEntry(_ context.Context, libraryEntry
 // ListTracksByRelease implements ports.MusicReleaseRepository. Mirrors the
 // real repository's ErrNotFound-on-unknown-release behavior; tracksByRelease
 // is seeded directly by tests, since this fake has no backing Item store of
-// its own.
+// its own. It also mirrors the real adapter's group_id pre-filter (see
+// internal/adapters/store/music/release.go): a track only matches if its
+// *current* GroupID still equals the release's GroupID, so a caller that
+// clears a track's GroupID before calling this (the exact bug
+// docs/adr/0021-music-domain-model.md's "Ripple effects" section requires
+// GroupDeletionService to avoid) sees it silently drop out of the result,
+// same as the real adapter would.
 func (f *fakeMusicReleaseRepository) ListTracksByRelease(_ context.Context, releaseID string, pageSize int, _ string) ([]*domain.Item, string, error) {
-	if _, ok := f.byID[releaseID]; !ok {
+	rel, ok := f.byID[releaseID]
+	if !ok {
 		return nil, "", ports.ErrNotFound
 	}
-	tracks := f.tracksByRelease[releaseID]
+	var tracks []*domain.Item
+	for _, t := range f.tracksByRelease[releaseID] {
+		if t.GroupID == rel.GroupID {
+			tracks = append(tracks, t)
+		}
+	}
 	if pageSize > 0 && len(tracks) > pageSize {
 		tracks = tracks[:pageSize]
 	}

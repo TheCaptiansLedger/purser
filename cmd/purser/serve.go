@@ -302,11 +302,26 @@ func newServeMux(logger *slog.Logger, ds datastore.Datastore) (*http.ServeMux, e
 	itemPath, itemConnectHandler := domainv1connect.NewItemServiceHandler(itemHandler, interceptors)
 	mux.Handle(itemPath, itemConnectHandler)
 
+	// Music's release repository and deletion service must exist before
+	// GroupDeletionService/LibraryEntryDeletionService below — per
+	// docs/adr/0021-music-domain-model.md's "Ripple effects" section, both
+	// need MusicRelease as a referrer. Music's own handler is registered
+	// further down, alongside the rest of the Music module.
+	musicReleaseRepo, err := storemusicrelease.New("music_release", ds, storemusicrelease.WithLogger(logger))
+	if err != nil {
+		return nil, fmt.Errorf("cmd/purser: constructing music release repository: %w", err)
+	}
+	// MusicReleaseDeletionService is the composing-service exception per
+	// docs/adr/0015-deletion-impact-and-composing-services.md — it reuses
+	// the already-constructed musicReleaseRepo/itemRepo.
+	musicReleaseDeletionSvc := service.NewMusicReleaseDeletionService(musicReleaseRepo, itemRepo)
+
 	// GroupDeletionService is the composing-service exception per
 	// docs/adr/0015-deletion-impact-and-composing-services.md — it reuses
 	// the already-constructed groupRepo/itemRepo/externalIDRepo/imageRepo/
-	// tagAssignmentRepo.
-	groupDeletionSvc := service.NewGroupDeletionService(groupRepo, itemRepo, externalIDRepo, imageRepo, tagAssignmentRepo)
+	// tagAssignmentRepo, plus musicReleaseRepo/musicReleaseDeletionSvc per
+	// docs/adr/0021-music-domain-model.md's "Ripple effects" section.
+	groupDeletionSvc := service.NewGroupDeletionService(groupRepo, itemRepo, externalIDRepo, imageRepo, tagAssignmentRepo, musicReleaseRepo, musicReleaseDeletionSvc)
 	groupHandler := apiconnect.NewGroupHandler(service.NewGroupService(groupRepo), groupDeletionSvc, logger)
 	groupPath, groupConnectHandler := domainv1connect.NewGroupServiceHandler(groupHandler, interceptors)
 	mux.Handle(groupPath, groupConnectHandler)
@@ -315,9 +330,12 @@ func newServeMux(logger *slog.Logger, ds datastore.Datastore) (*http.ServeMux, e
 	// docs/adr/0015-deletion-impact-and-composing-services.md — it reuses
 	// every already-constructed referrer repo plus the GroupDeletionService/
 	// ItemDeletionService constructed just above, since a cascade delete
-	// recurses into both.
+	// recurses into both. musicReleaseRepo is used for accurate
+	// GetDeletionImpact counting only — its Delete flow already falls out
+	// of the cascade into groupDeletionSvc — per
+	// docs/adr/0021-music-domain-model.md's "Ripple effects" section.
 	libraryEntryDeletionSvc := service.NewLibraryEntryDeletionService(
-		libraryEntryRepo, groupRepo, itemRepo, entryPersonRepo, externalIDRepo, imageRepo, tagAssignmentRepo,
+		libraryEntryRepo, groupRepo, itemRepo, entryPersonRepo, externalIDRepo, imageRepo, tagAssignmentRepo, musicReleaseRepo,
 		groupDeletionSvc, itemDeletionSvc,
 	)
 	libraryEntryHandler := apiconnect.NewLibraryEntryHandler(service.NewLibraryEntryService(libraryEntryRepo), libraryEntryDeletionSvc, logger)
@@ -354,17 +372,10 @@ func newServeMux(logger *slog.Logger, ds datastore.Datastore) (*http.ServeMux, e
 
 	// Music: the second module built on the shared kernel — every line here
 	// is additive, nothing above changed to add it. See
-	// docs/adr/0021-music-domain-model.md. The GroupDeletionService/
-	// LibraryEntryDeletionService referrer wiring that ADR's Services
-	// section also names lands with a later sub-issue, not here.
-	musicReleaseRepo, err := storemusicrelease.New("music_release", ds, storemusicrelease.WithLogger(logger))
-	if err != nil {
-		return nil, fmt.Errorf("cmd/purser: constructing music release repository: %w", err)
-	}
-	// MusicReleaseDeletionService is the composing-service exception per
-	// docs/adr/0015-deletion-impact-and-composing-services.md — it reuses
-	// the already-constructed musicReleaseRepo/itemRepo.
-	musicReleaseDeletionSvc := service.NewMusicReleaseDeletionService(musicReleaseRepo, itemRepo)
+	// docs/adr/0021-music-domain-model.md. musicReleaseRepo/
+	// musicReleaseDeletionSvc are constructed earlier, alongside
+	// GroupDeletionService/LibraryEntryDeletionService, since that ADR's
+	// "Ripple effects" section requires both to depend on them.
 	musicReleaseHandler := apiconnect.NewMusicReleaseHandler(service.NewMusicReleaseService(musicReleaseRepo), musicReleaseDeletionSvc, logger)
 	musicReleasePath, musicReleaseConnectHandler := musicv1connect.NewMusicReleaseServiceHandler(musicReleaseHandler, interceptors)
 	mux.Handle(musicReleasePath, musicReleaseConnectHandler)

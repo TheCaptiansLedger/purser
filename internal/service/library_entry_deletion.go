@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"purser/internal/domain"
+	"purser/internal/domain/music"
 	"purser/internal/ports"
 )
 
@@ -37,6 +38,13 @@ import (
 // EntryPerson, ExternalID, Image, and TagAssignment are ordinary
 // attachment rows and are always unlinked regardless of cascade, exactly
 // like every other composing deletion service.
+//
+// music.Release.LibraryEntryID is denormalized specifically so an artist
+// delete can reach it (docs/adr/0021-music-domain-model.md's "Ripple
+// effects" section). Actual Release cleanup falls out of the existing
+// cascade into groupDeletion above once it recurses into every Group under
+// this LibraryEntry — musicReleases is only used here for an accurate
+// GetDeletionImpact count, never for deletion.
 type LibraryEntryDeletionService struct {
 	libraryEntries ports.LibraryEntryRepository
 	groups         ports.GroupRepository
@@ -45,6 +53,7 @@ type LibraryEntryDeletionService struct {
 	externalIDs    ports.ExternalIDRepository
 	images         ports.ImageRepository
 	tagAssignments ports.TagAssignmentRepository
+	musicReleases  ports.MusicReleaseRepository
 	groupDeletion  *GroupDeletionService
 	itemDeletion   *ItemDeletionService
 }
@@ -59,6 +68,7 @@ func NewLibraryEntryDeletionService(
 	externalIDs ports.ExternalIDRepository,
 	images ports.ImageRepository,
 	tagAssignments ports.TagAssignmentRepository,
+	musicReleases ports.MusicReleaseRepository,
 	groupDeletion *GroupDeletionService,
 	itemDeletion *ItemDeletionService,
 ) *LibraryEntryDeletionService {
@@ -70,6 +80,7 @@ func NewLibraryEntryDeletionService(
 		externalIDs:    externalIDs,
 		images:         images,
 		tagAssignments: tagAssignments,
+		musicReleases:  musicReleases,
 		groupDeletion:  groupDeletion,
 		itemDeletion:   itemDeletion,
 	}
@@ -112,6 +123,10 @@ func (s *LibraryEntryDeletionService) GetDeletionImpact(ctx context.Context, id 
 	if err != nil {
 		return nil, err
 	}
+	musicReleases, err := s.drainMusicReleases(ctx, id)
+	if err != nil {
+		return nil, err
+	}
 
 	return &domain.DeletionImpact{
 		Impacts: []domain.DeletionImpactRow{
@@ -122,6 +137,7 @@ func (s *LibraryEntryDeletionService) GetDeletionImpact(ctx context.Context, id 
 			{Kind: "external_id", Label: "External IDs", Count: len(externalIDs)},
 			{Kind: "image", Label: "Images", Count: len(images)},
 			{Kind: "tag_assignment", Label: "Tags", Count: len(tagAssignments)},
+			{Kind: "music_release", Label: "Releases", Count: len(musicReleases)},
 		},
 	}, nil
 }
@@ -389,6 +405,23 @@ func (s *LibraryEntryDeletionService) drainTagAssignments(ctx context.Context, l
 	pageToken := ""
 	for {
 		rows, next, err := s.tagAssignments.List(ctx, "", domain.EntityTypeLibraryEntry, libraryEntryID, 100, pageToken)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, rows...)
+		if next == "" {
+			break
+		}
+		pageToken = next
+	}
+	return out, nil
+}
+
+func (s *LibraryEntryDeletionService) drainMusicReleases(ctx context.Context, libraryEntryID string) ([]*music.Release, error) {
+	var out []*music.Release
+	pageToken := ""
+	for {
+		rows, next, err := s.musicReleases.ListByEntry(ctx, libraryEntryID, 100, pageToken)
 		if err != nil {
 			return nil, err
 		}
