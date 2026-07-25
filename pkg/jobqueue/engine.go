@@ -28,6 +28,7 @@ type Executor interface {
 // work to the Executor registered for its Kind. See docs/adr/0023-job-queue.md.
 type Engine struct {
 	store Store
+	hub   *hub
 
 	mu        sync.RWMutex
 	executors map[string]Executor
@@ -56,6 +57,7 @@ func NewEngine(store Store, opts ...Option) *Engine {
 		logger:    o.logger.With("component", "jobqueue"),
 		tracer:    o.tracerProvider.Tracer(instrumentationName),
 	}
+	e.hub = newHub(e.logger)
 
 	meter := o.meterProvider.Meter(instrumentationName)
 	var err error
@@ -150,6 +152,43 @@ func (e *Engine) List(ctx context.Context, kind string, status Status, pageSize 
 	return e.store.ListJobs(ctx, kind, status, pageSize, pageToken)
 }
 
+// Watch subscribes to live Job/Task/Step Events for the Job with the given
+// id. The returned channel receives every subsequent Event and is closed
+// when the Job reaches a terminal status or when the returned unsubscribe
+// func is called, whichever happens first — a caller must always do one or
+// the other (typically unsubscribe via defer) to release the subscription.
+// The first Event delivered is always a snapshot of the Job's current
+// state at subscribe time: Trigger returns before its background run()
+// necessarily starts, so without this a caller that calls Trigger then
+// immediately Watch could otherwise race and miss the Job's earliest
+// transitions. Returns ErrNotFound if id doesn't exist.
+func (e *Engine) Watch(ctx context.Context, jobID string) (<-chan *Event, func(), error) {
+	if _, err := e.store.GetJob(ctx, jobID); err != nil {
+		return nil, nil, err
+	}
+
+	ch, unsubscribe := e.hub.subscribe(jobID)
+
+	job, err := e.store.GetJob(ctx, jobID)
+	if err != nil {
+		unsubscribe()
+		return nil, nil, err
+	}
+	select {
+	case ch <- &Event{Kind: EventKindJob, Job: job.Clone()}:
+	default:
+		// The buffer is sized well above what a single priming send
+		// needs; this only trips if real events already arrived between
+		// subscribe and here, in which case the caller already has
+		// fresher data than this snapshot would add.
+	}
+	if job.Status.terminal() {
+		unsubscribe()
+	}
+
+	return ch, unsubscribe, nil
+}
+
 // run drives a single Job's Executor to completion and records the final
 // Status. It runs in its own goroutine, started by Trigger.
 func (e *Engine) run(ctx context.Context, jobID string, exec Executor) {
@@ -168,6 +207,7 @@ func (e *Engine) run(ctx context.Context, jobID string, exec Executor) {
 		e.logger.ErrorContext(ctx, "recording job running", "job.id", jobID, "error", err)
 		return
 	}
+	e.hub.publish(&Event{Kind: EventKindJob, Job: job.Clone()})
 
 	execErr := exec.Execute(ctx, &Runner{engine: e, jobID: jobID})
 	if execErr != nil {
@@ -185,6 +225,7 @@ func (e *Engine) run(ctx context.Context, jobID string, exec Executor) {
 		e.logger.ErrorContext(ctx, "recording job finished", "job.id", jobID, "error", err)
 		return
 	}
+	e.hub.publish(&Event{Kind: EventKindJob, Job: job.Clone()})
 
 	e.logger.InfoContext(ctx, "job finished", "job.id", jobID, "status", string(job.Status))
 }

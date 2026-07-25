@@ -27,34 +27,48 @@ func (r *Runner) Job(ctx context.Context) (*Job, error) {
 }
 
 // mutateTask loads the Job, applies fn to the named Task, and persists the
-// result.
-func (r *Runner) mutateTask(ctx context.Context, taskID string, fn func(*Task)) error {
+// result, returning the updated Job so the caller can publish an Event off
+// the identical state that was just written.
+func (r *Runner) mutateTask(ctx context.Context, taskID string, fn func(*Task)) (*Job, error) {
 	job, err := r.engine.store.GetJob(ctx, r.jobID)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	t := findTask(job, taskID)
 	if t == nil {
-		return fmt.Errorf("jobqueue: task %q not found in job %q", taskID, r.jobID)
+		return nil, fmt.Errorf("jobqueue: task %q not found in job %q", taskID, r.jobID)
 	}
 	fn(t)
-	return r.engine.store.UpdateJob(ctx, job)
+	if err := r.engine.store.UpdateJob(ctx, job); err != nil {
+		return nil, err
+	}
+	return job, nil
 }
 
 // StartTask marks taskID as running.
 func (r *Runner) StartTask(ctx context.Context, taskID string) error {
-	return r.mutateTask(ctx, taskID, func(t *Task) {
+	job, err := r.mutateTask(ctx, taskID, func(t *Task) {
 		t.Status = StatusRunning
 		t.StartedAt = time.Now()
 	})
+	if err != nil {
+		return err
+	}
+	r.engine.hub.publish(&Event{Kind: EventKindTask, TaskID: taskID, Job: job.Clone()})
+	return nil
 }
 
 // FinishTask marks taskID with its terminal status.
 func (r *Runner) FinishTask(ctx context.Context, taskID string, status Status) error {
-	return r.mutateTask(ctx, taskID, func(t *Task) {
+	job, err := r.mutateTask(ctx, taskID, func(t *Task) {
 		t.Status = status
 		t.FinishedAt = time.Now()
 	})
+	if err != nil {
+		return err
+	}
+	r.engine.hub.publish(&Event{Kind: EventKindTask, TaskID: taskID, Job: job.Clone()})
+	return nil
 }
 
 // StepHandle is returned by StartStep and passed to FinishStep — it carries
@@ -73,12 +87,13 @@ type StepHandle struct {
 func (r *Runner) StartStep(ctx context.Context, taskID, name string) (*StepHandle, error) {
 	stepID := newID()
 	started := time.Now()
-	err := r.mutateTask(ctx, taskID, func(t *Task) {
+	job, err := r.mutateTask(ctx, taskID, func(t *Task) {
 		t.Steps = append(t.Steps, &Step{ID: stepID, Name: name, Status: StatusRunning, StartedAt: started})
 	})
 	if err != nil {
 		return nil, err
 	}
+	r.engine.hub.publish(&Event{Kind: EventKindStep, TaskID: taskID, StepID: stepID, Job: job.Clone()})
 
 	stepCtx, span := r.engine.tracer.Start(ctx, "jobqueue.step", trace.WithAttributes(
 		attribute.String("job.id", r.jobID),
@@ -103,7 +118,7 @@ func (r *Runner) StartStep(ctx context.Context, taskID, name string) (*StepHandl
 // event — success and failure are the same event, not two logging paths.
 func (r *Runner) FinishStep(h *StepHandle, status Status, message string, detail map[string]string, err error) error {
 	finished := time.Now()
-	mutateErr := r.mutateTask(h.ctx, h.taskID, func(t *Task) {
+	job, mutateErr := r.mutateTask(h.ctx, h.taskID, func(t *Task) {
 		s := findStep(t, h.stepID)
 		if s == nil {
 			return
@@ -113,6 +128,9 @@ func (r *Runner) FinishStep(h *StepHandle, status Status, message string, detail
 		s.Message = message
 		s.Detail = detail
 	})
+	if mutateErr == nil {
+		r.engine.hub.publish(&Event{Kind: EventKindStep, TaskID: h.taskID, StepID: h.stepID, Job: job.Clone()})
+	}
 
 	elapsed := finished.Sub(h.started)
 	attrs := metric.WithAttributes(

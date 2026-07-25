@@ -48,3 +48,15 @@ func (a *Adapter) Get(ctx context.Context, id string) (*pkgjobqueue.Job, error) 
 func (a *Adapter) List(ctx context.Context, kind string, status pkgjobqueue.Status, pageSize int, pageToken string) ([]*pkgjobqueue.Job, string, error) {
 	return a.engine.List(ctx, kind, status, pageSize, pageToken)
 }
+
+// Watch implements ports.JobReader.
+func (a *Adapter) Watch(ctx context.Context, id string) (<-chan *pkgjobqueue.Event, func(), error) {
+	events, unsubscribe, err := a.engine.Watch(ctx, id)
+	if err != nil {
+		if errors.Is(err, pkgjobqueue.ErrNotFound) {
+			return nil, nil, ports.ErrNotFound
+		}
+		return nil, nil, err
+	}
+	return events, unsubscribe, nil
+}

@@ -100,13 +100,40 @@ message ListJobsResponse {
   string next_page_token = 2;
 }
 
+// JobEventKind identifies which level of a Job's Job/Task/Step hierarchy a
+// JobEvent describes.
+enum JobEventKind {
+  JOB_EVENT_KIND_UNSPECIFIED = 0;
+  JOB_EVENT_KIND_JOB = 1;
+  JOB_EVENT_KIND_TASK = 2;
+  JOB_EVENT_KIND_STEP = 3;
+}
+
+// JobEvent wraps one Job/Task/Step transition, pushed by WatchJob as it
+// happens. job is always the full, current snapshot of the Job (the same
+// shape GetJobResponse.job carries), not a partial diff — task_id/step_id
+// identify which part of it just changed, unset for a job-level
+// transition. See docs/adr/0023-job-queue.md.
+message JobEvent {
+  JobEventKind kind = 1;
+  string task_id = 2;
+  string step_id = 3;
+  Job job = 4;
+}
+
+message WatchJobRequest {
+  string job_id = 1;
+}
+
 // JobService follows the same handler/service/error-mapping conventions as
 // every entity's Connect service (docs/adr/0011-api-design.md), even
 // though Job isn't Datastore-backed (docs/adr/0023-job-queue.md). WatchJob
-// is added by a later sub-issue in the Job Queue epic, extending this same
-// file, not replacing it.
+// is the first server-streaming RPC in the codebase — see
+// docs/adr/0023-job-queue.md's Consequences for why its stream-lifecycle
+// pattern is worth reviewing carefully.
 service JobService {
   rpc TriggerJob(TriggerJobRequest) returns (TriggerJobResponse);
   rpc GetJob(GetJobRequest) returns (GetJobResponse);
   rpc ListJobs(ListJobsRequest) returns (ListJobsResponse);
+  rpc WatchJob(WatchJobRequest) returns (stream JobEvent);
 }

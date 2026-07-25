@@ -38,6 +38,10 @@ type fakeJobReader struct {
 	listStatus        jobqueue.Status
 	listPageSize      int
 	listPageToken     string
+
+	watchEvents       []*jobqueue.Event
+	watchErr          error
+	watchUnsubscribed bool
 }
 
 func (f *fakeJobReader) Get(_ context.Context, _ string) (*jobqueue.Job, error) {
@@ -56,6 +60,18 @@ func (f *fakeJobReader) List(_ context.Context, kind string, status jobqueue.Sta
 		return nil, "", f.listErr
 	}
 	return f.listJobs, f.listNextPageToken, nil
+}
+
+func (f *fakeJobReader) Watch(_ context.Context, _ string) (<-chan *jobqueue.Event, func(), error) {
+	if f.watchErr != nil {
+		return nil, nil, f.watchErr
+	}
+	ch := make(chan *jobqueue.Event, len(f.watchEvents))
+	for _, e := range f.watchEvents {
+		ch <- e
+	}
+	close(ch)
+	return ch, func() { f.watchUnsubscribed = true }, nil
 }
 
 func TestJobService_Trigger(t *testing.T) {
@@ -135,5 +151,41 @@ func TestJobService_List_Error(t *testing.T) {
 
 	if _, _, err := svc.List(context.Background(), "", "", 0, ""); !errors.Is(err, wantErr) {
 		t.Fatalf("List returned %v, want %v", err, wantErr)
+	}
+}
+
+func TestJobService_Watch(t *testing.T) {
+	events := []*jobqueue.Event{
+		{Kind: jobqueue.EventKindJob, Job: &jobqueue.Job{ID: "job-1", Status: jobqueue.StatusRunning}},
+		{Kind: jobqueue.EventKindJob, Job: &jobqueue.Job{ID: "job-1", Status: jobqueue.StatusSucceeded}},
+	}
+	reader := &fakeJobReader{watchEvents: events}
+	svc := service.NewJobService(&fakeJobPublisher{}, reader)
+
+	ch, unsubscribe, err := svc.Watch(context.Background(), "job-1")
+	if err != nil {
+		t.Fatalf("Watch returned error: %v", err)
+	}
+
+	var got []*jobqueue.Event
+	for e := range ch {
+		got = append(got, e)
+	}
+	if len(got) != 2 || got[0] != events[0] || got[1] != events[1] {
+		t.Fatalf("Watch delivered %v, want %v", got, events)
+	}
+
+	unsubscribe()
+	if !reader.watchUnsubscribed {
+		t.Fatal("Watch's unsubscribe did not call through to the reader's")
+	}
+}
+
+func TestJobService_Watch_Error(t *testing.T) {
+	wantErr := errors.New("boom")
+	svc := service.NewJobService(&fakeJobPublisher{}, &fakeJobReader{watchErr: wantErr})
+
+	if _, _, err := svc.Watch(context.Background(), "job-1"); !errors.Is(err, wantErr) {
+		t.Fatalf("Watch returned %v, want %v", err, wantErr)
 	}
 }

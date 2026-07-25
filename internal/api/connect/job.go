@@ -17,6 +17,7 @@ type jobService interface {
 	Trigger(ctx context.Context, kind string, taskLabels []string, params map[string]string) (string, error)
 	Get(ctx context.Context, id string) (*jobqueue.Job, error)
 	List(ctx context.Context, kind string, status jobqueue.Status, pageSize int, pageToken string) ([]*jobqueue.Job, string, error)
+	Watch(ctx context.Context, id string) (<-chan *jobqueue.Event, func(), error)
 }
 
 // JobHandler implements jobv1connect.JobServiceHandler. Job isn't
@@ -66,4 +67,37 @@ func (h *JobHandler) ListJobs(ctx context.Context, req *connect.Request[jobv1.Li
 		pbJobs = append(pbJobs, jobToProto(j))
 	}
 	return connect.NewResponse(&jobv1.ListJobsResponse{Jobs: pbJobs, NextPageToken: next}), nil
+}
+
+// WatchJob implements jobv1connect.JobServiceHandler — the first
+// server-streaming RPC in the codebase (docs/adr/0023-job-queue.md). It
+// terminates cleanly on client disconnect/context cancellation: the
+// deferred unsubscribe releases the subscription, and the select loop
+// returns as soon as either ctx is done or the event channel closes
+// (the Job reached a terminal status), whichever happens first — no
+// goroutine outlives this call.
+func (h *JobHandler) WatchJob(ctx context.Context, req *connect.Request[jobv1.WatchJobRequest], stream *connect.ServerStream[jobv1.JobEvent]) error {
+	jobID := req.Msg.GetJobId()
+	events, unsubscribe, err := h.svc.Watch(ctx, jobID)
+	if err != nil {
+		return mapError(ctx, h.logger, err)
+	}
+	defer unsubscribe()
+
+	h.logger.InfoContext(ctx, "WatchJob stream opened", "job.id", jobID)
+	for {
+		select {
+		case <-ctx.Done():
+			h.logger.InfoContext(ctx, "WatchJob stream cancelled by client", "job.id", jobID)
+			return nil
+		case evt, ok := <-events:
+			if !ok {
+				h.logger.InfoContext(ctx, "WatchJob stream closed: job reached a terminal status", "job.id", jobID)
+				return nil
+			}
+			if err := stream.Send(jobEventToProto(evt)); err != nil {
+				return err
+			}
+		}
+	}
 }

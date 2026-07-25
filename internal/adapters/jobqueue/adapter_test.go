@@ -97,6 +97,53 @@ func TestAdapter_List(t *testing.T) {
 	}
 }
 
+func TestAdapter_Watch(t *testing.T) {
+	a := newAdapter()
+	ctx := context.Background()
+
+	id, err := a.Trigger(ctx, "diagnostic", []string{"one"}, nil)
+	if err != nil {
+		t.Fatalf("Trigger returned error: %v", err)
+	}
+
+	events, unsubscribe, err := a.Watch(ctx, id)
+	if err != nil {
+		t.Fatalf("Watch returned error: %v", err)
+	}
+	defer unsubscribe()
+
+	var last *pkgjobqueue.Event
+	deadline := time.After(2 * time.Second)
+	for {
+		select {
+		case evt, ok := <-events:
+			if !ok {
+				if last == nil {
+					t.Fatal("Watch channel closed with no events delivered")
+				}
+				if last.Job.Status != pkgjobqueue.StatusSucceeded {
+					t.Fatalf("last event's job status = %q, want %q", last.Job.Status, pkgjobqueue.StatusSucceeded)
+				}
+				return
+			}
+			if evt.Job.ID != id {
+				t.Fatalf("event job id = %q, want %q", evt.Job.ID, id)
+			}
+			last = evt
+		case <-deadline:
+			t.Fatal("Watch did not close within the deadline")
+		}
+	}
+}
+
+func TestAdapter_Watch_NotFound(t *testing.T) {
+	a := newAdapter()
+	_, _, err := a.Watch(context.Background(), "missing")
+	if !errors.Is(err, ports.ErrNotFound) {
+		t.Fatalf("Watch on unknown id returned %v, want ports.ErrNotFound", err)
+	}
+}
+
 func TestAdapter_Get_WaitsForCompletion(t *testing.T) {
 	a := newAdapter()
 	ctx := context.Background()

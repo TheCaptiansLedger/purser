@@ -3,14 +3,19 @@ package apiconnect_test
 import (
 	"context"
 	"errors"
+	"net/http"
+	"net/http/httptest"
+	"purser/gen/go/purser/job/v1/jobv1connect"
 	"purser/internal/ports"
 	"purser/pkg/jobqueue"
+	"sync/atomic"
 	"testing"
 	"time"
 
 	"connectrpc.com/connect"
 
 	jobv1 "purser/gen/go/purser/job/v1"
+
 	apiconnect "purser/internal/api/connect"
 )
 
@@ -31,6 +36,10 @@ type fakeJobService struct {
 	listStatus        jobqueue.Status
 	listPageSize      int
 	listPageToken     string
+
+	watchCh    <-chan *jobqueue.Event
+	watchUnsub func()
+	watchErr   error
 }
 
 func (f *fakeJobService) Trigger(_ context.Context, kind string, taskLabels []string, params map[string]string) (string, error) {
@@ -59,6 +68,136 @@ func (f *fakeJobService) List(_ context.Context, kind string, status jobqueue.St
 		return nil, "", f.listErr
 	}
 	return f.listJobs, f.listNextPageToken, nil
+}
+
+func (f *fakeJobService) Watch(_ context.Context, _ string) (<-chan *jobqueue.Event, func(), error) {
+	if f.watchErr != nil {
+		return nil, nil, f.watchErr
+	}
+	return f.watchCh, f.watchUnsub, nil
+}
+
+// newWatchTestServer mounts h behind a real HTTP server — WatchJob's third
+// parameter, *connect.ServerStream, has no exported constructor, so unlike
+// this file's other (direct in-process call) tests, a streaming handler
+// can only be exercised through a real client/server round-trip. See
+// docs/adr/0023-job-queue.md and docs/adr/0011-api-design.md.
+func newWatchTestServer(t *testing.T, h *apiconnect.JobHandler) jobv1connect.JobServiceClient {
+	t.Helper()
+	path, handler := jobv1connect.NewJobServiceHandler(h)
+	mux := http.NewServeMux()
+	mux.Handle(path, handler)
+	server := httptest.NewServer(mux)
+	t.Cleanup(server.Close)
+	return jobv1connect.NewJobServiceClient(server.Client(), server.URL)
+}
+
+func TestJobHandler_WatchJob(t *testing.T) {
+	events := make(chan *jobqueue.Event, 2)
+	events <- &jobqueue.Event{Kind: jobqueue.EventKindJob, Job: &jobqueue.Job{ID: "job-1", Status: jobqueue.StatusRunning}}
+	events <- &jobqueue.Event{Kind: jobqueue.EventKindTask, TaskID: "task-1", Job: &jobqueue.Job{ID: "job-1", Status: jobqueue.StatusSucceeded}}
+	close(events)
+
+	var unsubscribed atomic.Bool
+	svc := &fakeJobService{watchCh: events, watchUnsub: func() { unsubscribed.Store(true) }}
+	client := newWatchTestServer(t, apiconnect.NewJobHandler(svc, nil))
+
+	stream, err := client.WatchJob(context.Background(), connect.NewRequest(&jobv1.WatchJobRequest{JobId: "job-1"}))
+	if err != nil {
+		t.Fatalf("WatchJob returned error: %v", err)
+	}
+
+	var got []*jobv1.JobEvent
+	for stream.Receive() {
+		got = append(got, stream.Msg())
+	}
+	if err := stream.Err(); err != nil {
+		t.Fatalf("stream ended with error: %v", err)
+	}
+
+	if len(got) != 2 {
+		t.Fatalf("received %d events, want 2", len(got))
+	}
+	if got[0].GetJob().GetStatus() != jobv1.JobStatus_JOB_STATUS_RUNNING {
+		t.Fatalf("first event status = %v, want RUNNING", got[0].GetJob().GetStatus())
+	}
+	if got[1].GetKind() != jobv1.JobEventKind_JOB_EVENT_KIND_TASK || got[1].GetTaskId() != "task-1" {
+		t.Fatalf("second event = %+v, want kind=TASK task_id=task-1", got[1])
+	}
+	if got[1].GetJob().GetStatus() != jobv1.JobStatus_JOB_STATUS_SUCCEEDED {
+		t.Fatalf("second event status = %v, want SUCCEEDED", got[1].GetJob().GetStatus())
+	}
+	if !unsubscribed.Load() {
+		t.Fatal("WatchJob did not unsubscribe after the event channel closed")
+	}
+}
+
+func TestJobHandler_WatchJob_NotFound(t *testing.T) {
+	svc := &fakeJobService{watchErr: ports.ErrNotFound}
+	client := newWatchTestServer(t, apiconnect.NewJobHandler(svc, nil))
+
+	stream, err := client.WatchJob(context.Background(), connect.NewRequest(&jobv1.WatchJobRequest{JobId: "missing"}))
+	if err != nil {
+		t.Fatalf("WatchJob returned error: %v", err)
+	}
+	if stream.Receive() {
+		t.Fatal("stream.Receive() returned true, want the stream to end immediately with an error")
+	}
+	var connErr *connect.Error
+	if !errors.As(stream.Err(), &connErr) {
+		t.Fatalf("stream ended with %v, want a *connect.Error", stream.Err())
+	}
+	if connErr.Code() != connect.CodeNotFound {
+		t.Fatalf("stream ended with code %v, want %v", connErr.Code(), connect.CodeNotFound)
+	}
+}
+
+// TestJobHandler_WatchJob_ClientDisconnect demonstrates the acceptance
+// criterion that cancelling the client context stops the handler from
+// waiting on further events and releases its subscription — never events
+// arrive here, so the only way the stream can end is via ctx.Done().
+func TestJobHandler_WatchJob_ClientDisconnect(t *testing.T) {
+	events := make(chan *jobqueue.Event) // deliberately never sent to or closed
+	var unsubscribed atomic.Bool
+	svc := &fakeJobService{watchCh: events, watchUnsub: func() { unsubscribed.Store(true) }}
+	client := newWatchTestServer(t, apiconnect.NewJobHandler(svc, nil))
+
+	ctx, cancel := context.WithCancel(context.Background())
+
+	// The server never sends anything in this scenario (no events ever
+	// arrive), so response headers never flush and the client call blocks
+	// waiting on them — cancel must happen concurrently with, not after,
+	// the blocking client call, or it would never be reached.
+	streamEnded := make(chan struct{})
+	go func() {
+		defer close(streamEnded)
+		stream, err := client.WatchJob(ctx, connect.NewRequest(&jobv1.WatchJobRequest{JobId: "job-1"}))
+		if err != nil {
+			return
+		}
+		for stream.Receive() {
+		}
+	}()
+
+	// Give the stream a moment to actually establish server-side before
+	// cancelling, so this exercises a live subscription, not a request
+	// that never reached the handler.
+	time.Sleep(50 * time.Millisecond)
+	cancel()
+
+	select {
+	case <-streamEnded:
+	case <-time.After(2 * time.Second):
+		t.Fatal("stream did not end after the client cancelled its context")
+	}
+
+	deadline := time.Now().Add(2 * time.Second)
+	for !unsubscribed.Load() && time.Now().Before(deadline) {
+		time.Sleep(10 * time.Millisecond)
+	}
+	if !unsubscribed.Load() {
+		t.Fatal("WatchJob did not unsubscribe after the client disconnected")
+	}
 }
 
 func TestJobHandler_TriggerJob(t *testing.T) {

@@ -89,6 +89,31 @@ func taskToProto(t *jobqueue.Task) *jobv1.Task {
 	}
 }
 
+func jobEventKindToProto(k jobqueue.EventKind) jobv1.JobEventKind {
+	switch k {
+	case jobqueue.EventKindJob:
+		return jobv1.JobEventKind_JOB_EVENT_KIND_JOB
+	case jobqueue.EventKindTask:
+		return jobv1.JobEventKind_JOB_EVENT_KIND_TASK
+	case jobqueue.EventKindStep:
+		return jobv1.JobEventKind_JOB_EVENT_KIND_STEP
+	default:
+		return jobv1.JobEventKind_JOB_EVENT_KIND_UNSPECIFIED
+	}
+}
+
+func jobEventToProto(e *jobqueue.Event) *jobv1.JobEvent {
+	if e == nil {
+		return nil
+	}
+	return &jobv1.JobEvent{
+		Kind:   jobEventKindToProto(e.Kind),
+		TaskId: e.TaskID,
+		StepId: e.StepID,
+		Job:    jobToProto(e.Job),
+	}
+}
+
 func jobToProto(j *jobqueue.Job) *jobv1.Job {
 	if j == nil {
 		return nil

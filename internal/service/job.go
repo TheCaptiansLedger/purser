@@ -39,3 +39,9 @@ func (s *JobService) Get(ctx context.Context, id string) (*jobqueue.Job, error) 
 func (s *JobService) List(ctx context.Context, kind string, status jobqueue.Status, pageSize int, pageToken string) ([]*jobqueue.Job, string, error) {
 	return s.reader.List(ctx, kind, status, pageSize, pageToken)
 }
+
+// Watch subscribes to live Job/Task/Step transitions for the Job with the
+// given id, or ErrNotFound.
+func (s *JobService) Watch(ctx context.Context, id string) (<-chan *jobqueue.Event, func(), error) {
+	return s.reader.Watch(ctx, id)
+}

@@ -171,5 +171,46 @@ export default () => {
     'ListJobs (status=partial) every returned job is partial': (r) => r.message.jobs.every((j) => j.status === 'JOB_STATUS_PARTIAL'),
   });
 
-  client.close();
+  // WatchJob (#484): trigger a fresh diagnostic job, open a server-streaming
+  // watch for it, and collect every pushed event until the stream closes on
+  // its own (the server closes it once the job reaches a terminal status —
+  // see docs/adr/0023-job-queue.md) — this proves push-based delivery, not
+  // just GetJob's poll-based path exercised above.
+  res = invoke('purser.job.v1.JobService/TriggerJob', { kind: 'diagnostic', taskLabels: taskLabels });
+  check(res, {
+    'TriggerJob (watch case) status is OK': (r) => r && r.status === grpc.StatusOK,
+    'TriggerJob (watch case) returns a job id': (r) => r && r.message && !!r.message.jobId,
+  });
+  const watchJobId = res.message.jobId;
+
+  // grpc.Stream's 'data'/'end'/'error' handlers run on k6's event loop,
+  // which only drains *after* this default function's synchronous code
+  // returns — so, unlike every check() above, these run and assert from
+  // inside the handlers themselves rather than after a manual wait here;
+  // client.close() likewise moves into the 'end' handler so the connection
+  // isn't torn down mid-stream.
+  const stream = new grpc.Stream(client, 'purser.job.v1.JobService/WatchJob');
+  const watchEvents = [];
+  let watchError = null;
+  stream.on('data', (evt) => {
+    console.log(JSON.stringify({ method: 'WatchJob', event: evt }, null, 2));
+    watchEvents.push(evt);
+  });
+  stream.on('error', (err) => {
+    watchError = err;
+  });
+  stream.on('end', () => {
+    check(watchEvents, {
+      'WatchJob stream ended without error': () => watchError === null,
+      'WatchJob delivered at least one event': (events) => events.length > 0,
+      'WatchJob events are all for the watched job': (events) => events.every((e) => e.job && e.job.id === watchJobId),
+      'WatchJob ended with a terminal job-status event, consistent with GetJob': (events) => {
+        const last = events[events.length - 1];
+        return !!last && !!last.job && last.job.status === 'JOB_STATUS_SUCCEEDED';
+      },
+    });
+    client.close();
+  });
+  stream.write({ jobId: watchJobId });
+  stream.end();
 };

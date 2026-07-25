@@ -20,8 +20,7 @@ type JobPublisher interface {
 }
 
 // JobReader lets the API layer read Job state without importing
-// pkg/jobqueue directly. Watch is added by a later sub-issue. See
-// docs/adr/0023-job-queue.md.
+// pkg/jobqueue directly. See docs/adr/0023-job-queue.md.
 type JobReader interface {
 	// Get returns the full current state of the Job (all Tasks, all
 	// Steps), or ErrNotFound.
@@ -32,4 +31,13 @@ type JobReader interface {
 	// dimension), using opaque cursor pagination per
 	// docs/adr/0011-api-design.md.
 	List(ctx context.Context, kind string, status jobqueue.Status, pageSize int, pageToken string) (jobs []*jobqueue.Job, nextPageToken string, err error)
+
+	// Watch subscribes to live Job/Task/Step transitions for the Job with
+	// the given id. The returned channel receives every subsequent
+	// jobqueue.Event (its first delivery is always a snapshot of the
+	// Job's current state) and closes when the Job reaches a terminal
+	// status; the returned unsubscribe func must be called (typically via
+	// defer) to release the subscription on early return, and is safe to
+	// call more than once. Returns ErrNotFound if id doesn't exist.
+	Watch(ctx context.Context, id string) (events <-chan *jobqueue.Event, unsubscribe func(), err error)
 }

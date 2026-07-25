@@ -2,6 +2,18 @@
 // for the pattern this follows. This file is extended by every later
 // sub-issue in the Job Queue epic, not replaced. See
 // docs/adr/0023-job-queue.md.
+//
+// WatchJob (#484) is deliberately not exercised here. Every other RPC in
+// this file is plain request/response JSON, which k6's http module handles
+// natively; WatchJob is server-streaming, and Connect's HTTP/JSON transport
+// for a streaming RPC is an enveloped binary wire format (a 1-byte flag + a
+// 4-byte length prefix per frame, ending in a special end-stream frame) —
+// not plain JSON, and not something k6's http module (or anything else in
+// this repo) parses. Per docs/adr/0011-api-design.md this transport's
+// coverage of Job's progress-reading capability is the GetJob polling
+// checks already in this file — same underlying JobReader data, pulled
+// instead of pushed — and WatchJob itself (the streaming RPC) gets its
+// live-push coverage from test/k6/grpc/job_test.js.
 import http from 'k6/http';
 import { check, sleep } from 'k6';
 import { options } from '../lib/options.js';

@@ -39,6 +39,8 @@ const (
 	JobServiceGetJobProcedure = "/purser.job.v1.JobService/GetJob"
 	// JobServiceListJobsProcedure is the fully-qualified name of the JobService's ListJobs RPC.
 	JobServiceListJobsProcedure = "/purser.job.v1.JobService/ListJobs"
+	// JobServiceWatchJobProcedure is the fully-qualified name of the JobService's WatchJob RPC.
+	JobServiceWatchJobProcedure = "/purser.job.v1.JobService/WatchJob"
 )
 
 // JobServiceClient is a client for the purser.job.v1.JobService service.
@@ -46,6 +48,7 @@ type JobServiceClient interface {
 	TriggerJob(context.Context, *connect.Request[v1.TriggerJobRequest]) (*connect.Response[v1.TriggerJobResponse], error)
 	GetJob(context.Context, *connect.Request[v1.GetJobRequest]) (*connect.Response[v1.GetJobResponse], error)
 	ListJobs(context.Context, *connect.Request[v1.ListJobsRequest]) (*connect.Response[v1.ListJobsResponse], error)
+	WatchJob(context.Context, *connect.Request[v1.WatchJobRequest]) (*connect.ServerStreamForClient[v1.JobEvent], error)
 }
 
 // NewJobServiceClient constructs a client for the purser.job.v1.JobService service. By default, it
@@ -77,6 +80,12 @@ func NewJobServiceClient(httpClient connect.HTTPClient, baseURL string, opts ...
 			connect.WithSchema(jobServiceMethods.ByName("ListJobs")),
 			connect.WithClientOptions(opts...),
 		),
+		watchJob: connect.NewClient[v1.WatchJobRequest, v1.JobEvent](
+			httpClient,
+			baseURL+JobServiceWatchJobProcedure,
+			connect.WithSchema(jobServiceMethods.ByName("WatchJob")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
@@ -85,6 +94,7 @@ type jobServiceClient struct {
 	triggerJob *connect.Client[v1.TriggerJobRequest, v1.TriggerJobResponse]
 	getJob     *connect.Client[v1.GetJobRequest, v1.GetJobResponse]
 	listJobs   *connect.Client[v1.ListJobsRequest, v1.ListJobsResponse]
+	watchJob   *connect.Client[v1.WatchJobRequest, v1.JobEvent]
 }
 
 // TriggerJob calls purser.job.v1.JobService.TriggerJob.
@@ -102,11 +112,17 @@ func (c *jobServiceClient) ListJobs(ctx context.Context, req *connect.Request[v1
 	return c.listJobs.CallUnary(ctx, req)
 }
 
+// WatchJob calls purser.job.v1.JobService.WatchJob.
+func (c *jobServiceClient) WatchJob(ctx context.Context, req *connect.Request[v1.WatchJobRequest]) (*connect.ServerStreamForClient[v1.JobEvent], error) {
+	return c.watchJob.CallServerStream(ctx, req)
+}
+
 // JobServiceHandler is an implementation of the purser.job.v1.JobService service.
 type JobServiceHandler interface {
 	TriggerJob(context.Context, *connect.Request[v1.TriggerJobRequest]) (*connect.Response[v1.TriggerJobResponse], error)
 	GetJob(context.Context, *connect.Request[v1.GetJobRequest]) (*connect.Response[v1.GetJobResponse], error)
 	ListJobs(context.Context, *connect.Request[v1.ListJobsRequest]) (*connect.Response[v1.ListJobsResponse], error)
+	WatchJob(context.Context, *connect.Request[v1.WatchJobRequest], *connect.ServerStream[v1.JobEvent]) error
 }
 
 // NewJobServiceHandler builds an HTTP handler from the service implementation. It returns the path
@@ -134,6 +150,12 @@ func NewJobServiceHandler(svc JobServiceHandler, opts ...connect.HandlerOption) 
 		connect.WithSchema(jobServiceMethods.ByName("ListJobs")),
 		connect.WithHandlerOptions(opts...),
 	)
+	jobServiceWatchJobHandler := connect.NewServerStreamHandler(
+		JobServiceWatchJobProcedure,
+		svc.WatchJob,
+		connect.WithSchema(jobServiceMethods.ByName("WatchJob")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/purser.job.v1.JobService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case JobServiceTriggerJobProcedure:
@@ -142,6 +164,8 @@ func NewJobServiceHandler(svc JobServiceHandler, opts ...connect.HandlerOption) 
 			jobServiceGetJobHandler.ServeHTTP(w, r)
 		case JobServiceListJobsProcedure:
 			jobServiceListJobsHandler.ServeHTTP(w, r)
+		case JobServiceWatchJobProcedure:
+			jobServiceWatchJobHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -161,4 +185,8 @@ func (UnimplementedJobServiceHandler) GetJob(context.Context, *connect.Request[v
 
 func (UnimplementedJobServiceHandler) ListJobs(context.Context, *connect.Request[v1.ListJobsRequest]) (*connect.Response[v1.ListJobsResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("purser.job.v1.JobService.ListJobs is not implemented"))
+}
+
+func (UnimplementedJobServiceHandler) WatchJob(context.Context, *connect.Request[v1.WatchJobRequest], *connect.ServerStream[v1.JobEvent]) error {
+	return connect.NewError(connect.CodeUnimplemented, errors.New("purser.job.v1.JobService.WatchJob is not implemented"))
 }

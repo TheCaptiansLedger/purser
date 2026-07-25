@@ -175,6 +175,137 @@ func TestEngine_List(t *testing.T) {
 	}
 }
 
+func TestEngine_Watch_NotFound(t *testing.T) {
+	eng := jobqueue.NewEngine(memory.New(), jobqueue.WithLogger(discardLogger()))
+	_, _, err := eng.Watch(context.Background(), "missing")
+	if !errors.Is(err, jobqueue.ErrNotFound) {
+		t.Fatalf("Watch on unknown id returned %v, want ErrNotFound", err)
+	}
+}
+
+func TestEngine_Watch_DeliversEventsAndClosesOnTerminal(t *testing.T) {
+	eng := jobqueue.NewEngine(memory.New(), jobqueue.WithLogger(discardLogger()))
+
+	job, err := eng.Trigger(context.Background(), "diagnostic", []string{"one"}, nil)
+	if err != nil {
+		t.Fatalf("Trigger returned error: %v", err)
+	}
+
+	events, unsubscribe, err := eng.Watch(context.Background(), job.ID)
+	if err != nil {
+		t.Fatalf("Watch returned error: %v", err)
+	}
+	defer unsubscribe()
+
+	var got []*jobqueue.Event
+	deadline := time.After(2 * time.Second)
+	for {
+		select {
+		case evt, ok := <-events:
+			if !ok {
+				final := waitForTerminal(t, eng, job.ID)
+				if len(got) == 0 {
+					t.Fatal("Watch closed without delivering any events")
+				}
+				last := got[len(got)-1]
+				if last.Job.Status != final.Status {
+					t.Fatalf("last delivered event's job status = %q, want %q (matching GetJob at completion)", last.Job.Status, final.Status)
+				}
+				return
+			}
+			if evt.Job.ID != job.ID {
+				t.Fatalf("event job id = %q, want %q", evt.Job.ID, job.ID)
+			}
+			got = append(got, evt)
+		case <-deadline:
+			t.Fatal("Watch did not close within the deadline")
+		}
+	}
+}
+
+func TestEngine_Watch_UnsubscribeStopsFurtherDelivery(t *testing.T) {
+	eng := jobqueue.NewEngine(memory.New(), jobqueue.WithLogger(discardLogger()))
+
+	exec := &blockingExecutor{started: make(chan struct{}), proceed: make(chan struct{}), taskStatus: jobqueue.StatusSucceeded}
+	eng.Register("watch-unsub", exec)
+
+	job, err := eng.Trigger(context.Background(), "watch-unsub", []string{"only task"}, nil)
+	if err != nil {
+		t.Fatalf("Trigger returned error: %v", err)
+	}
+
+	select {
+	case <-exec.started:
+	case <-time.After(2 * time.Second):
+		t.Fatal("executor never started")
+	}
+
+	events, unsubscribe, err := eng.Watch(context.Background(), job.ID)
+	if err != nil {
+		t.Fatalf("Watch returned error: %v", err)
+	}
+
+	// Drain the priming snapshot event, then unsubscribe before the Job
+	// finishes — no further event (in particular, the terminal one) must
+	// ever arrive on this channel.
+	<-events
+	unsubscribe()
+
+	close(exec.proceed)
+	waitForTerminal(t, eng, job.ID)
+
+	select {
+	case evt, ok := <-events:
+		if ok {
+			t.Fatalf("received an event after unsubscribe: %v", evt)
+		}
+		// A closed channel with no further sends is exactly what an
+		// unsubscribed, already-drained channel looks like.
+	default:
+		t.Fatal("channel should be closed after unsubscribe, not still open with nothing pending")
+	}
+}
+
+func TestEngine_Watch_PrimingEventReflectsCurrentState(t *testing.T) {
+	eng := jobqueue.NewEngine(memory.New(), jobqueue.WithLogger(discardLogger()))
+
+	job, err := eng.Trigger(context.Background(), "diagnostic", []string{"one"}, nil)
+	if err != nil {
+		t.Fatalf("Trigger returned error: %v", err)
+	}
+	waitForTerminal(t, eng, job.ID)
+
+	// Watching a Job that already finished before Watch was ever called
+	// must still deliver one event (the current, terminal state) rather
+	// than hanging forever waiting for a transition that already happened.
+	events, unsubscribe, err := eng.Watch(context.Background(), job.ID)
+	if err != nil {
+		t.Fatalf("Watch returned error: %v", err)
+	}
+	defer unsubscribe()
+
+	select {
+	case evt, ok := <-events:
+		if !ok {
+			t.Fatal("channel closed with no priming event for an already-finished Job")
+		}
+		if evt.Job.Status != jobqueue.StatusSucceeded {
+			t.Fatalf("priming event status = %q, want %q", evt.Job.Status, jobqueue.StatusSucceeded)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("Watch did not deliver the priming event in time")
+	}
+
+	select {
+	case evt, ok := <-events:
+		if ok {
+			t.Fatalf("received a second event for an already-finished Job: %v", evt)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("channel did not close after the priming event for an already-finished Job")
+	}
+}
+
 // executorFunc adapts a plain function to jobqueue.Executor.
 type executorFunc func(ctx context.Context, r *jobqueue.Runner) error
 

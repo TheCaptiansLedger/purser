@@ -84,6 +84,60 @@ func (JobStatus) EnumDescriptor() ([]byte, []int) {
 	return file_purser_job_v1_job_proto_rawDescGZIP(), []int{0}
 }
 
+// JobEventKind identifies which level of a Job's Job/Task/Step hierarchy a
+// JobEvent describes.
+type JobEventKind int32
+
+const (
+	JobEventKind_JOB_EVENT_KIND_UNSPECIFIED JobEventKind = 0
+	JobEventKind_JOB_EVENT_KIND_JOB         JobEventKind = 1
+	JobEventKind_JOB_EVENT_KIND_TASK        JobEventKind = 2
+	JobEventKind_JOB_EVENT_KIND_STEP        JobEventKind = 3
+)
+
+// Enum value maps for JobEventKind.
+var (
+	JobEventKind_name = map[int32]string{
+		0: "JOB_EVENT_KIND_UNSPECIFIED",
+		1: "JOB_EVENT_KIND_JOB",
+		2: "JOB_EVENT_KIND_TASK",
+		3: "JOB_EVENT_KIND_STEP",
+	}
+	JobEventKind_value = map[string]int32{
+		"JOB_EVENT_KIND_UNSPECIFIED": 0,
+		"JOB_EVENT_KIND_JOB":         1,
+		"JOB_EVENT_KIND_TASK":        2,
+		"JOB_EVENT_KIND_STEP":        3,
+	}
+)
+
+func (x JobEventKind) Enum() *JobEventKind {
+	p := new(JobEventKind)
+	*p = x
+	return p
+}
+
+func (x JobEventKind) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (JobEventKind) Descriptor() protoreflect.EnumDescriptor {
+	return file_purser_job_v1_job_proto_enumTypes[1].Descriptor()
+}
+
+func (JobEventKind) Type() protoreflect.EnumType {
+	return &file_purser_job_v1_job_proto_enumTypes[1]
+}
+
+func (x JobEventKind) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use JobEventKind.Descriptor instead.
+func (JobEventKind) EnumDescriptor() ([]byte, []int) {
+	return file_purser_job_v1_job_proto_rawDescGZIP(), []int{1}
+}
+
 // Step is one discrete action taken on a Task (e.g. "compute hashes",
 // "query AcoustID"). detail carries structured, step-specific results —
 // the piece a log line alone can't give a caller polling GetJob.
@@ -700,6 +754,123 @@ func (x *ListJobsResponse) GetNextPageToken() string {
 	return ""
 }
 
+// JobEvent wraps one Job/Task/Step transition, pushed by WatchJob as it
+// happens. job is always the full, current snapshot of the Job (the same
+// shape GetJobResponse.job carries), not a partial diff — task_id/step_id
+// identify which part of it just changed, unset for a job-level
+// transition. See docs/adr/0023-job-queue.md.
+type JobEvent struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Kind          JobEventKind           `protobuf:"varint,1,opt,name=kind,proto3,enum=purser.job.v1.JobEventKind" json:"kind,omitempty"`
+	TaskId        string                 `protobuf:"bytes,2,opt,name=task_id,json=taskId,proto3" json:"task_id,omitempty"`
+	StepId        string                 `protobuf:"bytes,3,opt,name=step_id,json=stepId,proto3" json:"step_id,omitempty"`
+	Job           *Job                   `protobuf:"bytes,4,opt,name=job,proto3" json:"job,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *JobEvent) Reset() {
+	*x = JobEvent{}
+	mi := &file_purser_job_v1_job_proto_msgTypes[9]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *JobEvent) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*JobEvent) ProtoMessage() {}
+
+func (x *JobEvent) ProtoReflect() protoreflect.Message {
+	mi := &file_purser_job_v1_job_proto_msgTypes[9]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use JobEvent.ProtoReflect.Descriptor instead.
+func (*JobEvent) Descriptor() ([]byte, []int) {
+	return file_purser_job_v1_job_proto_rawDescGZIP(), []int{9}
+}
+
+func (x *JobEvent) GetKind() JobEventKind {
+	if x != nil {
+		return x.Kind
+	}
+	return JobEventKind_JOB_EVENT_KIND_UNSPECIFIED
+}
+
+func (x *JobEvent) GetTaskId() string {
+	if x != nil {
+		return x.TaskId
+	}
+	return ""
+}
+
+func (x *JobEvent) GetStepId() string {
+	if x != nil {
+		return x.StepId
+	}
+	return ""
+}
+
+func (x *JobEvent) GetJob() *Job {
+	if x != nil {
+		return x.Job
+	}
+	return nil
+}
+
+type WatchJobRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	JobId         string                 `protobuf:"bytes,1,opt,name=job_id,json=jobId,proto3" json:"job_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *WatchJobRequest) Reset() {
+	*x = WatchJobRequest{}
+	mi := &file_purser_job_v1_job_proto_msgTypes[10]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *WatchJobRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*WatchJobRequest) ProtoMessage() {}
+
+func (x *WatchJobRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_purser_job_v1_job_proto_msgTypes[10]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use WatchJobRequest.ProtoReflect.Descriptor instead.
+func (*WatchJobRequest) Descriptor() ([]byte, []int) {
+	return file_purser_job_v1_job_proto_rawDescGZIP(), []int{10}
+}
+
+func (x *WatchJobRequest) GetJobId() string {
+	if x != nil {
+		return x.JobId
+	}
+	return ""
+}
+
 var File_purser_job_v1_job_proto protoreflect.FileDescriptor
 
 const file_purser_job_v1_job_proto_rawDesc = "" +
@@ -762,20 +933,33 @@ const file_purser_job_v1_job_proto_rawDesc = "" +
 	"\x06status\x18\x04 \x01(\x0e2\x18.purser.job.v1.JobStatusR\x06status\"b\n" +
 	"\x10ListJobsResponse\x12&\n" +
 	"\x04jobs\x18\x01 \x03(\v2\x12.purser.job.v1.JobR\x04jobs\x12&\n" +
-	"\x0fnext_page_token\x18\x02 \x01(\tR\rnextPageToken*\xa0\x01\n" +
+	"\x0fnext_page_token\x18\x02 \x01(\tR\rnextPageToken\"\x93\x01\n" +
+	"\bJobEvent\x12/\n" +
+	"\x04kind\x18\x01 \x01(\x0e2\x1b.purser.job.v1.JobEventKindR\x04kind\x12\x17\n" +
+	"\atask_id\x18\x02 \x01(\tR\x06taskId\x12\x17\n" +
+	"\astep_id\x18\x03 \x01(\tR\x06stepId\x12$\n" +
+	"\x03job\x18\x04 \x01(\v2\x12.purser.job.v1.JobR\x03job\"(\n" +
+	"\x0fWatchJobRequest\x12\x15\n" +
+	"\x06job_id\x18\x01 \x01(\tR\x05jobId*\xa0\x01\n" +
 	"\tJobStatus\x12\x1a\n" +
 	"\x16JOB_STATUS_UNSPECIFIED\x10\x00\x12\x16\n" +
 	"\x12JOB_STATUS_PENDING\x10\x01\x12\x16\n" +
 	"\x12JOB_STATUS_RUNNING\x10\x02\x12\x18\n" +
 	"\x14JOB_STATUS_SUCCEEDED\x10\x03\x12\x15\n" +
 	"\x11JOB_STATUS_FAILED\x10\x04\x12\x16\n" +
-	"\x12JOB_STATUS_PARTIAL\x10\x052\xf3\x01\n" +
+	"\x12JOB_STATUS_PARTIAL\x10\x05*x\n" +
+	"\fJobEventKind\x12\x1e\n" +
+	"\x1aJOB_EVENT_KIND_UNSPECIFIED\x10\x00\x12\x16\n" +
+	"\x12JOB_EVENT_KIND_JOB\x10\x01\x12\x17\n" +
+	"\x13JOB_EVENT_KIND_TASK\x10\x02\x12\x17\n" +
+	"\x13JOB_EVENT_KIND_STEP\x10\x032\xba\x02\n" +
 	"\n" +
 	"JobService\x12Q\n" +
 	"\n" +
 	"TriggerJob\x12 .purser.job.v1.TriggerJobRequest\x1a!.purser.job.v1.TriggerJobResponse\x12E\n" +
 	"\x06GetJob\x12\x1c.purser.job.v1.GetJobRequest\x1a\x1d.purser.job.v1.GetJobResponse\x12K\n" +
-	"\bListJobs\x12\x1e.purser.job.v1.ListJobsRequest\x1a\x1f.purser.job.v1.ListJobsResponseB#Z!purser/gen/go/purser/job/v1;jobv1b\x06proto3"
+	"\bListJobs\x12\x1e.purser.job.v1.ListJobsRequest\x1a\x1f.purser.job.v1.ListJobsResponse\x12E\n" +
+	"\bWatchJob\x12\x1e.purser.job.v1.WatchJobRequest\x1a\x17.purser.job.v1.JobEvent0\x01B#Z!purser/gen/go/purser/job/v1;jobv1b\x06proto3"
 
 var (
 	file_purser_job_v1_job_proto_rawDescOnce sync.Once
@@ -789,52 +973,59 @@ func file_purser_job_v1_job_proto_rawDescGZIP() []byte {
 	return file_purser_job_v1_job_proto_rawDescData
 }
 
-var file_purser_job_v1_job_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_purser_job_v1_job_proto_msgTypes = make([]protoimpl.MessageInfo, 11)
+var file_purser_job_v1_job_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
+var file_purser_job_v1_job_proto_msgTypes = make([]protoimpl.MessageInfo, 13)
 var file_purser_job_v1_job_proto_goTypes = []any{
 	(JobStatus)(0),                // 0: purser.job.v1.JobStatus
-	(*Step)(nil),                  // 1: purser.job.v1.Step
-	(*Task)(nil),                  // 2: purser.job.v1.Task
-	(*Job)(nil),                   // 3: purser.job.v1.Job
-	(*TriggerJobRequest)(nil),     // 4: purser.job.v1.TriggerJobRequest
-	(*TriggerJobResponse)(nil),    // 5: purser.job.v1.TriggerJobResponse
-	(*GetJobRequest)(nil),         // 6: purser.job.v1.GetJobRequest
-	(*GetJobResponse)(nil),        // 7: purser.job.v1.GetJobResponse
-	(*ListJobsRequest)(nil),       // 8: purser.job.v1.ListJobsRequest
-	(*ListJobsResponse)(nil),      // 9: purser.job.v1.ListJobsResponse
-	nil,                           // 10: purser.job.v1.Step.DetailEntry
-	nil,                           // 11: purser.job.v1.TriggerJobRequest.ParamsEntry
-	(*timestamppb.Timestamp)(nil), // 12: google.protobuf.Timestamp
+	(JobEventKind)(0),             // 1: purser.job.v1.JobEventKind
+	(*Step)(nil),                  // 2: purser.job.v1.Step
+	(*Task)(nil),                  // 3: purser.job.v1.Task
+	(*Job)(nil),                   // 4: purser.job.v1.Job
+	(*TriggerJobRequest)(nil),     // 5: purser.job.v1.TriggerJobRequest
+	(*TriggerJobResponse)(nil),    // 6: purser.job.v1.TriggerJobResponse
+	(*GetJobRequest)(nil),         // 7: purser.job.v1.GetJobRequest
+	(*GetJobResponse)(nil),        // 8: purser.job.v1.GetJobResponse
+	(*ListJobsRequest)(nil),       // 9: purser.job.v1.ListJobsRequest
+	(*ListJobsResponse)(nil),      // 10: purser.job.v1.ListJobsResponse
+	(*JobEvent)(nil),              // 11: purser.job.v1.JobEvent
+	(*WatchJobRequest)(nil),       // 12: purser.job.v1.WatchJobRequest
+	nil,                           // 13: purser.job.v1.Step.DetailEntry
+	nil,                           // 14: purser.job.v1.TriggerJobRequest.ParamsEntry
+	(*timestamppb.Timestamp)(nil), // 15: google.protobuf.Timestamp
 }
 var file_purser_job_v1_job_proto_depIdxs = []int32{
 	0,  // 0: purser.job.v1.Step.status:type_name -> purser.job.v1.JobStatus
-	12, // 1: purser.job.v1.Step.started_at:type_name -> google.protobuf.Timestamp
-	12, // 2: purser.job.v1.Step.finished_at:type_name -> google.protobuf.Timestamp
-	10, // 3: purser.job.v1.Step.detail:type_name -> purser.job.v1.Step.DetailEntry
+	15, // 1: purser.job.v1.Step.started_at:type_name -> google.protobuf.Timestamp
+	15, // 2: purser.job.v1.Step.finished_at:type_name -> google.protobuf.Timestamp
+	13, // 3: purser.job.v1.Step.detail:type_name -> purser.job.v1.Step.DetailEntry
 	0,  // 4: purser.job.v1.Task.status:type_name -> purser.job.v1.JobStatus
-	12, // 5: purser.job.v1.Task.started_at:type_name -> google.protobuf.Timestamp
-	12, // 6: purser.job.v1.Task.finished_at:type_name -> google.protobuf.Timestamp
-	1,  // 7: purser.job.v1.Task.steps:type_name -> purser.job.v1.Step
+	15, // 5: purser.job.v1.Task.started_at:type_name -> google.protobuf.Timestamp
+	15, // 6: purser.job.v1.Task.finished_at:type_name -> google.protobuf.Timestamp
+	2,  // 7: purser.job.v1.Task.steps:type_name -> purser.job.v1.Step
 	0,  // 8: purser.job.v1.Job.status:type_name -> purser.job.v1.JobStatus
-	12, // 9: purser.job.v1.Job.created_at:type_name -> google.protobuf.Timestamp
-	12, // 10: purser.job.v1.Job.started_at:type_name -> google.protobuf.Timestamp
-	12, // 11: purser.job.v1.Job.finished_at:type_name -> google.protobuf.Timestamp
-	2,  // 12: purser.job.v1.Job.tasks:type_name -> purser.job.v1.Task
-	11, // 13: purser.job.v1.TriggerJobRequest.params:type_name -> purser.job.v1.TriggerJobRequest.ParamsEntry
-	3,  // 14: purser.job.v1.GetJobResponse.job:type_name -> purser.job.v1.Job
+	15, // 9: purser.job.v1.Job.created_at:type_name -> google.protobuf.Timestamp
+	15, // 10: purser.job.v1.Job.started_at:type_name -> google.protobuf.Timestamp
+	15, // 11: purser.job.v1.Job.finished_at:type_name -> google.protobuf.Timestamp
+	3,  // 12: purser.job.v1.Job.tasks:type_name -> purser.job.v1.Task
+	14, // 13: purser.job.v1.TriggerJobRequest.params:type_name -> purser.job.v1.TriggerJobRequest.ParamsEntry
+	4,  // 14: purser.job.v1.GetJobResponse.job:type_name -> purser.job.v1.Job
 	0,  // 15: purser.job.v1.ListJobsRequest.status:type_name -> purser.job.v1.JobStatus
-	3,  // 16: purser.job.v1.ListJobsResponse.jobs:type_name -> purser.job.v1.Job
-	4,  // 17: purser.job.v1.JobService.TriggerJob:input_type -> purser.job.v1.TriggerJobRequest
-	6,  // 18: purser.job.v1.JobService.GetJob:input_type -> purser.job.v1.GetJobRequest
-	8,  // 19: purser.job.v1.JobService.ListJobs:input_type -> purser.job.v1.ListJobsRequest
-	5,  // 20: purser.job.v1.JobService.TriggerJob:output_type -> purser.job.v1.TriggerJobResponse
-	7,  // 21: purser.job.v1.JobService.GetJob:output_type -> purser.job.v1.GetJobResponse
-	9,  // 22: purser.job.v1.JobService.ListJobs:output_type -> purser.job.v1.ListJobsResponse
-	20, // [20:23] is the sub-list for method output_type
-	17, // [17:20] is the sub-list for method input_type
-	17, // [17:17] is the sub-list for extension type_name
-	17, // [17:17] is the sub-list for extension extendee
-	0,  // [0:17] is the sub-list for field type_name
+	4,  // 16: purser.job.v1.ListJobsResponse.jobs:type_name -> purser.job.v1.Job
+	1,  // 17: purser.job.v1.JobEvent.kind:type_name -> purser.job.v1.JobEventKind
+	4,  // 18: purser.job.v1.JobEvent.job:type_name -> purser.job.v1.Job
+	5,  // 19: purser.job.v1.JobService.TriggerJob:input_type -> purser.job.v1.TriggerJobRequest
+	7,  // 20: purser.job.v1.JobService.GetJob:input_type -> purser.job.v1.GetJobRequest
+	9,  // 21: purser.job.v1.JobService.ListJobs:input_type -> purser.job.v1.ListJobsRequest
+	12, // 22: purser.job.v1.JobService.WatchJob:input_type -> purser.job.v1.WatchJobRequest
+	6,  // 23: purser.job.v1.JobService.TriggerJob:output_type -> purser.job.v1.TriggerJobResponse
+	8,  // 24: purser.job.v1.JobService.GetJob:output_type -> purser.job.v1.GetJobResponse
+	10, // 25: purser.job.v1.JobService.ListJobs:output_type -> purser.job.v1.ListJobsResponse
+	11, // 26: purser.job.v1.JobService.WatchJob:output_type -> purser.job.v1.JobEvent
+	23, // [23:27] is the sub-list for method output_type
+	19, // [19:23] is the sub-list for method input_type
+	19, // [19:19] is the sub-list for extension type_name
+	19, // [19:19] is the sub-list for extension extendee
+	0,  // [0:19] is the sub-list for field type_name
 }
 
 func init() { file_purser_job_v1_job_proto_init() }
@@ -847,8 +1038,8 @@ func file_purser_job_v1_job_proto_init() {
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_purser_job_v1_job_proto_rawDesc), len(file_purser_job_v1_job_proto_rawDesc)),
-			NumEnums:      1,
-			NumMessages:   11,
+			NumEnums:      2,
+			NumMessages:   13,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
