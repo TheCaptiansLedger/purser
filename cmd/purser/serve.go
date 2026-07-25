@@ -23,9 +23,11 @@ import (
 
 	afterdarkv1connect "purser/gen/go/purser/afterdark/v1/afterdarkv1connect"
 	domainv1connect "purser/gen/go/purser/domain/v1/domainv1connect"
+	jobv1connect "purser/gen/go/purser/job/v1/jobv1connect"
 	musicv1connect "purser/gen/go/purser/music/v1/musicv1connect"
 	dsbadger "purser/internal/adapters/datastore/badger"
 	dssql "purser/internal/adapters/datastore/sql"
+	adapterjobqueue "purser/internal/adapters/jobqueue"
 	storeentryperson "purser/internal/adapters/store/entryperson"
 	storeexternalid "purser/internal/adapters/store/externalid"
 	storegroup "purser/internal/adapters/store/group"
@@ -40,6 +42,8 @@ import (
 	storetag "purser/internal/adapters/store/tag"
 	storetagassignment "purser/internal/adapters/store/tagassignment"
 	apiconnect "purser/internal/api/connect"
+	pkgjobqueue "purser/pkg/jobqueue"
+	jobqueuememory "purser/pkg/jobqueue/memory"
 )
 
 func newServeCmd() *cobra.Command {
@@ -380,6 +384,15 @@ func newServeMux(logger *slog.Logger, ds datastore.Datastore) (*http.ServeMux, e
 	musicReleasePath, musicReleaseConnectHandler := musicv1connect.NewMusicReleaseServiceHandler(musicReleaseHandler, interceptors)
 	mux.Handle(musicReleasePath, musicReleaseConnectHandler)
 
+	// Job Queue: ephemeral, in-process — not backed by ds like every
+	// entity above. See docs/adr/0023-job-queue.md. jobAdapter satisfies
+	// both ports.JobPublisher and ports.JobReader.
+	jobEngine := pkgjobqueue.NewEngine(jobqueuememory.New(), pkgjobqueue.WithLogger(logger))
+	jobAdapter := adapterjobqueue.New(jobEngine)
+	jobHandler := apiconnect.NewJobHandler(service.NewJobService(jobAdapter, jobAdapter), logger)
+	jobPath, jobConnectHandler := jobv1connect.NewJobServiceHandler(jobHandler, interceptors)
+	mux.Handle(jobPath, jobConnectHandler)
+
 	reflector := grpcreflect.NewStaticReflector(
 		domainv1connect.PersonServiceName,
 		domainv1connect.LibraryEntryServiceName,
@@ -395,6 +408,7 @@ func newServeMux(logger *slog.Logger, ds datastore.Datastore) (*http.ServeMux, e
 		afterdarkv1connect.PerformerProfileServiceName,
 		afterdarkv1connect.BrowseServiceName,
 		musicv1connect.MusicReleaseServiceName,
+		jobv1connect.JobServiceName,
 	)
 	mux.Handle(grpcreflect.NewHandlerV1(reflector))
 	mux.Handle(grpcreflect.NewHandlerV1Alpha(reflector))

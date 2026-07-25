@@ -13,6 +13,7 @@ import (
 	"log/slog"
 	"purser/internal/domain"
 	"purser/internal/ports"
+	"purser/pkg/jobqueue"
 
 	"connectrpc.com/connect"
 	"google.golang.org/genproto/googleapis/rpc/errdetails"
@@ -50,6 +51,8 @@ func mapError(ctx context.Context, logger *slog.Logger, err error) error {
 		return connect.NewError(connect.CodeAlreadyExists, err)
 	case errors.Is(err, ports.ErrDeletionBlocked):
 		return connect.NewError(connect.CodeFailedPrecondition, err)
+	case errors.Is(err, jobqueue.ErrUnknownKind):
+		return connect.NewError(connect.CodeInvalidArgument, err)
 	default:
 		logUnmapped(ctx, logger, err)
 		return connect.NewError(connect.CodeInternal, errors.New("internal error"))

@@ -1,0 +1,89 @@
+syntax = "proto3";
+
+package purser.job.v1;
+
+import "google/protobuf/timestamp.proto";
+
+option go_package = "purser/gen/go/purser/job/v1;jobv1";
+
+// JobStatus mirrors pkg/jobqueue.Status — the lifecycle state shared by
+// Job, Task, and Step. See docs/adr/0023-job-queue.md.
+enum JobStatus {
+  JOB_STATUS_UNSPECIFIED = 0;
+  JOB_STATUS_PENDING = 1;
+  JOB_STATUS_RUNNING = 2;
+  JOB_STATUS_SUCCEEDED = 3;
+  JOB_STATUS_FAILED = 4;
+  // JOB_STATUS_PARTIAL applies only to a Job (some Tasks succeeded, some
+  // failed) — never to a Task or Step.
+  JOB_STATUS_PARTIAL = 5;
+}
+
+// Step is one discrete action taken on a Task (e.g. "compute hashes",
+// "query AcoustID"). detail carries structured, step-specific results —
+// the piece a log line alone can't give a caller polling GetJob.
+message Step {
+  string id = 1;
+  string name = 2;
+  JobStatus status = 3;
+  google.protobuf.Timestamp started_at = 4;
+  google.protobuf.Timestamp finished_at = 5;
+  string message = 6;
+  map<string, string> detail = 7;
+}
+
+// Task is one unit of work within a Job (one file, one track). progress is
+// computed from steps, not stored.
+message Task {
+  string id = 1;
+  string label = 2;
+  JobStatus status = 3;
+  google.protobuf.Timestamp started_at = 4;
+  google.protobuf.Timestamp finished_at = 5;
+  repeated Step steps = 6;
+  double progress = 7;
+}
+
+// Job is one overall long-running operation (e.g. "scan
+// /music/new-arrivals"). progress is computed from tasks, not stored. See
+// docs/adr/0023-job-queue.md — Job is ephemeral, in-process state, not
+// Datastore-backed like every other entity's message in this codebase.
+message Job {
+  string id = 1;
+  string kind = 2;
+  JobStatus status = 3;
+  google.protobuf.Timestamp created_at = 4;
+  google.protobuf.Timestamp started_at = 5;
+  google.protobuf.Timestamp finished_at = 6;
+  repeated Task tasks = 7;
+  double progress = 8;
+}
+
+message TriggerJobRequest {
+  // kind selects which registered pkg/jobqueue.Executor runs this Job —
+  // "diagnostic" is the only kind this pass registers.
+  string kind = 1;
+  repeated string task_labels = 2;
+}
+
+message TriggerJobResponse {
+  string job_id = 1;
+}
+
+message GetJobRequest {
+  string id = 1;
+}
+
+message GetJobResponse {
+  Job job = 1;
+}
+
+// JobService follows the same handler/service/error-mapping conventions as
+// every entity's Connect service (docs/adr/0011-api-design.md), even
+// though Job isn't Datastore-backed (docs/adr/0023-job-queue.md).
+// ListJobs/WatchJob are added by later sub-issues in the Job Queue epic,
+// extending this same file, not replacing it.
+service JobService {
+  rpc TriggerJob(TriggerJobRequest) returns (TriggerJobResponse);
+  rpc GetJob(GetJobRequest) returns (GetJobResponse);
+}
