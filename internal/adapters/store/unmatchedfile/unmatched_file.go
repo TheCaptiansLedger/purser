@@ -48,20 +48,27 @@ func New(name string, ds datastore.Datastore, opts ...Option) (*Repository, erro
 
 func idOf(u *domain.UnmatchedFile) string { return u.ID }
 
-// indexOf writes Status plus every hash field into Document.Index —
-// Status is the review queue's filter dimension, read back by List below;
-// the hash fields back GetByHash (ADR-0024's "already known"
-// short-circuit), one indexed key per hash algorithm since Datastore's
-// List filter is an AND-match over the whole map, not an OR across keys.
+// indexOf writes Status, GroupKey, plus every hash field into
+// Document.Index — Status is the review queue's filter dimension, read
+// back by List below; GroupKey backs ListByGroupKey; the hash fields back
+// GetByHash (ADR-0024's "already known" short-circuit), one indexed key
+// per hash algorithm since Datastore's List filter is an AND-match over
+// the whole map, not an OR across keys.
 func indexOf(u *domain.UnmatchedFile) map[string]string {
 	return map[string]string{
-		"status": string(u.Status),
-		"oshash": u.OSHash,
-		"sha1":   u.SHA1,
-		"md5":    u.MD5,
-		"sha512": u.SHA512,
+		"status":    string(u.Status),
+		"group_key": u.GroupKey,
+		"oshash":    u.OSHash,
+		"sha1":      u.SHA1,
+		"md5":       u.MD5,
+		"sha512":    u.SHA512,
 	}
 }
+
+// listByGroupKeyPageSize is the page size ListByGroupKey pages through
+// internally — matches the convention service-layer "drain to completion"
+// helpers already use (e.g. GroupDeletionService.drainMusicReleases).
+const listByGroupKeyPageSize = 100
 
 // hashLookups pairs each hash algorithm's index key with the
 // caller-supplied value, in the order GetByHash checks them.
@@ -96,6 +103,31 @@ func (r *Repository) List(ctx context.Context, status domain.UnmatchedFileStatus
 // Update implements ports.UnmatchedFileRepository.
 func (r *Repository) Update(ctx context.Context, u *domain.UnmatchedFile) error {
 	return r.inner.Update(ctx, u)
+}
+
+// UpdateBatch implements ports.UnmatchedFileRepository.
+func (r *Repository) UpdateBatch(ctx context.Context, us []*domain.UnmatchedFile) error {
+	return r.inner.UpdateBatch(ctx, us)
+}
+
+// ListByGroupKey implements ports.UnmatchedFileRepository. Unlike GetByHash
+// (wants the first match, stops), this needs every row in the group, so it
+// loops pages to completion rather than assuming one page covers it.
+func (r *Repository) ListByGroupKey(ctx context.Context, groupKey string) ([]*domain.UnmatchedFile, error) {
+	var out []*domain.UnmatchedFile
+	pageToken := ""
+	for {
+		page, next, err := r.inner.List(ctx, map[string]string{"group_key": groupKey}, listByGroupKeyPageSize, pageToken)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, page...)
+		if next == "" {
+			break
+		}
+		pageToken = next
+	}
+	return out, nil
 }
 
 // Delete implements ports.UnmatchedFileRepository.

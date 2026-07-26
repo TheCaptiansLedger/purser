@@ -2,6 +2,7 @@ syntax = "proto3";
 
 package purser.pipeline.v1;
 
+import "google/protobuf/struct.proto";
 import "google/protobuf/timestamp.proto";
 import "purser/domain/v1/media_file.proto";
 
@@ -14,6 +15,38 @@ enum UnmatchedFileStatus {
   UNMATCHED_FILE_STATUS_PENDING = 1;
   UNMATCHED_FILE_STATUS_MATCHED = 2;
   UNMATCHED_FILE_STATUS_DISMISSED = 3;
+}
+
+// MatchTier mirrors domain.MatchTier — how a MatchCandidate was found,
+// strongest signal first. See
+// docs/technical/pipeline-unmatchedfile-grouping.md.
+enum MatchTier {
+  MATCH_TIER_UNSPECIFIED = 0;
+  MATCH_TIER_DIRECT_ID = 1;
+  MATCH_TIER_UNIQUE_ID = 2;
+  MATCH_TIER_FUZZY = 3;
+  MATCH_TIER_ACOUSTIC = 4;
+}
+
+// Fingerprint mirrors domain.Fingerprint — generic, content-type-agnostic
+// identification data extracted from a discovered file. metadata is a
+// google.protobuf.Struct, not a plain string map (domain.Fingerprint.Metadata
+// is map[string]any), matching the same pattern already used for
+// Item/LibraryEntry/Group's Metadata bags.
+message Fingerprint {
+  map<string, string> tags = 1;
+  google.protobuf.Struct metadata = 2;
+}
+
+// MatchCandidate mirrors domain.MatchCandidate — one ranked candidate a
+// content-type's identifier produced for an UnmatchedFile.
+message MatchCandidate {
+  string external_ref = 1;
+  string title = 2;
+  double score = 3;
+  MatchTier tier = 4;
+  map<string, double> signals = 5;
+  google.protobuf.Struct metadata = 6;
 }
 
 // UnmatchedFile is a file the common scan pipeline discovered and hashed
@@ -31,6 +64,22 @@ message UnmatchedFile {
 
   google.protobuf.Timestamp discovered_at = 8;
   UnmatchedFileStatus status = 9;
+
+  // group_key identifies the identification unit this file belongs to —
+  // files sharing a group_key are matched/decided together. See
+  // docs/technical/pipeline-unmatchedfile-grouping.md.
+  string group_key = 10;
+
+  // disc_number and track_number are per-row, unlike everything else on
+  // this message, which is shared identically across a group.
+  // track_number is a string, not an int, matching Item.sequence's
+  // existing convention — vinyl rips carry side-lettered positions ("A1",
+  // "B3") an int field would silently drop on parse failure.
+  int32 disc_number = 11;
+  string track_number = 12;
+
+  Fingerprint fingerprint = 13;
+  repeated MatchCandidate candidates = 14;
 }
 
 message GetUnmatchedFileRequest {
@@ -78,6 +127,30 @@ message ResolveUnmatchedFileResponse {
   }
 }
 
+// ListGroupUnmatchedFilesRequest fetches every UnmatchedFile sharing one
+// group_key — no pagination, since a group is expected to be small (one
+// album's worth of tracks, not the whole review queue). See
+// docs/technical/pipeline-unmatchedfile-grouping.md.
+message ListGroupUnmatchedFilesRequest {
+  string group_key = 1;
+}
+
+message ListGroupUnmatchedFilesResponse {
+  repeated UnmatchedFile unmatched_files = 1;
+}
+
+// DismissUnmatchedFileBatchRequest dismisses the exact ID list the caller
+// supplies (the UI already has it from ListGroupUnmatchedFiles) — the
+// server does no group_key lookup of its own. All-or-nothing: one
+// UpdateBatch call, per docs/adr/0016-bulk-operations.md.
+message DismissUnmatchedFileBatchRequest {
+  repeated string unmatched_file_ids = 1;
+}
+
+message DismissUnmatchedFileBatchResponse {
+  repeated UnmatchedFile unmatched_files = 1;
+}
+
 // UnmatchedFileService is the review queue's Get/List/Resolve surface.
 // Follows the same handler/service/error-mapping conventions as every
 // other entity's Connect service (docs/adr/0011-api-design.md). See
@@ -86,4 +159,6 @@ service UnmatchedFileService {
   rpc GetUnmatchedFile(GetUnmatchedFileRequest) returns (GetUnmatchedFileResponse);
   rpc ListUnmatchedFiles(ListUnmatchedFilesRequest) returns (ListUnmatchedFilesResponse);
   rpc ResolveUnmatchedFile(ResolveUnmatchedFileRequest) returns (ResolveUnmatchedFileResponse);
+  rpc ListGroupUnmatchedFiles(ListGroupUnmatchedFilesRequest) returns (ListGroupUnmatchedFilesResponse);
+  rpc DismissUnmatchedFileBatch(DismissUnmatchedFileBatchRequest) returns (DismissUnmatchedFileBatchResponse);
 }

@@ -24,15 +24,33 @@ type fakeUnmatchedFileRepository struct {
 	updateErr error
 	deletedID string
 	deleteErr error
+
+	groupKey       string
+	groupFiles     []*domain.UnmatchedFile
+	groupErr       error
+	updateBatch    []*domain.UnmatchedFile
+	updateBatchErr error
+
+	// getByID, when non-nil, makes Get look up by id instead of always
+	// returning getFile — DismissBatch's tests need distinct records per
+	// id, unlike every other test here which resolves a single file.
+	getByID map[string]*domain.UnmatchedFile
 }
 
 func (f *fakeUnmatchedFileRepository) Create(_ context.Context, _ *domain.UnmatchedFile) error {
 	return nil
 }
 
-func (f *fakeUnmatchedFileRepository) Get(_ context.Context, _ string) (*domain.UnmatchedFile, error) {
+func (f *fakeUnmatchedFileRepository) Get(_ context.Context, id string) (*domain.UnmatchedFile, error) {
 	if f.getErr != nil {
 		return nil, f.getErr
+	}
+	if f.getByID != nil {
+		u, ok := f.getByID[id]
+		if !ok {
+			return nil, ports.ErrNotFound
+		}
+		return u, nil
 	}
 	return f.getFile, nil
 }
@@ -67,6 +85,22 @@ func (f *fakeUnmatchedFileRepository) Delete(_ context.Context, id string) error
 // satisfy ports.UnmatchedFileRepository.
 func (f *fakeUnmatchedFileRepository) GetByHash(context.Context, string, string, string, string) (*domain.UnmatchedFile, error) {
 	return nil, ports.ErrNotFound
+}
+
+func (f *fakeUnmatchedFileRepository) ListByGroupKey(_ context.Context, groupKey string) ([]*domain.UnmatchedFile, error) {
+	f.groupKey = groupKey
+	if f.groupErr != nil {
+		return nil, f.groupErr
+	}
+	return f.groupFiles, nil
+}
+
+func (f *fakeUnmatchedFileRepository) UpdateBatch(_ context.Context, us []*domain.UnmatchedFile) error {
+	if f.updateBatchErr != nil {
+		return f.updateBatchErr
+	}
+	f.updateBatch = us
+	return nil
 }
 
 func newUnmatchedFileService(repo *fakeUnmatchedFileRepository, items *fakeItemRepository, mediaFiles *fakeMediaFileRepository) *service.UnmatchedFileService {
@@ -211,5 +245,77 @@ func TestUnmatchedFileService_Resolve_Match_ItemNotFound(t *testing.T) {
 	}
 	if repo.deletedID != "" {
 		t.Fatalf("Resolve(match, missing item) called Delete(%q), want no Delete call", repo.deletedID)
+	}
+}
+
+func TestUnmatchedFileService_ListGroup(t *testing.T) {
+	files := []*domain.UnmatchedFile{{ID: "uf-1", GroupKey: "album-1"}, {ID: "uf-2", GroupKey: "album-1"}}
+	repo := &fakeUnmatchedFileRepository{groupFiles: files}
+	svc := newUnmatchedFileService(repo, nil, nil)
+
+	got, err := svc.ListGroup(context.Background(), "album-1")
+	if err != nil {
+		t.Fatalf("ListGroup returned error: %v", err)
+	}
+	if len(got) != 2 {
+		t.Fatalf("ListGroup returned %v, want 2 files", got)
+	}
+	if repo.groupKey != "album-1" {
+		t.Fatalf("ListGroup passed groupKey %q, want %q", repo.groupKey, "album-1")
+	}
+}
+
+func TestUnmatchedFileService_ListGroup_Error(t *testing.T) {
+	wantErr := errors.New("boom")
+	svc := newUnmatchedFileService(&fakeUnmatchedFileRepository{groupErr: wantErr}, nil, nil)
+
+	if _, err := svc.ListGroup(context.Background(), "album-1"); !errors.Is(err, wantErr) {
+		t.Fatalf("ListGroup returned %v, want %v", err, wantErr)
+	}
+}
+
+func TestUnmatchedFileService_DismissBatch(t *testing.T) {
+	uf1 := &domain.UnmatchedFile{ID: "uf-1", Status: domain.UnmatchedFileStatusPending}
+	uf2 := &domain.UnmatchedFile{ID: "uf-2", Status: domain.UnmatchedFileStatusPending}
+	repo := &fakeUnmatchedFileRepository{getByID: map[string]*domain.UnmatchedFile{"uf-1": uf1, "uf-2": uf2}}
+	svc := newUnmatchedFileService(repo, nil, nil)
+
+	got, err := svc.DismissBatch(context.Background(), []string{"uf-1", "uf-2"})
+	if err != nil {
+		t.Fatalf("DismissBatch returned error: %v", err)
+	}
+	if len(got) != 2 {
+		t.Fatalf("DismissBatch returned %v, want 2 files", got)
+	}
+	for _, u := range got {
+		if u.Status != domain.UnmatchedFileStatusDismissed {
+			t.Fatalf("DismissBatch returned %+v, want status=dismissed", u)
+		}
+	}
+	if len(repo.updateBatch) != 2 {
+		t.Fatalf("DismissBatch did not persist via a single UpdateBatch call, got %v", repo.updateBatch)
+	}
+}
+
+func TestUnmatchedFileService_DismissBatch_NotFound(t *testing.T) {
+	repo := &fakeUnmatchedFileRepository{getByID: map[string]*domain.UnmatchedFile{}}
+	svc := newUnmatchedFileService(repo, nil, nil)
+
+	if _, err := svc.DismissBatch(context.Background(), []string{"missing"}); !errors.Is(err, ports.ErrNotFound) {
+		t.Fatalf("DismissBatch returned %v, want ports.ErrNotFound", err)
+	}
+	if repo.updateBatch != nil {
+		t.Fatalf("DismissBatch called UpdateBatch(%v) despite a missing id, want no call", repo.updateBatch)
+	}
+}
+
+func TestUnmatchedFileService_DismissBatch_UpdateBatchError(t *testing.T) {
+	uf1 := &domain.UnmatchedFile{ID: "uf-1", Status: domain.UnmatchedFileStatusPending}
+	wantErr := errors.New("boom")
+	repo := &fakeUnmatchedFileRepository{getByID: map[string]*domain.UnmatchedFile{"uf-1": uf1}, updateBatchErr: wantErr}
+	svc := newUnmatchedFileService(repo, nil, nil)
+
+	if _, err := svc.DismissBatch(context.Background(), []string{"uf-1"}); !errors.Is(err, wantErr) {
+		t.Fatalf("DismissBatch returned %v, want %v", err, wantErr)
 	}
 }

@@ -16,10 +16,14 @@
 // the three seeded fixture files: one is matched (its MediaFile/Item are
 // deleted again at the end, mirroring scan_test.js's own cleanup
 // contract, so the fixture path is collectible as a fresh UnmatchedFile
-// next run) and one is dismissed — dismiss is permanent by design, so a
+// next run) and one is dismissed, via DismissUnmatchedFileBatch (#508)
+// rather than ResolveUnmatchedFile — dismiss is permanent by design, so a
 // rerun of this suite sees that same file already dismissed; see
 // statusOf/pendingSeededIds below for how the earlier list-completeness
-// checks stay correct either way.
+// checks stay correct either way. ListGroupUnmatchedFiles (#508) is also
+// exercised, against the untouched seeded file's own group-of-one (real
+// multi-file grouping is M3, not built by the pipeline yet — see
+// docs/technical/pipeline-unmatchedfile-grouping.md).
 import grpc from 'k6/net/grpc';
 import { check, sleep } from 'k6';
 import { options } from '../lib/options.js';
@@ -126,6 +130,21 @@ export default () => {
     'GetUnmatchedFile returns osHash/sha1': (r) => !!r.message.unmatchedFile.osHash && !!r.message.unmatchedFile.sha1,
     'GetUnmatchedFile status is pending': (r) => r.message.unmatchedFile.status === 'UNMATCHED_FILE_STATUS_PENDING',
   });
+  const groupKey = res.message.unmatchedFile.groupKey;
+
+  // ListGroupUnmatchedFiles (#508): grouping itself isn't computed by the
+  // scan pipeline yet (M3), so GroupKey defaults to the file's own Path —
+  // a group of one, by construction. Proving this still returns exactly
+  // the one seeded row is the live-server-shaped coverage this RPC gets;
+  // a real multi-row group is exercised at the Go datastore-contract
+  // layer instead (internal/ports/unmatchedfiletest), since the pipeline
+  // can't produce one yet.
+  res = invoke('purser.pipeline.v1.UnmatchedFileService/ListGroupUnmatchedFiles', { groupKey: groupKey });
+  check(res, {
+    'ListGroupUnmatchedFiles status is OK': (r) => r && r.status === grpc.StatusOK,
+    'ListGroupUnmatchedFiles returns exactly the one file in this group': (r) =>
+      (r.message.unmatchedFiles || []).length === 1 && r.message.unmatchedFiles[0].id === seededIds[0],
+  });
 
   // ListUnmatchedFiles with no filter must include every seeded id
   // (dismissed rows are kept, not deleted — see docs/adr/0024-pipeline-core.md),
@@ -222,13 +241,19 @@ export default () => {
       !(r.message.unmatchedFiles || []).some((u) => u.id === matchId),
   });
 
-  // ResolveUnmatchedFile: dismiss.
+  // Dismiss, via DismissUnmatchedFileBatch (#508) rather than
+  // ResolveUnmatchedFile(dismiss=true) — proves the new bulk RPC reaches
+  // the same terminal state (permanent, kept-not-deleted) the rest of
+  // this suite already relies on. A real multi-id batch is covered at the
+  // Go datastore-contract layer; the live pipeline can't produce a
+  // multi-file group yet (see the ListGroupUnmatchedFiles comment above).
   const dismissId = seededIds[2];
-  res = invoke('purser.pipeline.v1.UnmatchedFileService/ResolveUnmatchedFile', { unmatchedFileId: dismissId, dismiss: true });
+  res = invoke('purser.pipeline.v1.UnmatchedFileService/DismissUnmatchedFileBatch', { unmatchedFileIds: [dismissId] });
   check(res, {
-    'ResolveUnmatchedFile (dismiss) status is OK': (r) => r && r.status === grpc.StatusOK,
-    'ResolveUnmatchedFile (dismiss) returns an UnmatchedFile, not a MediaFile': (r) => r && r.message && !!r.message.unmatchedFile && !r.message.mediaFile,
-    'ResolveUnmatchedFile (dismiss) status is dismissed': (r) => r.message.unmatchedFile.status === 'UNMATCHED_FILE_STATUS_DISMISSED',
+    'DismissUnmatchedFileBatch status is OK': (r) => r && r.status === grpc.StatusOK,
+    'DismissUnmatchedFileBatch returns exactly the dismissed file': (r) =>
+      (r.message.unmatchedFiles || []).length === 1 && r.message.unmatchedFiles[0].id === dismissId,
+    'DismissUnmatchedFileBatch status is dismissed': (r) => r.message.unmatchedFiles[0].status === 'UNMATCHED_FILE_STATUS_DISMISSED',
   });
 
   res = invoke('purser.pipeline.v1.UnmatchedFileService/GetUnmatchedFile', { id: dismissId });

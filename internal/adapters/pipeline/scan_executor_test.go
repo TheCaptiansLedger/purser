@@ -92,6 +92,38 @@ func (f *fakeUnmatchedFileRepository) List(_ context.Context, status domain.Unma
 	return out, "", nil
 }
 
+// UpdateBatch is unused by ScanExecutor's tests (it only Creates/Gets/
+// Updates) — present solely to satisfy ports.UnmatchedFileRepository.
+func (f *fakeUnmatchedFileRepository) UpdateBatch(_ context.Context, us []*domain.UnmatchedFile) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	for _, u := range us {
+		if _, ok := f.files[u.ID]; !ok {
+			return ports.ErrNotFound
+		}
+	}
+	for _, u := range us {
+		cp := *u
+		f.files[u.ID] = &cp
+	}
+	return nil
+}
+
+// ListByGroupKey is unused by ScanExecutor's tests (it only Creates/Gets/
+// Updates) — present solely to satisfy ports.UnmatchedFileRepository.
+func (f *fakeUnmatchedFileRepository) ListByGroupKey(_ context.Context, groupKey string) ([]*domain.UnmatchedFile, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	var out []*domain.UnmatchedFile
+	for _, u := range f.files {
+		if u.GroupKey == groupKey {
+			cp := *u
+			out = append(out, &cp)
+		}
+	}
+	return out, nil
+}
+
 func (f *fakeUnmatchedFileRepository) GetByHash(_ context.Context, oshash, sha1sum, md5sum, sha512sum string) (*domain.UnmatchedFile, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -540,7 +572,7 @@ func TestScanExecutor_Execute_MatchesExistingUnmatchedFile(t *testing.T) {
 
 	repo := newFakeUnmatchedFileRepository()
 	uf := &domain.UnmatchedFile{
-		ID: "uf-1", Path: oldPath, SHA1: sha1sum,
+		ID: "uf-1", Path: oldPath, GroupKey: oldPath, SHA1: sha1sum,
 		DiscoveredAt: time.Now(), Status: domain.UnmatchedFileStatusPending,
 	}
 	if err := repo.Create(context.Background(), uf); err != nil {
@@ -645,6 +677,14 @@ func (a *alwaysFailUnmatchedFileRepository) List(context.Context, domain.Unmatch
 
 func (a *alwaysFailUnmatchedFileRepository) GetByHash(context.Context, string, string, string, string) (*domain.UnmatchedFile, error) {
 	return nil, ports.ErrNotFound
+}
+
+func (a *alwaysFailUnmatchedFileRepository) UpdateBatch(context.Context, []*domain.UnmatchedFile) error {
+	return a.err
+}
+
+func (a *alwaysFailUnmatchedFileRepository) ListByGroupKey(context.Context, string) ([]*domain.UnmatchedFile, error) {
+	return nil, a.err
 }
 
 type alwaysFailMediaFileRepository struct {

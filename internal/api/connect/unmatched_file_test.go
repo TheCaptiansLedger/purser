@@ -32,6 +32,14 @@ type fakeUnmatchedFileService struct {
 	resolveID        string
 	resolveItemID    string
 	resolveDismiss   bool
+
+	listGroupFiles []*domain.UnmatchedFile
+	listGroupErr   error
+	listGroupKey   string
+
+	dismissBatchFiles []*domain.UnmatchedFile
+	dismissBatchErr   error
+	dismissBatchIDs   []string
 }
 
 func (f *fakeUnmatchedFileService) Get(_ context.Context, _ string) (*domain.UnmatchedFile, error) {
@@ -61,16 +69,39 @@ func (f *fakeUnmatchedFileService) Resolve(_ context.Context, id, itemID string,
 	return f.resolveMediaFile, f.resolveFile, nil
 }
 
+func (f *fakeUnmatchedFileService) ListGroup(_ context.Context, groupKey string) ([]*domain.UnmatchedFile, error) {
+	f.listGroupKey = groupKey
+	if f.listGroupErr != nil {
+		return nil, f.listGroupErr
+	}
+	return f.listGroupFiles, nil
+}
+
+func (f *fakeUnmatchedFileService) DismissBatch(_ context.Context, ids []string) ([]*domain.UnmatchedFile, error) {
+	f.dismissBatchIDs = ids
+	if f.dismissBatchErr != nil {
+		return nil, f.dismissBatchErr
+	}
+	return f.dismissBatchFiles, nil
+}
+
 func TestUnmatchedFileHandler_GetUnmatchedFile(t *testing.T) {
 	now := time.Now()
 	file := &domain.UnmatchedFile{
 		ID:           "uf-1",
 		Path:         "/media/incoming/uf-1.flac",
+		GroupKey:     "/media/incoming/album",
+		DiscNumber:   1,
+		TrackNumber:  "A1",
 		Size:         123456,
 		OSHash:       "0123456789abcdef",
 		SHA1:         "a9993e364706816aba3e25717850c26c9cd0d89d",
 		DiscoveredAt: now,
 		Status:       domain.UnmatchedFileStatusPending,
+		Fingerprint:  &domain.Fingerprint{Tags: map[string]string{"artist": "Test Artist"}},
+		Candidates: []domain.MatchCandidate{
+			{ExternalRef: "mbid-1", Title: "Test Release", Score: 0.9, Tier: domain.MatchTierDirectID, Signals: map[string]float64{"acoustid": 0.9}},
+		},
 	}
 	svc := &fakeUnmatchedFileService{getFile: file}
 	h := apiconnect.NewUnmatchedFileHandler(svc, nil)
@@ -88,6 +119,16 @@ func TestUnmatchedFileHandler_GetUnmatchedFile(t *testing.T) {
 	}
 	if got.GetStatus() != pipelinev1.UnmatchedFileStatus_UNMATCHED_FILE_STATUS_PENDING {
 		t.Fatalf("GetUnmatchedFile returned status %v, want PENDING", got.GetStatus())
+	}
+	if got.GetGroupKey() != file.GroupKey || got.GetDiscNumber() != 1 || got.GetTrackNumber() != "A1" {
+		t.Fatalf("GetUnmatchedFile did not round-trip GroupKey/DiscNumber/TrackNumber: %+v", got)
+	}
+	if got.GetFingerprint().GetTags()["artist"] != "Test Artist" {
+		t.Fatalf("GetUnmatchedFile did not round-trip Fingerprint.Tags: %+v", got.GetFingerprint())
+	}
+	if len(got.GetCandidates()) != 1 || got.GetCandidates()[0].GetExternalRef() != "mbid-1" ||
+		got.GetCandidates()[0].GetTier() != pipelinev1.MatchTier_MATCH_TIER_DIRECT_ID {
+		t.Fatalf("GetUnmatchedFile did not round-trip Candidates: %+v", got.GetCandidates())
 	}
 }
 
@@ -223,5 +264,78 @@ func TestUnmatchedFileHandler_ResolveUnmatchedFile_ItemNotFound(t *testing.T) {
 	}
 	if connErr.Code() != connect.CodeNotFound {
 		t.Fatalf("ResolveUnmatchedFile returned code %v, want %v", connErr.Code(), connect.CodeNotFound)
+	}
+}
+
+func TestUnmatchedFileHandler_ListGroupUnmatchedFiles(t *testing.T) {
+	files := []*domain.UnmatchedFile{
+		{ID: "uf-1", GroupKey: "album-1"},
+		{ID: "uf-2", GroupKey: "album-1"},
+	}
+	svc := &fakeUnmatchedFileService{listGroupFiles: files}
+	h := apiconnect.NewUnmatchedFileHandler(svc, nil)
+
+	resp, err := h.ListGroupUnmatchedFiles(context.Background(), connect.NewRequest(&pipelinev1.ListGroupUnmatchedFilesRequest{GroupKey: "album-1"}))
+	if err != nil {
+		t.Fatalf("ListGroupUnmatchedFiles returned error: %v", err)
+	}
+	if svc.listGroupKey != "album-1" {
+		t.Fatalf("ListGroupUnmatchedFiles passed group_key %q, want %q", svc.listGroupKey, "album-1")
+	}
+	if got := resp.Msg.GetUnmatchedFiles(); len(got) != 2 || got[0].GetId() != "uf-1" || got[1].GetId() != "uf-2" {
+		t.Fatalf("ListGroupUnmatchedFiles returned unexpected files: %+v", got)
+	}
+}
+
+func TestUnmatchedFileHandler_ListGroupUnmatchedFiles_Error(t *testing.T) {
+	svc := &fakeUnmatchedFileService{listGroupErr: ports.ErrNotFound}
+	h := apiconnect.NewUnmatchedFileHandler(svc, nil)
+
+	_, err := h.ListGroupUnmatchedFiles(context.Background(), connect.NewRequest(&pipelinev1.ListGroupUnmatchedFilesRequest{GroupKey: "album-1"}))
+	var connErr *connect.Error
+	if !errors.As(err, &connErr) {
+		t.Fatalf("ListGroupUnmatchedFiles returned %v, want a *connect.Error", err)
+	}
+	if connErr.Code() != connect.CodeNotFound {
+		t.Fatalf("ListGroupUnmatchedFiles returned code %v, want %v", connErr.Code(), connect.CodeNotFound)
+	}
+}
+
+func TestUnmatchedFileHandler_DismissUnmatchedFileBatch(t *testing.T) {
+	files := []*domain.UnmatchedFile{
+		{ID: "uf-1", Status: domain.UnmatchedFileStatusDismissed},
+		{ID: "uf-2", Status: domain.UnmatchedFileStatusDismissed},
+	}
+	svc := &fakeUnmatchedFileService{dismissBatchFiles: files}
+	h := apiconnect.NewUnmatchedFileHandler(svc, nil)
+
+	resp, err := h.DismissUnmatchedFileBatch(context.Background(), connect.NewRequest(&pipelinev1.DismissUnmatchedFileBatchRequest{
+		UnmatchedFileIds: []string{"uf-1", "uf-2"},
+	}))
+	if err != nil {
+		t.Fatalf("DismissUnmatchedFileBatch returned error: %v", err)
+	}
+	if len(svc.dismissBatchIDs) != 2 || svc.dismissBatchIDs[0] != "uf-1" || svc.dismissBatchIDs[1] != "uf-2" {
+		t.Fatalf("DismissUnmatchedFileBatch passed ids %v, want [uf-1 uf-2]", svc.dismissBatchIDs)
+	}
+	got := resp.Msg.GetUnmatchedFiles()
+	if len(got) != 2 || got[0].GetStatus() != pipelinev1.UnmatchedFileStatus_UNMATCHED_FILE_STATUS_DISMISSED {
+		t.Fatalf("DismissUnmatchedFileBatch returned unexpected files: %+v", got)
+	}
+}
+
+func TestUnmatchedFileHandler_DismissUnmatchedFileBatch_Error(t *testing.T) {
+	svc := &fakeUnmatchedFileService{dismissBatchErr: ports.ErrNotFound}
+	h := apiconnect.NewUnmatchedFileHandler(svc, nil)
+
+	_, err := h.DismissUnmatchedFileBatch(context.Background(), connect.NewRequest(&pipelinev1.DismissUnmatchedFileBatchRequest{
+		UnmatchedFileIds: []string{"missing"},
+	}))
+	var connErr *connect.Error
+	if !errors.As(err, &connErr) {
+		t.Fatalf("DismissUnmatchedFileBatch returned %v, want a *connect.Error", err)
+	}
+	if connErr.Code() != connect.CodeNotFound {
+		t.Fatalf("DismissUnmatchedFileBatch returned code %v, want %v", connErr.Code(), connect.CodeNotFound)
 	}
 }

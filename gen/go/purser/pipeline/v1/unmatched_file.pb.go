@@ -9,6 +9,7 @@ package pipelinev1
 import (
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
+	structpb "google.golang.org/protobuf/types/known/structpb"
 	timestamppb "google.golang.org/protobuf/types/known/timestamppb"
 	v1 "purser/gen/go/purser/domain/v1"
 	reflect "reflect"
@@ -77,27 +78,241 @@ func (UnmatchedFileStatus) EnumDescriptor() ([]byte, []int) {
 	return file_purser_pipeline_v1_unmatched_file_proto_rawDescGZIP(), []int{0}
 }
 
+// MatchTier mirrors domain.MatchTier — how a MatchCandidate was found,
+// strongest signal first. See
+// docs/technical/pipeline-unmatchedfile-grouping.md.
+type MatchTier int32
+
+const (
+	MatchTier_MATCH_TIER_UNSPECIFIED MatchTier = 0
+	MatchTier_MATCH_TIER_DIRECT_ID   MatchTier = 1
+	MatchTier_MATCH_TIER_UNIQUE_ID   MatchTier = 2
+	MatchTier_MATCH_TIER_FUZZY       MatchTier = 3
+	MatchTier_MATCH_TIER_ACOUSTIC    MatchTier = 4
+)
+
+// Enum value maps for MatchTier.
+var (
+	MatchTier_name = map[int32]string{
+		0: "MATCH_TIER_UNSPECIFIED",
+		1: "MATCH_TIER_DIRECT_ID",
+		2: "MATCH_TIER_UNIQUE_ID",
+		3: "MATCH_TIER_FUZZY",
+		4: "MATCH_TIER_ACOUSTIC",
+	}
+	MatchTier_value = map[string]int32{
+		"MATCH_TIER_UNSPECIFIED": 0,
+		"MATCH_TIER_DIRECT_ID":   1,
+		"MATCH_TIER_UNIQUE_ID":   2,
+		"MATCH_TIER_FUZZY":       3,
+		"MATCH_TIER_ACOUSTIC":    4,
+	}
+)
+
+func (x MatchTier) Enum() *MatchTier {
+	p := new(MatchTier)
+	*p = x
+	return p
+}
+
+func (x MatchTier) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (MatchTier) Descriptor() protoreflect.EnumDescriptor {
+	return file_purser_pipeline_v1_unmatched_file_proto_enumTypes[1].Descriptor()
+}
+
+func (MatchTier) Type() protoreflect.EnumType {
+	return &file_purser_pipeline_v1_unmatched_file_proto_enumTypes[1]
+}
+
+func (x MatchTier) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use MatchTier.Descriptor instead.
+func (MatchTier) EnumDescriptor() ([]byte, []int) {
+	return file_purser_pipeline_v1_unmatched_file_proto_rawDescGZIP(), []int{1}
+}
+
+// Fingerprint mirrors domain.Fingerprint — generic, content-type-agnostic
+// identification data extracted from a discovered file. metadata is a
+// google.protobuf.Struct, not a plain string map (domain.Fingerprint.Metadata
+// is map[string]any), matching the same pattern already used for
+// Item/LibraryEntry/Group's Metadata bags.
+type Fingerprint struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Tags          map[string]string      `protobuf:"bytes,1,rep,name=tags,proto3" json:"tags,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	Metadata      *structpb.Struct       `protobuf:"bytes,2,opt,name=metadata,proto3" json:"metadata,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *Fingerprint) Reset() {
+	*x = Fingerprint{}
+	mi := &file_purser_pipeline_v1_unmatched_file_proto_msgTypes[0]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Fingerprint) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Fingerprint) ProtoMessage() {}
+
+func (x *Fingerprint) ProtoReflect() protoreflect.Message {
+	mi := &file_purser_pipeline_v1_unmatched_file_proto_msgTypes[0]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Fingerprint.ProtoReflect.Descriptor instead.
+func (*Fingerprint) Descriptor() ([]byte, []int) {
+	return file_purser_pipeline_v1_unmatched_file_proto_rawDescGZIP(), []int{0}
+}
+
+func (x *Fingerprint) GetTags() map[string]string {
+	if x != nil {
+		return x.Tags
+	}
+	return nil
+}
+
+func (x *Fingerprint) GetMetadata() *structpb.Struct {
+	if x != nil {
+		return x.Metadata
+	}
+	return nil
+}
+
+// MatchCandidate mirrors domain.MatchCandidate — one ranked candidate a
+// content-type's identifier produced for an UnmatchedFile.
+type MatchCandidate struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	ExternalRef   string                 `protobuf:"bytes,1,opt,name=external_ref,json=externalRef,proto3" json:"external_ref,omitempty"`
+	Title         string                 `protobuf:"bytes,2,opt,name=title,proto3" json:"title,omitempty"`
+	Score         float64                `protobuf:"fixed64,3,opt,name=score,proto3" json:"score,omitempty"`
+	Tier          MatchTier              `protobuf:"varint,4,opt,name=tier,proto3,enum=purser.pipeline.v1.MatchTier" json:"tier,omitempty"`
+	Signals       map[string]float64     `protobuf:"bytes,5,rep,name=signals,proto3" json:"signals,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"fixed64,2,opt,name=value"`
+	Metadata      *structpb.Struct       `protobuf:"bytes,6,opt,name=metadata,proto3" json:"metadata,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *MatchCandidate) Reset() {
+	*x = MatchCandidate{}
+	mi := &file_purser_pipeline_v1_unmatched_file_proto_msgTypes[1]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *MatchCandidate) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*MatchCandidate) ProtoMessage() {}
+
+func (x *MatchCandidate) ProtoReflect() protoreflect.Message {
+	mi := &file_purser_pipeline_v1_unmatched_file_proto_msgTypes[1]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use MatchCandidate.ProtoReflect.Descriptor instead.
+func (*MatchCandidate) Descriptor() ([]byte, []int) {
+	return file_purser_pipeline_v1_unmatched_file_proto_rawDescGZIP(), []int{1}
+}
+
+func (x *MatchCandidate) GetExternalRef() string {
+	if x != nil {
+		return x.ExternalRef
+	}
+	return ""
+}
+
+func (x *MatchCandidate) GetTitle() string {
+	if x != nil {
+		return x.Title
+	}
+	return ""
+}
+
+func (x *MatchCandidate) GetScore() float64 {
+	if x != nil {
+		return x.Score
+	}
+	return 0
+}
+
+func (x *MatchCandidate) GetTier() MatchTier {
+	if x != nil {
+		return x.Tier
+	}
+	return MatchTier_MATCH_TIER_UNSPECIFIED
+}
+
+func (x *MatchCandidate) GetSignals() map[string]float64 {
+	if x != nil {
+		return x.Signals
+	}
+	return nil
+}
+
+func (x *MatchCandidate) GetMetadata() *structpb.Struct {
+	if x != nil {
+		return x.Metadata
+	}
+	return nil
+}
+
 // UnmatchedFile is a file the common scan pipeline discovered and hashed
 // but has not yet matched to a LibraryEntry/Item. See
 // docs/adr/0024-pipeline-core.md.
 type UnmatchedFile struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
-	Path          string                 `protobuf:"bytes,2,opt,name=path,proto3" json:"path,omitempty"`
-	Size          int64                  `protobuf:"varint,3,opt,name=size,proto3" json:"size,omitempty"`
-	OsHash        string                 `protobuf:"bytes,4,opt,name=os_hash,json=osHash,proto3" json:"os_hash,omitempty"`
-	Md5           string                 `protobuf:"bytes,5,opt,name=md5,proto3" json:"md5,omitempty"`
-	Sha1          string                 `protobuf:"bytes,6,opt,name=sha1,proto3" json:"sha1,omitempty"`
-	Sha512        string                 `protobuf:"bytes,7,opt,name=sha512,proto3" json:"sha512,omitempty"`
-	DiscoveredAt  *timestamppb.Timestamp `protobuf:"bytes,8,opt,name=discovered_at,json=discoveredAt,proto3" json:"discovered_at,omitempty"`
-	Status        UnmatchedFileStatus    `protobuf:"varint,9,opt,name=status,proto3,enum=purser.pipeline.v1.UnmatchedFileStatus" json:"status,omitempty"`
+	state        protoimpl.MessageState `protogen:"open.v1"`
+	Id           string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	Path         string                 `protobuf:"bytes,2,opt,name=path,proto3" json:"path,omitempty"`
+	Size         int64                  `protobuf:"varint,3,opt,name=size,proto3" json:"size,omitempty"`
+	OsHash       string                 `protobuf:"bytes,4,opt,name=os_hash,json=osHash,proto3" json:"os_hash,omitempty"`
+	Md5          string                 `protobuf:"bytes,5,opt,name=md5,proto3" json:"md5,omitempty"`
+	Sha1         string                 `protobuf:"bytes,6,opt,name=sha1,proto3" json:"sha1,omitempty"`
+	Sha512       string                 `protobuf:"bytes,7,opt,name=sha512,proto3" json:"sha512,omitempty"`
+	DiscoveredAt *timestamppb.Timestamp `protobuf:"bytes,8,opt,name=discovered_at,json=discoveredAt,proto3" json:"discovered_at,omitempty"`
+	Status       UnmatchedFileStatus    `protobuf:"varint,9,opt,name=status,proto3,enum=purser.pipeline.v1.UnmatchedFileStatus" json:"status,omitempty"`
+	// group_key identifies the identification unit this file belongs to —
+	// files sharing a group_key are matched/decided together. See
+	// docs/technical/pipeline-unmatchedfile-grouping.md.
+	GroupKey string `protobuf:"bytes,10,opt,name=group_key,json=groupKey,proto3" json:"group_key,omitempty"`
+	// disc_number and track_number are per-row, unlike everything else on
+	// this message, which is shared identically across a group.
+	// track_number is a string, not an int, matching Item.sequence's
+	// existing convention — vinyl rips carry side-lettered positions ("A1",
+	// "B3") an int field would silently drop on parse failure.
+	DiscNumber    int32             `protobuf:"varint,11,opt,name=disc_number,json=discNumber,proto3" json:"disc_number,omitempty"`
+	TrackNumber   string            `protobuf:"bytes,12,opt,name=track_number,json=trackNumber,proto3" json:"track_number,omitempty"`
+	Fingerprint   *Fingerprint      `protobuf:"bytes,13,opt,name=fingerprint,proto3" json:"fingerprint,omitempty"`
+	Candidates    []*MatchCandidate `protobuf:"bytes,14,rep,name=candidates,proto3" json:"candidates,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *UnmatchedFile) Reset() {
 	*x = UnmatchedFile{}
-	mi := &file_purser_pipeline_v1_unmatched_file_proto_msgTypes[0]
+	mi := &file_purser_pipeline_v1_unmatched_file_proto_msgTypes[2]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -109,7 +324,7 @@ func (x *UnmatchedFile) String() string {
 func (*UnmatchedFile) ProtoMessage() {}
 
 func (x *UnmatchedFile) ProtoReflect() protoreflect.Message {
-	mi := &file_purser_pipeline_v1_unmatched_file_proto_msgTypes[0]
+	mi := &file_purser_pipeline_v1_unmatched_file_proto_msgTypes[2]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -122,7 +337,7 @@ func (x *UnmatchedFile) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UnmatchedFile.ProtoReflect.Descriptor instead.
 func (*UnmatchedFile) Descriptor() ([]byte, []int) {
-	return file_purser_pipeline_v1_unmatched_file_proto_rawDescGZIP(), []int{0}
+	return file_purser_pipeline_v1_unmatched_file_proto_rawDescGZIP(), []int{2}
 }
 
 func (x *UnmatchedFile) GetId() string {
@@ -188,6 +403,41 @@ func (x *UnmatchedFile) GetStatus() UnmatchedFileStatus {
 	return UnmatchedFileStatus_UNMATCHED_FILE_STATUS_UNSPECIFIED
 }
 
+func (x *UnmatchedFile) GetGroupKey() string {
+	if x != nil {
+		return x.GroupKey
+	}
+	return ""
+}
+
+func (x *UnmatchedFile) GetDiscNumber() int32 {
+	if x != nil {
+		return x.DiscNumber
+	}
+	return 0
+}
+
+func (x *UnmatchedFile) GetTrackNumber() string {
+	if x != nil {
+		return x.TrackNumber
+	}
+	return ""
+}
+
+func (x *UnmatchedFile) GetFingerprint() *Fingerprint {
+	if x != nil {
+		return x.Fingerprint
+	}
+	return nil
+}
+
+func (x *UnmatchedFile) GetCandidates() []*MatchCandidate {
+	if x != nil {
+		return x.Candidates
+	}
+	return nil
+}
+
 type GetUnmatchedFileRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
@@ -197,7 +447,7 @@ type GetUnmatchedFileRequest struct {
 
 func (x *GetUnmatchedFileRequest) Reset() {
 	*x = GetUnmatchedFileRequest{}
-	mi := &file_purser_pipeline_v1_unmatched_file_proto_msgTypes[1]
+	mi := &file_purser_pipeline_v1_unmatched_file_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -209,7 +459,7 @@ func (x *GetUnmatchedFileRequest) String() string {
 func (*GetUnmatchedFileRequest) ProtoMessage() {}
 
 func (x *GetUnmatchedFileRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_purser_pipeline_v1_unmatched_file_proto_msgTypes[1]
+	mi := &file_purser_pipeline_v1_unmatched_file_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -222,7 +472,7 @@ func (x *GetUnmatchedFileRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetUnmatchedFileRequest.ProtoReflect.Descriptor instead.
 func (*GetUnmatchedFileRequest) Descriptor() ([]byte, []int) {
-	return file_purser_pipeline_v1_unmatched_file_proto_rawDescGZIP(), []int{1}
+	return file_purser_pipeline_v1_unmatched_file_proto_rawDescGZIP(), []int{3}
 }
 
 func (x *GetUnmatchedFileRequest) GetId() string {
@@ -241,7 +491,7 @@ type GetUnmatchedFileResponse struct {
 
 func (x *GetUnmatchedFileResponse) Reset() {
 	*x = GetUnmatchedFileResponse{}
-	mi := &file_purser_pipeline_v1_unmatched_file_proto_msgTypes[2]
+	mi := &file_purser_pipeline_v1_unmatched_file_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -253,7 +503,7 @@ func (x *GetUnmatchedFileResponse) String() string {
 func (*GetUnmatchedFileResponse) ProtoMessage() {}
 
 func (x *GetUnmatchedFileResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_purser_pipeline_v1_unmatched_file_proto_msgTypes[2]
+	mi := &file_purser_pipeline_v1_unmatched_file_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -266,7 +516,7 @@ func (x *GetUnmatchedFileResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetUnmatchedFileResponse.ProtoReflect.Descriptor instead.
 func (*GetUnmatchedFileResponse) Descriptor() ([]byte, []int) {
-	return file_purser_pipeline_v1_unmatched_file_proto_rawDescGZIP(), []int{2}
+	return file_purser_pipeline_v1_unmatched_file_proto_rawDescGZIP(), []int{4}
 }
 
 func (x *GetUnmatchedFileResponse) GetUnmatchedFile() *UnmatchedFile {
@@ -289,7 +539,7 @@ type ListUnmatchedFilesRequest struct {
 
 func (x *ListUnmatchedFilesRequest) Reset() {
 	*x = ListUnmatchedFilesRequest{}
-	mi := &file_purser_pipeline_v1_unmatched_file_proto_msgTypes[3]
+	mi := &file_purser_pipeline_v1_unmatched_file_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -301,7 +551,7 @@ func (x *ListUnmatchedFilesRequest) String() string {
 func (*ListUnmatchedFilesRequest) ProtoMessage() {}
 
 func (x *ListUnmatchedFilesRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_purser_pipeline_v1_unmatched_file_proto_msgTypes[3]
+	mi := &file_purser_pipeline_v1_unmatched_file_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -314,7 +564,7 @@ func (x *ListUnmatchedFilesRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListUnmatchedFilesRequest.ProtoReflect.Descriptor instead.
 func (*ListUnmatchedFilesRequest) Descriptor() ([]byte, []int) {
-	return file_purser_pipeline_v1_unmatched_file_proto_rawDescGZIP(), []int{3}
+	return file_purser_pipeline_v1_unmatched_file_proto_rawDescGZIP(), []int{5}
 }
 
 func (x *ListUnmatchedFilesRequest) GetPageSize() int32 {
@@ -348,7 +598,7 @@ type ListUnmatchedFilesResponse struct {
 
 func (x *ListUnmatchedFilesResponse) Reset() {
 	*x = ListUnmatchedFilesResponse{}
-	mi := &file_purser_pipeline_v1_unmatched_file_proto_msgTypes[4]
+	mi := &file_purser_pipeline_v1_unmatched_file_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -360,7 +610,7 @@ func (x *ListUnmatchedFilesResponse) String() string {
 func (*ListUnmatchedFilesResponse) ProtoMessage() {}
 
 func (x *ListUnmatchedFilesResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_purser_pipeline_v1_unmatched_file_proto_msgTypes[4]
+	mi := &file_purser_pipeline_v1_unmatched_file_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -373,7 +623,7 @@ func (x *ListUnmatchedFilesResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListUnmatchedFilesResponse.ProtoReflect.Descriptor instead.
 func (*ListUnmatchedFilesResponse) Descriptor() ([]byte, []int) {
-	return file_purser_pipeline_v1_unmatched_file_proto_rawDescGZIP(), []int{4}
+	return file_purser_pipeline_v1_unmatched_file_proto_rawDescGZIP(), []int{6}
 }
 
 func (x *ListUnmatchedFilesResponse) GetUnmatchedFiles() []*UnmatchedFile {
@@ -410,7 +660,7 @@ type ResolveUnmatchedFileRequest struct {
 
 func (x *ResolveUnmatchedFileRequest) Reset() {
 	*x = ResolveUnmatchedFileRequest{}
-	mi := &file_purser_pipeline_v1_unmatched_file_proto_msgTypes[5]
+	mi := &file_purser_pipeline_v1_unmatched_file_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -422,7 +672,7 @@ func (x *ResolveUnmatchedFileRequest) String() string {
 func (*ResolveUnmatchedFileRequest) ProtoMessage() {}
 
 func (x *ResolveUnmatchedFileRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_purser_pipeline_v1_unmatched_file_proto_msgTypes[5]
+	mi := &file_purser_pipeline_v1_unmatched_file_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -435,7 +685,7 @@ func (x *ResolveUnmatchedFileRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ResolveUnmatchedFileRequest.ProtoReflect.Descriptor instead.
 func (*ResolveUnmatchedFileRequest) Descriptor() ([]byte, []int) {
-	return file_purser_pipeline_v1_unmatched_file_proto_rawDescGZIP(), []int{5}
+	return file_purser_pipeline_v1_unmatched_file_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *ResolveUnmatchedFileRequest) GetUnmatchedFileId() string {
@@ -503,7 +753,7 @@ type ResolveUnmatchedFileResponse struct {
 
 func (x *ResolveUnmatchedFileResponse) Reset() {
 	*x = ResolveUnmatchedFileResponse{}
-	mi := &file_purser_pipeline_v1_unmatched_file_proto_msgTypes[6]
+	mi := &file_purser_pipeline_v1_unmatched_file_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -515,7 +765,7 @@ func (x *ResolveUnmatchedFileResponse) String() string {
 func (*ResolveUnmatchedFileResponse) ProtoMessage() {}
 
 func (x *ResolveUnmatchedFileResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_purser_pipeline_v1_unmatched_file_proto_msgTypes[6]
+	mi := &file_purser_pipeline_v1_unmatched_file_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -528,7 +778,7 @@ func (x *ResolveUnmatchedFileResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ResolveUnmatchedFileResponse.ProtoReflect.Descriptor instead.
 func (*ResolveUnmatchedFileResponse) Descriptor() ([]byte, []int) {
-	return file_purser_pipeline_v1_unmatched_file_proto_rawDescGZIP(), []int{6}
+	return file_purser_pipeline_v1_unmatched_file_proto_rawDescGZIP(), []int{8}
 }
 
 func (x *ResolveUnmatchedFileResponse) GetResult() isResolveUnmatchedFileResponse_Result {
@@ -572,11 +822,211 @@ func (*ResolveUnmatchedFileResponse_MediaFile) isResolveUnmatchedFileResponse_Re
 
 func (*ResolveUnmatchedFileResponse_UnmatchedFile) isResolveUnmatchedFileResponse_Result() {}
 
+// ListGroupUnmatchedFilesRequest fetches every UnmatchedFile sharing one
+// group_key — no pagination, since a group is expected to be small (one
+// album's worth of tracks, not the whole review queue). See
+// docs/technical/pipeline-unmatchedfile-grouping.md.
+type ListGroupUnmatchedFilesRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	GroupKey      string                 `protobuf:"bytes,1,opt,name=group_key,json=groupKey,proto3" json:"group_key,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListGroupUnmatchedFilesRequest) Reset() {
+	*x = ListGroupUnmatchedFilesRequest{}
+	mi := &file_purser_pipeline_v1_unmatched_file_proto_msgTypes[9]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListGroupUnmatchedFilesRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListGroupUnmatchedFilesRequest) ProtoMessage() {}
+
+func (x *ListGroupUnmatchedFilesRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_purser_pipeline_v1_unmatched_file_proto_msgTypes[9]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListGroupUnmatchedFilesRequest.ProtoReflect.Descriptor instead.
+func (*ListGroupUnmatchedFilesRequest) Descriptor() ([]byte, []int) {
+	return file_purser_pipeline_v1_unmatched_file_proto_rawDescGZIP(), []int{9}
+}
+
+func (x *ListGroupUnmatchedFilesRequest) GetGroupKey() string {
+	if x != nil {
+		return x.GroupKey
+	}
+	return ""
+}
+
+type ListGroupUnmatchedFilesResponse struct {
+	state          protoimpl.MessageState `protogen:"open.v1"`
+	UnmatchedFiles []*UnmatchedFile       `protobuf:"bytes,1,rep,name=unmatched_files,json=unmatchedFiles,proto3" json:"unmatched_files,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
+}
+
+func (x *ListGroupUnmatchedFilesResponse) Reset() {
+	*x = ListGroupUnmatchedFilesResponse{}
+	mi := &file_purser_pipeline_v1_unmatched_file_proto_msgTypes[10]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListGroupUnmatchedFilesResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListGroupUnmatchedFilesResponse) ProtoMessage() {}
+
+func (x *ListGroupUnmatchedFilesResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_purser_pipeline_v1_unmatched_file_proto_msgTypes[10]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListGroupUnmatchedFilesResponse.ProtoReflect.Descriptor instead.
+func (*ListGroupUnmatchedFilesResponse) Descriptor() ([]byte, []int) {
+	return file_purser_pipeline_v1_unmatched_file_proto_rawDescGZIP(), []int{10}
+}
+
+func (x *ListGroupUnmatchedFilesResponse) GetUnmatchedFiles() []*UnmatchedFile {
+	if x != nil {
+		return x.UnmatchedFiles
+	}
+	return nil
+}
+
+// DismissUnmatchedFileBatchRequest dismisses the exact ID list the caller
+// supplies (the UI already has it from ListGroupUnmatchedFiles) — the
+// server does no group_key lookup of its own. All-or-nothing: one
+// UpdateBatch call, per docs/adr/0016-bulk-operations.md.
+type DismissUnmatchedFileBatchRequest struct {
+	state            protoimpl.MessageState `protogen:"open.v1"`
+	UnmatchedFileIds []string               `protobuf:"bytes,1,rep,name=unmatched_file_ids,json=unmatchedFileIds,proto3" json:"unmatched_file_ids,omitempty"`
+	unknownFields    protoimpl.UnknownFields
+	sizeCache        protoimpl.SizeCache
+}
+
+func (x *DismissUnmatchedFileBatchRequest) Reset() {
+	*x = DismissUnmatchedFileBatchRequest{}
+	mi := &file_purser_pipeline_v1_unmatched_file_proto_msgTypes[11]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DismissUnmatchedFileBatchRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DismissUnmatchedFileBatchRequest) ProtoMessage() {}
+
+func (x *DismissUnmatchedFileBatchRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_purser_pipeline_v1_unmatched_file_proto_msgTypes[11]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DismissUnmatchedFileBatchRequest.ProtoReflect.Descriptor instead.
+func (*DismissUnmatchedFileBatchRequest) Descriptor() ([]byte, []int) {
+	return file_purser_pipeline_v1_unmatched_file_proto_rawDescGZIP(), []int{11}
+}
+
+func (x *DismissUnmatchedFileBatchRequest) GetUnmatchedFileIds() []string {
+	if x != nil {
+		return x.UnmatchedFileIds
+	}
+	return nil
+}
+
+type DismissUnmatchedFileBatchResponse struct {
+	state          protoimpl.MessageState `protogen:"open.v1"`
+	UnmatchedFiles []*UnmatchedFile       `protobuf:"bytes,1,rep,name=unmatched_files,json=unmatchedFiles,proto3" json:"unmatched_files,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
+}
+
+func (x *DismissUnmatchedFileBatchResponse) Reset() {
+	*x = DismissUnmatchedFileBatchResponse{}
+	mi := &file_purser_pipeline_v1_unmatched_file_proto_msgTypes[12]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DismissUnmatchedFileBatchResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DismissUnmatchedFileBatchResponse) ProtoMessage() {}
+
+func (x *DismissUnmatchedFileBatchResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_purser_pipeline_v1_unmatched_file_proto_msgTypes[12]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DismissUnmatchedFileBatchResponse.ProtoReflect.Descriptor instead.
+func (*DismissUnmatchedFileBatchResponse) Descriptor() ([]byte, []int) {
+	return file_purser_pipeline_v1_unmatched_file_proto_rawDescGZIP(), []int{12}
+}
+
+func (x *DismissUnmatchedFileBatchResponse) GetUnmatchedFiles() []*UnmatchedFile {
+	if x != nil {
+		return x.UnmatchedFiles
+	}
+	return nil
+}
+
 var File_purser_pipeline_v1_unmatched_file_proto protoreflect.FileDescriptor
 
 const file_purser_pipeline_v1_unmatched_file_proto_rawDesc = "" +
 	"\n" +
-	"'purser/pipeline/v1/unmatched_file.proto\x12\x12purser.pipeline.v1\x1a\x1fgoogle/protobuf/timestamp.proto\x1a!purser/domain/v1/media_file.proto\"\xa0\x02\n" +
+	"'purser/pipeline/v1/unmatched_file.proto\x12\x12purser.pipeline.v1\x1a\x1cgoogle/protobuf/struct.proto\x1a\x1fgoogle/protobuf/timestamp.proto\x1a!purser/domain/v1/media_file.proto\"\xba\x01\n" +
+	"\vFingerprint\x12=\n" +
+	"\x04tags\x18\x01 \x03(\v2).purser.pipeline.v1.Fingerprint.TagsEntryR\x04tags\x123\n" +
+	"\bmetadata\x18\x02 \x01(\v2\x17.google.protobuf.StructR\bmetadata\x1a7\n" +
+	"\tTagsEntry\x12\x10\n" +
+	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xce\x02\n" +
+	"\x0eMatchCandidate\x12!\n" +
+	"\fexternal_ref\x18\x01 \x01(\tR\vexternalRef\x12\x14\n" +
+	"\x05title\x18\x02 \x01(\tR\x05title\x12\x14\n" +
+	"\x05score\x18\x03 \x01(\x01R\x05score\x121\n" +
+	"\x04tier\x18\x04 \x01(\x0e2\x1d.purser.pipeline.v1.MatchTierR\x04tier\x12I\n" +
+	"\asignals\x18\x05 \x03(\v2/.purser.pipeline.v1.MatchCandidate.SignalsEntryR\asignals\x123\n" +
+	"\bmetadata\x18\x06 \x01(\v2\x17.google.protobuf.StructR\bmetadata\x1a:\n" +
+	"\fSignalsEntry\x12\x10\n" +
+	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
+	"\x05value\x18\x02 \x01(\x01R\x05value:\x028\x01\"\x88\x04\n" +
 	"\rUnmatchedFile\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
 	"\x04path\x18\x02 \x01(\tR\x04path\x12\x12\n" +
@@ -586,7 +1036,16 @@ const file_purser_pipeline_v1_unmatched_file_proto_rawDesc = "" +
 	"\x04sha1\x18\x06 \x01(\tR\x04sha1\x12\x16\n" +
 	"\x06sha512\x18\a \x01(\tR\x06sha512\x12?\n" +
 	"\rdiscovered_at\x18\b \x01(\v2\x1a.google.protobuf.TimestampR\fdiscoveredAt\x12?\n" +
-	"\x06status\x18\t \x01(\x0e2'.purser.pipeline.v1.UnmatchedFileStatusR\x06status\")\n" +
+	"\x06status\x18\t \x01(\x0e2'.purser.pipeline.v1.UnmatchedFileStatusR\x06status\x12\x1b\n" +
+	"\tgroup_key\x18\n" +
+	" \x01(\tR\bgroupKey\x12\x1f\n" +
+	"\vdisc_number\x18\v \x01(\x05R\n" +
+	"discNumber\x12!\n" +
+	"\ftrack_number\x18\f \x01(\tR\vtrackNumber\x12A\n" +
+	"\vfingerprint\x18\r \x01(\v2\x1f.purser.pipeline.v1.FingerprintR\vfingerprint\x12B\n" +
+	"\n" +
+	"candidates\x18\x0e \x03(\v2\".purser.pipeline.v1.MatchCandidateR\n" +
+	"candidates\")\n" +
 	"\x17GetUnmatchedFileRequest\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\"d\n" +
 	"\x18GetUnmatchedFileResponse\x12H\n" +
@@ -608,16 +1067,32 @@ const file_purser_pipeline_v1_unmatched_file_proto_rawDesc = "" +
 	"\n" +
 	"media_file\x18\x01 \x01(\v2\x1b.purser.domain.v1.MediaFileH\x00R\tmediaFile\x12J\n" +
 	"\x0eunmatched_file\x18\x02 \x01(\v2!.purser.pipeline.v1.UnmatchedFileH\x00R\runmatchedFileB\b\n" +
-	"\x06result*\xa7\x01\n" +
+	"\x06result\"=\n" +
+	"\x1eListGroupUnmatchedFilesRequest\x12\x1b\n" +
+	"\tgroup_key\x18\x01 \x01(\tR\bgroupKey\"m\n" +
+	"\x1fListGroupUnmatchedFilesResponse\x12J\n" +
+	"\x0funmatched_files\x18\x01 \x03(\v2!.purser.pipeline.v1.UnmatchedFileR\x0eunmatchedFiles\"P\n" +
+	" DismissUnmatchedFileBatchRequest\x12,\n" +
+	"\x12unmatched_file_ids\x18\x01 \x03(\tR\x10unmatchedFileIds\"o\n" +
+	"!DismissUnmatchedFileBatchResponse\x12J\n" +
+	"\x0funmatched_files\x18\x01 \x03(\v2!.purser.pipeline.v1.UnmatchedFileR\x0eunmatchedFiles*\xa7\x01\n" +
 	"\x13UnmatchedFileStatus\x12%\n" +
 	"!UNMATCHED_FILE_STATUS_UNSPECIFIED\x10\x00\x12!\n" +
 	"\x1dUNMATCHED_FILE_STATUS_PENDING\x10\x01\x12!\n" +
 	"\x1dUNMATCHED_FILE_STATUS_MATCHED\x10\x02\x12#\n" +
-	"\x1fUNMATCHED_FILE_STATUS_DISMISSED\x10\x032\xf5\x02\n" +
+	"\x1fUNMATCHED_FILE_STATUS_DISMISSED\x10\x03*\x8a\x01\n" +
+	"\tMatchTier\x12\x1a\n" +
+	"\x16MATCH_TIER_UNSPECIFIED\x10\x00\x12\x18\n" +
+	"\x14MATCH_TIER_DIRECT_ID\x10\x01\x12\x18\n" +
+	"\x14MATCH_TIER_UNIQUE_ID\x10\x02\x12\x14\n" +
+	"\x10MATCH_TIER_FUZZY\x10\x03\x12\x17\n" +
+	"\x13MATCH_TIER_ACOUSTIC\x10\x042\x85\x05\n" +
 	"\x14UnmatchedFileService\x12m\n" +
 	"\x10GetUnmatchedFile\x12+.purser.pipeline.v1.GetUnmatchedFileRequest\x1a,.purser.pipeline.v1.GetUnmatchedFileResponse\x12s\n" +
 	"\x12ListUnmatchedFiles\x12-.purser.pipeline.v1.ListUnmatchedFilesRequest\x1a..purser.pipeline.v1.ListUnmatchedFilesResponse\x12y\n" +
-	"\x14ResolveUnmatchedFile\x12/.purser.pipeline.v1.ResolveUnmatchedFileRequest\x1a0.purser.pipeline.v1.ResolveUnmatchedFileResponseB-Z+purser/gen/go/purser/pipeline/v1;pipelinev1b\x06proto3"
+	"\x14ResolveUnmatchedFile\x12/.purser.pipeline.v1.ResolveUnmatchedFileRequest\x1a0.purser.pipeline.v1.ResolveUnmatchedFileResponse\x12\x82\x01\n" +
+	"\x17ListGroupUnmatchedFiles\x122.purser.pipeline.v1.ListGroupUnmatchedFilesRequest\x1a3.purser.pipeline.v1.ListGroupUnmatchedFilesResponse\x12\x88\x01\n" +
+	"\x19DismissUnmatchedFileBatch\x124.purser.pipeline.v1.DismissUnmatchedFileBatchRequest\x1a5.purser.pipeline.v1.DismissUnmatchedFileBatchResponseB-Z+purser/gen/go/purser/pipeline/v1;pipelinev1b\x06proto3"
 
 var (
 	file_purser_pipeline_v1_unmatched_file_proto_rawDescOnce sync.Once
@@ -631,39 +1106,62 @@ func file_purser_pipeline_v1_unmatched_file_proto_rawDescGZIP() []byte {
 	return file_purser_pipeline_v1_unmatched_file_proto_rawDescData
 }
 
-var file_purser_pipeline_v1_unmatched_file_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_purser_pipeline_v1_unmatched_file_proto_msgTypes = make([]protoimpl.MessageInfo, 7)
+var file_purser_pipeline_v1_unmatched_file_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
+var file_purser_pipeline_v1_unmatched_file_proto_msgTypes = make([]protoimpl.MessageInfo, 15)
 var file_purser_pipeline_v1_unmatched_file_proto_goTypes = []any{
-	(UnmatchedFileStatus)(0),             // 0: purser.pipeline.v1.UnmatchedFileStatus
-	(*UnmatchedFile)(nil),                // 1: purser.pipeline.v1.UnmatchedFile
-	(*GetUnmatchedFileRequest)(nil),      // 2: purser.pipeline.v1.GetUnmatchedFileRequest
-	(*GetUnmatchedFileResponse)(nil),     // 3: purser.pipeline.v1.GetUnmatchedFileResponse
-	(*ListUnmatchedFilesRequest)(nil),    // 4: purser.pipeline.v1.ListUnmatchedFilesRequest
-	(*ListUnmatchedFilesResponse)(nil),   // 5: purser.pipeline.v1.ListUnmatchedFilesResponse
-	(*ResolveUnmatchedFileRequest)(nil),  // 6: purser.pipeline.v1.ResolveUnmatchedFileRequest
-	(*ResolveUnmatchedFileResponse)(nil), // 7: purser.pipeline.v1.ResolveUnmatchedFileResponse
-	(*timestamppb.Timestamp)(nil),        // 8: google.protobuf.Timestamp
-	(*v1.MediaFile)(nil),                 // 9: purser.domain.v1.MediaFile
+	(UnmatchedFileStatus)(0),                  // 0: purser.pipeline.v1.UnmatchedFileStatus
+	(MatchTier)(0),                            // 1: purser.pipeline.v1.MatchTier
+	(*Fingerprint)(nil),                       // 2: purser.pipeline.v1.Fingerprint
+	(*MatchCandidate)(nil),                    // 3: purser.pipeline.v1.MatchCandidate
+	(*UnmatchedFile)(nil),                     // 4: purser.pipeline.v1.UnmatchedFile
+	(*GetUnmatchedFileRequest)(nil),           // 5: purser.pipeline.v1.GetUnmatchedFileRequest
+	(*GetUnmatchedFileResponse)(nil),          // 6: purser.pipeline.v1.GetUnmatchedFileResponse
+	(*ListUnmatchedFilesRequest)(nil),         // 7: purser.pipeline.v1.ListUnmatchedFilesRequest
+	(*ListUnmatchedFilesResponse)(nil),        // 8: purser.pipeline.v1.ListUnmatchedFilesResponse
+	(*ResolveUnmatchedFileRequest)(nil),       // 9: purser.pipeline.v1.ResolveUnmatchedFileRequest
+	(*ResolveUnmatchedFileResponse)(nil),      // 10: purser.pipeline.v1.ResolveUnmatchedFileResponse
+	(*ListGroupUnmatchedFilesRequest)(nil),    // 11: purser.pipeline.v1.ListGroupUnmatchedFilesRequest
+	(*ListGroupUnmatchedFilesResponse)(nil),   // 12: purser.pipeline.v1.ListGroupUnmatchedFilesResponse
+	(*DismissUnmatchedFileBatchRequest)(nil),  // 13: purser.pipeline.v1.DismissUnmatchedFileBatchRequest
+	(*DismissUnmatchedFileBatchResponse)(nil), // 14: purser.pipeline.v1.DismissUnmatchedFileBatchResponse
+	nil,                           // 15: purser.pipeline.v1.Fingerprint.TagsEntry
+	nil,                           // 16: purser.pipeline.v1.MatchCandidate.SignalsEntry
+	(*structpb.Struct)(nil),       // 17: google.protobuf.Struct
+	(*timestamppb.Timestamp)(nil), // 18: google.protobuf.Timestamp
+	(*v1.MediaFile)(nil),          // 19: purser.domain.v1.MediaFile
 }
 var file_purser_pipeline_v1_unmatched_file_proto_depIdxs = []int32{
-	8,  // 0: purser.pipeline.v1.UnmatchedFile.discovered_at:type_name -> google.protobuf.Timestamp
-	0,  // 1: purser.pipeline.v1.UnmatchedFile.status:type_name -> purser.pipeline.v1.UnmatchedFileStatus
-	1,  // 2: purser.pipeline.v1.GetUnmatchedFileResponse.unmatched_file:type_name -> purser.pipeline.v1.UnmatchedFile
-	0,  // 3: purser.pipeline.v1.ListUnmatchedFilesRequest.status:type_name -> purser.pipeline.v1.UnmatchedFileStatus
-	1,  // 4: purser.pipeline.v1.ListUnmatchedFilesResponse.unmatched_files:type_name -> purser.pipeline.v1.UnmatchedFile
-	9,  // 5: purser.pipeline.v1.ResolveUnmatchedFileResponse.media_file:type_name -> purser.domain.v1.MediaFile
-	1,  // 6: purser.pipeline.v1.ResolveUnmatchedFileResponse.unmatched_file:type_name -> purser.pipeline.v1.UnmatchedFile
-	2,  // 7: purser.pipeline.v1.UnmatchedFileService.GetUnmatchedFile:input_type -> purser.pipeline.v1.GetUnmatchedFileRequest
-	4,  // 8: purser.pipeline.v1.UnmatchedFileService.ListUnmatchedFiles:input_type -> purser.pipeline.v1.ListUnmatchedFilesRequest
-	6,  // 9: purser.pipeline.v1.UnmatchedFileService.ResolveUnmatchedFile:input_type -> purser.pipeline.v1.ResolveUnmatchedFileRequest
-	3,  // 10: purser.pipeline.v1.UnmatchedFileService.GetUnmatchedFile:output_type -> purser.pipeline.v1.GetUnmatchedFileResponse
-	5,  // 11: purser.pipeline.v1.UnmatchedFileService.ListUnmatchedFiles:output_type -> purser.pipeline.v1.ListUnmatchedFilesResponse
-	7,  // 12: purser.pipeline.v1.UnmatchedFileService.ResolveUnmatchedFile:output_type -> purser.pipeline.v1.ResolveUnmatchedFileResponse
-	10, // [10:13] is the sub-list for method output_type
-	7,  // [7:10] is the sub-list for method input_type
-	7,  // [7:7] is the sub-list for extension type_name
-	7,  // [7:7] is the sub-list for extension extendee
-	0,  // [0:7] is the sub-list for field type_name
+	15, // 0: purser.pipeline.v1.Fingerprint.tags:type_name -> purser.pipeline.v1.Fingerprint.TagsEntry
+	17, // 1: purser.pipeline.v1.Fingerprint.metadata:type_name -> google.protobuf.Struct
+	1,  // 2: purser.pipeline.v1.MatchCandidate.tier:type_name -> purser.pipeline.v1.MatchTier
+	16, // 3: purser.pipeline.v1.MatchCandidate.signals:type_name -> purser.pipeline.v1.MatchCandidate.SignalsEntry
+	17, // 4: purser.pipeline.v1.MatchCandidate.metadata:type_name -> google.protobuf.Struct
+	18, // 5: purser.pipeline.v1.UnmatchedFile.discovered_at:type_name -> google.protobuf.Timestamp
+	0,  // 6: purser.pipeline.v1.UnmatchedFile.status:type_name -> purser.pipeline.v1.UnmatchedFileStatus
+	2,  // 7: purser.pipeline.v1.UnmatchedFile.fingerprint:type_name -> purser.pipeline.v1.Fingerprint
+	3,  // 8: purser.pipeline.v1.UnmatchedFile.candidates:type_name -> purser.pipeline.v1.MatchCandidate
+	4,  // 9: purser.pipeline.v1.GetUnmatchedFileResponse.unmatched_file:type_name -> purser.pipeline.v1.UnmatchedFile
+	0,  // 10: purser.pipeline.v1.ListUnmatchedFilesRequest.status:type_name -> purser.pipeline.v1.UnmatchedFileStatus
+	4,  // 11: purser.pipeline.v1.ListUnmatchedFilesResponse.unmatched_files:type_name -> purser.pipeline.v1.UnmatchedFile
+	19, // 12: purser.pipeline.v1.ResolveUnmatchedFileResponse.media_file:type_name -> purser.domain.v1.MediaFile
+	4,  // 13: purser.pipeline.v1.ResolveUnmatchedFileResponse.unmatched_file:type_name -> purser.pipeline.v1.UnmatchedFile
+	4,  // 14: purser.pipeline.v1.ListGroupUnmatchedFilesResponse.unmatched_files:type_name -> purser.pipeline.v1.UnmatchedFile
+	4,  // 15: purser.pipeline.v1.DismissUnmatchedFileBatchResponse.unmatched_files:type_name -> purser.pipeline.v1.UnmatchedFile
+	5,  // 16: purser.pipeline.v1.UnmatchedFileService.GetUnmatchedFile:input_type -> purser.pipeline.v1.GetUnmatchedFileRequest
+	7,  // 17: purser.pipeline.v1.UnmatchedFileService.ListUnmatchedFiles:input_type -> purser.pipeline.v1.ListUnmatchedFilesRequest
+	9,  // 18: purser.pipeline.v1.UnmatchedFileService.ResolveUnmatchedFile:input_type -> purser.pipeline.v1.ResolveUnmatchedFileRequest
+	11, // 19: purser.pipeline.v1.UnmatchedFileService.ListGroupUnmatchedFiles:input_type -> purser.pipeline.v1.ListGroupUnmatchedFilesRequest
+	13, // 20: purser.pipeline.v1.UnmatchedFileService.DismissUnmatchedFileBatch:input_type -> purser.pipeline.v1.DismissUnmatchedFileBatchRequest
+	6,  // 21: purser.pipeline.v1.UnmatchedFileService.GetUnmatchedFile:output_type -> purser.pipeline.v1.GetUnmatchedFileResponse
+	8,  // 22: purser.pipeline.v1.UnmatchedFileService.ListUnmatchedFiles:output_type -> purser.pipeline.v1.ListUnmatchedFilesResponse
+	10, // 23: purser.pipeline.v1.UnmatchedFileService.ResolveUnmatchedFile:output_type -> purser.pipeline.v1.ResolveUnmatchedFileResponse
+	12, // 24: purser.pipeline.v1.UnmatchedFileService.ListGroupUnmatchedFiles:output_type -> purser.pipeline.v1.ListGroupUnmatchedFilesResponse
+	14, // 25: purser.pipeline.v1.UnmatchedFileService.DismissUnmatchedFileBatch:output_type -> purser.pipeline.v1.DismissUnmatchedFileBatchResponse
+	21, // [21:26] is the sub-list for method output_type
+	16, // [16:21] is the sub-list for method input_type
+	16, // [16:16] is the sub-list for extension type_name
+	16, // [16:16] is the sub-list for extension extendee
+	0,  // [0:16] is the sub-list for field type_name
 }
 
 func init() { file_purser_pipeline_v1_unmatched_file_proto_init() }
@@ -671,11 +1169,11 @@ func file_purser_pipeline_v1_unmatched_file_proto_init() {
 	if File_purser_pipeline_v1_unmatched_file_proto != nil {
 		return
 	}
-	file_purser_pipeline_v1_unmatched_file_proto_msgTypes[5].OneofWrappers = []any{
+	file_purser_pipeline_v1_unmatched_file_proto_msgTypes[7].OneofWrappers = []any{
 		(*ResolveUnmatchedFileRequest_ItemId)(nil),
 		(*ResolveUnmatchedFileRequest_Dismiss)(nil),
 	}
-	file_purser_pipeline_v1_unmatched_file_proto_msgTypes[6].OneofWrappers = []any{
+	file_purser_pipeline_v1_unmatched_file_proto_msgTypes[8].OneofWrappers = []any{
 		(*ResolveUnmatchedFileResponse_MediaFile)(nil),
 		(*ResolveUnmatchedFileResponse_UnmatchedFile)(nil),
 	}
@@ -684,8 +1182,8 @@ func file_purser_pipeline_v1_unmatched_file_proto_init() {
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_purser_pipeline_v1_unmatched_file_proto_rawDesc), len(file_purser_pipeline_v1_unmatched_file_proto_rawDesc)),
-			NumEnums:      1,
-			NumMessages:   7,
+			NumEnums:      2,
+			NumMessages:   15,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

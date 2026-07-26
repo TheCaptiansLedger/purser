@@ -16,6 +16,45 @@ const (
 	UnmatchedFileStatusDismissed UnmatchedFileStatus = "dismissed"
 )
 
+// MatchTier is the pipeline-owned classification of how a MatchCandidate
+// was found — direct/unique external IDs are the strongest signal, fuzzy
+// and acoustic matches progressively weaker. See
+// docs/technical/pipeline-unmatchedfile-grouping.md.
+type MatchTier string
+
+// The complete set of valid MatchTier values.
+const (
+	MatchTierDirectID MatchTier = "direct_id"
+	MatchTierUniqueID MatchTier = "unique_id"
+	MatchTierFuzzy    MatchTier = "fuzzy"
+	MatchTierAcoustic MatchTier = "acoustic"
+)
+
+// Fingerprint is the generic, content-type-agnostic identification data a
+// FileFingerprinter extracts from a discovered file — raw tags plus
+// computed/derived values. Tags/Metadata are open bags, unvalidated
+// field-by-field, the same treatment MediaFile.Metadata and Item.Metadata
+// already get: they're computed internally by the pipeline, never
+// constructed from untrusted client input. See
+// docs/adr/0024-pipeline-core.md.
+type Fingerprint struct {
+	Tags     map[string]string
+	Metadata map[string]any
+}
+
+// MatchCandidate is one ranked candidate a content-type's identifier
+// produced for an UnmatchedFile — the shared decision service compares
+// Score against the confidence threshold. Signals/Metadata are open bags,
+// same unvalidated treatment as Fingerprint above.
+type MatchCandidate struct {
+	ExternalRef string
+	Title       string
+	Score       float64
+	Tier        MatchTier
+	Signals     map[string]float64
+	Metadata    map[string]any
+}
+
 // UnmatchedFile is a file the common scan pipeline discovered and hashed
 // but has not yet matched to a LibraryEntry/Item — the pre-identification
 // state a MediaFile's required ItemID can't represent. See
@@ -30,12 +69,31 @@ type UnmatchedFile struct {
 	SHA1   string
 	SHA512 string
 
+	// GroupKey identifies the identification unit this file belongs to —
+	// files sharing a GroupKey are matched/decided together. Defaults to
+	// the file's own Path for ungrouped content types (a group of one, by
+	// construction) since grouping runs before ID generation. See
+	// docs/technical/pipeline-unmatchedfile-grouping.md.
+	GroupKey string `validate:"required"`
+
+	// DiscNumber and TrackNumber are per-row, unlike everything else on
+	// this type, which is shared identically across a group. TrackNumber
+	// is a string, not an int — matching Item.Sequence's existing
+	// convention — to carry vinyl side-lettering ("A1", "B3") the same way
+	// MusicBrainz's own track.number does; an int field would silently
+	// drop that value on parse failure.
+	DiscNumber  int
+	TrackNumber string
+
+	Fingerprint *Fingerprint
+	Candidates  []MatchCandidate
+
 	DiscoveredAt time.Time
 	Status       UnmatchedFileStatus `validate:"required,oneof=pending matched dismissed"`
 }
 
-// Validate checks UnmatchedFile's invariants: ID and Path are required,
-// and Status must be one of the known values.
+// Validate checks UnmatchedFile's invariants: ID, Path, and GroupKey are
+// required, and Status must be one of the known values.
 func (u *UnmatchedFile) Validate() error {
 	return validateStruct(u)
 }

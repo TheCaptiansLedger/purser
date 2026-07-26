@@ -158,6 +158,7 @@ func (e *ScanExecutor) runQueueStep(ctx context.Context, r *pkgjobqueue.Runner, 
 	uf := &domain.UnmatchedFile{
 		ID:           domain.NewID(),
 		Path:         path,
+		GroupKey:     path,
 		Size:         size,
 		OSHash:       oshash,
 		SHA1:         sha1sum,

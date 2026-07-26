@@ -39,6 +39,35 @@ func (s *UnmatchedFileService) List(ctx context.Context, status domain.Unmatched
 	return s.repo.List(ctx, status, pageSize, pageToken)
 }
 
+// ListGroup returns every UnmatchedFile sharing groupKey — read-only,
+// wraps ListByGroupKey. This is how the review UI fetches "every file in
+// this album" to render one card and build the ID list for dismissal. See
+// docs/technical/pipeline-unmatchedfile-grouping.md.
+func (s *UnmatchedFileService) ListGroup(ctx context.Context, groupKey string) ([]*domain.UnmatchedFile, error) {
+	return s.repo.ListByGroupKey(ctx, groupKey)
+}
+
+// DismissBatch sets Status=dismissed on every UnmatchedFile identified by
+// ids and persists all of them in one UpdateBatch call — all-or-nothing,
+// per docs/adr/0016-bulk-operations.md. The caller (the UI, via ListGroup)
+// supplies the exact ID list; DismissBatch does no GroupKey lookup of its
+// own. Returns ports.ErrNotFound if any id doesn't exist.
+func (s *UnmatchedFileService) DismissBatch(ctx context.Context, ids []string) ([]*domain.UnmatchedFile, error) {
+	us := make([]*domain.UnmatchedFile, 0, len(ids))
+	for _, id := range ids {
+		u, err := s.repo.Get(ctx, id)
+		if err != nil {
+			return nil, err
+		}
+		u.Status = domain.UnmatchedFileStatusDismissed
+		us = append(us, u)
+	}
+	if err := s.repo.UpdateBatch(ctx, us); err != nil {
+		return nil, err
+	}
+	return us, nil
+}
+
 // Resolve resolves the UnmatchedFile identified by id one of two ways.
 // Exactly one of itemID/dismiss is expected to be set — the caller (the
 // Connect handler, translating a proto oneof) is responsible for that

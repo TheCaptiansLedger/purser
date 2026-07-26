@@ -50,5 +50,53 @@ func unmatchedFileToProto(u *domain.UnmatchedFile) *pipelinev1.UnmatchedFile {
 		Sha512:       u.SHA512,
 		DiscoveredAt: timestampToProto(u.DiscoveredAt),
 		Status:       unmatchedFileStatusToProto(u.Status),
+		GroupKey:     u.GroupKey,
+		DiscNumber:   toInt32(u.DiscNumber),
+		TrackNumber:  u.TrackNumber,
+		Fingerprint:  fingerprintToProto(u.Fingerprint),
+		Candidates:   matchCandidatesToProto(u.Candidates),
 	}
+}
+
+func matchTierToProto(t domain.MatchTier) pipelinev1.MatchTier {
+	switch t {
+	case domain.MatchTierDirectID:
+		return pipelinev1.MatchTier_MATCH_TIER_DIRECT_ID
+	case domain.MatchTierUniqueID:
+		return pipelinev1.MatchTier_MATCH_TIER_UNIQUE_ID
+	case domain.MatchTierFuzzy:
+		return pipelinev1.MatchTier_MATCH_TIER_FUZZY
+	case domain.MatchTierAcoustic:
+		return pipelinev1.MatchTier_MATCH_TIER_ACOUSTIC
+	default:
+		return pipelinev1.MatchTier_MATCH_TIER_UNSPECIFIED
+	}
+}
+
+func fingerprintToProto(f *domain.Fingerprint) *pipelinev1.Fingerprint {
+	if f == nil {
+		return nil
+	}
+	return &pipelinev1.Fingerprint{
+		Tags:     f.Tags,
+		Metadata: metadataToProto(f.Metadata),
+	}
+}
+
+func matchCandidatesToProto(cs []domain.MatchCandidate) []*pipelinev1.MatchCandidate {
+	if cs == nil {
+		return nil
+	}
+	out := make([]*pipelinev1.MatchCandidate, 0, len(cs))
+	for _, c := range cs {
+		out = append(out, &pipelinev1.MatchCandidate{
+			ExternalRef: c.ExternalRef,
+			Title:       c.Title,
+			Score:       c.Score,
+			Tier:        matchTierToProto(c.Tier),
+			Signals:     c.Signals,
+			Metadata:    metadataToProto(c.Metadata),
+		})
+	}
+	return out
 }

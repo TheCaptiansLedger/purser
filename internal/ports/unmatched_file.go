@@ -33,4 +33,18 @@ type UnmatchedFileRepository interface {
 	// "already known" short-circuit's UnmatchedFile-side lookup — see
 	// docs/adr/0024-pipeline-core.md.
 	GetByHash(ctx context.Context, oshash, sha1, md5, sha512 string) (*domain.UnmatchedFile, error)
+
+	// ListByGroupKey returns every UnmatchedFile sharing groupKey — unlike
+	// GetByHash (wants the first match, stops), this needs every row in
+	// the group, so the implementation loops pages to completion rather
+	// than assuming one page covers it. An unknown groupKey returns an
+	// empty slice, not ports.ErrNotFound. See
+	// docs/technical/pipeline-unmatchedfile-grouping.md.
+	ListByGroupKey(ctx context.Context, groupKey string) ([]*domain.UnmatchedFile, error)
+
+	// UpdateBatch replaces every record in us, re-indexed, as a single
+	// atomic transaction — all succeed or none do. Returns
+	// ports.ErrNotFound if any id in us doesn't already exist. See
+	// docs/adr/0016-bulk-operations.md.
+	UpdateBatch(ctx context.Context, us []*domain.UnmatchedFile) error
 }

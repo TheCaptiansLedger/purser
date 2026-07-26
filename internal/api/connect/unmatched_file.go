@@ -17,6 +17,8 @@ type unmatchedFileService interface {
 	Get(ctx context.Context, id string) (*domain.UnmatchedFile, error)
 	List(ctx context.Context, status domain.UnmatchedFileStatus, pageSize int, pageToken string) ([]*domain.UnmatchedFile, string, error)
 	Resolve(ctx context.Context, id, itemID string, dismiss bool) (*domain.MediaFile, *domain.UnmatchedFile, error)
+	ListGroup(ctx context.Context, groupKey string) ([]*domain.UnmatchedFile, error)
+	DismissBatch(ctx context.Context, ids []string) ([]*domain.UnmatchedFile, error)
 }
 
 // UnmatchedFileHandler implements
@@ -79,4 +81,32 @@ func (h *UnmatchedFileHandler) ResolveUnmatchedFile(ctx context.Context, req *co
 		resp.Result = &pipelinev1.ResolveUnmatchedFileResponse_UnmatchedFile{UnmatchedFile: unmatchedFileToProto(uf)}
 	}
 	return connect.NewResponse(resp), nil
+}
+
+// ListGroupUnmatchedFiles implements
+// pipelinev1connect.UnmatchedFileServiceHandler.
+func (h *UnmatchedFileHandler) ListGroupUnmatchedFiles(ctx context.Context, req *connect.Request[pipelinev1.ListGroupUnmatchedFilesRequest]) (*connect.Response[pipelinev1.ListGroupUnmatchedFilesResponse], error) {
+	files, err := h.svc.ListGroup(ctx, req.Msg.GetGroupKey())
+	if err != nil {
+		return nil, mapError(ctx, h.logger, err)
+	}
+	pbFiles := make([]*pipelinev1.UnmatchedFile, 0, len(files))
+	for _, u := range files {
+		pbFiles = append(pbFiles, unmatchedFileToProto(u))
+	}
+	return connect.NewResponse(&pipelinev1.ListGroupUnmatchedFilesResponse{UnmatchedFiles: pbFiles}), nil
+}
+
+// DismissUnmatchedFileBatch implements
+// pipelinev1connect.UnmatchedFileServiceHandler.
+func (h *UnmatchedFileHandler) DismissUnmatchedFileBatch(ctx context.Context, req *connect.Request[pipelinev1.DismissUnmatchedFileBatchRequest]) (*connect.Response[pipelinev1.DismissUnmatchedFileBatchResponse], error) {
+	files, err := h.svc.DismissBatch(ctx, req.Msg.GetUnmatchedFileIds())
+	if err != nil {
+		return nil, mapError(ctx, h.logger, err)
+	}
+	pbFiles := make([]*pipelinev1.UnmatchedFile, 0, len(files))
+	for _, u := range files {
+		pbFiles = append(pbFiles, unmatchedFileToProto(u))
+	}
+	return connect.NewResponse(&pipelinev1.DismissUnmatchedFileBatchResponse{UnmatchedFiles: pbFiles}), nil
 }
