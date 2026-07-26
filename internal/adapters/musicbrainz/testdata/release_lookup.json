@@ -1,0 +1,288 @@
+{
+    "cover-art-archive": {
+        "count": 5,
+        "darkened": false,
+        "artwork": true,
+        "front": true,
+        "back": true
+    },
+    "barcode": "",
+    "country": "GB",
+    "id": "ade577f6-6087-4a4f-8e87-38b0f8169814",
+    "disambiguation": "mono, 1st press",
+    "packaging": "Cardboard/Paper Sleeve",
+    "label-info": [
+        {
+            "label": {
+                "label-code": 299,
+                "type": "Original Production",
+                "name": "Parlophone",
+                "sort-name": "Parlophone",
+                "type-id": "7aaa37fe-2def-3476-b359-80245850062d",
+                "disambiguation": "",
+                "id": "df7d1c7f-ef95-425f-8eef-445b3d7bcbd9"
+            },
+            "catalog-number": "PMC 1202"
+        }
+    ],
+    "asin": null,
+    "packaging-id": "f7101ce3-0384-39ce-9fde-fbbd0044d35f",
+    "release-group": {
+        "first-release-date": "1963-03-22",
+        "primary-type": "Album",
+        "secondary-type-ids": [],
+        "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+        "title": "Please Please Me",
+        "disambiguation": "",
+        "secondary-types": [],
+        "id": "de208292-8db5-3aed-a14a-b37a84d8c521"
+    },
+    "title": "Please Please Me",
+    "media": [
+        {
+            "track-offset": 0,
+            "position": 1,
+            "tracks": [
+                {
+                    "id": "b41a0ab6-eb81-3d44-8cbe-fdd810359e37",
+                    "title": "I Saw Her Standing There",
+                    "position": 1,
+                    "number": "A1",
+                    "length": null,
+                    "recording": {
+                        "first-release-date": "1963-03-22",
+                        "length": 175800,
+                        "video": false,
+                        "disambiguation": "original mono studio mix",
+                        "title": "I Saw Her Standing There",
+                        "id": "da77d23c-3acb-4b3d-9596-24aa55f03ece"
+                    }
+                },
+                {
+                    "id": "6e19eaa0-e74a-33b6-9c9c-f05fb12dacd1",
+                    "title": "Misery",
+                    "number": "A2",
+                    "position": 2,
+                    "length": null,
+                    "recording": {
+                        "video": false,
+                        "first-release-date": "1963-03-22",
+                        "length": 110173,
+                        "id": "c91fd146-01cb-4673-b653-d0845c05e164",
+                        "title": "Misery",
+                        "disambiguation": "original mono studio mix"
+                    }
+                },
+                {
+                    "position": 3,
+                    "number": "A3",
+                    "recording": {
+                        "disambiguation": "original mono studio mix",
+                        "title": "Anna (Go to Him)",
+                        "id": "db567516-40c0-46b0-9198-a196b8d2a19c",
+                        "length": 177933,
+                        "first-release-date": "1963-03-22",
+                        "video": false
+                    },
+                    "length": null,
+                    "id": "eb9f977a-9893-3ab5-8ba6-4b52bbebb076",
+                    "title": "Anna (Go to Him)"
+                },
+                {
+                    "title": "Chains",
+                    "id": "17644987-044c-3426-94a7-f62c8161b2b2",
+                    "recording": {
+                        "title": "Chains",
+                        "disambiguation": "original mono studio mix",
+                        "id": "b4e7e5e2-69a5-423c-be62-6a888d07ccb6",
+                        "length": 146493,
+                        "first-release-date": "1963-03-22",
+                        "video": false
+                    },
+                    "length": null,
+                    "number": "A4",
+                    "position": 4
+                },
+                {
+                    "recording": {
+                        "id": "64e7b8ca-2fa2-47ae-8f6a-e3ebf835e2da",
+                        "title": "Boys",
+                        "disambiguation": "original mono studio mix",
+                        "video": false,
+                        "first-release-date": "1963-03-22",
+                        "length": 147506
+                    },
+                    "length": null,
+                    "position": 5,
+                    "number": "A5",
+                    "title": "Boys",
+                    "id": "b545ec64-fc77-327c-8466-fbd4d0140a4a"
+                },
+                {
+                    "title": "Ask Me Why",
+                    "id": "18b05d64-daae-3536-90a1-5fe11e79a550",
+                    "recording": {
+                        "title": "Ask Me Why",
+                        "disambiguation": "mono studio mix #2",
+                        "id": "04532aae-d0cb-403c-8e09-7ea1716a124c",
+                        "first-release-date": "1963-03-22",
+                        "length": 147733,
+                        "video": false
+                    },
+                    "length": null,
+                    "position": 6,
+                    "number": "A6"
+                },
+                {
+                    "recording": {
+                        "length": 121786,
+                        "first-release-date": "1963-01-11",
+                        "video": false,
+                        "title": "Please Please Me",
+                        "disambiguation": "original mono studio mix",
+                        "id": "875c1cf7-f568-4f0d-b5e3-bc8a7614269a"
+                    },
+                    "length": null,
+                    "number": "A7",
+                    "position": 7,
+                    "title": "Please Please Me",
+                    "id": "72b88261-d2bf-3261-8c26-8f0719dced66"
+                },
+                {
+                    "recording": {
+                        "title": "Love Me Do",
+                        "disambiguation": "drums: Andy White; original mono studio mix",
+                        "id": "1f518811-7cf9-4bdc-a656-0958e130f312",
+                        "first-release-date": "1963-03-22",
+                        "length": 141693,
+                        "video": false
+                    },
+                    "length": null,
+                    "number": "B1",
+                    "position": 8,
+                    "title": "Love Me Do",
+                    "id": "cd200b20-02e1-3795-86ab-83b2e416626b"
+                },
+                {
+                    "recording": {
+                        "id": "c84e23aa-20d9-45df-85cb-a6ecdba6e44e",
+                        "disambiguation": "original mono studio mix",
+                        "title": "P.S. I Love You",
+                        "video": false,
+                        "first-release-date": "1962-10-05",
+                        "length": 124000
+                    },
+                    "length": null,
+                    "number": "B2",
+                    "position": 9,
+                    "title": "P.S. I Love You",
+                    "id": "4288a04c-98fc-33b8-8df8-77d6bd46ceba"
+                },
+                {
+                    "length": null,
+                    "recording": {
+                        "id": "f9b03c87-41da-4e69-b97d-500d587e3703",
+                        "title": "Baby It\u2019s You",
+                        "disambiguation": "original mono studio mix",
+                        "video": false,
+                        "first-release-date": "1963-03-22",
+                        "length": 158066
+                    },
+                    "number": "B3",
+                    "position": 10,
+                    "title": "Baby It\u2019s You",
+                    "id": "72645646-e24b-3c00-b3b5-e5dd34518461"
+                },
+                {
+                    "id": "029486c1-729c-3ced-a79e-967e53a8946c",
+                    "title": "Do You Want to Know a Secret",
+                    "position": 11,
+                    "number": "B4",
+                    "length": null,
+                    "recording": {
+                        "video": false,
+                        "first-release-date": "1963-03-22",
+                        "length": 120000,
+                        "id": "42df56b9-0aa2-4cb7-bcb5-b8c6d89803de",
+                        "title": "Do You Want to Know a Secret",
+                        "disambiguation": "original mono studio mix"
+                    }
+                },
+                {
+                    "title": "A Taste of Honey",
+                    "id": "3473d122-63d9-3e51-81cd-6f59191c200b",
+                    "length": null,
+                    "recording": {
+                        "video": false,
+                        "first-release-date": "1963-03-22",
+                        "length": 125000,
+                        "id": "a6fbba57-6e43-4a8b-a017-c9c2cf64b282",
+                        "disambiguation": "original mono studio mix",
+                        "title": "A Taste of Honey"
+                    },
+                    "number": "B5",
+                    "position": 12
+                },
+                {
+                    "position": 13,
+                    "number": "B6",
+                    "length": null,
+                    "recording": {
+                        "title": "There\u2019s a Place",
+                        "disambiguation": "original mono studio mix",
+                        "id": "14c4b37f-8a93-4dc3-bc23-2ed86cdb20bb",
+                        "length": 113000,
+                        "first-release-date": "1963-03-22",
+                        "video": false
+                    },
+                    "id": "a4f1ad1b-f849-306c-8fc7-579480b5da69",
+                    "title": "There\u2019s a Place"
+                },
+                {
+                    "id": "edb00aa0-2819-378a-982a-711a947aa36c",
+                    "title": "Twist and Shout",
+                    "number": "B7",
+                    "position": 14,
+                    "length": null,
+                    "recording": {
+                        "first-release-date": "1963-03-22",
+                        "length": 153266,
+                        "video": false,
+                        "title": "Twist and Shout",
+                        "disambiguation": "original mono studio mix",
+                        "id": "af6fb155-b03c-46ea-a44e-22ce394b2a46"
+                    }
+                }
+            ],
+            "track-count": 14,
+            "format": "12\" Vinyl",
+            "id": "e987c475-0004-326d-97e6-575c02554c5b",
+            "format-id": "3e9080b0-5e6c-34ab-bd15-f526b6306a64",
+            "title": ""
+        }
+    ],
+    "date": "1963-03-22",
+    "status": "Official",
+    "text-representation": {
+        "script": "Latn",
+        "language": "eng"
+    },
+    "release-events": [
+        {
+            "area": {
+                "type": null,
+                "iso-3166-1-codes": [
+                    "GB"
+                ],
+                "sort-name": "United Kingdom",
+                "name": "United Kingdom",
+                "id": "8a754a16-0027-3a29-b6d7-2b40ea0481ed",
+                "disambiguation": "",
+                "type-id": null
+            },
+            "date": "1963-03-22"
+        }
+    ],
+    "status-id": "4e304316-386d-3409-af2e-78857eec5cfe",
+    "quality": "normal"
+}

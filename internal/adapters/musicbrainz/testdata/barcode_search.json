@@ -1,0 +1,248 @@
+{
+    "created": "2026-07-26T17:32:01.305Z",
+    "count": 3,
+    "offset": 0,
+    "releases": [
+        {
+            "id": "d59f458f-4492-4f1f-bd2c-808156c2710f",
+            "score": 100,
+            "status-id": "4e304316-386d-3409-af2e-78857eec5cfe",
+            "packaging-id": "8f931351-d2e2-310f-afc6-37b89ddba246",
+            "artist-credit-id": "c81491ca-a4b0-3bd7-92c0-8467809c8500",
+            "count": 1,
+            "title": "Please Please Me",
+            "status": "Official",
+            "disambiguation": "2009 stereo remaster",
+            "packaging": "Digipak",
+            "text-representation": {
+                "language": "eng",
+                "script": "Latn"
+            },
+            "artist-credit": [
+                {
+                    "name": "The Beatles",
+                    "artist": {
+                        "id": "b10bbbfc-cf9e-42e0-be17-e2c3e1d2600d",
+                        "name": "The Beatles",
+                        "sort-name": "Beatles, The",
+                        "disambiguation": "UK rock band, \u201cThe Fab Four\u201d"
+                    }
+                }
+            ],
+            "release-group": {
+                "id": "de208292-8db5-3aed-a14a-b37a84d8c521",
+                "type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+                "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+                "title": "Please Please Me",
+                "primary-type": "Album"
+            },
+            "date": "2009-09-09",
+            "country": "XE",
+            "release-events": [
+                {
+                    "date": "2009-09-09",
+                    "area": {
+                        "id": "89a675c2-3e37-3518-b83c-418bad59a85a",
+                        "name": "Europe",
+                        "sort-name": "Europe",
+                        "iso-3166-1-codes": [
+                            "XE"
+                        ]
+                    }
+                }
+            ],
+            "barcode": "094638241621",
+            "asin": "B0025KVLRO",
+            "label-info": [
+                {
+                    "catalog-number": "0946 3 82416 2 1",
+                    "label": {
+                        "id": "df7d1c7f-ef95-425f-8eef-445b3d7bcbd9",
+                        "name": "Parlophone"
+                    }
+                },
+                {
+                    "catalog-number": "0946 3 82416 2 1",
+                    "label": {
+                        "id": "cf7fc5cf-e011-4ef4-b511-cd0188537910",
+                        "name": "Apple Records"
+                    }
+                }
+            ],
+            "track-count": 16,
+            "media": [
+                {
+                    "id": "c3714451-a3dc-3070-8de0-ec05bde04065",
+                    "format": "Enhanced CD",
+                    "disc-count": 1,
+                    "track-count": 16
+                }
+            ],
+            "tags": [
+                {
+                    "count": 1,
+                    "name": "rock"
+                },
+                {
+                    "count": 1,
+                    "name": "pop"
+                },
+                {
+                    "count": 0,
+                    "name": "rock and roll"
+                }
+            ]
+        },
+        {
+            "id": "aa539734-eec5-4943-811b-c4304dd1943a",
+            "score": 100,
+            "status-id": "4e304316-386d-3409-af2e-78857eec5cfe",
+            "packaging-id": "e724a489-a7e8-30a1-a17c-30dfd6831202",
+            "artist-credit-id": "c81491ca-a4b0-3bd7-92c0-8467809c8500",
+            "count": 1,
+            "title": "Please Please Me",
+            "status": "Official",
+            "disambiguation": "2009 stereo remaster",
+            "packaging": "Gatefold Cover",
+            "text-representation": {
+                "language": "eng",
+                "script": "Latn"
+            },
+            "artist-credit": [
+                {
+                    "name": "The Beatles",
+                    "artist": {
+                        "id": "b10bbbfc-cf9e-42e0-be17-e2c3e1d2600d",
+                        "name": "The Beatles",
+                        "sort-name": "Beatles, The",
+                        "disambiguation": "UK rock band, \u201cThe Fab Four\u201d"
+                    }
+                }
+            ],
+            "release-group": {
+                "id": "de208292-8db5-3aed-a14a-b37a84d8c521",
+                "type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+                "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+                "title": "Please Please Me",
+                "primary-type": "Album"
+            },
+            "date": "2009-09-09",
+            "country": "US",
+            "release-events": [
+                {
+                    "date": "2009-09-09",
+                    "area": {
+                        "id": "489ce91b-6658-3307-9877-795b68554c98",
+                        "name": "United States",
+                        "sort-name": "United States",
+                        "iso-3166-1-codes": [
+                            "US"
+                        ]
+                    }
+                }
+            ],
+            "barcode": "094638241621",
+            "asin": "B0025KVLRO",
+            "label-info": [
+                {
+                    "catalog-number": "0946 3 82416 2 1",
+                    "label": {
+                        "id": "df7d1c7f-ef95-425f-8eef-445b3d7bcbd9",
+                        "name": "Parlophone"
+                    }
+                },
+                {
+                    "catalog-number": "0946 3 82416 2 1",
+                    "label": {
+                        "id": "abea2d3e-eabf-4480-ab24-9382dd642c73",
+                        "name": "Capitol Records"
+                    }
+                },
+                {
+                    "catalog-number": "0946 3 82416 2 1",
+                    "label": {
+                        "id": "cf7fc5cf-e011-4ef4-b511-cd0188537910",
+                        "name": "Apple Records"
+                    }
+                }
+            ],
+            "track-count": 15,
+            "media": [
+                {
+                    "id": "5fc0631f-cf5d-3bf0-9d04-c385e9a23b24",
+                    "format": "Enhanced CD",
+                    "disc-count": 2,
+                    "track-count": 15
+                }
+            ]
+        },
+        {
+            "id": "7ef94aa3-1e70-465c-8277-e094babdda2b",
+            "score": 100,
+            "status-id": "4e304316-386d-3409-af2e-78857eec5cfe",
+            "packaging-id": "e724a489-a7e8-30a1-a17c-30dfd6831202",
+            "artist-credit-id": "c81491ca-a4b0-3bd7-92c0-8467809c8500",
+            "count": 1,
+            "title": "Please Please Me",
+            "status": "Official",
+            "disambiguation": "2009 stereo remaster",
+            "packaging": "Gatefold Cover",
+            "text-representation": {
+                "language": "eng",
+                "script": "Latn"
+            },
+            "artist-credit": [
+                {
+                    "name": "The Beatles",
+                    "artist": {
+                        "id": "b10bbbfc-cf9e-42e0-be17-e2c3e1d2600d",
+                        "name": "The Beatles",
+                        "sort-name": "Beatles, The",
+                        "disambiguation": "UK rock band, \u201cThe Fab Four\u201d"
+                    }
+                }
+            ],
+            "release-group": {
+                "id": "de208292-8db5-3aed-a14a-b37a84d8c521",
+                "type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+                "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+                "title": "Please Please Me",
+                "primary-type": "Album"
+            },
+            "date": "2009",
+            "country": "US",
+            "release-events": [
+                {
+                    "date": "2009",
+                    "area": {
+                        "id": "489ce91b-6658-3307-9877-795b68554c98",
+                        "name": "United States",
+                        "sort-name": "United States",
+                        "iso-3166-1-codes": [
+                            "US"
+                        ]
+                    }
+                }
+            ],
+            "barcode": "094638241621",
+            "label-info": [
+                {
+                    "catalog-number": "0946 3 82416 2 1",
+                    "label": {
+                        "id": "cf7fc5cf-e011-4ef4-b511-cd0188537910",
+                        "name": "Apple Records"
+                    }
+                }
+            ],
+            "track-count": 15,
+            "media": [
+                {
+                    "id": "388e3f16-7edd-3497-928a-04e774197527",
+                    "format": "Enhanced CD",
+                    "disc-count": 1,
+                    "track-count": 15
+                }
+            ]
+        }
+    ]
+}

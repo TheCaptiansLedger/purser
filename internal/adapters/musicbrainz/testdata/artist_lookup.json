@@ -1,0 +1,1758 @@
+{
+    "disambiguation": "UK rock band, \u201cThe Fab Four\u201d",
+    "area": {
+        "sort-name": "United Kingdom",
+        "iso-3166-1-codes": [
+            "GB"
+        ],
+        "type": null,
+        "name": "United Kingdom",
+        "disambiguation": "",
+        "id": "8a754a16-0027-3a29-b6d7-2b40ea0481ed",
+        "type-id": null
+    },
+    "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+    "type": "Group",
+    "gender-id": null,
+    "isnis": [
+        "0000000121707484"
+    ],
+    "name": "The Beatles",
+    "aliases": [
+        {
+            "type": "Artist name",
+            "end": null,
+            "locale": "en",
+            "type-id": "894afba6-2816-3c24-8072-eadb66bd04bc",
+            "ended": false,
+            "name": "Beatles",
+            "begin": null,
+            "sort-name": "Beatles",
+            "primary": false
+        },
+        {
+            "type": "Search hint",
+            "end": null,
+            "name": "Beetles",
+            "locale": null,
+            "type-id": "1937e404-b981-3cb7-8151-4c86ebfc8d8e",
+            "ended": false,
+            "sort-name": "Beetles",
+            "begin": null,
+            "primary": null
+        },
+        {
+            "end": null,
+            "type": "Artist name",
+            "name": "B\u00edtlarnir",
+            "ended": false,
+            "locale": "is",
+            "type-id": "894afba6-2816-3c24-8072-eadb66bd04bc",
+            "sort-name": "B\u00edtlarnir",
+            "begin": null,
+            "primary": false
+        },
+        {
+            "locale": "de",
+            "type-id": "894afba6-2816-3c24-8072-eadb66bd04bc",
+            "ended": false,
+            "name": "Die Beatles",
+            "type": "Artist name",
+            "end": null,
+            "primary": false,
+            "begin": null,
+            "sort-name": "Beatles, Die"
+        },
+        {
+            "end": null,
+            "type": "Artist name",
+            "name": "I Beatles",
+            "ended": false,
+            "locale": "it",
+            "type-id": "894afba6-2816-3c24-8072-eadb66bd04bc",
+            "sort-name": "Beatles, I",
+            "begin": null,
+            "primary": false
+        },
+        {
+            "begin": null,
+            "sort-name": "Beatles, Les",
+            "primary": false,
+            "end": null,
+            "type": "Artist name",
+            "ended": false,
+            "locale": "fr",
+            "type-id": "894afba6-2816-3c24-8072-eadb66bd04bc",
+            "name": "Les Beatles"
+        },
+        {
+            "begin": null,
+            "sort-name": "Beatles, Los",
+            "primary": true,
+            "type": "Artist name",
+            "end": null,
+            "locale": "es",
+            "type-id": "894afba6-2816-3c24-8072-eadb66bd04bc",
+            "ended": false,
+            "name": "Los Beatles"
+        },
+        {
+            "sort-name": "Beatles, The",
+            "begin": null,
+            "primary": true,
+            "type": "Artist name",
+            "end": null,
+            "name": "The Beatles",
+            "type-id": "894afba6-2816-3c24-8072-eadb66bd04bc",
+            "locale": "en",
+            "ended": false
+        },
+        {
+            "type": "Artist name",
+            "end": null,
+            "name": "The Silver Beatles",
+            "type-id": "894afba6-2816-3c24-8072-eadb66bd04bc",
+            "locale": "en",
+            "ended": false,
+            "sort-name": "Silver Beatles, The",
+            "begin": null,
+            "primary": false
+        },
+        {
+            "end": null,
+            "type": "Search hint",
+            "ended": false,
+            "type-id": "1937e404-b981-3cb7-8151-4c86ebfc8d8e",
+            "locale": null,
+            "name": "fab four",
+            "begin": null,
+            "sort-name": "fab four",
+            "primary": null
+        },
+        {
+            "name": "\u0411\u0438\u0442\u043b\u0437",
+            "ended": false,
+            "locale": "ru",
+            "type-id": "894afba6-2816-3c24-8072-eadb66bd04bc",
+            "end": null,
+            "type": "Artist name",
+            "primary": false,
+            "sort-name": "\u0411\u0438\u0442\u043b\u0437",
+            "begin": null
+        },
+        {
+            "type-id": "894afba6-2816-3c24-8072-eadb66bd04bc",
+            "locale": "mk",
+            "ended": false,
+            "name": "\u0411\u0438\u0442\u043b\u0441\u0438",
+            "type": "Artist name",
+            "end": null,
+            "primary": false,
+            "begin": null,
+            "sort-name": "\u0411\u0438\u0442\u043b\u0441\u0438"
+        },
+        {
+            "primary": false,
+            "sort-name": "\u0411\u0456\u0442\u043b\u0437",
+            "begin": null,
+            "name": "\u0411\u0456\u0442\u043b\u0437",
+            "ended": false,
+            "locale": "uk",
+            "type-id": "894afba6-2816-3c24-8072-eadb66bd04bc",
+            "end": null,
+            "type": "Artist name"
+        },
+        {
+            "locale": "hy",
+            "type-id": "894afba6-2816-3c24-8072-eadb66bd04bc",
+            "ended": false,
+            "name": "\u054a\u056b\u0569\u056c\u057d",
+            "type": "Artist name",
+            "end": null,
+            "primary": false,
+            "begin": null,
+            "sort-name": "\u054a\u056b\u0569\u056c\u057d"
+        },
+        {
+            "primary": false,
+            "sort-name": "\u05d3\u05d9 \u05d1\u05d9\u05d8\u05dc\u05e1",
+            "begin": null,
+            "name": "\u05d3\u05d9 \u05d1\u05d9\u05d8\u05dc\u05e1",
+            "ended": false,
+            "locale": "yi",
+            "type-id": "894afba6-2816-3c24-8072-eadb66bd04bc",
+            "end": null,
+            "type": "Artist name"
+        },
+        {
+            "primary": false,
+            "begin": null,
+            "sort-name": "\u05d4\u05d1\u05d9\u05d8\u05dc\u05e1",
+            "ended": false,
+            "type-id": "894afba6-2816-3c24-8072-eadb66bd04bc",
+            "locale": "he",
+            "name": "\u05d4\u05d1\u05d9\u05d8\u05dc\u05e1",
+            "end": null,
+            "type": "Artist name"
+        },
+        {
+            "locale": "ar",
+            "type-id": "894afba6-2816-3c24-8072-eadb66bd04bc",
+            "ended": false,
+            "name": "\u0627\u0644\u0628\u064a\u062a\u0644\u0632",
+            "type": "Artist name",
+            "end": null,
+            "primary": false,
+            "begin": null,
+            "sort-name": "\u0627\u0644\u0628\u064a\u062a\u0644\u0632"
+        },
+        {
+            "type": "Artist name",
+            "end": null,
+            "type-id": "894afba6-2816-3c24-8072-eadb66bd04bc",
+            "locale": "fa",
+            "ended": false,
+            "name": "\u0628\u06cc\u062a\u0644\u0632",
+            "begin": null,
+            "sort-name": "\u0628\u06cc\u062a\u0644\u0632",
+            "primary": false
+        },
+        {
+            "ended": false,
+            "locale": "ur",
+            "type-id": "894afba6-2816-3c24-8072-eadb66bd04bc",
+            "name": "\u0628\u06cc\u0679\u0644\u0632",
+            "end": null,
+            "type": "Artist name",
+            "primary": false,
+            "begin": null,
+            "sort-name": "\u0628\u06cc\u0679\u0644\u0632"
+        },
+        {
+            "type": "Artist name",
+            "end": null,
+            "locale": "ne",
+            "type-id": "894afba6-2816-3c24-8072-eadb66bd04bc",
+            "ended": false,
+            "name": "\u0926 \u092c\u093f\u091f\u0932\u094d\u0938",
+            "begin": null,
+            "sort-name": "\u0926 \u092c\u093f\u091f\u0932\u094d\u0938",
+            "primary": false
+        },
+        {
+            "type": "Artist name",
+            "end": null,
+            "locale": "hi",
+            "type-id": "894afba6-2816-3c24-8072-eadb66bd04bc",
+            "ended": false,
+            "name": "\u0926 \u092c\u0940\u091f\u0932\u094d\u0938",
+            "begin": null,
+            "sort-name": "\u0926 \u092c\u0940\u091f\u0932\u094d\u0938",
+            "primary": false
+        },
+        {
+            "primary": false,
+            "sort-name": "\u09a6\u09cd\u09af \u09ac\u09bf\u099f\u09b2\u09cd\u200c\u09b8",
+            "begin": null,
+            "name": "\u09a6\u09cd\u09af \u09ac\u09bf\u099f\u09b2\u09cd\u200c\u09b8",
+            "ended": false,
+            "locale": "bn",
+            "type-id": "894afba6-2816-3c24-8072-eadb66bd04bc",
+            "end": null,
+            "type": "Artist name"
+        },
+        {
+            "type": "Artist name",
+            "end": null,
+            "type-id": "894afba6-2816-3c24-8072-eadb66bd04bc",
+            "locale": "pa",
+            "ended": false,
+            "name": "\u0a26 \u0a2c\u0a40\u0a1f\u0a32\u0a1c\u0a3c",
+            "begin": null,
+            "sort-name": "\u0a26 \u0a2c\u0a40\u0a1f\u0a32\u0a1c\u0a3c",
+            "primary": false
+        },
+        {
+            "sort-name": "\u0aa7 \u0aac\u0abf\u0a9f\u0ab2\u0acd\u0ab8",
+            "begin": null,
+            "primary": false,
+            "end": null,
+            "type": "Artist name",
+            "name": "\u0aa7 \u0aac\u0abf\u0a9f\u0ab2\u0acd\u0ab8",
+            "ended": false,
+            "locale": "gu",
+            "type-id": "894afba6-2816-3c24-8072-eadb66bd04bc"
+        },
+        {
+            "type": "Artist name",
+            "end": null,
+            "locale": "ta",
+            "type-id": "894afba6-2816-3c24-8072-eadb66bd04bc",
+            "ended": false,
+            "name": "\u0baa\u0bc0\u0b9f\u0bcd\u0b9f\u0bbf\u0bb2\u0bcd\u0bb8\u0bcd",
+            "begin": null,
+            "sort-name": "\u0baa\u0bc0\u0b9f\u0bcd\u0b9f\u0bbf\u0bb2\u0bcd\u0bb8\u0bcd",
+            "primary": false
+        },
+        {
+            "end": null,
+            "type": "Artist name",
+            "ended": false,
+            "locale": "te",
+            "type-id": "894afba6-2816-3c24-8072-eadb66bd04bc",
+            "name": "\u0c26 \u0c2c\u0c40\u0c1f\u0c3f\u0c32\u0c4d\u0c38\u0c4d",
+            "begin": null,
+            "sort-name": "\u0c26 \u0c2c\u0c40\u0c1f\u0c3f\u0c32\u0c4d\u0c38\u0c4d",
+            "primary": false
+        },
+        {
+            "end": null,
+            "type": "Artist name",
+            "ended": false,
+            "type-id": "894afba6-2816-3c24-8072-eadb66bd04bc",
+            "locale": "kn",
+            "name": "\u0ca6\u0cbf \u0cac\u0cc0\u0c9f\u0cb2\u0ccd\u0cb8\u0ccd",
+            "begin": null,
+            "sort-name": "\u0ca6\u0cbf \u0cac\u0cc0\u0c9f\u0cb2\u0ccd\u0cb8\u0ccd",
+            "primary": false
+        },
+        {
+            "sort-name": "\u0d26\u0d3f \u0d2c\u0d40\u0d31\u0d4d\u0d31\u0d3f\u0d7d\u0d38\u0d4d",
+            "begin": null,
+            "primary": false,
+            "type": "Artist name",
+            "end": null,
+            "name": "\u0d26\u0d3f \u0d2c\u0d40\u0d31\u0d4d\u0d31\u0d3f\u0d7d\u0d38\u0d4d",
+            "locale": "ml",
+            "type-id": "894afba6-2816-3c24-8072-eadb66bd04bc",
+            "ended": false
+        },
+        {
+            "type": "Artist name",
+            "end": null,
+            "locale": "th",
+            "type-id": "894afba6-2816-3c24-8072-eadb66bd04bc",
+            "ended": false,
+            "name": "\u0e40\u0e14\u0e2d\u0e30\u0e1a\u0e35\u0e40\u0e17\u0e34\u0e25\u0e2a\u0e4c",
+            "begin": null,
+            "sort-name": "\u0e40\u0e14\u0e2d\u0e30\u0e1a\u0e35\u0e40\u0e17\u0e34\u0e25\u0e2a\u0e4c",
+            "primary": false
+        },
+        {
+            "end": null,
+            "type": "Artist name",
+            "ended": false,
+            "locale": "my",
+            "type-id": "894afba6-2816-3c24-8072-eadb66bd04bc",
+            "name": "\u1018\u102e\u1038\u1010\u1032\u101c\u103a\u1021\u1016\u103d\u1032\u1037",
+            "begin": null,
+            "sort-name": "\u1018\u102e\u1038\u1010\u1032\u101c\u103a\u1021\u1016\u103d\u1032\u1037",
+            "primary": false
+        },
+        {
+            "ended": false,
+            "type-id": "894afba6-2816-3c24-8072-eadb66bd04bc",
+            "locale": "ka",
+            "name": "\u10d1\u10d8\u10d7\u10da\u10d6\u10d8",
+            "end": null,
+            "type": "Artist name",
+            "primary": false,
+            "begin": null,
+            "sort-name": "\u10d1\u10d8\u10d7\u10da\u10d6\u10d8"
+        },
+        {
+            "begin": null,
+            "sort-name": "\u12d8 \u1262\u1270\u120d\u1235",
+            "primary": false,
+            "end": null,
+            "type": "Artist name",
+            "ended": false,
+            "type-id": "894afba6-2816-3c24-8072-eadb66bd04bc",
+            "locale": "am",
+            "name": "\u12d8 \u1262\u1270\u120d\u1235"
+        },
+        {
+            "end": null,
+            "type": "Artist name",
+            "ended": false,
+            "locale": "sat",
+            "type-id": "894afba6-2816-3c24-8072-eadb66bd04bc",
+            "name": "\u1c6b\u1c5a \u1c75\u1c64\u1c74\u1c5e\u1c6e\u1c65",
+            "begin": null,
+            "sort-name": "\u1c6b\u1c5a \u1c75\u1c64\u1c74\u1c5e\u1c6e\u1c65",
+            "primary": false
+        },
+        {
+            "sort-name": "\u30d3\u30fc\u30c8\u30eb\u30ba\uff08\u30b6\uff09",
+            "begin": null,
+            "primary": false,
+            "end": null,
+            "type": "Artist name",
+            "name": "\u30b6\u30fb\u30d3\u30fc\u30c8\u30eb\u30ba",
+            "ended": false,
+            "locale": "ja",
+            "type-id": "894afba6-2816-3c24-8072-eadb66bd04bc"
+        },
+        {
+            "name": "\u62ab\u5934\u58eb",
+            "locale": "zh_Hans",
+            "type-id": "894afba6-2816-3c24-8072-eadb66bd04bc",
+            "ended": false,
+            "type": "Artist name",
+            "end": null,
+            "primary": true,
+            "sort-name": "\u62ab\u5934\u58eb",
+            "begin": null
+        },
+        {
+            "locale": "zh_Hans",
+            "type-id": "894afba6-2816-3c24-8072-eadb66bd04bc",
+            "ended": false,
+            "name": "\u62ab\u5934\u58eb\u4e50\u961f",
+            "type": "Artist name",
+            "end": null,
+            "primary": false,
+            "begin": null,
+            "sort-name": "\u62ab\u5934\u58eb\u4e50\u961f"
+        },
+        {
+            "name": "\u62ab\u5934\u58eb\u4e50\u961f",
+            "ended": false,
+            "locale": "zh_Hans_CN",
+            "type-id": "894afba6-2816-3c24-8072-eadb66bd04bc",
+            "end": null,
+            "type": "Artist name",
+            "primary": true,
+            "sort-name": "\u62ab\u5934\u58eb\u4e50\u961f",
+            "begin": null
+        },
+        {
+            "begin": null,
+            "sort-name": "\u62ab\u982d\u56db",
+            "primary": true,
+            "end": null,
+            "type": "Artist name",
+            "ended": false,
+            "type-id": "894afba6-2816-3c24-8072-eadb66bd04bc",
+            "locale": "zh_Hant",
+            "name": "\u62ab\u982d\u56db"
+        },
+        {
+            "type": null,
+            "end": null,
+            "locale": "zh_Hant",
+            "type-id": null,
+            "ended": false,
+            "name": "\u62ab\u982d\u56db\u6a02\u5718",
+            "begin": null,
+            "sort-name": "\u62ab\u982d\u56db\u6a02\u5718",
+            "primary": false
+        },
+        {
+            "begin": null,
+            "sort-name": "\u62ab\u982d\u56db\u6a02\u968a",
+            "primary": false,
+            "end": null,
+            "type": "Artist name",
+            "ended": false,
+            "locale": "zh_Hant",
+            "type-id": "894afba6-2816-3c24-8072-eadb66bd04bc",
+            "name": "\u62ab\u982d\u56db\u6a02\u968a"
+        },
+        {
+            "locale": "ko",
+            "type-id": "894afba6-2816-3c24-8072-eadb66bd04bc",
+            "ended": false,
+            "name": "\ub354 \ube44\ud2c0\uc988",
+            "type": "Artist name",
+            "end": null,
+            "primary": true,
+            "begin": null,
+            "sort-name": "\ub354 \ube44\ud2c0\uc988"
+        }
+    ],
+    "gender": null,
+    "id": "b10bbbfc-cf9e-42e0-be17-e2c3e1d2600d",
+    "country": "GB",
+    "end-area": null,
+    "life-span": {
+        "ended": true,
+        "end": "1970-04-10",
+        "begin": "1960-03-27"
+    },
+    "ipis": [],
+    "relations": [
+        {
+            "attributes": [],
+            "begin": null,
+            "ended": false,
+            "type-id": "6b3e3c85-0002-4f34-aca6-80ace0d7e846",
+            "end": null,
+            "type": "allmusic",
+            "source-credit": "",
+            "attribute-values": {},
+            "attribute-ids": {},
+            "target-type": "url",
+            "target-credit": "",
+            "direction": "forward",
+            "url": {
+                "id": "b1e974fb-3872-4344-abc2-6abd6a9e4b46",
+                "resource": "https://www.allmusic.com/artist/mn0000754032"
+            }
+        },
+        {
+            "end": null,
+            "type": "bandsintown",
+            "source-credit": "",
+            "ended": false,
+            "type-id": "ea45ed3d-2d5e-456e-8c32-94b6f51426e2",
+            "begin": null,
+            "attributes": [],
+            "url": {
+                "resource": "https://www.bandsintown.com/a/316",
+                "id": "ebf3cb4d-27f7-49ad-a543-9549d6b36ce5"
+            },
+            "direction": "forward",
+            "attribute-ids": {},
+            "attribute-values": {},
+            "target-type": "url",
+            "target-credit": ""
+        },
+        {
+            "end": "2020-11-19",
+            "type": "BBC Music page",
+            "source-credit": "",
+            "ended": true,
+            "type-id": "d028a975-000c-4525-9333-d3c8425e4b54",
+            "begin": null,
+            "attributes": [],
+            "url": {
+                "id": "85e5480a-f7ae-4d03-bbd2-d0c372bd2dc4",
+                "resource": "https://www.bbc.co.uk/music/artists/b10bbbfc-cf9e-42e0-be17-e2c3e1d2600d"
+            },
+            "direction": "forward",
+            "attribute-ids": {},
+            "attribute-values": {},
+            "target-type": "url",
+            "target-credit": ""
+        },
+        {
+            "url": {
+                "resource": "https://musicalbums.ai/artist/The%20Beatles",
+                "id": "e22f1f92-017d-4574-a232-594a21375b7b"
+            },
+            "attribute-ids": {},
+            "attribute-values": {},
+            "target-type": "url",
+            "target-credit": "",
+            "direction": "forward",
+            "ended": false,
+            "type-id": "4fb0eeec-a6eb-4ae3-ad52-b55765b94e8f",
+            "end": null,
+            "type": "discography page",
+            "source-credit": "",
+            "attributes": [],
+            "begin": null
+        },
+        {
+            "attributes": [],
+            "begin": null,
+            "ended": false,
+            "type-id": "4fb0eeec-a6eb-4ae3-ad52-b55765b94e8f",
+            "end": null,
+            "type": "discography page",
+            "source-credit": "",
+            "attribute-values": {},
+            "attribute-ids": {},
+            "target-type": "url",
+            "target-credit": "",
+            "direction": "forward",
+            "url": {
+                "id": "8ab92260-9120-4fab-aedd-970e6b22d319",
+                "resource": "https://www.musicmeter.nl/artist/13409"
+            }
+        },
+        {
+            "url": {
+                "id": "4327d342-5545-4168-a4c9-f8a740099d5d",
+                "resource": "https://www.discogs.com/artist/82730"
+            },
+            "attribute-ids": {},
+            "attribute-values": {},
+            "target-credit": "",
+            "target-type": "url",
+            "direction": "forward",
+            "type-id": "04a5b104-a4c2-4bac-99a1-7b837c37d9e4",
+            "ended": false,
+            "type": "discogs",
+            "end": null,
+            "source-credit": "",
+            "attributes": [],
+            "begin": null
+        },
+        {
+            "attribute-ids": {},
+            "attribute-values": {},
+            "target-type": "url",
+            "target-credit": "",
+            "direction": "forward",
+            "url": {
+                "id": "9371316b-54a9-4683-9d4d-eb9f2191f585",
+                "resource": "https://aboutthebeatles.com/"
+            },
+            "attributes": [],
+            "begin": null,
+            "ended": false,
+            "type-id": "f484f897-81cc-406e-96f9-cd799a04ee24",
+            "end": null,
+            "type": "fanpage",
+            "source-credit": ""
+        },
+        {
+            "type": "fanpage",
+            "end": null,
+            "source-credit": "",
+            "type-id": "f484f897-81cc-406e-96f9-cd799a04ee24",
+            "ended": false,
+            "begin": null,
+            "attributes": [],
+            "url": {
+                "id": "23bffb6e-50fd-4261-a85b-34c4800aac34",
+                "resource": "https://beatlesfanclub.nl/"
+            },
+            "direction": "forward",
+            "attribute-values": {},
+            "attribute-ids": {},
+            "target-credit": "",
+            "target-type": "url"
+        },
+        {
+            "begin": null,
+            "attributes": [],
+            "source-credit": "",
+            "end": null,
+            "type": "fanpage",
+            "ended": false,
+            "type-id": "f484f897-81cc-406e-96f9-cd799a04ee24",
+            "direction": "forward",
+            "target-type": "url",
+            "target-credit": "",
+            "attribute-ids": {},
+            "attribute-values": {},
+            "url": {
+                "resource": "https://www.beatles.ru/",
+                "id": "3d3ecb8b-8525-4cda-a521-4210de18ee5e"
+            }
+        },
+        {
+            "ended": false,
+            "type-id": "f484f897-81cc-406e-96f9-cd799a04ee24",
+            "source-credit": "",
+            "end": null,
+            "type": "fanpage",
+            "attributes": [],
+            "begin": null,
+            "url": {
+                "resource": "https://www.dmbeatles.com/",
+                "id": "b57ef9fe-c65a-451f-8cd9-c6aa2162a319"
+            },
+            "target-type": "url",
+            "target-credit": "",
+            "attribute-values": {},
+            "attribute-ids": {},
+            "direction": "forward"
+        },
+        {
+            "attributes": [],
+            "begin": null,
+            "ended": false,
+            "type-id": "f484f897-81cc-406e-96f9-cd799a04ee24",
+            "source-credit": "",
+            "end": null,
+            "type": "fanpage",
+            "target-type": "url",
+            "target-credit": "",
+            "attribute-ids": {},
+            "attribute-values": {},
+            "direction": "forward",
+            "url": {
+                "id": "6eb6e76f-3954-4c5f-a745-dc241d13585f",
+                "resource": "http://www.britishbeatlesfanclub.co.uk/"
+            }
+        },
+        {
+            "url": {
+                "resource": "https://music.migu.cn/v3/music/artist/961",
+                "id": "407c906e-d628-432b-99c9-8f25b492fd4f"
+            },
+            "direction": "forward",
+            "target-credit": "",
+            "target-type": "url",
+            "attribute-values": {},
+            "attribute-ids": {},
+            "source-credit": "",
+            "type": "free streaming",
+            "end": null,
+            "type-id": "769085a1-c2f7-4c24-a532-2375a77693bd",
+            "ended": false,
+            "begin": null,
+            "attributes": []
+        },
+        {
+            "attributes": [],
+            "begin": null,
+            "type-id": "769085a1-c2f7-4c24-a532-2375a77693bd",
+            "ended": false,
+            "type": "free streaming",
+            "end": null,
+            "source-credit": "",
+            "attribute-ids": {},
+            "attribute-values": {},
+            "target-credit": "",
+            "target-type": "url",
+            "direction": "forward",
+            "url": {
+                "id": "ddec3fa9-1775-4c9c-a9ca-8b447fc8c5e9",
+                "resource": "https://open.spotify.com/artist/3WrFJ7ztbogyGnTHbHJFl2"
+            }
+        },
+        {
+            "url": {
+                "id": "7c32120c-a2c8-493a-9831-ebcc35c2c47b",
+                "resource": "https://play.anghami.com/artist/4689"
+            },
+            "direction": "forward",
+            "attribute-values": {},
+            "attribute-ids": {},
+            "target-type": "url",
+            "target-credit": "",
+            "end": null,
+            "type": "free streaming",
+            "source-credit": "",
+            "ended": false,
+            "type-id": "769085a1-c2f7-4c24-a532-2375a77693bd",
+            "begin": null,
+            "attributes": []
+        },
+        {
+            "url": {
+                "resource": "https://www.boomplay.com/artists/3199029",
+                "id": "acf27310-892a-4df1-b33c-1c81d0bb6be7"
+            },
+            "direction": "forward",
+            "attribute-values": {},
+            "attribute-ids": {},
+            "target-type": "url",
+            "target-credit": "",
+            "end": null,
+            "type": "free streaming",
+            "source-credit": "",
+            "ended": false,
+            "type-id": "769085a1-c2f7-4c24-a532-2375a77693bd",
+            "begin": null,
+            "attributes": []
+        },
+        {
+            "direction": "forward",
+            "attribute-values": {},
+            "attribute-ids": {},
+            "target-credit": "",
+            "target-type": "url",
+            "url": {
+                "resource": "https://www.deezer.com/artist/1",
+                "id": "f056116b-17dd-4574-8a92-954442b4a0a4"
+            },
+            "begin": null,
+            "attributes": [],
+            "type": "free streaming",
+            "end": null,
+            "source-credit": "",
+            "type-id": "769085a1-c2f7-4c24-a532-2375a77693bd",
+            "ended": false
+        },
+        {
+            "begin": null,
+            "attributes": [],
+            "source-credit": "",
+            "end": null,
+            "type": "free streaming",
+            "ended": false,
+            "type-id": "769085a1-c2f7-4c24-a532-2375a77693bd",
+            "direction": "forward",
+            "target-type": "url",
+            "target-credit": "",
+            "attribute-ids": {},
+            "attribute-values": {},
+            "url": {
+                "id": "69711686-d3ab-4a08-8180-3bae5fba7aac",
+                "resource": "https://www.kkbox.com/hk/en/artist/OsUSXTUzyafhCb7Mt7"
+            }
+        },
+        {
+            "begin": null,
+            "attributes": [],
+            "end": null,
+            "type": "free streaming",
+            "source-credit": "",
+            "ended": false,
+            "type-id": "769085a1-c2f7-4c24-a532-2375a77693bd",
+            "direction": "forward",
+            "attribute-ids": {},
+            "attribute-values": {},
+            "target-type": "url",
+            "target-credit": "",
+            "url": {
+                "resource": "http://www.pandora.com/beatles",
+                "id": "0117e867-0685-4a87-823d-063c3f99df0d"
+            }
+        },
+        {
+            "url": {
+                "resource": "https://commons.wikimedia.org/wiki/File:The_Fabs.JPG",
+                "id": "2d52342e-8321-4f94-89c1-6f902107aa91"
+            },
+            "direction": "forward",
+            "attribute-ids": {},
+            "attribute-values": {},
+            "target-credit": "",
+            "target-type": "url",
+            "type": "image",
+            "end": null,
+            "source-credit": "",
+            "type-id": "221132e9-e30e-43f2-a741-15afc4c5fa7c",
+            "ended": false,
+            "begin": null,
+            "attributes": []
+        },
+        {
+            "attributes": [],
+            "begin": null,
+            "ended": false,
+            "type-id": "94c8b0cc-4477-4106-932c-da60e63de61c",
+            "source-credit": "",
+            "end": null,
+            "type": "IMDb",
+            "target-type": "url",
+            "target-credit": "",
+            "attribute-ids": {},
+            "attribute-values": {},
+            "direction": "forward",
+            "url": {
+                "resource": "https://www.imdb.com/name/nm1397313/",
+                "id": "00788bbc-11f2-4445-a53e-d2ce36128822"
+            }
+        },
+        {
+            "source-credit": "",
+            "end": null,
+            "type": "last.fm",
+            "ended": false,
+            "type-id": "08db8098-c0df-4b78-82c3-c8697b4bba7f",
+            "begin": null,
+            "attributes": [],
+            "url": {
+                "resource": "https://www.last.fm/music/The+Beatles",
+                "id": "3307c5e9-b873-4f70-a516-08df0cb4f54c"
+            },
+            "direction": "forward",
+            "target-type": "url",
+            "target-credit": "",
+            "attribute-ids": {},
+            "attribute-values": {}
+        },
+        {
+            "begin": null,
+            "attributes": [],
+            "source-credit": "",
+            "type": "lyrics",
+            "end": null,
+            "type-id": "e4d73442-3762-45a8-905c-401da65544ed",
+            "ended": false,
+            "direction": "forward",
+            "target-credit": "",
+            "target-type": "url",
+            "attribute-values": {},
+            "attribute-ids": {},
+            "url": {
+                "id": "5f3d83eb-6ad6-4db7-a6ed-d4f437db91c6",
+                "resource": "https://genius.com/artists/The-beatles"
+            }
+        },
+        {
+            "attribute-values": {},
+            "attribute-ids": {},
+            "target-credit": "",
+            "target-type": "url",
+            "direction": "forward",
+            "url": {
+                "resource": "https://muzikum.eu/en/the-beatles/lyrics",
+                "id": "0293ec57-a23e-45a6-8a04-577aeb53135e"
+            },
+            "attributes": [],
+            "begin": null,
+            "type-id": "e4d73442-3762-45a8-905c-401da65544ed",
+            "ended": false,
+            "type": "lyrics",
+            "end": null,
+            "source-credit": ""
+        },
+        {
+            "attributes": [],
+            "begin": null,
+            "type-id": "e4d73442-3762-45a8-905c-401da65544ed",
+            "ended": false,
+            "type": "lyrics",
+            "end": null,
+            "source-credit": "",
+            "attribute-values": {},
+            "attribute-ids": {},
+            "target-credit": "",
+            "target-type": "url",
+            "direction": "forward",
+            "url": {
+                "id": "e7e4d79f-ef51-4b90-a84f-1afba65f1925",
+                "resource": "https://www.musixmatch.com/artist/The-Beatles"
+            }
+        },
+        {
+            "attributes": [],
+            "begin": null,
+            "type-id": "fe33d22f-c3b0-4d68-bd53-a856badf2b15",
+            "ended": false,
+            "type": "official homepage",
+            "end": null,
+            "source-credit": "",
+            "attribute-values": {},
+            "attribute-ids": {},
+            "target-credit": "",
+            "target-type": "url",
+            "direction": "forward",
+            "url": {
+                "id": "7bea8a51-7f45-4941-8c9c-b20d975199b1",
+                "resource": "https://www.thebeatles.com/"
+            }
+        },
+        {
+            "direction": "forward",
+            "target-type": "url",
+            "target-credit": "",
+            "attribute-ids": {},
+            "attribute-values": {},
+            "url": {
+                "resource": "http://id.loc.gov/authorities/names/n79018119",
+                "id": "803ae58e-bc4a-415b-a96f-260c63931ca0"
+            },
+            "begin": null,
+            "attributes": [],
+            "source-credit": "",
+            "end": null,
+            "type": "other databases",
+            "ended": false,
+            "type-id": "d94fb61c-fa20-4e3c-a19a-71a949fb2c55"
+        },
+        {
+            "target-type": "url",
+            "target-credit": "",
+            "attribute-ids": {},
+            "attribute-values": {},
+            "direction": "forward",
+            "url": {
+                "id": "24d31ccc-59cd-432f-bce6-75cbbe5f8007",
+                "resource": "https://castalbums.org/people/The-Beatles/118334"
+            },
+            "attributes": [],
+            "begin": null,
+            "ended": false,
+            "type-id": "d94fb61c-fa20-4e3c-a19a-71a949fb2c55",
+            "source-credit": "",
+            "end": null,
+            "type": "other databases"
+        },
+        {
+            "attributes": [],
+            "begin": null,
+            "type-id": "d94fb61c-fa20-4e3c-a19a-71a949fb2c55",
+            "ended": false,
+            "source-credit": "",
+            "type": "other databases",
+            "end": null,
+            "target-credit": "",
+            "target-type": "url",
+            "attribute-ids": {},
+            "attribute-values": {},
+            "direction": "forward",
+            "url": {
+                "id": "ec6a0d6f-79ff-43d1-aa95-5e8d6dcef9ab",
+                "resource": "https://catalogue.bnf.fr/ark:/12148/cb13901884f"
+            }
+        },
+        {
+            "type-id": "d94fb61c-fa20-4e3c-a19a-71a949fb2c55",
+            "ended": false,
+            "type": "other databases",
+            "end": null,
+            "source-credit": "",
+            "attributes": [],
+            "begin": null,
+            "url": {
+                "resource": "https://d-nb.info/gnd/2005535-3",
+                "id": "8f78ecfc-d40d-472a-9628-6d5547f6e6c9"
+            },
+            "attribute-values": {},
+            "attribute-ids": {},
+            "target-credit": "",
+            "target-type": "url",
+            "direction": "forward"
+        },
+        {
+            "source-credit": "",
+            "type": "other databases",
+            "end": null,
+            "type-id": "d94fb61c-fa20-4e3c-a19a-71a949fb2c55",
+            "ended": false,
+            "begin": null,
+            "attributes": [],
+            "url": {
+                "id": "73573747-c35b-4e94-957a-2fc87cec8b28",
+                "resource": "https://id.oclc.org/worldcat/entity/E39QQPVp7YDyFJKp4fX79YyFWt"
+            },
+            "direction": "forward",
+            "target-credit": "",
+            "target-type": "url",
+            "attribute-values": {},
+            "attribute-ids": {}
+        },
+        {
+            "attributes": [],
+            "begin": null,
+            "ended": false,
+            "type-id": "d94fb61c-fa20-4e3c-a19a-71a949fb2c55",
+            "source-credit": "",
+            "end": null,
+            "type": "other databases",
+            "target-type": "url",
+            "target-credit": "",
+            "attribute-ids": {},
+            "attribute-values": {},
+            "direction": "forward",
+            "url": {
+                "id": "3e02acbd-65f9-4eb1-a336-19bae850daf6",
+                "resource": "https://imvdb.com/n/the-beatles"
+            }
+        },
+        {
+            "attributes": [],
+            "begin": null,
+            "type-id": "d94fb61c-fa20-4e3c-a19a-71a949fb2c55",
+            "ended": false,
+            "source-credit": "",
+            "type": "other databases",
+            "end": null,
+            "target-credit": "",
+            "target-type": "url",
+            "attribute-ids": {},
+            "attribute-values": {},
+            "direction": "forward",
+            "url": {
+                "id": "2a0b7a5b-8620-4f4c-b166-6e21df87fdd5",
+                "resource": "https://musicmoz.org/Bands_and_Artists/B/Beatles,_The/"
+            }
+        },
+        {
+            "direction": "forward",
+            "attribute-ids": {},
+            "attribute-values": {},
+            "target-type": "url",
+            "target-credit": "",
+            "url": {
+                "resource": "https://nla.gov.au/nla.party-1212427",
+                "id": "237e4a0c-2814-4ac0-aa78-b50ec40b0cd6"
+            },
+            "begin": null,
+            "attributes": [],
+            "end": null,
+            "type": "other databases",
+            "source-credit": "",
+            "ended": false,
+            "type-id": "d94fb61c-fa20-4e3c-a19a-71a949fb2c55"
+        },
+        {
+            "url": {
+                "resource": "https://openlibrary.org/works/OL2741516A",
+                "id": "285312de-3b76-4731-81be-5edf3b4171fd"
+            },
+            "direction": "forward",
+            "attribute-ids": {},
+            "attribute-values": {},
+            "target-credit": "",
+            "target-type": "url",
+            "type": "other databases",
+            "end": null,
+            "source-credit": "",
+            "type-id": "d94fb61c-fa20-4e3c-a19a-71a949fb2c55",
+            "ended": false,
+            "begin": null,
+            "attributes": []
+        },
+        {
+            "direction": "forward",
+            "target-credit": "",
+            "target-type": "url",
+            "attribute-values": {},
+            "attribute-ids": {},
+            "url": {
+                "resource": "http://soundtrackcollector.com/composer/294/",
+                "id": "86e33d54-be99-4b99-954a-8959483e99cc"
+            },
+            "begin": null,
+            "attributes": [],
+            "source-credit": "",
+            "type": "other databases",
+            "end": null,
+            "type-id": "d94fb61c-fa20-4e3c-a19a-71a949fb2c55",
+            "ended": false
+        },
+        {
+            "url": {
+                "id": "b4b3477b-92fa-46bb-b8f6-00458ed8c278",
+                "resource": "https://rateyourmusic.com/artist/the-beatles"
+            },
+            "direction": "forward",
+            "attribute-values": {},
+            "attribute-ids": {},
+            "target-type": "url",
+            "target-credit": "",
+            "end": null,
+            "type": "other databases",
+            "source-credit": "",
+            "ended": false,
+            "type-id": "d94fb61c-fa20-4e3c-a19a-71a949fb2c55",
+            "begin": null,
+            "attributes": []
+        },
+        {
+            "url": {
+                "id": "ce11dac4-3aa0-4980-b828-c982865085e9",
+                "resource": "https://www.45cat.com/artist/the-beatles"
+            },
+            "attribute-ids": {},
+            "attribute-values": {},
+            "target-credit": "",
+            "target-type": "url",
+            "direction": "forward",
+            "type-id": "d94fb61c-fa20-4e3c-a19a-71a949fb2c55",
+            "ended": false,
+            "type": "other databases",
+            "end": null,
+            "source-credit": "",
+            "attributes": [],
+            "begin": null
+        },
+        {
+            "attribute-values": {},
+            "attribute-ids": {},
+            "target-credit": "",
+            "target-type": "url",
+            "direction": "forward",
+            "url": {
+                "id": "f01c1794-8f43-4cba-a763-331d77513cf1",
+                "resource": "https://www.musik-sammler.de/artist/the-beatles/"
+            },
+            "attributes": [],
+            "begin": null,
+            "type-id": "d94fb61c-fa20-4e3c-a19a-71a949fb2c55",
+            "ended": false,
+            "type": "other databases",
+            "end": null,
+            "source-credit": ""
+        },
+        {
+            "url": {
+                "resource": "https://www.muziekweb.nl/Link/M00000016837/POPULAR/",
+                "id": "fda405b0-4777-41c2-be02-7a2c2a20d667"
+            },
+            "attribute-ids": {},
+            "attribute-values": {},
+            "target-credit": "",
+            "target-type": "url",
+            "direction": "forward",
+            "type-id": "d94fb61c-fa20-4e3c-a19a-71a949fb2c55",
+            "ended": false,
+            "type": "other databases",
+            "end": null,
+            "source-credit": "",
+            "attributes": [],
+            "begin": null
+        },
+        {
+            "attribute-values": {},
+            "attribute-ids": {},
+            "target-type": "url",
+            "target-credit": "",
+            "direction": "forward",
+            "url": {
+                "resource": "https://www.progarchives.com/artist.asp?id=2407",
+                "id": "b2641cc2-2705-4721-a25a-159882720389"
+            },
+            "attributes": [],
+            "begin": null,
+            "ended": false,
+            "type-id": "d94fb61c-fa20-4e3c-a19a-71a949fb2c55",
+            "end": null,
+            "type": "other databases",
+            "source-credit": ""
+        },
+        {
+            "attributes": [],
+            "begin": null,
+            "type-id": "d94fb61c-fa20-4e3c-a19a-71a949fb2c55",
+            "ended": false,
+            "source-credit": "",
+            "type": "other databases",
+            "end": null,
+            "target-credit": "",
+            "target-type": "url",
+            "attribute-ids": {},
+            "attribute-values": {},
+            "direction": "forward",
+            "url": {
+                "id": "6486e87e-1ad7-482e-95b8-3c81aebed19a",
+                "resource": "https://www.spirit-of-rock.com/en/band/The_Beatles"
+            }
+        },
+        {
+            "type-id": "d94fb61c-fa20-4e3c-a19a-71a949fb2c55",
+            "ended": false,
+            "source-credit": "",
+            "type": "other databases",
+            "end": null,
+            "attributes": [],
+            "begin": null,
+            "url": {
+                "resource": "https://www.whosampled.com/The-Beatles/",
+                "id": "fb3e8117-18d1-4858-bb8f-ade6f4f42bf6"
+            },
+            "target-credit": "",
+            "target-type": "url",
+            "attribute-ids": {},
+            "attribute-values": {},
+            "direction": "forward"
+        },
+        {
+            "attributes": [],
+            "begin": null,
+            "type-id": "f8319a2f-f824-4617-81c8-be6560b3b203",
+            "ended": true,
+            "source-credit": "",
+            "type": "purchase for download",
+            "end": "2020-10-12",
+            "target-credit": "",
+            "target-type": "url",
+            "attribute-ids": {},
+            "attribute-values": {},
+            "direction": "forward",
+            "url": {
+                "resource": "https://play.google.com/store/music/artist?id=Apyx6rt3d2amstq7u3ntxenxhkq",
+                "id": "48f9aeee-02dc-45c2-866f-f160faa157b5"
+            }
+        },
+        {
+            "begin": null,
+            "attributes": [],
+            "source-credit": "",
+            "type": "purchase for download",
+            "end": null,
+            "type-id": "f8319a2f-f824-4617-81c8-be6560b3b203",
+            "ended": false,
+            "direction": "forward",
+            "target-credit": "",
+            "target-type": "url",
+            "attribute-ids": {},
+            "attribute-values": {},
+            "url": {
+                "resource": "https://itunes.apple.com/gb/artist/id136975",
+                "id": "20357506-9d64-453b-abc9-f22ec4de8d3e"
+            }
+        },
+        {
+            "direction": "forward",
+            "target-type": "url",
+            "target-credit": "",
+            "attribute-values": {},
+            "attribute-ids": {},
+            "url": {
+                "resource": "https://mora.jp/artist/222117/all",
+                "id": "916e994d-6277-4e85-86bf-4cf1b1903f0c"
+            },
+            "begin": null,
+            "attributes": [],
+            "source-credit": "",
+            "end": null,
+            "type": "purchase for download",
+            "ended": false,
+            "type-id": "f8319a2f-f824-4617-81c8-be6560b3b203"
+        },
+        {
+            "ended": false,
+            "type-id": "f8319a2f-f824-4617-81c8-be6560b3b203",
+            "source-credit": "",
+            "end": null,
+            "type": "purchase for download",
+            "attributes": [],
+            "begin": null,
+            "url": {
+                "id": "042cc41a-2607-44cf-9ecc-ea83177185ca",
+                "resource": "https://music.apple.com/gb/artist/136975"
+            },
+            "target-type": "url",
+            "target-credit": "",
+            "attribute-values": {},
+            "attribute-ids": {},
+            "direction": "forward"
+        },
+        {
+            "attributes": [],
+            "begin": null,
+            "ended": false,
+            "type-id": "f8319a2f-f824-4617-81c8-be6560b3b203",
+            "end": null,
+            "type": "purchase for download",
+            "source-credit": "",
+            "attribute-values": {},
+            "attribute-ids": {},
+            "target-type": "url",
+            "target-credit": "",
+            "direction": "forward",
+            "url": {
+                "resource": "https://www.onkyomusic.com/GB/artist/the-beatles",
+                "id": "ff1a7acd-cca7-4992-81a6-33b57b47f77c"
+            }
+        },
+        {
+            "attributes": [],
+            "begin": null,
+            "type-id": "f8319a2f-f824-4617-81c8-be6560b3b203",
+            "ended": false,
+            "type": "purchase for download",
+            "end": null,
+            "source-credit": "",
+            "attribute-ids": {},
+            "attribute-values": {},
+            "target-credit": "",
+            "target-type": "url",
+            "direction": "forward",
+            "url": {
+                "resource": "https://www.qobuz.com/gb-en/interpreter/the-beatles/26390",
+                "id": "a9df5fa8-ec30-4f7f-890e-33cfdd2631d4"
+            }
+        },
+        {
+            "begin": null,
+            "attributes": [],
+            "end": null,
+            "type": "purchase for mail-order",
+            "source-credit": "",
+            "ended": false,
+            "type-id": "611b1862-67af-4253-a64f-34adba305d1d",
+            "direction": "forward",
+            "attribute-values": {},
+            "attribute-ids": {},
+            "target-type": "url",
+            "target-credit": "",
+            "url": {
+                "resource": "https://www.amazon.co.uk/-/e/B000APTK6K",
+                "id": "798c0711-1dbe-4faa-bd50-9774652b0d0d"
+            }
+        },
+        {
+            "url": {
+                "resource": "https://www.cdjapan.co.jp/person/132351",
+                "id": "f0f29a48-61c1-49ef-922e-657745bbe8fd"
+            },
+            "attribute-values": {},
+            "attribute-ids": {},
+            "target-credit": "",
+            "target-type": "url",
+            "direction": "forward",
+            "type-id": "611b1862-67af-4253-a64f-34adba305d1d",
+            "ended": false,
+            "type": "purchase for mail-order",
+            "end": null,
+            "source-credit": "",
+            "attributes": [],
+            "begin": null
+        },
+        {
+            "attributes": [],
+            "begin": null,
+            "type-id": "611b1862-67af-4253-a64f-34adba305d1d",
+            "ended": false,
+            "source-credit": "",
+            "type": "purchase for mail-order",
+            "end": null,
+            "target-credit": "",
+            "target-type": "url",
+            "attribute-ids": {},
+            "attribute-values": {},
+            "direction": "forward",
+            "url": {
+                "resource": "https://www.yesasia.com/0-aid3935936-0-bpt.47-en/list.html",
+                "id": "84191bf1-3e04-47c4-9261-b1919cb006d0"
+            }
+        },
+        {
+            "begin": null,
+            "attributes": [],
+            "type": "secondhandsongs",
+            "end": null,
+            "source-credit": "",
+            "type-id": "79c5b84d-a206-4f4c-9832-78c028c312c3",
+            "ended": false,
+            "direction": "forward",
+            "attribute-values": {},
+            "attribute-ids": {},
+            "target-credit": "",
+            "target-type": "url",
+            "url": {
+                "resource": "https://secondhandsongs.com/artist/41",
+                "id": "b6ad5d9f-817d-4cae-92c0-03019f4cb47f"
+            }
+        },
+        {
+            "url": {
+                "id": "2b453d73-3653-433c-a36c-b2eeb130927b",
+                "resource": "https://www.setlist.fm/setlists/the-beatles-23d6a88b.html"
+            },
+            "target-credit": "",
+            "target-type": "url",
+            "attribute-values": {},
+            "attribute-ids": {},
+            "direction": "forward",
+            "type-id": "bf5d0d5e-27a1-4e94-9df7-3cdc67b3b207",
+            "ended": false,
+            "source-credit": "",
+            "type": "setlistfm",
+            "end": null,
+            "attributes": [],
+            "begin": null
+        },
+        {
+            "type-id": "99429741-f3f6-484b-84f8-23af51991770",
+            "ended": false,
+            "source-credit": "",
+            "type": "social network",
+            "end": null,
+            "attributes": [],
+            "begin": null,
+            "url": {
+                "resource": "https://twitter.com/thebeatles",
+                "id": "2d8ccf0f-9840-4cb8-9f17-5e79812c9186"
+            },
+            "target-credit": "",
+            "target-type": "url",
+            "attribute-ids": {},
+            "attribute-values": {},
+            "direction": "forward"
+        },
+        {
+            "target-credit": "",
+            "target-type": "url",
+            "attribute-ids": {},
+            "attribute-values": {},
+            "direction": "forward",
+            "url": {
+                "id": "a6080060-611f-4dff-a91d-d0cc61fb74b9",
+                "resource": "https://www.facebook.com/thebeatles"
+            },
+            "attributes": [],
+            "begin": null,
+            "type-id": "99429741-f3f6-484b-84f8-23af51991770",
+            "ended": false,
+            "source-credit": "",
+            "type": "social network",
+            "end": null
+        },
+        {
+            "begin": null,
+            "attributes": [],
+            "end": null,
+            "type": "social network",
+            "source-credit": "",
+            "ended": false,
+            "type-id": "99429741-f3f6-484b-84f8-23af51991770",
+            "direction": "forward",
+            "attribute-values": {},
+            "attribute-ids": {},
+            "target-type": "url",
+            "target-credit": "",
+            "url": {
+                "id": "61fdca99-0e2e-4022-911f-83add2a3ca13",
+                "resource": "https://www.instagram.com/thebeatles/"
+            }
+        },
+        {
+            "url": {
+                "id": "4b560ff2-2ebe-499c-9385-81a738686d34",
+                "resource": "https://www.threads.com/@thebeatles"
+            },
+            "direction": "forward",
+            "attribute-ids": {},
+            "attribute-values": {},
+            "target-credit": "",
+            "target-type": "url",
+            "type": "social network",
+            "end": null,
+            "source-credit": "",
+            "type-id": "99429741-f3f6-484b-84f8-23af51991770",
+            "ended": false,
+            "begin": null,
+            "attributes": []
+        },
+        {
+            "begin": null,
+            "attributes": [],
+            "end": null,
+            "type": "social network",
+            "source-credit": "",
+            "ended": false,
+            "type-id": "99429741-f3f6-484b-84f8-23af51991770",
+            "direction": "forward",
+            "attribute-values": {},
+            "attribute-ids": {},
+            "target-type": "url",
+            "target-credit": "",
+            "url": {
+                "resource": "https://www.tiktok.com/@thebeatles",
+                "id": "dbe8d04b-57f9-44a6-b152-411afa270472"
+            }
+        },
+        {
+            "ended": false,
+            "type-id": "aac9c4bc-a5b9-30b8-9839-e3ac314c6e58",
+            "end": null,
+            "type": "songkick",
+            "source-credit": "",
+            "attributes": [],
+            "begin": null,
+            "url": {
+                "id": "b197df3f-eda2-4ad6-b49c-aeb42e87e4dd",
+                "resource": "https://www.songkick.com/artists/417271"
+            },
+            "attribute-ids": {},
+            "attribute-values": {},
+            "target-type": "url",
+            "target-credit": "",
+            "direction": "forward"
+        },
+        {
+            "type": "soundcloud",
+            "end": null,
+            "source-credit": "",
+            "type-id": "89e4a949-0976-440d-bda1-5f772c1e5710",
+            "ended": false,
+            "begin": null,
+            "attributes": [],
+            "url": {
+                "id": "d0ccbd13-6622-4798-8b36-c82d13210b05",
+                "resource": "https://soundcloud.com/thebeatles"
+            },
+            "direction": "forward",
+            "attribute-ids": {},
+            "attribute-values": {},
+            "target-credit": "",
+            "target-type": "url"
+        },
+        {
+            "end": "2022-06-08",
+            "type": "streaming",
+            "source-credit": "",
+            "ended": true,
+            "type-id": "63cc5d1f-f096-4c94-a43f-ecb32ea94161",
+            "begin": null,
+            "attributes": [],
+            "url": {
+                "id": "280b2b9e-df57-4040-b79a-417d547730a1",
+                "resource": "https://us.napster.com/artist/the-beatles"
+            },
+            "direction": "forward",
+            "attribute-values": {},
+            "attribute-ids": {},
+            "target-type": "url",
+            "target-credit": ""
+        },
+        {
+            "type-id": "63cc5d1f-f096-4c94-a43f-ecb32ea94161",
+            "ended": false,
+            "type": "streaming",
+            "end": null,
+            "source-credit": "",
+            "attributes": [],
+            "begin": null,
+            "url": {
+                "resource": "https://music.amazon.co.uk/artists/B00GB0QTOY",
+                "id": "d64782ed-2ed9-45b7-80fa-04131858f8a4"
+            },
+            "attribute-values": {},
+            "attribute-ids": {},
+            "target-credit": "",
+            "target-type": "url",
+            "direction": "forward"
+        },
+        {
+            "source-credit": "",
+            "type": "streaming",
+            "end": null,
+            "type-id": "63cc5d1f-f096-4c94-a43f-ecb32ea94161",
+            "ended": false,
+            "begin": null,
+            "attributes": [],
+            "url": {
+                "id": "042cc41a-2607-44cf-9ecc-ea83177185ca",
+                "resource": "https://music.apple.com/gb/artist/136975"
+            },
+            "direction": "forward",
+            "target-credit": "",
+            "target-type": "url",
+            "attribute-ids": {},
+            "attribute-values": {}
+        },
+        {
+            "url": {
+                "resource": "https://tidal.com/artist/3634161",
+                "id": "a5d16dcf-6b6f-4480-9791-a43272e984b8"
+            },
+            "direction": "forward",
+            "target-type": "url",
+            "target-credit": "",
+            "attribute-values": {},
+            "attribute-ids": {},
+            "source-credit": "",
+            "end": null,
+            "type": "streaming",
+            "ended": false,
+            "type-id": "63cc5d1f-f096-4c94-a43f-ecb32ea94161",
+            "begin": null,
+            "attributes": []
+        },
+        {
+            "url": {
+                "id": "a9df5fa8-ec30-4f7f-890e-33cfdd2631d4",
+                "resource": "https://www.qobuz.com/gb-en/interpreter/the-beatles/26390"
+            },
+            "direction": "forward",
+            "target-type": "url",
+            "target-credit": "",
+            "attribute-ids": {},
+            "attribute-values": {},
+            "source-credit": "",
+            "end": null,
+            "type": "streaming",
+            "ended": false,
+            "type-id": "63cc5d1f-f096-4c94-a43f-ecb32ea94161",
+            "begin": null,
+            "attributes": []
+        },
+        {
+            "direction": "forward",
+            "target-type": "url",
+            "target-credit": "",
+            "attribute-ids": {},
+            "attribute-values": {},
+            "url": {
+                "id": "787c5ab9-5546-4753-8280-fb4eec8df66b",
+                "resource": "http://viaf.org/viaf/141205608"
+            },
+            "begin": null,
+            "attributes": [],
+            "source-credit": "",
+            "end": null,
+            "type": "VIAF",
+            "ended": false,
+            "type-id": "e8571dcc-35d4-4e91-a577-a3382fd84460"
+        },
+        {
+            "source-credit": "",
+            "end": null,
+            "type": "wikidata",
+            "ended": false,
+            "type-id": "689870a4-a1e4-4912-b17f-7b2664215698",
+            "begin": null,
+            "attributes": [],
+            "url": {
+                "resource": "https://www.wikidata.org/wiki/Q1299",
+                "id": "7a14a19d-17d6-452e-8741-6ace4eea275c"
+            },
+            "direction": "forward",
+            "target-type": "url",
+            "target-credit": "",
+            "attribute-ids": {},
+            "attribute-values": {}
+        },
+        {
+            "attributes": [],
+            "begin": null,
+            "ended": false,
+            "type-id": "6a540e5b-58c6-4192-b6ba-dbc71ec8fcf0",
+            "source-credit": "",
+            "end": null,
+            "type": "youtube",
+            "target-type": "url",
+            "target-credit": "",
+            "attribute-values": {},
+            "attribute-ids": {},
+            "direction": "forward",
+            "url": {
+                "resource": "https://www.youtube.com/user/TheBeatles",
+                "id": "eedef7c1-f73c-464f-a2dd-b96fe19e4b43"
+            }
+        },
+        {
+            "url": {
+                "id": "82a6b2f6-7d0a-4777-b7bd-44ab4b6ce26f",
+                "resource": "https://www.youtube.com/channel/UCc4K7bAqpdBP8jh1j9XZAww"
+            },
+            "target-credit": "",
+            "target-type": "url",
+            "attribute-values": {},
+            "attribute-ids": {},
+            "direction": "forward",
+            "type-id": "6a540e5b-58c6-4192-b6ba-dbc71ec8fcf0",
+            "ended": true,
+            "source-credit": "",
+            "type": "youtube",
+            "end": null,
+            "attributes": [],
+            "begin": null
+        },
+        {
+            "attributes": [],
+            "begin": null,
+            "type-id": "631712a0-7525-42ba-b7a3-605aa7a238c4",
+            "ended": false,
+            "source-credit": "",
+            "type": "youtube music",
+            "end": null,
+            "target-credit": "",
+            "target-type": "url",
+            "attribute-values": {},
+            "attribute-ids": {},
+            "direction": "forward",
+            "url": {
+                "id": "b5533740-be81-4c1b-a55a-8e616e476a84",
+                "resource": "https://music.youtube.com/channel/UC2XdaAVUannpujzv32jcouQ"
+            }
+        }
+    ],
+    "sort-name": "Beatles, The",
+    "begin-area": {
+        "sort-name": "Liverpool",
+        "iso-3166-2-codes": [
+            "GB-LIV"
+        ],
+        "type": null,
+        "name": "Liverpool",
+        "disambiguation": "",
+        "type-id": null,
+        "id": "c249c30e-88ab-4b2f-a745-96a25bd7afee"
+    }
+}

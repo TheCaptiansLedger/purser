@@ -1,0 +1,668 @@
+{
+    "releases": [
+        {
+            "cover-art-archive": {
+                "artwork": true,
+                "front": true,
+                "darkened": false,
+                "back": true,
+                "count": 4
+            },
+            "asin": null,
+            "text-representation": {
+                "language": "eng",
+                "script": "Latn"
+            },
+            "media": [
+                {
+                    "format-id": "3e9080b0-5e6c-34ab-bd15-f526b6306a64",
+                    "format": "12\" Vinyl",
+                    "title": "",
+                    "position": 1,
+                    "track-count": 14,
+                    "id": "cb82c5dc-9430-38e9-87a7-0e1a16ee42e0"
+                }
+            ],
+            "packaging-id": "f7101ce3-0384-39ce-9fde-fbbd0044d35f",
+            "id": "3a685770-7326-34fc-9f18-e5f5626f3dc5",
+            "country": "GB",
+            "title": "Please Please Me",
+            "quality": "normal",
+            "packaging": "Cardboard/Paper Sleeve",
+            "label-info": [
+                {
+                    "label": {
+                        "disambiguation": "",
+                        "label-code": 299,
+                        "type-id": "7aaa37fe-2def-3476-b359-80245850062d",
+                        "type": "Original Production",
+                        "sort-name": "Parlophone",
+                        "id": "df7d1c7f-ef95-425f-8eef-445b3d7bcbd9",
+                        "name": "Parlophone"
+                    },
+                    "catalog-number": "PCS 3042"
+                }
+            ],
+            "status": "Official",
+            "release-events": [
+                {
+                    "area": {
+                        "iso-3166-1-codes": [
+                            "GB"
+                        ],
+                        "name": "United Kingdom",
+                        "id": "8a754a16-0027-3a29-b6d7-2b40ea0481ed",
+                        "sort-name": "United Kingdom",
+                        "type-id": null,
+                        "type": null,
+                        "disambiguation": ""
+                    },
+                    "date": "1963-04-26"
+                }
+            ],
+            "status-id": "4e304316-386d-3409-af2e-78857eec5cfe",
+            "date": "1963-04-26",
+            "disambiguation": "stereo, 1st press",
+            "barcode": ""
+        },
+        {
+            "media": [
+                {
+                    "format-id": "3e9080b0-5e6c-34ab-bd15-f526b6306a64",
+                    "title": "",
+                    "format": "12\" Vinyl",
+                    "position": 1,
+                    "track-count": 14,
+                    "id": "f2d40d2f-98d8-3da6-9939-81eba97b9c68"
+                }
+            ],
+            "asin": null,
+            "text-representation": {
+                "script": "Latn",
+                "language": "eng"
+            },
+            "cover-art-archive": {
+                "back": true,
+                "count": 4,
+                "artwork": true,
+                "darkened": false,
+                "front": true
+            },
+            "country": "GB",
+            "id": "3fba454c-3f6d-4a47-8b27-2ad00a81ca16",
+            "packaging-id": "f7101ce3-0384-39ce-9fde-fbbd0044d35f",
+            "quality": "normal",
+            "title": "Please Please Me",
+            "packaging": "Cardboard/Paper Sleeve",
+            "status-id": "4e304316-386d-3409-af2e-78857eec5cfe",
+            "release-events": [
+                {
+                    "date": "1963-04",
+                    "area": {
+                        "disambiguation": "",
+                        "type": null,
+                        "type-id": null,
+                        "sort-name": "United Kingdom",
+                        "name": "United Kingdom",
+                        "iso-3166-1-codes": [
+                            "GB"
+                        ],
+                        "id": "8a754a16-0027-3a29-b6d7-2b40ea0481ed"
+                    }
+                }
+            ],
+            "status": "Official",
+            "label-info": [
+                {
+                    "catalog-number": "PCS 3042",
+                    "label": {
+                        "sort-name": "Parlophone",
+                        "name": "Parlophone",
+                        "id": "df7d1c7f-ef95-425f-8eef-445b3d7bcbd9",
+                        "disambiguation": "",
+                        "type": "Original Production",
+                        "type-id": "7aaa37fe-2def-3476-b359-80245850062d",
+                        "label-code": 299
+                    }
+                }
+            ],
+            "disambiguation": "stereo, 2nd press",
+            "date": "1963-04",
+            "barcode": ""
+        },
+        {
+            "quality": "normal",
+            "title": "Please Please Me",
+            "country": "GB",
+            "id": "71e7711d-c3b4-43a7-943c-7922bc37b183",
+            "packaging-id": "f7101ce3-0384-39ce-9fde-fbbd0044d35f",
+            "media": [
+                {
+                    "position": 1,
+                    "id": "d77b0ec0-039b-3f8c-85d8-5b7458d4129b",
+                    "track-count": 14,
+                    "title": "",
+                    "format": "12\" Vinyl",
+                    "format-id": "3e9080b0-5e6c-34ab-bd15-f526b6306a64"
+                }
+            ],
+            "text-representation": {
+                "script": "Latn",
+                "language": "eng"
+            },
+            "asin": null,
+            "cover-art-archive": {
+                "front": true,
+                "darkened": false,
+                "artwork": true,
+                "count": 4,
+                "back": true
+            },
+            "barcode": "",
+            "disambiguation": "stereo, 3rd press",
+            "date": "1963-05",
+            "status-id": "4e304316-386d-3409-af2e-78857eec5cfe",
+            "release-events": [
+                {
+                    "date": "1963-05",
+                    "area": {
+                        "disambiguation": "",
+                        "type": null,
+                        "type-id": null,
+                        "sort-name": "United Kingdom",
+                        "name": "United Kingdom",
+                        "iso-3166-1-codes": [
+                            "GB"
+                        ],
+                        "id": "8a754a16-0027-3a29-b6d7-2b40ea0481ed"
+                    }
+                }
+            ],
+            "status": "Official",
+            "label-info": [
+                {
+                    "label": {
+                        "name": "Parlophone",
+                        "id": "df7d1c7f-ef95-425f-8eef-445b3d7bcbd9",
+                        "sort-name": "Parlophone",
+                        "type": "Original Production",
+                        "type-id": "7aaa37fe-2def-3476-b359-80245850062d",
+                        "label-code": 299,
+                        "disambiguation": ""
+                    },
+                    "catalog-number": "PCS 3042"
+                }
+            ],
+            "packaging": "Cardboard/Paper Sleeve"
+        },
+        {
+            "barcode": "",
+            "date": "1963-05",
+            "disambiguation": "mono, 4th press",
+            "status": "Official",
+            "label-info": [
+                {
+                    "catalog-number": "PMC 1202",
+                    "label": {
+                        "id": "df7d1c7f-ef95-425f-8eef-445b3d7bcbd9",
+                        "name": "Parlophone",
+                        "sort-name": "Parlophone",
+                        "type": "Original Production",
+                        "label-code": 299,
+                        "type-id": "7aaa37fe-2def-3476-b359-80245850062d",
+                        "disambiguation": ""
+                    }
+                }
+            ],
+            "status-id": "4e304316-386d-3409-af2e-78857eec5cfe",
+            "release-events": [
+                {
+                    "date": "1963-05",
+                    "area": {
+                        "disambiguation": "",
+                        "type-id": null,
+                        "type": null,
+                        "sort-name": "United Kingdom",
+                        "name": "United Kingdom",
+                        "iso-3166-1-codes": [
+                            "GB"
+                        ],
+                        "id": "8a754a16-0027-3a29-b6d7-2b40ea0481ed"
+                    }
+                }
+            ],
+            "packaging": "Cardboard/Paper Sleeve",
+            "title": "Please Please Me",
+            "quality": "normal",
+            "id": "a83d1eb2-4c76-4103-ac9b-bd9910aa7a83",
+            "country": "GB",
+            "packaging-id": "f7101ce3-0384-39ce-9fde-fbbd0044d35f",
+            "text-representation": {
+                "language": "eng",
+                "script": "Latn"
+            },
+            "asin": null,
+            "cover-art-archive": {
+                "darkened": false,
+                "front": true,
+                "artwork": true,
+                "count": 5,
+                "back": true
+            },
+            "media": [
+                {
+                    "format": "12\" Vinyl",
+                    "title": "",
+                    "format-id": "3e9080b0-5e6c-34ab-bd15-f526b6306a64",
+                    "id": "9752a589-a077-3263-a6c8-f103a510927d",
+                    "track-count": 14,
+                    "position": 1
+                }
+            ]
+        },
+        {
+            "media": [
+                {
+                    "format-id": "3e9080b0-5e6c-34ab-bd15-f526b6306a64",
+                    "format": "12\" Vinyl",
+                    "title": "",
+                    "position": 1,
+                    "track-count": 14,
+                    "id": "e987c475-0004-326d-97e6-575c02554c5b"
+                }
+            ],
+            "text-representation": {
+                "language": "eng",
+                "script": "Latn"
+            },
+            "asin": null,
+            "cover-art-archive": {
+                "darkened": false,
+                "front": true,
+                "artwork": true,
+                "count": 5,
+                "back": true
+            },
+            "id": "ade577f6-6087-4a4f-8e87-38b0f8169814",
+            "country": "GB",
+            "packaging-id": "f7101ce3-0384-39ce-9fde-fbbd0044d35f",
+            "quality": "normal",
+            "title": "Please Please Me",
+            "packaging": "Cardboard/Paper Sleeve",
+            "status-id": "4e304316-386d-3409-af2e-78857eec5cfe",
+            "release-events": [
+                {
+                    "date": "1963-03-22",
+                    "area": {
+                        "type-id": null,
+                        "type": null,
+                        "disambiguation": "",
+                        "id": "8a754a16-0027-3a29-b6d7-2b40ea0481ed",
+                        "name": "United Kingdom",
+                        "iso-3166-1-codes": [
+                            "GB"
+                        ],
+                        "sort-name": "United Kingdom"
+                    }
+                }
+            ],
+            "status": "Official",
+            "label-info": [
+                {
+                    "catalog-number": "PMC 1202",
+                    "label": {
+                        "disambiguation": "",
+                        "type-id": "7aaa37fe-2def-3476-b359-80245850062d",
+                        "label-code": 299,
+                        "type": "Original Production",
+                        "sort-name": "Parlophone",
+                        "name": "Parlophone",
+                        "id": "df7d1c7f-ef95-425f-8eef-445b3d7bcbd9"
+                    }
+                }
+            ],
+            "disambiguation": "mono, 1st press",
+            "date": "1963-03-22",
+            "barcode": ""
+        },
+        {
+            "release-events": [
+                {
+                    "area": {
+                        "sort-name": "United Kingdom",
+                        "name": "United Kingdom",
+                        "iso-3166-1-codes": [
+                            "GB"
+                        ],
+                        "id": "8a754a16-0027-3a29-b6d7-2b40ea0481ed",
+                        "disambiguation": "",
+                        "type": null,
+                        "type-id": null
+                    },
+                    "date": "1963-05"
+                }
+            ],
+            "status-id": "4e304316-386d-3409-af2e-78857eec5cfe",
+            "label-info": [
+                {
+                    "label": {
+                        "disambiguation": "",
+                        "type": "Original Production",
+                        "label-code": 299,
+                        "type-id": "7aaa37fe-2def-3476-b359-80245850062d",
+                        "sort-name": "Parlophone",
+                        "id": "df7d1c7f-ef95-425f-8eef-445b3d7bcbd9",
+                        "name": "Parlophone"
+                    },
+                    "catalog-number": "PCS 3042"
+                }
+            ],
+            "status": "Official",
+            "packaging": "Cardboard/Paper Sleeve",
+            "barcode": "",
+            "disambiguation": "stereo, 4th press",
+            "date": "1963-05",
+            "packaging-id": "f7101ce3-0384-39ce-9fde-fbbd0044d35f",
+            "country": "GB",
+            "id": "b0c4e7b2-8501-4d76-a7b2-5fc08c508cf8",
+            "media": [
+                {
+                    "position": 1,
+                    "id": "9926be3d-21ea-3b81-90f5-ec8a6263b1ba",
+                    "track-count": 14,
+                    "format": "12\" Vinyl",
+                    "title": "",
+                    "format-id": "3e9080b0-5e6c-34ab-bd15-f526b6306a64"
+                }
+            ],
+            "cover-art-archive": {
+                "front": true,
+                "darkened": false,
+                "artwork": true,
+                "back": true,
+                "count": 3
+            },
+            "text-representation": {
+                "language": "eng",
+                "script": "Latn"
+            },
+            "asin": null,
+            "quality": "normal",
+            "title": "Please Please Me"
+        },
+        {
+            "barcode": "",
+            "date": "1963",
+            "disambiguation": "mono, 5th press, Decca contract",
+            "status": "Official",
+            "label-info": [
+                {
+                    "catalog-number": "PMC 1202",
+                    "label": {
+                        "sort-name": "Parlophone",
+                        "name": "Parlophone",
+                        "id": "df7d1c7f-ef95-425f-8eef-445b3d7bcbd9",
+                        "disambiguation": "",
+                        "type": "Original Production",
+                        "type-id": "7aaa37fe-2def-3476-b359-80245850062d",
+                        "label-code": 299
+                    }
+                }
+            ],
+            "status-id": "4e304316-386d-3409-af2e-78857eec5cfe",
+            "release-events": [
+                {
+                    "area": {
+                        "id": "8a754a16-0027-3a29-b6d7-2b40ea0481ed",
+                        "name": "United Kingdom",
+                        "iso-3166-1-codes": [
+                            "GB"
+                        ],
+                        "sort-name": "United Kingdom",
+                        "type-id": null,
+                        "type": null,
+                        "disambiguation": ""
+                    },
+                    "date": "1963"
+                }
+            ],
+            "packaging": "Cardboard/Paper Sleeve",
+            "title": "Please Please Me",
+            "quality": "normal",
+            "id": "b13c7b8f-c04f-435e-80fc-95d15418ec8e",
+            "country": "GB",
+            "packaging-id": "f7101ce3-0384-39ce-9fde-fbbd0044d35f",
+            "text-representation": {
+                "script": "Latn",
+                "language": "eng"
+            },
+            "asin": null,
+            "cover-art-archive": {
+                "count": 4,
+                "back": true,
+                "artwork": true,
+                "darkened": false,
+                "front": true
+            },
+            "media": [
+                {
+                    "title": "",
+                    "format": "12\" Vinyl",
+                    "format-id": "3e9080b0-5e6c-34ab-bd15-f526b6306a64",
+                    "position": 1,
+                    "id": "f0647ed0-9c65-378a-aa07-31d4f2e0395b",
+                    "track-count": 14
+                }
+            ]
+        },
+        {
+            "quality": "normal",
+            "title": "Please Please Me",
+            "id": "ba91ea49-5b4a-4a6e-ac76-cdd526fb4123",
+            "country": "AU",
+            "packaging-id": "f7101ce3-0384-39ce-9fde-fbbd0044d35f",
+            "media": [
+                {
+                    "id": "62d7af00-56c4-4047-a1c7-dc038690a341",
+                    "track-count": 14,
+                    "position": 1,
+                    "title": "",
+                    "format": "12\" Vinyl",
+                    "format-id": "3e9080b0-5e6c-34ab-bd15-f526b6306a64"
+                }
+            ],
+            "text-representation": {
+                "language": "eng",
+                "script": "Latn"
+            },
+            "asin": null,
+            "cover-art-archive": {
+                "back": false,
+                "count": 0,
+                "artwork": false,
+                "darkened": false,
+                "front": false
+            },
+            "barcode": "",
+            "disambiguation": "mono",
+            "date": "1963-12",
+            "status-id": "4e304316-386d-3409-af2e-78857eec5cfe",
+            "release-events": [
+                {
+                    "date": "1963-12",
+                    "area": {
+                        "disambiguation": "",
+                        "type-id": null,
+                        "type": null,
+                        "sort-name": "Australia",
+                        "name": "Australia",
+                        "iso-3166-1-codes": [
+                            "AU"
+                        ],
+                        "id": "106e0bec-b638-3b37-b731-f53d507dc00e"
+                    }
+                }
+            ],
+            "status": "Official",
+            "label-info": [
+                {
+                    "label": {
+                        "type": "Original Production",
+                        "type-id": "7aaa37fe-2def-3476-b359-80245850062d",
+                        "label-code": 299,
+                        "disambiguation": "",
+                        "name": "Parlophone",
+                        "id": "df7d1c7f-ef95-425f-8eef-445b3d7bcbd9",
+                        "sort-name": "Parlophone"
+                    },
+                    "catalog-number": "PMCO 1202"
+                },
+                {
+                    "catalog-number": "PMCO-1202",
+                    "label": {
+                        "label-code": 299,
+                        "type-id": "7aaa37fe-2def-3476-b359-80245850062d",
+                        "type": "Original Production",
+                        "disambiguation": "",
+                        "id": "df7d1c7f-ef95-425f-8eef-445b3d7bcbd9",
+                        "name": "Parlophone",
+                        "sort-name": "Parlophone"
+                    }
+                }
+            ],
+            "packaging": "Cardboard/Paper Sleeve"
+        },
+        {
+            "title": "Please Please Me",
+            "quality": "normal",
+            "country": "GB",
+            "id": "c197ef6d-a6dc-4c8b-b560-91516e3991dc",
+            "packaging-id": "f7101ce3-0384-39ce-9fde-fbbd0044d35f",
+            "text-representation": {
+                "script": "Latn",
+                "language": "eng"
+            },
+            "asin": null,
+            "cover-art-archive": {
+                "count": 4,
+                "back": true,
+                "artwork": true,
+                "front": true,
+                "darkened": false
+            },
+            "media": [
+                {
+                    "format-id": "3e9080b0-5e6c-34ab-bd15-f526b6306a64",
+                    "title": "",
+                    "format": "12\" Vinyl",
+                    "track-count": 14,
+                    "id": "8b982403-43f6-31d6-9eab-980c0651e1f7",
+                    "position": 1
+                }
+            ],
+            "barcode": "",
+            "date": "1963-05",
+            "disambiguation": "mono, 3rd press",
+            "status": "Official",
+            "label-info": [
+                {
+                    "catalog-number": "PMC 1202",
+                    "label": {
+                        "sort-name": "Parlophone",
+                        "id": "df7d1c7f-ef95-425f-8eef-445b3d7bcbd9",
+                        "name": "Parlophone",
+                        "disambiguation": "",
+                        "label-code": 299,
+                        "type-id": "7aaa37fe-2def-3476-b359-80245850062d",
+                        "type": "Original Production"
+                    }
+                }
+            ],
+            "status-id": "4e304316-386d-3409-af2e-78857eec5cfe",
+            "release-events": [
+                {
+                    "date": "1963-05",
+                    "area": {
+                        "disambiguation": "",
+                        "type": null,
+                        "type-id": null,
+                        "sort-name": "United Kingdom",
+                        "iso-3166-1-codes": [
+                            "GB"
+                        ],
+                        "name": "United Kingdom",
+                        "id": "8a754a16-0027-3a29-b6d7-2b40ea0481ed"
+                    }
+                }
+            ],
+            "packaging": "Cardboard/Paper Sleeve"
+        },
+        {
+            "packaging": "Cardboard/Paper Sleeve",
+            "status": "Official",
+            "label-info": [
+                {
+                    "catalog-number": "PMC 1202",
+                    "label": {
+                        "disambiguation": "",
+                        "type": "Original Production",
+                        "label-code": 299,
+                        "type-id": "7aaa37fe-2def-3476-b359-80245850062d",
+                        "sort-name": "Parlophone",
+                        "id": "df7d1c7f-ef95-425f-8eef-445b3d7bcbd9",
+                        "name": "Parlophone"
+                    }
+                }
+            ],
+            "status-id": "4e304316-386d-3409-af2e-78857eec5cfe",
+            "release-events": [
+                {
+                    "area": {
+                        "type": null,
+                        "type-id": null,
+                        "disambiguation": "",
+                        "id": "8a754a16-0027-3a29-b6d7-2b40ea0481ed",
+                        "iso-3166-1-codes": [
+                            "GB"
+                        ],
+                        "name": "United Kingdom",
+                        "sort-name": "United Kingdom"
+                    },
+                    "date": "1963-04"
+                }
+            ],
+            "date": "1963-04",
+            "disambiguation": "mono, 2nd press",
+            "barcode": "",
+            "asin": null,
+            "text-representation": {
+                "script": "Latn",
+                "language": "eng"
+            },
+            "cover-art-archive": {
+                "back": true,
+                "count": 4,
+                "artwork": true,
+                "darkened": false,
+                "front": true
+            },
+            "media": [
+                {
+                    "format": "12\" Vinyl",
+                    "title": "",
+                    "format-id": "3e9080b0-5e6c-34ab-bd15-f526b6306a64",
+                    "id": "4f093535-d5ee-3d45-9f79-276c715e3bef",
+                    "track-count": 14,
+                    "position": 1
+                }
+            ],
+            "id": "fdab6b1b-fec0-4e3a-9041-f60fe4479d0a",
+            "country": "GB",
+            "packaging-id": "f7101ce3-0384-39ce-9fde-fbbd0044d35f",
+            "title": "Please Please Me",
+            "quality": "normal"
+        }
+    ],
+    "release-count": 76,
+    "release-offset": 0
+}

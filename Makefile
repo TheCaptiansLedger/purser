@@ -14,7 +14,7 @@ GORELEASER_VERSION := v2.17.0
 # test/k6 never need one, so plain unquoted words are always safe there.
 # compose does need real docker-compose flags sometimes; see its recipe.
 .PHONY: build _build-web _build-go _build-image \
-	test _test-unit _test-integration \
+	test _test-unit _test-integration test-ci \
 	k6 _k6-endpoint _k6-flow k6-ci _k6-app-start _k6-app-stop \
 	compose reset dev run \
 	install-hooks tools proto-gen help
@@ -59,6 +59,9 @@ _test-unit:
 
 _test-integration: ## Run integration tests (requires adapter credential env vars)
 	go test -tags integration -timeout 300s -v ./...
+
+test-ci: ## Run the exact suite the PR workflow's Test job runs — the single source of truth for both
+	go test -v -race -coverprofile=coverage.out ./...
 
 install-hooks: ## Install git pre-commit hooks (run once after clone)
 	pre-commit install

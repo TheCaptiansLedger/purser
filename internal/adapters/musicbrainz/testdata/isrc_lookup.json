@@ -1,0 +1,28 @@
+{
+    "recordings": [
+        {
+            "video": false,
+            "title": "Please Please Me",
+            "disambiguation": "original stereo studio mix",
+            "first-release-date": "1963-02-21",
+            "length": 122000,
+            "id": "b720b11f-2c00-4f48-83b9-4aa9d3207e8c",
+            "artist-credit": [
+                {
+                    "name": "The Beatles",
+                    "artist": {
+                        "sort-name": "Beatles, The",
+                        "country": "GB",
+                        "id": "b10bbbfc-cf9e-42e0-be17-e2c3e1d2600d",
+                        "name": "The Beatles",
+                        "disambiguation": "UK rock band, \u201cThe Fab Four\u201d",
+                        "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                        "type": "Group"
+                    },
+                    "joinphrase": ""
+                }
+            ]
+        }
+    ],
+    "isrc": "GBAYE0600350"
+}
