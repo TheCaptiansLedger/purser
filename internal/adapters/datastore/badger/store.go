@@ -343,6 +343,41 @@ func (s *Store) DeleteBatch(ctx context.Context, collection string, ids []string
 	return nil
 }
 
+// UpdateBatch implements datastore.Datastore.
+func (s *Store) UpdateBatch(ctx context.Context, docs []datastore.Document) error {
+	ctx, span := s.tracer.Start(ctx, "datastore_badger.update_batch", trace.WithAttributes(
+		attribute.String("datastore.name", s.name),
+		attribute.Int("document.count", len(docs)),
+	))
+	defer span.End()
+
+	err := s.db.Update(func(txn *badgerdb.Txn) error {
+		for _, doc := range docs {
+			old, loadErr := loadEnvelope(txn, doc.Collection, doc.ID)
+			if loadErr != nil {
+				return loadErr
+			}
+			if delErr := deleteIndexEntries(txn, doc.Collection, doc.ID, old.Index); delErr != nil {
+				return delErr
+			}
+			if err := writeDoc(txn, doc); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		if errors.Is(err, ports.ErrNotFound) {
+			return err
+		}
+		return fmt.Errorf("datastore/badger: update batch: %w", err)
+	}
+
+	s.updates.Add(ctx, int64(len(docs)), metric.WithAttributes(attribute.String("datastore.name", s.name)))
+	s.logger.DebugContext(ctx, "document batch updated", "document.count", len(docs))
+	return nil
+}
+
 func writeDoc(txn *badgerdb.Txn, d datastore.Document) error {
 	env := envelope{Data: json.RawMessage(d.Data), Index: d.Index}
 	b, err := json.Marshal(env)

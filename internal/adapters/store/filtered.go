@@ -208,6 +208,34 @@ func (r *FilteredRepository[T]) DeleteBatch(ctx context.Context, ids []string) e
 	return nil
 }
 
+// UpdateBatch replaces every record in vs, re-indexed by indexOf, as a
+// single atomic Datastore transaction — all succeed or none do. Only
+// entities with a real bulk-update API endpoint call this — see
+// docs/adr/0016-bulk-operations.md.
+func (r *FilteredRepository[T]) UpdateBatch(ctx context.Context, vs []*T) error {
+	ctx, span := r.tracer.Start(ctx, r.collection+"_repository.update_batch",
+		trace.WithAttributes(attribute.String("repository.name", r.name), attribute.Int(r.collection+".count", len(vs))))
+	defer span.End()
+
+	docs := make([]datastore.Document, 0, len(vs))
+	for _, v := range vs {
+		id := r.idOf(v)
+		data, err := json.Marshal(v)
+		if err != nil {
+			return fmt.Errorf("adapters/store: marshal %s %s: %w", r.collection, id, err)
+		}
+		docs = append(docs, datastore.Document{Collection: r.collection, ID: id, Data: data, Index: r.indexOf(v)})
+	}
+
+	if err := r.ds.UpdateBatch(ctx, docs); err != nil {
+		return err
+	}
+
+	r.updates.Add(ctx, int64(len(vs)), metric.WithAttributes(attribute.String("repository.name", r.name)))
+	r.logger.DebugContext(ctx, r.collection+" batch updated", "count", len(vs))
+	return nil
+}
+
 // List returns records in this collection matching filter (a non-empty
 // filter restricts results to documents whose Index matches every entry;
 // nil/empty means unfiltered), cursor-paginated.

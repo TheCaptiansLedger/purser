@@ -37,6 +37,8 @@ func TestDatastore(t *testing.T, newDS NewDatastoreFunc) {
 	t.Run("create batch with one conflicting id rolls back the whole batch", func(t *testing.T) { testCreateBatchRollsBackOnConflict(t, newDS) })
 	t.Run("delete batch removes every document atomically", func(t *testing.T) { testDeleteBatch(t, newDS) })
 	t.Run("delete batch with one missing id rolls back the whole batch", func(t *testing.T) { testDeleteBatchRollsBackOnMissing(t, newDS) })
+	t.Run("update batch replaces every document atomically", func(t *testing.T) { testUpdateBatch(t, newDS) })
+	t.Run("update batch with one missing id rolls back the whole batch", func(t *testing.T) { testUpdateBatchRollsBackOnMissing(t, newDS) })
 }
 
 func mustCreate(t *testing.T, ds datastore.Datastore, doc datastore.Document) {
@@ -331,5 +333,66 @@ func testDeleteBatchRollsBackOnMissing(t *testing.T, newDS NewDatastoreFunc) {
 	// Rolled back means w1 must still exist.
 	if _, err := ds.Get(ctx, "widget", "w1"); err != nil {
 		t.Fatalf("DeleteBatch removed w1 despite rolling back: %v", err)
+	}
+}
+
+func testUpdateBatch(t *testing.T, newDS NewDatastoreFunc) {
+	ds := newDS(t)
+	ctx := context.Background()
+	mustCreate(t, ds, doc("widget", "w1", nil))
+	mustCreate(t, ds, doc("widget", "w2", nil))
+	mustCreate(t, ds, doc("widget", "w3", nil))
+
+	updated := []datastore.Document{
+		{Collection: "widget", ID: "w1", Data: []byte(`{"id":"w1","updated":true}`)},
+		{Collection: "widget", ID: "w2", Data: []byte(`{"id":"w2","updated":true}`)},
+	}
+	if err := ds.UpdateBatch(ctx, updated); err != nil {
+		t.Fatalf("UpdateBatch returned error: %v", err)
+	}
+
+	for _, want := range updated {
+		got, err := ds.Get(ctx, "widget", want.ID)
+		if err != nil {
+			t.Fatalf("Get after UpdateBatch for %q returned error: %v", want.ID, err)
+		}
+		if string(got.Data) != string(want.Data) {
+			t.Fatalf("Get after UpdateBatch for %q returned Data %q, want %q", want.ID, got.Data, want.Data)
+		}
+	}
+
+	// w3 wasn't in the batch — must be untouched.
+	got, err := ds.Get(ctx, "widget", "w3")
+	if err != nil {
+		t.Fatalf("Get for w3 returned error: %v", err)
+	}
+	if string(got.Data) != string(doc("widget", "w3", nil).Data) {
+		t.Fatalf("UpdateBatch modified w3, which wasn't in the batch: %q", got.Data)
+	}
+}
+
+func testUpdateBatchRollsBackOnMissing(t *testing.T, newDS NewDatastoreFunc) {
+	ds := newDS(t)
+	ctx := context.Background()
+	original := doc("widget", "w1", nil)
+	mustCreate(t, ds, original)
+
+	err := ds.UpdateBatch(ctx, []datastore.Document{
+		{Collection: "widget", ID: "w1", Data: []byte(`{"id":"w1","updated":true}`)},
+		{Collection: "widget", ID: "missing", Data: []byte(`{"id":"missing","updated":true}`)},
+	})
+	if !errors.Is(err, ports.ErrNotFound) {
+		t.Fatalf("UpdateBatch with a missing id returned %v, want ErrNotFound", err)
+	}
+
+	// Rolled back means w1 must still have its original data, not the
+	// update the failed batch attempted — proves no partial write
+	// committed, not just that the call returned an error.
+	got, err := ds.Get(ctx, "widget", "w1")
+	if err != nil {
+		t.Fatalf("Get for w1 returned error: %v", err)
+	}
+	if string(got.Data) != string(original.Data) {
+		t.Fatalf("UpdateBatch left w1 partially updated despite rolling back: got %q, want original %q", got.Data, original.Data)
 	}
 }

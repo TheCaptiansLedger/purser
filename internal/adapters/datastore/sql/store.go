@@ -356,6 +356,54 @@ func (s *Store) DeleteBatch(ctx context.Context, collection string, ids []string
 	return nil
 }
 
+// UpdateBatch implements datastore.Datastore.
+func (s *Store) UpdateBatch(ctx context.Context, docs []datastore.Document) error {
+	ctx, span := s.tracer.Start(ctx, "datastore_sql.update_batch", trace.WithAttributes(
+		attribute.String("datastore.name", s.name),
+		attribute.Int("document.count", len(docs)),
+	))
+	defer span.End()
+
+	err := withTx(ctx, s.db, func(tx *sql.Tx) error {
+		update := rebind(`UPDATE documents SET data = ?, index_json = ? WHERE collection = ? AND id = ?`, s.dialect)
+		delIdx := rebind(`DELETE FROM document_index WHERE collection = ? AND id = ?`, s.dialect)
+		for _, d := range docs {
+			indexJSON, err := marshalIndex(d.Index)
+			if err != nil {
+				return fmt.Errorf("marshal index for %s/%s: %w", d.Collection, d.ID, err)
+			}
+			res, err := tx.ExecContext(ctx, update, string(d.Data), indexJSON, d.Collection, d.ID)
+			if err != nil {
+				return err
+			}
+			rows, err := res.RowsAffected()
+			if err != nil {
+				return err
+			}
+			if rows == 0 {
+				return ports.ErrNotFound
+			}
+			if _, err := tx.ExecContext(ctx, delIdx, d.Collection, d.ID); err != nil {
+				return err
+			}
+			if err := insertIndexRows(ctx, tx, s.dialect, d.Collection, d.ID, d.Index); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		if errors.Is(err, ports.ErrNotFound) {
+			return err
+		}
+		return fmt.Errorf("datastore/sql: update batch: %w", err)
+	}
+
+	s.updates.Add(ctx, int64(len(docs)), metric.WithAttributes(attribute.String("datastore.name", s.name)))
+	s.logger.DebugContext(ctx, "document batch updated", "document.count", len(docs))
+	return nil
+}
+
 func (s *Store) listUnfiltered(ctx context.Context, collection, pageToken string, limit int) ([]datastore.Document, error) {
 	query := rebind(`SELECT id, data, index_json FROM documents WHERE collection = ? AND id > ? ORDER BY id LIMIT ?`, s.dialect)
 	rows, err := s.db.QueryContext(ctx, query, collection, pageToken, limit)

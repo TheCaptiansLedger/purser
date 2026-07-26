@@ -83,4 +83,12 @@ type Datastore interface {
 	// Only entities with a real bulk-delete API endpoint call this — most
 	// callers keep using Delete.
 	DeleteBatch(ctx context.Context, collection string, ids []string) error
+
+	// UpdateBatch replaces every document in docs as a single transaction —
+	// all succeed or none do. Returns purser/internal/ports.ErrNotFound if
+	// any doc's Collection+ID doesn't already exist, rolling back the
+	// whole batch. See docs/adr/0016-bulk-operations.md. Only entities
+	// with a real bulk-update API endpoint call this — most callers keep
+	// using Update.
+	UpdateBatch(ctx context.Context, docs []Document) error
 }
