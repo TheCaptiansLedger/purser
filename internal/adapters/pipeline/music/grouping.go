@@ -1,6 +1,6 @@
 // Package music holds Music's content-type-specific implementations of the
-// pipeline's fanned-out capabilities (grouping now, fingerprinting/etc.
-// later) — adapter-layer, per docs/adr/0001-hexagonal-architecture.md's
+// pipeline's fanned-out capabilities (grouping, fingerprinting, more to
+// come) — adapter-layer, per docs/adr/0001-hexagonal-architecture.md's
 // "content-type-specific behavior lives in adapter implementations" rule.
 // Named to match the internal/adapters/store/music precedent.
 package music

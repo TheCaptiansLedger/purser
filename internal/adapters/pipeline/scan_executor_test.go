@@ -277,6 +277,44 @@ func (f *fakeGroupingResolver) GroupKeys(_ context.Context, _ domain.ContentType
 	return result, nil
 }
 
+// fakeFileFingerprinterResolver is a minimal ports.FileFingerprinterResolver
+// double. A zero-value instance behaves like service.NoopFingerprinter
+// (empty Fingerprint from both methods, no error) so tests unrelated to
+// fingerprinting can ignore it entirely. byPath lets a test return a
+// distinct per-file Fingerprint; consensusCalls records every Consensus
+// call's input so a test can assert exactly which Fingerprints were
+// bucketed into a group.
+type fakeFileFingerprinterResolver struct {
+	mu             sync.Mutex
+	byPath         map[string]domain.Fingerprint
+	fingerprintErr error
+	consensus      domain.Fingerprint
+	consensusErr   error
+	consensusCalls [][]domain.Fingerprint
+}
+
+func (f *fakeFileFingerprinterResolver) Fingerprint(_ context.Context, _ domain.ContentType, path string, _ int) (domain.Fingerprint, error) {
+	if f.fingerprintErr != nil {
+		return domain.Fingerprint{}, f.fingerprintErr
+	}
+	if f.byPath != nil {
+		if fp, ok := f.byPath[path]; ok {
+			return fp, nil
+		}
+	}
+	return domain.Fingerprint{}, nil
+}
+
+func (f *fakeFileFingerprinterResolver) Consensus(_ context.Context, _ domain.ContentType, fingerprints []domain.Fingerprint) (domain.Fingerprint, error) {
+	f.mu.Lock()
+	f.consensusCalls = append(f.consensusCalls, fingerprints)
+	f.mu.Unlock()
+	if f.consensusErr != nil {
+		return domain.Fingerprint{}, f.consensusErr
+	}
+	return f.consensus, nil
+}
+
 func newEngine(t *testing.T, repo ports.UnmatchedFileRepository, mediaFileRepo ports.MediaFileRepository) *pkgjobqueue.Engine {
 	t.Helper()
 	return newEngineWithGrouping(t, repo, mediaFileRepo, &fakeGroupingResolver{})
@@ -284,8 +322,13 @@ func newEngine(t *testing.T, repo ports.UnmatchedFileRepository, mediaFileRepo p
 
 func newEngineWithGrouping(t *testing.T, repo ports.UnmatchedFileRepository, mediaFileRepo ports.MediaFileRepository, grouping ports.GroupingResolver) *pkgjobqueue.Engine {
 	t.Helper()
+	return newEngineWithFingerprinter(t, repo, mediaFileRepo, grouping, &fakeFileFingerprinterResolver{})
+}
+
+func newEngineWithFingerprinter(t *testing.T, repo ports.UnmatchedFileRepository, mediaFileRepo ports.MediaFileRepository, grouping ports.GroupingResolver, fingerprinter ports.FileFingerprinterResolver) *pkgjobqueue.Engine {
+	t.Helper()
 	engine := pkgjobqueue.NewEngine(memory.New())
-	engine.Register("scan", pipeline.NewScanExecutor(repo, mediaFileRepo, grouping))
+	engine.Register("scan", pipeline.NewScanExecutor(repo, mediaFileRepo, grouping, fingerprinter))
 	return engine
 }
 
@@ -358,8 +401,8 @@ func TestScanExecutor_Execute_Success(t *testing.T) {
 	}
 
 	for _, task := range job.Tasks {
-		if len(task.Steps) != 3 || task.Steps[0].Name != "hash" || task.Steps[1].Name != "check_known" || task.Steps[2].Name != "queue" {
-			t.Fatalf("task %q has steps %+v, want [hash check_known queue]", task.Label, task.Steps)
+		if len(task.Steps) != 4 || task.Steps[0].Name != "hash" || task.Steps[1].Name != "fingerprint" || task.Steps[2].Name != "check_known" || task.Steps[3].Name != "queue" {
+			t.Fatalf("task %q has steps %+v, want [hash fingerprint check_known queue]", task.Label, task.Steps)
 		}
 
 		hashStep := findStep(task, "hash")
@@ -584,7 +627,7 @@ func TestScanExecutor_Execute_RepositoryErrorFailsTask(t *testing.T) {
 	failingRepo := &alwaysFailUnmatchedFileRepository{err: errors.New("boom")}
 	mediaFileRepo := newFakeMediaFileRepository()
 	failEngine := pkgjobqueue.NewEngine(memory.New())
-	failEngine.Register("scan", pipeline.NewScanExecutor(failingRepo, mediaFileRepo, &fakeGroupingResolver{}))
+	failEngine.Register("scan", pipeline.NewScanExecutor(failingRepo, mediaFileRepo, &fakeGroupingResolver{}, &fakeFileFingerprinterResolver{}))
 
 	id, err := failEngine.Trigger(context.Background(), "scan", []string{file}, nil)
 	if err != nil {
@@ -640,8 +683,8 @@ func TestScanExecutor_Execute_MatchesExistingMediaFile(t *testing.T) {
 	}
 
 	task := job.Tasks[0]
-	if len(task.Steps) != 2 || task.Steps[0].Name != "hash" || task.Steps[1].Name != "check_known" {
-		t.Fatalf("task has steps %+v, want exactly [hash check_known] (queue must not run)", task.Steps)
+	if len(task.Steps) != 3 || task.Steps[0].Name != "hash" || task.Steps[1].Name != "fingerprint" || task.Steps[2].Name != "check_known" {
+		t.Fatalf("task has steps %+v, want exactly [hash fingerprint check_known] (queue must not run)", task.Steps)
 	}
 
 	checkStep := findStep(task, "check_known")
@@ -704,8 +747,8 @@ func TestScanExecutor_Execute_MatchesExistingUnmatchedFile(t *testing.T) {
 	}
 
 	task := job.Tasks[0]
-	if len(task.Steps) != 2 || task.Steps[0].Name != "hash" || task.Steps[1].Name != "check_known" {
-		t.Fatalf("task has steps %+v, want exactly [hash check_known] (queue must not run)", task.Steps)
+	if len(task.Steps) != 3 || task.Steps[0].Name != "hash" || task.Steps[1].Name != "fingerprint" || task.Steps[2].Name != "check_known" {
+		t.Fatalf("task has steps %+v, want exactly [hash fingerprint check_known] (queue must not run)", task.Steps)
 	}
 
 	checkStep := findStep(task, "check_known")
@@ -737,7 +780,7 @@ func TestScanExecutor_Execute_CheckKnownRepositoryErrorFailsTask(t *testing.T) {
 	repo := newFakeUnmatchedFileRepository()
 	failingMediaFileRepo := &alwaysFailMediaFileRepository{err: errors.New("boom")}
 	engine := pkgjobqueue.NewEngine(memory.New())
-	engine.Register("scan", pipeline.NewScanExecutor(repo, failingMediaFileRepo, &fakeGroupingResolver{}))
+	engine.Register("scan", pipeline.NewScanExecutor(repo, failingMediaFileRepo, &fakeGroupingResolver{}, &fakeFileFingerprinterResolver{}))
 
 	id, err := engine.Trigger(context.Background(), "scan", []string{file}, nil)
 	if err != nil {
@@ -819,4 +862,189 @@ func (a *alwaysFailMediaFileRepository) List(context.Context, string, int, strin
 
 func (a *alwaysFailMediaFileRepository) GetByHash(context.Context, string, string, string, string) (*domain.MediaFile, error) {
 	return nil, a.err
+}
+
+// TestScanExecutor_Execute_FingerprintStepRecordsTagCount covers the
+// "fingerprint" Step's happy path: the FileFingerprinterResolver's result
+// is recorded on the Step (tag_count) and the Task still proceeds normally
+// through check_known/queue.
+func TestScanExecutor_Execute_FingerprintStepRecordsTagCount(t *testing.T) {
+	dir := t.TempDir()
+	file := writeHashableFixture(t, dir, "one.flac")
+
+	repo := newFakeUnmatchedFileRepository()
+	mediaFileRepo := newFakeMediaFileRepository()
+	fingerprinter := &fakeFileFingerprinterResolver{
+		byPath: map[string]domain.Fingerprint{
+			file: {Tags: map[string]string{"ALBUM": "Test Album", "TITLE": "Test Title"}},
+		},
+	}
+	engine := newEngineWithFingerprinter(t, repo, mediaFileRepo, &fakeGroupingResolver{}, fingerprinter)
+
+	id, err := engine.Trigger(context.Background(), "scan", []string{file}, nil)
+	if err != nil {
+		t.Fatalf("Trigger returned error: %v", err)
+	}
+
+	job := waitForTerminal(t, engine, id.ID)
+	if job.Status != pkgjobqueue.StatusSucceeded {
+		t.Fatalf("job.Status = %q, want %q", job.Status, pkgjobqueue.StatusSucceeded)
+	}
+
+	fpStep := findStep(job.Tasks[0], "fingerprint")
+	if fpStep == nil || fpStep.Status != pkgjobqueue.StatusSucceeded {
+		t.Fatalf("fingerprint step = %+v, want a succeeded step", fpStep)
+	}
+	if fpStep.Detail["tag_count"] != "2" {
+		t.Errorf("fingerprint step tag_count = %q, want %q", fpStep.Detail["tag_count"], "2")
+	}
+}
+
+// TestScanExecutor_Execute_FingerprintFailureIsNonFatal covers
+// docs/technical/pipeline-music-fingerprinter.md's implicit requirement
+// that one file's unreadable/corrupt fingerprint never blocks it from
+// still being queued for review: the fingerprint Step is recorded as
+// failed, but check_known/queue still run and the Job still succeeds.
+func TestScanExecutor_Execute_FingerprintFailureIsNonFatal(t *testing.T) {
+	dir := t.TempDir()
+	file := writeHashableFixture(t, dir, "one.flac")
+
+	repo := newFakeUnmatchedFileRepository()
+	mediaFileRepo := newFakeMediaFileRepository()
+	fingerprinter := &fakeFileFingerprinterResolver{fingerprintErr: errors.New("ffprobe: boom")}
+	engine := newEngineWithFingerprinter(t, repo, mediaFileRepo, &fakeGroupingResolver{}, fingerprinter)
+
+	id, err := engine.Trigger(context.Background(), "scan", []string{file}, nil)
+	if err != nil {
+		t.Fatalf("Trigger returned error: %v", err)
+	}
+
+	job := waitForTerminal(t, engine, id.ID)
+	if job.Status != pkgjobqueue.StatusSucceeded {
+		t.Fatalf("job.Status = %q, want %q (fingerprint failure must be non-fatal)", job.Status, pkgjobqueue.StatusSucceeded)
+	}
+
+	task := job.Tasks[0]
+	fpStep := findStep(task, "fingerprint")
+	if fpStep == nil || fpStep.Status != pkgjobqueue.StatusFailed {
+		t.Fatalf("fingerprint step = %+v, want a failed step", fpStep)
+	}
+	if findStep(task, "queue") == nil {
+		t.Fatal("queue step did not run, want it to run despite the fingerprint failure")
+	}
+	if len(repo.files) != 1 {
+		t.Fatalf("repo has %d files, want 1 (still queued despite fingerprint failure)", len(repo.files))
+	}
+}
+
+// TestScanExecutor_Execute_PersistsConsensusOntoGroup covers the pass-2
+// group consensus write: once every Task in the Job has run, the buffered
+// per-file Fingerprints for a shared GroupKey are reduced via Consensus and
+// written onto every UnmatchedFile row in that group with one UpdateBatch
+// call.
+func TestScanExecutor_Execute_PersistsConsensusOntoGroup(t *testing.T) {
+	dir := t.TempDir()
+	file1 := writeHashableFixture(t, dir, "one.flac")
+	file2 := writeHashableFixture(t, dir, "two.flac")
+
+	repo := newFakeUnmatchedFileRepository()
+	mediaFileRepo := newFakeMediaFileRepository()
+	grouping := &fakeGroupingResolver{results: map[string]ports.GroupingResult{
+		file1: {GroupKey: "shared-album", DiscNumber: 1},
+		file2: {GroupKey: "shared-album", DiscNumber: 1},
+	}}
+	fingerprinter := &fakeFileFingerprinterResolver{
+		byPath: map[string]domain.Fingerprint{
+			file1: {Tags: map[string]string{"ALBUM": "Test Album"}},
+			file2: {Tags: map[string]string{"ALBUM": "Test Album"}},
+		},
+		consensus: domain.Fingerprint{
+			Tags:     map[string]string{"ALBUM": "Consensus Album"},
+			Metadata: map[string]any{"track_count": 2},
+		},
+	}
+	engine := newEngineWithFingerprinter(t, repo, mediaFileRepo, grouping, fingerprinter)
+
+	id, err := engine.Trigger(context.Background(), "scan", []string{file1, file2}, map[string]string{"content_type": "music"})
+	if err != nil {
+		t.Fatalf("Trigger returned error: %v", err)
+	}
+
+	job := waitForTerminal(t, engine, id.ID)
+	if job.Status != pkgjobqueue.StatusSucceeded {
+		t.Fatalf("job.Status = %q, want %q", job.Status, pkgjobqueue.StatusSucceeded)
+	}
+
+	if len(fingerprinter.consensusCalls) != 1 || len(fingerprinter.consensusCalls[0]) != 2 {
+		t.Fatalf("Consensus called with %+v, want exactly one call with 2 fingerprints", fingerprinter.consensusCalls)
+	}
+
+	for _, task := range job.Tasks {
+		ufID := findStep(task, "queue").Detail["unmatched_file.id"]
+		got, err := repo.Get(context.Background(), ufID)
+		if err != nil {
+			t.Fatalf("repo.Get(%q) returned error: %v", ufID, err)
+		}
+		if got.Fingerprint == nil {
+			t.Fatalf("task %q stored UnmatchedFile.Fingerprint is nil, want the group consensus", task.Label)
+		}
+		if got.Fingerprint.Tags["ALBUM"] != "Consensus Album" {
+			t.Errorf("task %q Fingerprint.Tags[ALBUM] = %q, want %q", task.Label, got.Fingerprint.Tags["ALBUM"], "Consensus Album")
+		}
+	}
+}
+
+// TestScanExecutor_Execute_SkipsConsensusWriteWhenEmpty covers the "no
+// registered fingerprinter" case (service.NoopFingerprinter, mirrored here
+// by the fake's zero-value behavior): Consensus returns an empty
+// Fingerprint, and ScanExecutor must not write it onto UnmatchedFile rows —
+// content types this feature doesn't touch yet get no writes at all.
+func TestScanExecutor_Execute_SkipsConsensusWriteWhenEmpty(t *testing.T) {
+	dir := t.TempDir()
+	file := writeHashableFixture(t, dir, "one.flac")
+
+	repo := newFakeUnmatchedFileRepository()
+	mediaFileRepo := newFakeMediaFileRepository()
+	engine := newEngine(t, repo, mediaFileRepo)
+
+	id, err := engine.Trigger(context.Background(), "scan", []string{file}, nil)
+	if err != nil {
+		t.Fatalf("Trigger returned error: %v", err)
+	}
+
+	job := waitForTerminal(t, engine, id.ID)
+	ufID := findStep(job.Tasks[0], "queue").Detail["unmatched_file.id"]
+	got, err := repo.Get(context.Background(), ufID)
+	if err != nil {
+		t.Fatalf("repo.Get(%q) returned error: %v", ufID, err)
+	}
+	if got.Fingerprint != nil {
+		t.Fatalf("stored UnmatchedFile.Fingerprint = %+v, want nil (empty consensus must not be written)", got.Fingerprint)
+	}
+}
+
+// TestScanExecutor_Execute_ConsensusErrorFailsJob covers a Consensus error
+// during the post-loop pass: it must fail the Job, since it happens outside
+// any single Task's lifecycle.
+func TestScanExecutor_Execute_ConsensusErrorFailsJob(t *testing.T) {
+	dir := t.TempDir()
+	file := writeHashableFixture(t, dir, "one.flac")
+
+	repo := newFakeUnmatchedFileRepository()
+	mediaFileRepo := newFakeMediaFileRepository()
+	fingerprinter := &fakeFileFingerprinterResolver{
+		byPath:       map[string]domain.Fingerprint{file: {Tags: map[string]string{"ALBUM": "X"}}},
+		consensusErr: errors.New("boom"),
+	}
+	engine := newEngineWithFingerprinter(t, repo, mediaFileRepo, &fakeGroupingResolver{}, fingerprinter)
+
+	id, err := engine.Trigger(context.Background(), "scan", []string{file}, nil)
+	if err != nil {
+		t.Fatalf("Trigger returned error: %v", err)
+	}
+
+	job := waitForTerminal(t, engine, id.ID)
+	if job.Status != pkgjobqueue.StatusFailed {
+		t.Fatalf("job.Status = %q, want %q", job.Status, pkgjobqueue.StatusFailed)
+	}
 }

@@ -23,9 +23,10 @@ import (
 )
 
 const (
-	stepHash       = "hash"
-	stepCheckKnown = "check_known"
-	stepQueue      = "queue"
+	stepHash        = "hash"
+	stepFingerprint = "fingerprint"
+	stepCheckKnown  = "check_known"
+	stepQueue       = "queue"
 
 	// outcome values recorded on the "check_known" Step's Detail — see
 	// checkKnown and docs/adr/0024-pipeline-core.md's "already known"
@@ -38,10 +39,15 @@ const (
 // ScanExecutor implements pkgjobqueue.Executor for "scan" Jobs. Each
 // Task's Label is the discovered file's full path (set by
 // internal/service.ScanService.Trigger). Per Task: compute hashes (Step
-// "hash"), then check whether the file is already known by hash (Step
-// "check_known") before either short-circuiting (a MediaFile or
-// UnmatchedFile hit just gets its Path updated) or creating a new
-// UnmatchedFile (Step "queue"). It imports pkg/jobqueue directly — unlike
+// "hash"), extract per-file identification data (Step "fingerprint", non-
+// fatal — see runFingerprintStep), then check whether the file is already
+// known by hash (Step "check_known") before either short-circuiting (a
+// MediaFile or UnmatchedFile hit just gets its Path updated) or creating a
+// new UnmatchedFile (Step "queue"). Once every Task has run, buffered
+// per-file Fingerprints are reduced to one consensus Fingerprint per
+// GroupKey and written onto every UnmatchedFile row in that group — see
+// persistConsensus and docs/technical/pipeline-music-fingerprinter.md's
+// "Group consensus" section. It imports pkg/jobqueue directly — unlike
 // internal/service/scan.go — because it's the adapter glue registered on
 // the concrete *pkgjobqueue.Engine; it also needs
 // ports.UnmatchedFileRepository/ports.MediaFileRepository/
@@ -52,14 +58,15 @@ type ScanExecutor struct {
 	repo          ports.UnmatchedFileRepository
 	mediaFileRepo ports.MediaFileRepository
 	grouping      ports.GroupingResolver
+	fingerprinter ports.FileFingerprinterResolver
 }
 
 var _ pkgjobqueue.Executor = (*ScanExecutor)(nil)
 
 // NewScanExecutor constructs a ScanExecutor backed by repo, mediaFileRepo,
-// and grouping.
-func NewScanExecutor(repo ports.UnmatchedFileRepository, mediaFileRepo ports.MediaFileRepository, grouping ports.GroupingResolver) *ScanExecutor {
-	return &ScanExecutor{repo: repo, mediaFileRepo: mediaFileRepo, grouping: grouping}
+// grouping, and fingerprinter.
+func NewScanExecutor(repo ports.UnmatchedFileRepository, mediaFileRepo ports.MediaFileRepository, grouping ports.GroupingResolver, fingerprinter ports.FileFingerprinterResolver) *ScanExecutor {
+	return &ScanExecutor{repo: repo, mediaFileRepo: mediaFileRepo, grouping: grouping, fingerprinter: fingerprinter}
 }
 
 // Execute implements pkgjobqueue.Executor. Grouping runs once for the
@@ -86,6 +93,7 @@ func (e *ScanExecutor) Execute(ctx context.Context, r *pkgjobqueue.Runner) error
 		return fmt.Errorf("pipeline: grouping paths: %w", err)
 	}
 
+	fingerprintsByGroup := make(map[string][]domain.Fingerprint)
 	for _, task := range job.Tasks {
 		if err := r.StartTask(ctx, task.ID); err != nil {
 			return err
@@ -94,19 +102,20 @@ func (e *ScanExecutor) Execute(ctx context.Context, r *pkgjobqueue.Runner) error
 		if !ok {
 			groupResult = ports.GroupingResult{GroupKey: task.Label, DiscNumber: 0}
 		}
-		if err := e.runTask(ctx, r, task.ID, task.Label, enableMD5, enableSHA512, groupResult); err != nil {
+		if err := e.runTask(ctx, r, task.ID, task.Label, enableMD5, enableSHA512, contentType, groupResult, fingerprintsByGroup); err != nil {
 			return err
 		}
 	}
 
-	return nil
+	return e.persistConsensus(ctx, contentType, fingerprintsByGroup)
 }
 
-// runTask hashes the file at path (task.Label), checks whether it's
-// already known by hash, and either short-circuits or queues it as a new
-// UnmatchedFile — driving every Step and the terminal Task status for
-// taskID.
-func (e *ScanExecutor) runTask(ctx context.Context, r *pkgjobqueue.Runner, taskID, path string, enableMD5, enableSHA512 bool, groupResult ports.GroupingResult) error {
+// runTask hashes the file at path (task.Label), extracts its per-file
+// Fingerprint (buffered into fingerprintsByGroup for the post-loop
+// consensus pass), checks whether it's already known by hash, and either
+// short-circuits or queues it as a new UnmatchedFile — driving every Step
+// and the terminal Task status for taskID.
+func (e *ScanExecutor) runTask(ctx context.Context, r *pkgjobqueue.Runner, taskID, path string, enableMD5, enableSHA512 bool, contentType domain.ContentType, groupResult ports.GroupingResult, fingerprintsByGroup map[string][]domain.Fingerprint) error {
 	oshash, sha1sum, md5sum, sha512sum, hashDetail, hashErr := computeHashes(path, enableMD5, enableSHA512)
 
 	hashHandle, err := r.StartStep(ctx, taskID, stepHash)
@@ -123,12 +132,86 @@ func (e *ScanExecutor) runTask(ctx context.Context, r *pkgjobqueue.Runner, taskI
 		return err
 	}
 
+	fp, ok, err := e.runFingerprintStep(ctx, r, taskID, path, contentType, groupResult.DiscNumber)
+	if err != nil {
+		return err
+	}
+	if ok {
+		fingerprintsByGroup[groupResult.GroupKey] = append(fingerprintsByGroup[groupResult.GroupKey], fp)
+	}
+
 	proceed, err := e.runCheckKnownStep(ctx, r, taskID, path, oshash, sha1sum, md5sum, sha512sum)
 	if err != nil || !proceed {
 		return err
 	}
 
 	return e.runQueueStep(ctx, r, taskID, path, oshash, sha1sum, md5sum, sha512sum, groupResult)
+}
+
+// runFingerprintStep runs the "fingerprint" Step. Unlike hash/check_known/
+// queue, a fingerprinting failure (a corrupt file, a missing ffprobe
+// binary) is recorded on the Step but never fails the Task — one
+// unreadable file still gets queued for review and doesn't block the rest
+// of its group's consensus; it simply contributes no identification
+// signal, the same "no cost, no crash" treatment an unregistered content
+// type already gets from NoopFingerprinter. The returned bool reports
+// whether fp is valid and should be buffered for the consensus pass; a
+// non-nil error means a Runner/Step-tracking failure that must abort the
+// Task like every other step here.
+func (e *ScanExecutor) runFingerprintStep(ctx context.Context, r *pkgjobqueue.Runner, taskID, path string, contentType domain.ContentType, discNumberGuess int) (domain.Fingerprint, bool, error) {
+	handle, err := r.StartStep(ctx, taskID, stepFingerprint)
+	if err != nil {
+		return domain.Fingerprint{}, false, err
+	}
+
+	fp, fpErr := e.fingerprinter.Fingerprint(ctx, contentType, path, discNumberGuess)
+	if fpErr != nil {
+		if err := r.FinishStep(handle, pkgjobqueue.StatusFailed, fpErr.Error(), nil, fpErr); err != nil {
+			return domain.Fingerprint{}, false, err
+		}
+		return domain.Fingerprint{}, false, nil
+	}
+	if err := r.FinishStep(handle, pkgjobqueue.StatusSucceeded, "", map[string]string{"tag_count": strconv.Itoa(len(fp.Tags))}, nil); err != nil {
+		return domain.Fingerprint{}, false, err
+	}
+	return fp, true, nil
+}
+
+// persistConsensus reduces every GroupKey's buffered per-file Fingerprints
+// into one consensus Fingerprint (FileFingerprinterResolver.Consensus) and
+// writes it onto every UnmatchedFile row currently in that group — not just
+// the rows this Job's tasks created, since a group can also contain rows
+// from an earlier run (per docs/technical/pipeline-music-fingerprinter.md's
+// "Group consensus" section). A content type with no real fingerprinter
+// registered (NoopFingerprinter) produces an empty consensus Fingerprint
+// for every group, which is deliberately skipped — writing an empty,
+// non-nil Fingerprint onto every UnmatchedFile row for content types this
+// feature doesn't touch yet would be a needless, unrequested write.
+func (e *ScanExecutor) persistConsensus(ctx context.Context, contentType domain.ContentType, fingerprintsByGroup map[string][]domain.Fingerprint) error {
+	for groupKey, fingerprints := range fingerprintsByGroup {
+		consensus, err := e.fingerprinter.Consensus(ctx, contentType, fingerprints)
+		if err != nil {
+			return fmt.Errorf("pipeline: computing fingerprint consensus for group %q: %w", groupKey, err)
+		}
+		if len(consensus.Tags) == 0 && len(consensus.Metadata) == 0 {
+			continue
+		}
+
+		rows, err := e.repo.ListByGroupKey(ctx, groupKey)
+		if err != nil {
+			return fmt.Errorf("pipeline: listing group %q for consensus: %w", groupKey, err)
+		}
+		if len(rows) == 0 {
+			continue
+		}
+		for _, row := range rows {
+			row.Fingerprint = &consensus
+		}
+		if err := e.repo.UpdateBatch(ctx, rows); err != nil {
+			return fmt.Errorf("pipeline: persisting fingerprint consensus for group %q: %w", groupKey, err)
+		}
+	}
+	return nil
 }
 
 // runCheckKnownStep runs the "check_known" Step: a MediaFile or

@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"os/exec"
 	"os/signal"
 	"purser/internal/adapters/datastore"
 	"purser/internal/config"
@@ -85,6 +86,8 @@ func runServe(ctx context.Context, configPath string) error {
 		return err
 	}
 
+	checkMediaToolchain(logger)
+
 	shutdownTelemetry, err := setupTelemetry(ctx, cfg.Telemetry, logger)
 	if err != nil {
 		return err
@@ -161,6 +164,40 @@ func runServe(ctx context.Context, configPath string) error {
 		return srv.Shutdown(shutdownCtx)
 	case serveErr := <-errCh:
 		return serveErr
+	}
+}
+
+// requiredMediaBinaries are the external binaries the media/pipeline
+// toolchain shells out to — checkMediaToolchain verifies each is resolvable
+// on PATH at startup. Currently just ffprobe (Music's FileFingerprinter,
+// M4); fpcalc (AcoustID, M5) joins this list once that adapter lands — see
+// docs/technical/pipeline-music-fingerprinter.md and
+// docs/technical/pipeline-music-acoustid-adapter.md.
+var requiredMediaBinaries = []string{"ffprobe"}
+
+// checkMediaToolchain verifies every binary in requiredMediaBinaries
+// resolves on PATH and logs an error for each one that doesn't. This is
+// deliberately non-fatal: a missing binary only degrades the specific
+// pipeline capability that shells out to it (e.g. Music fingerprinting
+// falls back to producing no tag/duration signal for every file, the same
+// "no cost, no crash" treatment an unregistered content type already gets)
+// — it never prevents the rest of the server, which has no dependency on
+// it, from starting.
+func checkMediaToolchain(logger *slog.Logger) {
+	checkRequiredBinaries(logger, requiredMediaBinaries)
+}
+
+// checkRequiredBinaries is checkMediaToolchain's logic, taking the binary
+// list as a parameter so it's testable without mutating the package-level
+// requiredMediaBinaries.
+func checkRequiredBinaries(logger *slog.Logger, binaries []string) {
+	for _, name := range binaries {
+		if _, err := exec.LookPath(name); err != nil {
+			logger.Error("required media toolchain binary not found on PATH",
+				"binary", name,
+				"impact", "pipeline capabilities depending on this binary will fail until it is installed",
+			)
+		}
 	}
 }
 
@@ -473,7 +510,10 @@ func wireScanPipeline(ctx context.Context, mux *http.ServeMux, ds datastore.Data
 	// Content types with no registered ports.Grouping implementation fall
 	// back to service.IdentityGrouping.
 	groupingRegistry := service.NewGroupingRegistry(pipelinemusic.Grouping{})
-	jobEngine.Register("scan", adapterpipeline.NewScanExecutor(unmatchedFileRepo, mediaFileRepo, groupingRegistry))
+	// Content types with no registered ports.FileFingerprinter
+	// implementation fall back to service.NoopFingerprinter.
+	fingerprinterRegistry := service.NewFileFingerprinterRegistry(pipelinemusic.New(pipelinemusic.WithLogger(logger)))
+	jobEngine.Register("scan", adapterpipeline.NewScanExecutor(unmatchedFileRepo, mediaFileRepo, groupingRegistry, fingerprinterRegistry))
 
 	fileWalker, err := filewalkerlocal.New(filewalkerlocal.WithLogger(logger))
 	if err != nil {

@@ -63,6 +63,13 @@ jobs:
           go-version-file: go.mod
           cache: true
 
+      # ffprobe (part of ffmpeg) backs Music's FileFingerprinter adapter
+      # test (internal/adapters/pipeline/music) — installed explicitly
+      # rather than assumed present on the runner image. See
+      # docs/technical/pipeline-music-fingerprinter.md.
+      - name: Install media toolchain (ffmpeg)
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends ffmpeg
+
       - uses: actions/setup-node@v6
         with:
           node-version-file: web/package.json

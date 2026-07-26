@@ -13,6 +13,10 @@
 # `docker build`, so this Dockerfile never needs a separate "dev" variant.
 FROM debian:12-slim
 
+# ffmpeg provides ffprobe (Music's FileFingerprinter, M4); libchromaprint-tools
+# provides fpcalc (AcoustID, M5) — the pipeline's media toolchain. See
+# docs/technical/pipeline-music-fingerprinter.md and
+# docs/technical/pipeline-music-acoustid-adapter.md.
 RUN apt-get update && apt-get install -y --no-install-recommends \
       ca-certificates \
       tzdata \

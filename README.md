@@ -34,6 +34,10 @@ Runs as a single binary, a container, or a Kubernetes workload. No cloud account
 
 Purser looks for `purser.yaml` in the working directory. Override with `$CONFIG_PATH`.
 
+### Requirements
+
+Running the `purser` binary directly (not via the container image, which already bundles these) needs `ffprobe` (part of [ffmpeg](https://ffmpeg.org/)) on `PATH` for Music library fingerprinting. Purser logs an error at startup, but keeps running, if it's missing. `fpcalc` (part of Chromaprint) will join this requirement once AcoustID matching lands.
+
 ### Docker
 
 ```bash
