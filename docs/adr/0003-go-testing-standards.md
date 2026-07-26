@@ -37,9 +37,22 @@ Test style per layer:
   (file convention: `<port>_contract_test.go` next to the port, exercised by
   each adapter package). This is what guarantees Liskov substitutability
   from [0002](0002-solid-design-principles.md).
-  Adapter-specific tests beyond the contract test may use recorded
-  HTTP fixtures (golden files) rather than live network calls; they must
-  not require network access to run in CI.
+  Adapter-specific tests beyond the contract test use recorded
+  request/response fixtures (golden files), not live network calls.
+
+  For an adapter fronting a third-party network service (MusicBrainz,
+  AcoustID, or any future provider): the default suite — everything that
+  runs under plain `go test ./...` and in CI — is fixture-only, never a
+  live call. A real, live-network verification test may exist for that
+  adapter and that adapter only, gated behind a build tag (`live`) so it
+  never runs by default or in CI, invoked manually/on a schedule instead.
+  **No other layer's test — domain, service, another adapter, API, or a
+  different content type's identifier/fingerprinter/persister — may make a
+  live call to that or any other external service, gated or not.** They
+  depend on the port; a port is faked, never really called, outside the
+  one adapter package that implements it. This is what keeps a
+  rate-limited upstream (MusicBrainz's 1 req/sec) from ever determining
+  how long the test suite takes to run.
 - **Services**: unit tests against fake port implementations, not real
   adapters. A service test that spins up a real database or makes a real
   HTTP call is testing the wrong layer — that behavior belongs in an
@@ -84,3 +97,7 @@ something that isn't behind a port yet, that's a signal a port is missing
 4. Are coverage targets in `codecov.yml` still matched to the actual package
    layout (`internal/domain`, `internal/adapters`, `internal/api`, `cmd`,
    `pkg`)? If the layout changed and the config didn't, fix the config.
+5. Does any test outside a network adapter's own package make a live call
+   to an external service, or does that adapter's *default* (non-`live`)
+   suite make one? If yes — fix it; fixtures only, live calls are opt-in
+   and scoped to one adapter package.

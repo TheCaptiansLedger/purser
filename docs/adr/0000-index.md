@@ -43,6 +43,8 @@ ADR wins.
 | [0022](0022-k6-ci-enforcement.md) | k6 CI Enforcement: Failing Thresholds, a Standalone-Badger CI Job | Accepted |
 | [0023](0023-job-queue.md) | Job Queue: Ephemeral In-Process Job/Task/Step Tracking, Polled and Streamed | Accepted |
 | [0024](0024-pipeline-core.md) | Pipeline Core: Scan, Fingerprint, Identify, and Organize | Accepted |
+| [0025](0025-music-identification-confidence-scoring.md) | Music Identification: Grouping and Confidence Scoring | Proposed |
+| [0026](0026-external-id-get-or-create.md) | ExternalID Get-or-Create: Extending the Reservation-Document Pattern to (EntityType, Source, Value) | Proposed |
 
 ## Adding a new ADR
 
