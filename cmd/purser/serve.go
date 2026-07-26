@@ -169,11 +169,11 @@ func runServe(ctx context.Context, configPath string) error {
 
 // requiredMediaBinaries are the external binaries the media/pipeline
 // toolchain shells out to — checkMediaToolchain verifies each is resolvable
-// on PATH at startup. Currently just ffprobe (Music's FileFingerprinter,
-// M4); fpcalc (AcoustID, M5) joins this list once that adapter lands — see
+// on PATH at startup: ffprobe (Music's FileFingerprinter, M4) and fpcalc
+// (Chromaprint, AcoustID's Fingerprint, M5) — see
 // docs/technical/pipeline-music-fingerprinter.md and
 // docs/technical/pipeline-music-acoustid-adapter.md.
-var requiredMediaBinaries = []string{"ffprobe"}
+var requiredMediaBinaries = []string{"ffprobe", "fpcalc"}
 
 // checkMediaToolchain verifies every binary in requiredMediaBinaries
 // resolves on PATH and logs an error for each one that doesn't. This is
