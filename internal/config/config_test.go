@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"purser/internal/config"
+	"purser/internal/domain"
 	"testing"
 
 	"github.com/spf13/viper"
@@ -265,6 +266,65 @@ func TestConfig_Validate_AcceptsAnyPipelineToggleCombination(t *testing.T) {
 	}
 	cfg.Pipeline.EnableMD5 = true
 	cfg.Pipeline.EnableSHA512 = true
+	if err := cfg.Validate(); err != nil {
+		t.Fatalf("Validate() = %v, want nil", err)
+	}
+}
+
+func TestLoad_UsesDefaultEmptyScanRoots(t *testing.T) {
+	cfg, err := config.Load(viper.New(), "")
+	if err != nil {
+		t.Fatalf("Load returned error: %v", err)
+	}
+	if len(cfg.Pipeline.ScanRoots) != 0 {
+		t.Fatalf("Load returned %d ScanRoots, want 0 by default", len(cfg.Pipeline.ScanRoots))
+	}
+}
+
+func TestLoad_ConfigFileScanRootsUnmarshalsPathContentTypePairs(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "purser.yaml")
+	yaml := "pipeline:\n  scan_roots:\n    - path: /media/incoming\n      content_type: music\n    - path: /media/movies\n      content_type: movie\n"
+	if err := os.WriteFile(path, []byte(yaml), 0o600); err != nil {
+		t.Fatalf("WriteFile returned error: %v", err)
+	}
+
+	cfg, err := config.Load(viper.New(), path)
+	if err != nil {
+		t.Fatalf("Load returned error: %v", err)
+	}
+	if len(cfg.Pipeline.ScanRoots) != 2 {
+		t.Fatalf("Load returned %d ScanRoots, want 2", len(cfg.Pipeline.ScanRoots))
+	}
+	want := []config.ScanRoot{
+		{Path: "/media/incoming", ContentType: domain.ContentTypeMusic},
+		{Path: "/media/movies", ContentType: domain.ContentTypeMovie},
+	}
+	for i, w := range want {
+		if cfg.Pipeline.ScanRoots[i] != w {
+			t.Errorf("ScanRoots[%d] = %+v, want %+v", i, cfg.Pipeline.ScanRoots[i], w)
+		}
+	}
+}
+
+func TestPipeline_Validate_RejectsScanRootMissingPath(t *testing.T) {
+	cfg := config.DefaultConfig()
+	cfg.Pipeline.ScanRoots = []config.ScanRoot{{Path: "", ContentType: domain.ContentTypeMusic}}
+	if err := cfg.Validate(); err == nil {
+		t.Fatal("Validate() = nil, want error for scan_roots entry missing path")
+	}
+}
+
+func TestPipeline_Validate_RejectsScanRootMissingContentType(t *testing.T) {
+	cfg := config.DefaultConfig()
+	cfg.Pipeline.ScanRoots = []config.ScanRoot{{Path: "/media/incoming", ContentType: ""}}
+	if err := cfg.Validate(); err == nil {
+		t.Fatal("Validate() = nil, want error for scan_roots entry missing content_type")
+	}
+}
+
+func TestPipeline_Validate_AcceptsWellFormedScanRoots(t *testing.T) {
+	cfg := config.DefaultConfig()
+	cfg.Pipeline.ScanRoots = []config.ScanRoot{{Path: "/media/incoming", ContentType: domain.ContentTypeMusic}}
 	if err := cfg.Validate(); err != nil {
 		t.Fatalf("Validate() = %v, want nil", err)
 	}

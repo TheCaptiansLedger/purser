@@ -254,10 +254,38 @@ func (f *fakeMediaFileRepository) GetByHash(_ context.Context, oshash, sha1sum, 
 	return nil, ports.ErrNotFound
 }
 
+// fakeGroupingResolver is a minimal ports.GroupingResolver double.
+// Returning a nil/empty groupResults map exercises ScanExecutor's own
+// path-not-found fallback (GroupKey = path, DiscNumber = 0), matching
+// today's pre-grouping identity behavior.
+type fakeGroupingResolver struct {
+	results map[string]ports.GroupingResult
+	err     error
+}
+
+func (f *fakeGroupingResolver) GroupKeys(_ context.Context, _ domain.ContentType, paths []string) (map[string]ports.GroupingResult, error) {
+	if f.err != nil {
+		return nil, f.err
+	}
+	if f.results != nil {
+		return f.results, nil
+	}
+	result := make(map[string]ports.GroupingResult, len(paths))
+	for _, p := range paths {
+		result[p] = ports.GroupingResult{GroupKey: p, DiscNumber: 0}
+	}
+	return result, nil
+}
+
 func newEngine(t *testing.T, repo ports.UnmatchedFileRepository, mediaFileRepo ports.MediaFileRepository) *pkgjobqueue.Engine {
 	t.Helper()
+	return newEngineWithGrouping(t, repo, mediaFileRepo, &fakeGroupingResolver{})
+}
+
+func newEngineWithGrouping(t *testing.T, repo ports.UnmatchedFileRepository, mediaFileRepo ports.MediaFileRepository, grouping ports.GroupingResolver) *pkgjobqueue.Engine {
+	t.Helper()
 	engine := pkgjobqueue.NewEngine(memory.New())
-	engine.Register("scan", pipeline.NewScanExecutor(repo, mediaFileRepo))
+	engine.Register("scan", pipeline.NewScanExecutor(repo, mediaFileRepo, grouping))
 	return engine
 }
 
@@ -372,6 +400,84 @@ func TestScanExecutor_Execute_Success(t *testing.T) {
 		if got.Status != domain.UnmatchedFileStatusPending {
 			t.Errorf("stored UnmatchedFile.Status = %q, want %q", got.Status, domain.UnmatchedFileStatusPending)
 		}
+		// No grouping was registered for this job's content type, so the
+		// default fakeGroupingResolver (mirroring IdentityGrouping) means
+		// GroupKey falls back to the file's own path.
+		if got.GroupKey != task.Label {
+			t.Errorf("stored UnmatchedFile.GroupKey = %q, want %q (identity fallback)", got.GroupKey, task.Label)
+		}
+		if got.DiscNumber != 0 {
+			t.Errorf("stored UnmatchedFile.DiscNumber = %d, want 0 (identity fallback)", got.DiscNumber)
+		}
+	}
+}
+
+// TestScanExecutor_Execute_PropagatesGroupingResult covers the M3a wiring
+// itself: a registered Grouping's result (a shared GroupKey across two
+// files, a non-zero DiscNumber) must land on both created UnmatchedFile
+// rows, replacing the old hardcoded GroupKey: path.
+func TestScanExecutor_Execute_PropagatesGroupingResult(t *testing.T) {
+	dir := t.TempDir()
+	file1 := writeHashableFixture(t, dir, "one.flac")
+	file2 := writeHashableFixture(t, dir, "two.flac")
+
+	repo := newFakeUnmatchedFileRepository()
+	mediaFileRepo := newFakeMediaFileRepository()
+	grouping := &fakeGroupingResolver{results: map[string]ports.GroupingResult{
+		file1: {GroupKey: "shared-album", DiscNumber: 2},
+		file2: {GroupKey: "shared-album", DiscNumber: 2},
+	}}
+	engine := newEngineWithGrouping(t, repo, mediaFileRepo, grouping)
+
+	id, err := engine.Trigger(context.Background(), "scan", []string{file1, file2}, map[string]string{"content_type": "music"})
+	if err != nil {
+		t.Fatalf("Trigger returned error: %v", err)
+	}
+
+	job := waitForTerminal(t, engine, id.ID)
+	if job.Status != pkgjobqueue.StatusSucceeded {
+		t.Fatalf("job.Status = %q, want %q", job.Status, pkgjobqueue.StatusSucceeded)
+	}
+
+	for _, task := range job.Tasks {
+		ufID := findStep(task, "queue").Detail["unmatched_file.id"]
+		got, err := repo.Get(context.Background(), ufID)
+		if err != nil {
+			t.Fatalf("repo.Get(%q) returned error: %v", ufID, err)
+		}
+		if got.GroupKey != "shared-album" {
+			t.Errorf("task %q stored UnmatchedFile.GroupKey = %q, want %q", task.Label, got.GroupKey, "shared-album")
+		}
+		if got.DiscNumber != 2 {
+			t.Errorf("task %q stored UnmatchedFile.DiscNumber = %d, want 2", task.Label, got.DiscNumber)
+		}
+	}
+}
+
+// TestScanExecutor_Execute_GroupingErrorFailsJob covers a GroupingResolver
+// error: since grouping runs once for the whole Job before any task
+// starts, a failure there must fail the Job outright rather than being
+// silently ignored per task.
+func TestScanExecutor_Execute_GroupingErrorFailsJob(t *testing.T) {
+	dir := t.TempDir()
+	file := writeHashableFixture(t, dir, "one.flac")
+
+	repo := newFakeUnmatchedFileRepository()
+	mediaFileRepo := newFakeMediaFileRepository()
+	grouping := &fakeGroupingResolver{err: errors.New("boom")}
+	engine := newEngineWithGrouping(t, repo, mediaFileRepo, grouping)
+
+	id, err := engine.Trigger(context.Background(), "scan", []string{file}, nil)
+	if err != nil {
+		t.Fatalf("Trigger returned error: %v", err)
+	}
+
+	job := waitForTerminal(t, engine, id.ID)
+	if job.Status != pkgjobqueue.StatusFailed {
+		t.Fatalf("job.Status = %q, want %q", job.Status, pkgjobqueue.StatusFailed)
+	}
+	if len(repo.files) != 0 {
+		t.Fatalf("repo has %d files, want 0 (no task should have run)", len(repo.files))
 	}
 }
 
@@ -478,7 +584,7 @@ func TestScanExecutor_Execute_RepositoryErrorFailsTask(t *testing.T) {
 	failingRepo := &alwaysFailUnmatchedFileRepository{err: errors.New("boom")}
 	mediaFileRepo := newFakeMediaFileRepository()
 	failEngine := pkgjobqueue.NewEngine(memory.New())
-	failEngine.Register("scan", pipeline.NewScanExecutor(failingRepo, mediaFileRepo))
+	failEngine.Register("scan", pipeline.NewScanExecutor(failingRepo, mediaFileRepo, &fakeGroupingResolver{}))
 
 	id, err := failEngine.Trigger(context.Background(), "scan", []string{file}, nil)
 	if err != nil {
@@ -631,7 +737,7 @@ func TestScanExecutor_Execute_CheckKnownRepositoryErrorFailsTask(t *testing.T) {
 	repo := newFakeUnmatchedFileRepository()
 	failingMediaFileRepo := &alwaysFailMediaFileRepository{err: errors.New("boom")}
 	engine := pkgjobqueue.NewEngine(memory.New())
-	engine.Register("scan", pipeline.NewScanExecutor(repo, failingMediaFileRepo))
+	engine.Register("scan", pipeline.NewScanExecutor(repo, failingMediaFileRepo, &fakeGroupingResolver{}))
 
 	id, err := engine.Trigger(context.Background(), "scan", []string{file}, nil)
 	if err != nil {

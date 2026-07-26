@@ -468,14 +468,25 @@ func wireScanPipeline(ctx context.Context, mux *http.ServeMux, ds datastore.Data
 	if err != nil {
 		return nil, fmt.Errorf("cmd/purser: constructing unmatched file repository: %w", err)
 	}
-	jobEngine.Register("scan", adapterpipeline.NewScanExecutor(unmatchedFileRepo, mediaFileRepo))
+
+	// No content-type-specific ports.Grouping implementations exist yet
+	// (Music's folder/multi-disc grouping is a separate issue) — every
+	// content type falls back to service.IdentityGrouping until one is
+	// registered here.
+	groupingRegistry := service.NewGroupingRegistry()
+	jobEngine.Register("scan", adapterpipeline.NewScanExecutor(unmatchedFileRepo, mediaFileRepo, groupingRegistry))
 
 	fileWalker, err := filewalkerlocal.New(filewalkerlocal.WithLogger(logger))
 	if err != nil {
 		return nil, fmt.Errorf("cmd/purser: constructing file walker: %w", err)
 	}
 
-	scanSvc := service.NewScanService(jobAdapter, fileWalker, pipelineCfg.EnableMD5, pipelineCfg.EnableSHA512)
+	roots := make([]service.RootContentType, len(pipelineCfg.ScanRoots))
+	for i, r := range pipelineCfg.ScanRoots {
+		roots[i] = service.RootContentType{Path: r.Path, ContentType: r.ContentType}
+	}
+
+	scanSvc := service.NewScanService(jobAdapter, fileWalker, pipelineCfg.EnableMD5, pipelineCfg.EnableSHA512, roots)
 	scanHandler := apiconnect.NewScanHandler(scanSvc, logger)
 	scanPath, scanConnectHandler := pipelinev1connect.NewScanServiceHandler(scanHandler, interceptors)
 	mux.Handle(scanPath, scanConnectHandler)
@@ -492,8 +503,8 @@ func wireScanPipeline(ctx context.Context, mux *http.ServeMux, ds datastore.Data
 	return watcherCloser, nil
 }
 
-// startScanWatcher starts a live pkg/fswatch.Watcher over roots and a
-// ScanWatchConsumer goroutine driving scanSvc.Trigger from its settled
+// startScanWatcher starts a live pkg/fswatch.Watcher over roots' paths and
+// a ScanWatchConsumer goroutine driving scanSvc.Trigger from its settled
 // events — the automatic half of docs/adr/0024-pipeline-core.md's
 // "Discovery: both a watcher and an on-demand recursive scan, one code
 // path." Returns a nil io.Closer and no error when roots is empty: no
@@ -501,9 +512,14 @@ func wireScanPipeline(ctx context.Context, mux *http.ServeMux, ds datastore.Data
 // docs/adr/0007-telemetry.md established for telemetry. ctx bounds the
 // watcher's and the consumer's lifetime; the returned watcher should still
 // be Close()d during shutdown for a clean fsnotify handle teardown.
-func startScanWatcher(ctx context.Context, roots []string, scanSvc *service.ScanService, logger *slog.Logger) (io.Closer, error) {
+func startScanWatcher(ctx context.Context, roots []config.ScanRoot, scanSvc *service.ScanService, logger *slog.Logger) (io.Closer, error) {
 	if len(roots) == 0 {
 		return nil, nil //nolint:nilnil // deliberate: no configured roots means no watcher, not an error
+	}
+
+	paths := make([]string, len(roots))
+	for i, r := range roots {
+		paths[i] = r.Path
 	}
 
 	src, err := fsnotify.New(fsnotify.WithLogger(logger))
@@ -511,7 +527,7 @@ func startScanWatcher(ctx context.Context, roots []string, scanSvc *service.Scan
 		return nil, fmt.Errorf("cmd/purser: constructing fsnotify source: %w", err)
 	}
 
-	watcher, err := fswatch.New(src, roots, fswatch.DefaultConfig(), fswatch.WithLogger(logger))
+	watcher, err := fswatch.New(src, paths, fswatch.DefaultConfig(), fswatch.WithLogger(logger))
 	if err != nil {
 		return nil, fmt.Errorf("cmd/purser: constructing filesystem watcher: %w", err)
 	}

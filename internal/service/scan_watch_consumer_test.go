@@ -126,7 +126,7 @@ func TestScanWatchConsumer_Run_TriggersScanOnSettledEvent(t *testing.T) {
 	watcher := newFakeFileWatcher()
 	pub := newWatchFakePublisher("job-1")
 	walker := &watchFakeWalker{}
-	scanSvc := service.NewScanService(pub, walker, false, false)
+	scanSvc := service.NewScanService(pub, walker, false, false, nil)
 	consumer := service.NewScanWatchConsumer(watcher, scanSvc, slog.Default())
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -146,7 +146,7 @@ func TestScanWatchConsumer_Run_SkipsRemovedEvent(t *testing.T) {
 	watcher := newFakeFileWatcher()
 	pub := newWatchFakePublisher("job-1")
 	walker := &watchFakeWalker{}
-	scanSvc := service.NewScanService(pub, walker, false, false)
+	scanSvc := service.NewScanService(pub, walker, false, false, nil)
 	consumer := service.NewScanWatchConsumer(watcher, scanSvc, slog.Default())
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -169,7 +169,7 @@ func TestScanWatchConsumer_Run_LogsWatcherErrorAndContinues(t *testing.T) {
 	watcher := newFakeFileWatcher()
 	pub := newWatchFakePublisher("job-1")
 	walker := &watchFakeWalker{}
-	scanSvc := service.NewScanService(pub, walker, false, false)
+	scanSvc := service.NewScanService(pub, walker, false, false, nil)
 
 	var logBuf syncBuffer
 	logger := slog.New(slog.NewTextHandler(&logBuf, nil))
@@ -200,7 +200,7 @@ func TestScanWatchConsumer_Run_StopsOnContextCancel(t *testing.T) {
 	watcher := newFakeFileWatcher()
 	pub := newWatchFakePublisher("job-1")
 	walker := &watchFakeWalker{}
-	scanSvc := service.NewScanService(pub, walker, false, false)
+	scanSvc := service.NewScanService(pub, walker, false, false, nil)
 	consumer := service.NewScanWatchConsumer(watcher, scanSvc, slog.Default())
 
 	ctx, cancel := context.WithCancel(context.Background())

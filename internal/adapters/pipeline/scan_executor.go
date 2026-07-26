@@ -12,6 +12,7 @@ package pipeline
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"purser/internal/domain"
 	"purser/internal/ports"
@@ -50,17 +51,22 @@ const (
 type ScanExecutor struct {
 	repo          ports.UnmatchedFileRepository
 	mediaFileRepo ports.MediaFileRepository
+	grouping      ports.GroupingResolver
 }
 
 var _ pkgjobqueue.Executor = (*ScanExecutor)(nil)
 
-// NewScanExecutor constructs a ScanExecutor backed by repo and
-// mediaFileRepo.
-func NewScanExecutor(repo ports.UnmatchedFileRepository, mediaFileRepo ports.MediaFileRepository) *ScanExecutor {
-	return &ScanExecutor{repo: repo, mediaFileRepo: mediaFileRepo}
+// NewScanExecutor constructs a ScanExecutor backed by repo, mediaFileRepo,
+// and grouping.
+func NewScanExecutor(repo ports.UnmatchedFileRepository, mediaFileRepo ports.MediaFileRepository, grouping ports.GroupingResolver) *ScanExecutor {
+	return &ScanExecutor{repo: repo, mediaFileRepo: mediaFileRepo, grouping: grouping}
 }
 
-// Execute implements pkgjobqueue.Executor.
+// Execute implements pkgjobqueue.Executor. Grouping runs once for the
+// whole Job, not once per file — the multi-disc roll-up a content type's
+// Grouping implementation may perform needs to see every task's label
+// before deciding whether sibling disc-subfolders should share one group,
+// per docs/adr/0024-pipeline-core.md.
 func (e *ScanExecutor) Execute(ctx context.Context, r *pkgjobqueue.Runner) error {
 	job, err := r.Job(ctx)
 	if err != nil {
@@ -69,12 +75,26 @@ func (e *ScanExecutor) Execute(ctx context.Context, r *pkgjobqueue.Runner) error
 
 	enableMD5, _ := strconv.ParseBool(job.Params["enable_md5"])
 	enableSHA512, _ := strconv.ParseBool(job.Params["enable_sha512"])
+	contentType := domain.ContentType(job.Params["content_type"])
+
+	paths := make([]string, len(job.Tasks))
+	for i, task := range job.Tasks {
+		paths[i] = task.Label
+	}
+	groupResults, err := e.grouping.GroupKeys(ctx, contentType, paths)
+	if err != nil {
+		return fmt.Errorf("pipeline: grouping paths: %w", err)
+	}
 
 	for _, task := range job.Tasks {
 		if err := r.StartTask(ctx, task.ID); err != nil {
 			return err
 		}
-		if err := e.runTask(ctx, r, task.ID, task.Label, enableMD5, enableSHA512); err != nil {
+		groupResult, ok := groupResults[task.Label]
+		if !ok {
+			groupResult = ports.GroupingResult{GroupKey: task.Label, DiscNumber: 0}
+		}
+		if err := e.runTask(ctx, r, task.ID, task.Label, enableMD5, enableSHA512, groupResult); err != nil {
 			return err
 		}
 	}
@@ -86,7 +106,7 @@ func (e *ScanExecutor) Execute(ctx context.Context, r *pkgjobqueue.Runner) error
 // already known by hash, and either short-circuits or queues it as a new
 // UnmatchedFile — driving every Step and the terminal Task status for
 // taskID.
-func (e *ScanExecutor) runTask(ctx context.Context, r *pkgjobqueue.Runner, taskID, path string, enableMD5, enableSHA512 bool) error {
+func (e *ScanExecutor) runTask(ctx context.Context, r *pkgjobqueue.Runner, taskID, path string, enableMD5, enableSHA512 bool, groupResult ports.GroupingResult) error {
 	oshash, sha1sum, md5sum, sha512sum, hashDetail, hashErr := computeHashes(path, enableMD5, enableSHA512)
 
 	hashHandle, err := r.StartStep(ctx, taskID, stepHash)
@@ -108,7 +128,7 @@ func (e *ScanExecutor) runTask(ctx context.Context, r *pkgjobqueue.Runner, taskI
 		return err
 	}
 
-	return e.runQueueStep(ctx, r, taskID, path, oshash, sha1sum, md5sum, sha512sum)
+	return e.runQueueStep(ctx, r, taskID, path, oshash, sha1sum, md5sum, sha512sum, groupResult)
 }
 
 // runCheckKnownStep runs the "check_known" Step: a MediaFile or
@@ -144,8 +164,9 @@ func (e *ScanExecutor) runCheckKnownStep(ctx context.Context, r *pkgjobqueue.Run
 
 // runQueueStep runs the "queue" Step for a genuinely new file: creates
 // and persists a new domain.UnmatchedFile, driving the Step and the
-// terminal Task status.
-func (e *ScanExecutor) runQueueStep(ctx context.Context, r *pkgjobqueue.Runner, taskID, path, oshash, sha1sum, md5sum, sha512sum string) error {
+// terminal Task status. groupResult is this path's outcome from Execute's
+// single per-Job grouping call.
+func (e *ScanExecutor) runQueueStep(ctx context.Context, r *pkgjobqueue.Runner, taskID, path, oshash, sha1sum, md5sum, sha512sum string, groupResult ports.GroupingResult) error {
 	queueHandle, err := r.StartStep(ctx, taskID, stepQueue)
 	if err != nil {
 		return err
@@ -158,7 +179,8 @@ func (e *ScanExecutor) runQueueStep(ctx context.Context, r *pkgjobqueue.Runner, 
 	uf := &domain.UnmatchedFile{
 		ID:           domain.NewID(),
 		Path:         path,
-		GroupKey:     path,
+		GroupKey:     groupResult.GroupKey,
+		DiscNumber:   groupResult.DiscNumber,
 		Size:         size,
 		OSHash:       oshash,
 		SHA1:         sha1sum,

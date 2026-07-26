@@ -64,6 +64,10 @@ pipeline:
   enable_sha512: true
   # Directories watched live for changes; each settled unit triggers the
   # same scan TriggerScan invokes explicitly. Empty (the default) starts
-  # no watcher at all.
+  # no watcher at all. Each root pairs its path with the content type
+  # every file under it belongs to, so grouping/fingerprinting/identifying
+  # a discovered file can pick the right content-type-specific capability
+  # — see docs/technical/pipeline-grouping-capability.md.
   scan_roots:
-    - /media/incoming
+    - path: /media/incoming
+      content_type: music

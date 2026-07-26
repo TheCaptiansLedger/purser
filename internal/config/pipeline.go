@@ -1,5 +1,24 @@
 package config
 
+import (
+	"fmt"
+	"purser/internal/domain"
+)
+
+// ScanRoot pairs a watched/scannable directory with the domain.ContentType
+// it holds. Grouping/fingerprinting/identifying a file can't pick a
+// content-type-specific capability without knowing its root's content
+// type, which a flat directory string alone can't carry — see
+// docs/technical/pipeline-grouping-capability.md.
+type ScanRoot struct {
+	// Path is the directory watched/scanned.
+	Path string `mapstructure:"path"`
+
+	// ContentType is the domain.ContentType every file under Path belongs
+	// to.
+	ContentType domain.ContentType `mapstructure:"content_type"`
+}
+
 // Pipeline configures the common scan/hash/queue pipeline shared across
 // content types (docs/adr/0024-pipeline-core.md). OSHash and SHA1 are
 // always computed by the pipeline; MD5 and SHA512 are opt-in extra
@@ -20,7 +39,7 @@ type Pipeline struct {
 	// path an explicit TriggerScan RPC call does — see
 	// docs/adr/0024-pipeline-core.md's "Discovery" section. Empty means no
 	// watcher is started at all: no cost to opt out.
-	ScanRoots []string `mapstructure:"scan_roots"`
+	ScanRoots []ScanRoot `mapstructure:"scan_roots"`
 }
 
 // DefaultPipeline returns Pipeline's defaults: both extra hashes off, no
@@ -29,14 +48,22 @@ func DefaultPipeline() Pipeline {
 	return Pipeline{
 		EnableMD5:    false,
 		EnableSHA512: false,
-		ScanRoots:    []string{},
+		ScanRoots:    []ScanRoot{},
 	}
 }
 
-// Validate is a no-op today — every boolean combination is valid. Present
-// for symmetry with every other component, per docs/adr/0010-configuration.md,
-// so a future field with a real invariant isn't a breaking addition to
-// Config.Validate's call chain.
+// Validate checks that every configured ScanRoot carries both a Path and a
+// ContentType — a root missing either can never be resolved to a Grouping
+// implementation, so it fails fast at startup rather than silently falling
+// back to IdentityGrouping for every file under it.
 func (p Pipeline) Validate() error {
+	for _, r := range p.ScanRoots {
+		if r.Path == "" {
+			return fmt.Errorf("pipeline: scan_roots entry missing path")
+		}
+		if r.ContentType == "" {
+			return fmt.Errorf("pipeline: scan_roots entry %q missing content_type", r.Path)
+		}
+	}
 	return nil
 }
