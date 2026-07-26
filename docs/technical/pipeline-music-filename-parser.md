@@ -38,9 +38,16 @@ capability, even though Music is the only implementation today.
 ```
 FilenameParser interface {
     ContentTypes() []domain.ContentType
-    Parse(ctx context.Context, groupPath string) (artist, album string, ok bool)
+    Parse(ctx context.Context, groupPath, scanRoot string) (artist, album string, ok bool)
 }
 ```
+
+`scanRoot` is the configured root `groupPath` was discovered under. Step 4
+below needs to tell "parent directory is a real artist folder" apart from
+"parent directory is the scan root itself" — without it, a pure function
+given only `groupPath` has no way to make that distinction (there is no
+filesystem-level signal that reliably stands in for a caller-configured
+root).
 
 Default when nothing's registered for a content type: `ok = false`
 always — same "no cost to opt out" treatment `IdentityGrouping` and
@@ -62,8 +69,8 @@ roll-up), so no special-casing needed here.
    `"_-_"`), split on the first occurrence: first part = artist guess,
    second = album guess.
 4. Otherwise, if the leaf name alone is non-junk, it's the album guess.
-   Look at the *parent* directory name: if it's also non-junk and isn't
-   the configured scan root itself, it's the artist guess.
+   Look at the *parent* directory name: if it's also non-junk and the
+   parent directory itself isn't `scanRoot`, it's the artist guess.
 5. A partial result (only one of artist/album populated) is still
    returned with `ok = true` — `SearchReleaseGroups` can search on one
    field alone, just less constrained.
