@@ -12,7 +12,7 @@ are the spec.
 | M0 | ADR-0025: identification design | — | Done (Proposed; flip to Accepted once M8's fixture suite validates the model) |
 | M1 | Pipeline-core plumbing for grouping/candidates | M0 | Not started |
 | M2 | MusicBrainz adapter | — | Not started |
-| M3 | Music grouping capability | M1 | Not started |
+| M3 | Music grouping capability | M1 | Done |
 | M4 | Music `FileFingerprinter` | M1 | Not started |
 | M5 | AcoustID adapter | — | Not started |
 | M6 | Filename/folder-name fallback parser | M2 | Not started |

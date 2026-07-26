@@ -34,6 +34,7 @@ import (
 	filewalkerlocal "purser/internal/adapters/filewalker/local"
 	adapterjobqueue "purser/internal/adapters/jobqueue"
 	adapterpipeline "purser/internal/adapters/pipeline"
+	pipelinemusic "purser/internal/adapters/pipeline/music"
 	storeentryperson "purser/internal/adapters/store/entryperson"
 	storeexternalid "purser/internal/adapters/store/externalid"
 	storegroup "purser/internal/adapters/store/group"
@@ -469,11 +470,9 @@ func wireScanPipeline(ctx context.Context, mux *http.ServeMux, ds datastore.Data
 		return nil, fmt.Errorf("cmd/purser: constructing unmatched file repository: %w", err)
 	}
 
-	// No content-type-specific ports.Grouping implementations exist yet
-	// (Music's folder/multi-disc grouping is a separate issue) — every
-	// content type falls back to service.IdentityGrouping until one is
-	// registered here.
-	groupingRegistry := service.NewGroupingRegistry()
+	// Content types with no registered ports.Grouping implementation fall
+	// back to service.IdentityGrouping.
+	groupingRegistry := service.NewGroupingRegistry(pipelinemusic.Grouping{})
 	jobEngine.Register("scan", adapterpipeline.NewScanExecutor(unmatchedFileRepo, mediaFileRepo, groupingRegistry))
 
 	fileWalker, err := filewalkerlocal.New(filewalkerlocal.WithLogger(logger))
