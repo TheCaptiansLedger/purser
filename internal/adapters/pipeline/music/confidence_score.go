@@ -165,7 +165,7 @@ func (s *ConfidenceScorer) ConfidenceScore(ctx context.Context, _ domain.Fingerp
 		scored[i].Score = scoreCandidate(c)
 	}
 
-	ambiguityCapApplied := applyReleaseGroupAmbiguityCap(scored)
+	ambiguityCapApplied := resolveReleaseGroups(scored)
 	span.SetAttributes(attribute.Bool("pipeline.ambiguity_cap_applied", ambiguityCapApplied))
 
 	s.logger.DebugContext(ctx, "scored candidates", "candidate_count", len(scored), "ambiguity_cap_applied", ambiguityCapApplied)
@@ -275,34 +275,82 @@ func scoreAcousticSoleEvidence(signals map[string]float64) float64 {
 	return signals["acoustic_agreement"] * acousticSoleCeiling
 }
 
-// applyReleaseGroupAmbiguityCap clusters scored by
-// Metadata["release_group_mbid"] and, if two *different* clusters' top
-// scores land within releaseGroupAmbiguityMargin of each other, clamps the
-// overall winner's Score to releaseGroupAmbiguityCeiling in place. Multiple
-// releases within the *same* cluster are not ambiguity — resolved to
-// whichever scores highest in it, IsDefault being unreachable at this layer
-// today (no ports.Release/domain.MatchCandidate field carries it; see
-// docs/technical/pipeline-music-confidence-score.md). Reports whether the
-// cap fired, for telemetry/logging.
-func applyReleaseGroupAmbiguityCap(scored []domain.MatchCandidate) bool {
+// releaseStatusOfficial is MusicBrainz's release-status string for a
+// standard commercial/official release, as opposed to "Promotion",
+// "Bootleg", or "Pseudo-Release" — the one substitute signal actually
+// available at this layer for IsDefault-style edition preference (see
+// resolveReleaseGroups). A starting proposal, like every other constant
+// here — not validated against real MusicBrainz data yet.
+const releaseStatusOfficial = "Official"
+
+// editionTieBreakMargin is how far below a cluster's chosen representative
+// every other same-release-group candidate is pushed when it would
+// otherwise tie or beat it — small enough not to cross a tier band or the
+// ambiguity margin, just enough to guarantee a strict, deterministic
+// single maximum per release group.
+const editionTieBreakMargin = 0.001
+
+// resolveReleaseGroups clusters scored by Metadata["release_group_mbid"]
+// and does two things in place:
+//
+//  1. Within each cluster, picks one representative — preferring
+//     Metadata["release_status"]=="Official" (IsDefault itself is
+//     unreachable at this layer: no ports.Release/domain.MatchCandidate
+//     field carries it, since nothing is persisted yet at scoring time —
+//     see docs/technical/pipeline-music-confidence-score.md), falling back
+//     to highest score, falling back to first-seen for full determinism —
+//     then demotes every other same-cluster candidate that would tie or
+//     exceed the representative's score by editionTieBreakMargin. Without
+//     this, near-duplicate editions of the correct release group routinely
+//     score identically (see WorkedExample1_HiInfidelity), leaving a
+//     downstream "take the single highest Score" consumer
+//     (docs/technical/pipeline-music-persist.md's DecisionService) with an
+//     arbitrary, unprincipled tie to break on its own. This closes that
+//     gap at the source instead of leaving it for M9 to rediscover.
+//  2. If two *different* clusters' (now-unique) top scores land within
+//     releaseGroupAmbiguityMargin of each other, clamps the overall
+//     winner's Score to releaseGroupAmbiguityCeiling.
+//
+// Reports whether the cross-cluster ambiguity cap fired, for
+// telemetry/logging.
+func resolveReleaseGroups(scored []domain.MatchCandidate) bool {
 	type cluster struct {
-		topIndex int
-		topScore float64
+		topIndex      int
+		topScore      float64
+		topIsOfficial bool
+	}
+
+	isOfficial := func(c domain.MatchCandidate) bool {
+		status, _ := c.Metadata["release_status"].(string)
+		return status == releaseStatusOfficial
 	}
 
 	clusters := make(map[string]*cluster)
 	order := make([]string, 0)
 	for i, c := range scored {
 		key, _ := c.Metadata["release_group_mbid"].(string)
+		official := isOfficial(c)
 		cl, ok := clusters[key]
 		if !ok {
-			clusters[key] = &cluster{topIndex: i, topScore: c.Score}
+			clusters[key] = &cluster{topIndex: i, topScore: c.Score, topIsOfficial: official}
 			order = append(order, key)
 			continue
 		}
-		if c.Score > cl.topScore {
+		if (official && !cl.topIsOfficial) || (official == cl.topIsOfficial && c.Score > cl.topScore) {
 			cl.topIndex = i
 			cl.topScore = c.Score
+			cl.topIsOfficial = official
+		}
+	}
+
+	for i, c := range scored {
+		key, _ := c.Metadata["release_group_mbid"].(string)
+		cl := clusters[key]
+		if i == cl.topIndex {
+			continue
+		}
+		if c.Score >= cl.topScore {
+			scored[i].Score = cl.topScore - editionTieBreakMargin
 		}
 	}
 

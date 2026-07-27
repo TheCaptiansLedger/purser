@@ -116,18 +116,36 @@ Rather than injecting that config value into Music's scoring code:
 1. Group scored candidates by **release group** (not release/edition —
    MB's release→release-group parent relationship).
 2. Multiple releases within the *same* release-group cluster: not
-   ambiguity. Resolve to whichever is flagged `IsDefault`, or the
-   highest-scoring one in that cluster if no default is known.
-3. Multiple *different* release-group clusters whose top scores are
-   within a margin of each other (starting point: `0.05`–`0.10`, needs
-   fixture validation): real ambiguity. Clamp the winning score to a
-   fixed ceiling — `0.50`, comfortably below `fuzzy`'s entire band —
-   regardless of what the per-candidate formula computed.
+   ambiguity, but not a no-op either — resolved deterministically to a
+   single representative, and every other same-cluster candidate that
+   would tie or beat it is pushed strictly below it by a small fixed
+   margin (`0.001`). This matters beyond bookkeeping: near-duplicate
+   editions of the correct release group routinely produce an *exact* raw
+   score tie (nothing about tags/durations distinguishes a 1980 pressing
+   from a 2004 reissue), and a downstream "take the single highest Score"
+   consumer ([pipeline-music-persist.md](pipeline-music-persist.md)'s
+   `DecisionService`) needs that tie broken here, not left for it to
+   resolve arbitrarily. `IsDefault` itself is unreachable at this
+   layer — nothing is persisted yet at scoring time, so there's no local
+   `music.Release` row to read it from — so the representative is instead
+   preferred by MusicBrainz's own `Status == "Official"` (over
+   `Promotion`/`Bootleg`/`Pseudo-Release`), falling back to highest raw
+   score, falling back to first-seen for full determinism when neither
+   distinguishes them.
+3. Multiple *different* release-group clusters whose (now tie-broken,
+   unique) top scores are within a margin of each other (starting point:
+   `0.05`–`0.10`, needs fixture validation): real ambiguity. Clamp the
+   winning score to a fixed ceiling — `0.50`, comfortably below `fuzzy`'s
+   entire band — regardless of what the per-candidate formula computed.
 
 The fixed ceiling means this works for any sane threshold configuration
 without Music's scoring code needing to know what that threshold actually
 is — keeps the content-type-owned/shared-service-owned boundary from
-[0024](../adr/0024-pipeline-core.md) intact.
+[0024](../adr/0024-pipeline-core.md) intact. Resolving same-cluster ties
+here, rather than leaving them to whatever `DecisionService` does with a
+tied `max(Score)`, keeps that same boundary intact too — M9 stays a dumb
+consumer of one number per candidate, never needing edition-preference
+logic of its own.
 
 ## Signal key contract (M7 → M8)
 

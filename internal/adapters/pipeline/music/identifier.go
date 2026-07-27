@@ -254,6 +254,7 @@ func newDirectIDCandidate(release *ports.Release) domain.MatchCandidate {
 		Metadata: map[string]any{
 			"sources":            []string{sourceDirectID},
 			"release_group_mbid": releaseGroupMBID(release),
+			"release_status":     release.Status,
 		},
 	}
 }
@@ -512,6 +513,7 @@ func (id *Identifier) scoreCandidate(fp domain.Fingerprint, release *ports.Relea
 		Metadata: map[string]any{
 			"sources":            sortedSources(sources),
 			"release_group_mbid": rgMBID,
+			"release_status":     release.Status,
 		},
 	}
 }
