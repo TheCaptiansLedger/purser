@@ -110,11 +110,15 @@ func New(cfg Config, opts ...Option) (*Client, error) {
 		opt(o)
 	}
 
-	httpClient, err := httpclient.New(cfg.HTTPClient,
+	httpClientOpts := []httpclient.Option{
 		httpclient.WithLogger(o.logger),
 		httpclient.WithTracerProvider(o.tracerProvider),
 		httpclient.WithMeterProvider(o.meterProvider),
-	)
+	}
+	if o.baseTransport != nil {
+		httpClientOpts = append(httpClientOpts, httpclient.WithBaseTransport(o.baseTransport))
+	}
+	httpClient, err := httpclient.New(cfg.HTTPClient, httpClientOpts...)
 	if err != nil {
 		return nil, fmt.Errorf("adapters/musicbrainz: building http client: %w", err)
 	}
@@ -341,6 +345,7 @@ type options struct {
 	logger         *slog.Logger
 	tracerProvider trace.TracerProvider
 	meterProvider  metric.MeterProvider
+	baseTransport  http.RoundTripper
 }
 
 func defaultOptions() *options {
@@ -364,4 +369,14 @@ func WithTracerProvider(tp trace.TracerProvider) Option {
 // WithMeterProvider overrides the default (global) MeterProvider.
 func WithMeterProvider(mp metric.MeterProvider) Option {
 	return func(o *options) { o.meterProvider = mp }
+}
+
+// WithBaseTransport overrides the transport pkg/httpclient.New builds from
+// cfg.HTTPClient with rt, forwarded via httpclient.WithBaseTransport —
+// instrumentation and the caching transport still wrap it, only the actual
+// socket is replaced. Used to run this Client against a canned
+// pkg/httpclient/httpmock.Transport instead of a live network call, in
+// tests or in a CI-only deployment mode.
+func WithBaseTransport(rt http.RoundTripper) Option {
+	return func(o *options) { o.baseTransport = rt }
 }

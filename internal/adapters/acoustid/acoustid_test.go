@@ -5,12 +5,12 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
-	"net/http/httptest"
 	"os/exec"
 	"purser/internal/adapters/acoustid"
 	"purser/internal/ports"
 	"purser/internal/ports/acoustidtest"
 	"purser/internal/version"
+	"purser/pkg/httpclient/httpmock"
 	"sync"
 	"testing"
 	"time"
@@ -24,6 +24,24 @@ func newTestClient(t *testing.T, baseURL string) *acoustid.Client {
 	cfg.BaseURL = baseURL
 	cfg.APIKey = "test-key"
 	c, err := acoustid.New(cfg)
+	if err != nil {
+		t.Fatalf("acoustid.New returned error: %v", err)
+	}
+	t.Cleanup(func() { _ = c.Close() })
+	return c
+}
+
+// newMockedTestClient builds a Client whose HTTP calls never leave the
+// process — rt answers every request from a canned route table
+// (pkg/httpclient/httpmock), plugged in via WithBaseTransport. BaseURL is
+// left at its real default; RoundTrip intercepts before any DNS/dial ever
+// happens.
+func newMockedTestClient(t *testing.T, rt http.RoundTripper, opts ...acoustid.Option) *acoustid.Client {
+	t.Helper()
+	cfg := acoustid.DefaultConfig()
+	cfg.APIKey = "test-key"
+	allOpts := append([]acoustid.Option{acoustid.WithBaseTransport(rt)}, opts...)
+	c, err := acoustid.New(cfg, allOpts...)
 	if err != nil {
 		t.Fatalf("acoustid.New returned error: %v", err)
 	}
@@ -65,18 +83,19 @@ func TestNew_RejectsNonPositiveRequestsPerSecond(t *testing.T) {
 
 func TestNew_SetsFixedUserAgentRegardlessOfConfig(t *testing.T) {
 	var gotUA string
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		gotUA = r.Header.Get("User-Agent")
-		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`{"status":"ok","results":[]}`))
-	}))
-	defer server.Close()
+	rt := httpmock.New(httpmock.Route{
+		Method: http.MethodGet,
+		Path:   "/v2/lookup",
+		Responder: func(req *http.Request) (*http.Response, error) {
+			gotUA = req.Header.Get("User-Agent")
+			return httpmock.Raw(http.StatusOK, []byte(`{"status":"ok","results":[]}`))(req)
+		},
+	})
 
 	cfg := acoustid.DefaultConfig()
-	cfg.BaseURL = server.URL
 	cfg.APIKey = "test-key"
 	cfg.HTTPClient.UserAgent = "some-caller-supplied-value/9.9"
-	c, err := acoustid.New(cfg)
+	c, err := acoustid.New(cfg, acoustid.WithBaseTransport(rt))
 	if err != nil {
 		t.Fatalf("acoustid.New returned error: %v", err)
 	}
@@ -94,19 +113,20 @@ func TestNew_SetsFixedUserAgentRegardlessOfConfig(t *testing.T) {
 
 func TestLookup_SendsAPIKeyAndDuration(t *testing.T) {
 	var gotClient, gotDuration, gotMeta string
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		gotClient = r.URL.Query().Get("client")
-		gotDuration = r.URL.Query().Get("duration")
-		gotMeta = r.URL.Query().Get("meta")
-		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`{"status":"ok","results":[]}`))
-	}))
-	defer server.Close()
+	rt := httpmock.New(httpmock.Route{
+		Method: http.MethodGet,
+		Path:   "/v2/lookup",
+		Responder: func(req *http.Request) (*http.Response, error) {
+			gotClient = req.URL.Query().Get("client")
+			gotDuration = req.URL.Query().Get("duration")
+			gotMeta = req.URL.Query().Get("meta")
+			return httpmock.Raw(http.StatusOK, []byte(`{"status":"ok","results":[]}`))(req)
+		},
+	})
 
 	cfg := acoustid.DefaultConfig()
-	cfg.BaseURL = server.URL
 	cfg.APIKey = "my-real-key"
-	c, err := acoustid.New(cfg)
+	c, err := acoustid.New(cfg, acoustid.WithBaseTransport(rt))
 	if err != nil {
 		t.Fatalf("acoustid.New returned error: %v", err)
 	}
@@ -128,24 +148,17 @@ func TestLookup_SendsAPIKeyAndDuration(t *testing.T) {
 }
 
 func TestNew_WithOptions(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`{"status":"ok","results":[]}`))
-	}))
-	defer server.Close()
+	rt := httpmock.New(httpmock.Route{
+		Method:    http.MethodGet,
+		Path:      "/v2/lookup",
+		Responder: httpmock.Raw(http.StatusOK, []byte(`{"status":"ok","results":[]}`)),
+	})
 
-	cfg := acoustid.DefaultConfig()
-	cfg.BaseURL = server.URL
-	cfg.APIKey = "test-key"
-	c, err := acoustid.New(cfg,
+	c := newMockedTestClient(t, rt,
 		acoustid.WithLogger(slog.Default()),
 		acoustid.WithTracerProvider(otel.GetTracerProvider()),
 		acoustid.WithMeterProvider(otel.GetMeterProvider()),
 	)
-	if err != nil {
-		t.Fatalf("acoustid.New with options returned error: %v", err)
-	}
-	defer func() { _ = c.Close() }()
 
 	if _, err := c.Lookup(context.Background(), "some-fp", 200); err == nil {
 		t.Fatal("Lookup returned nil error, want ErrNotFound for empty results")
@@ -153,13 +166,13 @@ func TestNew_WithOptions(t *testing.T) {
 }
 
 func TestLookup_MapsProviderErrorStatus(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`{"status":"error","error":{"code":4,"message":"invalid API key"}}`))
-	}))
-	defer server.Close()
+	rt := httpmock.New(httpmock.Route{
+		Method:    http.MethodGet,
+		Path:      "/v2/lookup",
+		Responder: httpmock.Raw(http.StatusOK, []byte(`{"status":"error","error":{"code":4,"message":"invalid API key"}}`)),
+	})
 
-	c := newTestClient(t, server.URL)
+	c := newMockedTestClient(t, rt)
 	_, err := c.Lookup(context.Background(), "some-fp", 200)
 	if err == nil {
 		t.Fatal("Lookup returned nil error, want an error for status=error")
@@ -168,14 +181,16 @@ func TestLookup_MapsProviderErrorStatus(t *testing.T) {
 
 func TestClient_CachesGETResponses(t *testing.T) {
 	var hits int
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		hits++
-		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`{"status":"ok","results":[{"id":"x","score":0.9,"recordings":[]}]}`))
-	}))
-	defer server.Close()
+	rt := httpmock.New(httpmock.Route{
+		Method: http.MethodGet,
+		Path:   "/v2/lookup",
+		Responder: func(req *http.Request) (*http.Response, error) {
+			hits++
+			return httpmock.Raw(http.StatusOK, []byte(`{"status":"ok","results":[{"id":"x","score":0.9,"recordings":[]}]}`))(req)
+		},
+	})
 
-	c := newTestClient(t, server.URL)
+	c := newMockedTestClient(t, rt)
 	ctx := context.Background()
 
 	if _, err := c.Lookup(ctx, "cache-test-fp", 200); err != nil {
@@ -193,20 +208,21 @@ func TestClient_CachesGETResponses(t *testing.T) {
 func TestClient_RateLimiterSerializesConcurrentRequests(t *testing.T) {
 	var mu sync.Mutex
 	var arrivals []time.Time
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		mu.Lock()
-		arrivals = append(arrivals, time.Now())
-		mu.Unlock()
-		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`{"status":"ok","results":[{"id":"x","score":0.9,"recordings":[]}]}`))
-	}))
-	defer server.Close()
+	rt := httpmock.New(httpmock.Route{
+		Method: http.MethodGet,
+		Path:   "/v2/lookup",
+		Responder: func(req *http.Request) (*http.Response, error) {
+			mu.Lock()
+			arrivals = append(arrivals, time.Now())
+			mu.Unlock()
+			return httpmock.Raw(http.StatusOK, []byte(`{"status":"ok","results":[{"id":"x","score":0.9,"recordings":[]}]}`))(req)
+		},
+	})
 
 	cfg := acoustid.DefaultConfig()
-	cfg.BaseURL = server.URL
 	cfg.APIKey = "test-key"
 	cfg.RequestsPerSecond = 1
-	c, err := acoustid.New(cfg)
+	c, err := acoustid.New(cfg, acoustid.WithBaseTransport(rt))
 	if err != nil {
 		t.Fatalf("acoustid.New returned error: %v", err)
 	}

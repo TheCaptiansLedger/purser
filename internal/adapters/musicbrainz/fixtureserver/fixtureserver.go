@@ -1,29 +1,30 @@
-// Package fixtureserver serves a small, realistic, entirely fictitious
-// MusicBrainz dataset over HTTP — the same real request shapes
-// internal/adapters/musicbrainz.Client issues (/artist/{mbid},
-// /release/{mbid}, search routes, etc.), so a Client pointed at this
-// server via Config.BaseURL behaves exactly as it would against the real
-// API, just against fixed, known data instead of a live network call.
+// Package fixtureserver is a small, realistic, entirely fictitious
+// MusicBrainz dataset served as canned pkg/httpclient/httpmock routes — the
+// same real request shapes internal/adapters/musicbrainz.Client issues
+// (/artist/{mbid}, /release/{mbid}, search routes, etc.), so a Client
+// constructed with musicbrainz.WithBaseTransport(Transport()) behaves
+// exactly as it would against the real API, just against fixed, known data
+// instead of a live network call — no real socket, not even loopback.
 //
 // This exists specifically so k6 CI can exercise the Music Persister's
 // full cascade (docs/technical/pipeline-music-persist.md) — both the
 // automatic decide/persist path and the manual AcceptCandidate path —
-// without ever touching the real MusicBrainz API. See
-// cmd/musicbrainz-fixture-server and Makefile's _k6-app-start, which
-// starts this server and points purser serve's PURSER_MUSICBRAINZ_BASE_URL
-// at it before the k6 suite runs. See
+// without ever touching the real MusicBrainz API. cmd/purser's serve
+// command builds this Transport in-process and injects it via
+// musicbrainz.WithBaseTransport when PURSER_MUSICBRAINZ_MOCK is set; no
+// separate server process is involved. See
 // docs/adr/0003-go-testing-standards.md's "recorded request/response
-// fixtures" convention and internal/ports/musicbrainztest's in-process
-// equivalent, which this mirrors as a standalone process.
+// fixtures" convention and internal/ports/musicbrainztest's contract-test
+// equivalent, which this mirrors as a fuller, k6-facing dataset.
 package fixtureserver
 
 import (
-	"encoding/json"
 	"net/http"
 	"purser/internal/ports"
+	"purser/pkg/httpclient/httpmock"
 )
 
-// Known MBIDs/values this fixture server recognizes — deliberately
+// Known MBIDs/values this fixture set recognizes — deliberately
 // sequential, obviously-fake UUIDs (never real MusicBrainz identifiers),
 // mirroring internal/ports/musicbrainztest's Known.../Unknown... contract-test
 // convention. test/k6/flow/accept_candidate_test.js (and its HTTP variant)
@@ -62,61 +63,52 @@ const (
 	Track3Title = "K6 Ambiguous Track"
 )
 
-// Handler returns the fixture MusicBrainz API — every route
-// internal/adapters/musicbrainz.Client issues, keyed on the MBID constants
-// above. An unknown MBID on a direct-lookup route returns 404, exactly
-// like the real API's ErrNotFound mapping; the search routes always
-// return an empty result set (never 404 — matching
+// mbAPIPrefix is internal/adapters/musicbrainz's real, unmodified default
+// BaseURL's path root — routes below match against it directly since
+// cmd/purser never overrides BaseURL for the mock path: RoundTrip
+// intercepts before any DNS/dial happens, so pointing at the real hostname
+// is harmless and one less thing to keep in sync.
+const mbAPIPrefix = "/ws/2/"
+
+// Transport returns the fixture MusicBrainz API as a *httpmock.Transport —
+// every route internal/adapters/musicbrainz.Client issues, keyed on the
+// MBID constants above. An unknown MBID on a direct-lookup route isn't
+// registered at all (a bug calling one is a loud httpmock "no route
+// registered" failure, not a silently-plausible 404); the search routes
+// always return an empty result set (never 404 — matching
 // ports.MusicBrainzClient's own "empty is not an error" search contract)
-// since this server never needs to fuzzy-match anything: the fixture data
-// is designed to resolve entirely through direct-ID lookups or the manual
-// AcceptCandidate path.
-func Handler() http.Handler {
-	mux := http.NewServeMux()
-	releases := map[string]ports.Release{
-		ReleaseMBID:  releaseFixture(),
-		ReleaseMBID2: ambiguousReleaseFixture(),
-	}
+// since this fixture set never needs to fuzzy-match anything: the fixture
+// data is designed to resolve entirely through direct-ID lookups or the
+// manual AcceptCandidate path.
+func Transport() *httpmock.Transport {
+	release := releaseFixture()
+	ambiguousRelease := ambiguousReleaseFixture()
 
-	mux.HandleFunc("/artist/", func(w http.ResponseWriter, r *http.Request) {
-		mbid := r.URL.Path[len("/artist/"):]
-		switch mbid {
-		case ArtistMBID:
-			writeJSON(w, ports.Artist{ID: ArtistMBID, Name: ArtistName, SortName: ArtistName, Type: "Group"})
-		case ArtistMBID2:
-			writeJSON(w, ports.Artist{ID: ArtistMBID2, Name: ArtistName2, SortName: ArtistName2, Type: "Group"})
-		default:
-			writeNotFound(w)
-		}
-	})
-
-	// Search routes: always empty, never 404 — see Handler's doc comment.
-	mux.HandleFunc("/artist", func(w http.ResponseWriter, _ *http.Request) {
-		writeJSON(w, struct {
+	return httpmock.New(
+		route(ArtistMBID, ports.Artist{ID: ArtistMBID, Name: ArtistName, SortName: ArtistName, Type: "Group"}),
+		route(ArtistMBID2, ports.Artist{ID: ArtistMBID2, Name: ArtistName2, SortName: ArtistName2, Type: "Group"}),
+		httpmock.Route{Method: http.MethodGet, Path: mbAPIPrefix + "artist", Responder: httpmock.JSON(http.StatusOK, struct {
 			Artists []ports.Artist `json:"artists"`
-		}{[]ports.Artist{}})
-	})
-	mux.HandleFunc("/release-group", func(w http.ResponseWriter, _ *http.Request) {
-		writeJSON(w, struct {
+		}{[]ports.Artist{}})},
+
+		httpmock.Route{Method: http.MethodGet, Path: mbAPIPrefix + "release-group", Responder: httpmock.JSON(http.StatusOK, struct {
 			ReleaseGroups []ports.ReleaseGroup `json:"release-groups"`
-		}{[]ports.ReleaseGroup{}})
-	})
+		}{[]ports.ReleaseGroup{}})},
 
-	mux.HandleFunc("/release/", func(w http.ResponseWriter, r *http.Request) {
-		mbid := r.URL.Path[len("/release/"):]
-		if rel, ok := releases[mbid]; ok {
-			writeJSON(w, rel)
-			return
-		}
-		writeNotFound(w)
-	})
-	mux.HandleFunc("/release", func(w http.ResponseWriter, _ *http.Request) {
-		writeJSON(w, struct {
+		httpmock.Route{Method: http.MethodGet, Path: mbAPIPrefix + "release/" + ReleaseMBID, Responder: httpmock.JSON(http.StatusOK, release)},
+		httpmock.Route{Method: http.MethodGet, Path: mbAPIPrefix + "release/" + ReleaseMBID2, Responder: httpmock.JSON(http.StatusOK, ambiguousRelease)},
+		httpmock.Route{Method: http.MethodGet, Path: mbAPIPrefix + "release", Responder: httpmock.JSON(http.StatusOK, struct {
 			Releases []ports.Release `json:"releases"`
-		}{[]ports.Release{}})
-	})
+		}{[]ports.Release{}})},
+	)
+}
 
-	return mux
+func route(mbid string, artist ports.Artist) httpmock.Route {
+	return httpmock.Route{
+		Method:    http.MethodGet,
+		Path:      mbAPIPrefix + "artist/" + mbid,
+		Responder: httpmock.JSON(http.StatusOK, artist),
+	}
 }
 
 // releaseFixture builds ReleaseMBID: a single-disc, two-track release with
@@ -186,15 +178,4 @@ func ambiguousReleaseFixture() ports.Release {
 			},
 		},
 	}
-}
-
-func writeJSON(w http.ResponseWriter, v any) {
-	w.Header().Set("Content-Type", "application/json")
-	_ = json.NewEncoder(w).Encode(v)
-}
-
-func writeNotFound(w http.ResponseWriter) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusNotFound)
-	_, _ = w.Write([]byte(`{"error":"Not Found"}`))
 }

@@ -2,17 +2,16 @@ package musicbrainz_test
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"log/slog"
 	"net/http"
-	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"purser/internal/adapters/musicbrainz"
 	"purser/internal/ports"
 	"purser/internal/ports/musicbrainztest"
 	"purser/internal/version"
+	"purser/pkg/httpclient/httpmock"
 	"sync"
 	"testing"
 	"time"
@@ -32,34 +31,50 @@ func newTestClient(t *testing.T, baseURL string) *musicbrainz.Client {
 	return c
 }
 
+// newMockedTestClient builds a Client whose HTTP calls never leave the
+// process — rt answers every request from a canned route table
+// (pkg/httpclient/httpmock), plugged in via WithBaseTransport. BaseURL is
+// left at its real default; RoundTrip intercepts before any DNS/dial ever
+// happens, so there's no need for a placeholder URL.
+func newMockedTestClient(t *testing.T, rt http.RoundTripper, opts ...musicbrainz.Option) *musicbrainz.Client {
+	t.Helper()
+	allOpts := append([]musicbrainz.Option{musicbrainz.WithBaseTransport(rt)}, opts...)
+	c, err := musicbrainz.New(musicbrainz.DefaultConfig(), allOpts...)
+	if err != nil {
+		t.Fatalf("musicbrainz.New returned error: %v", err)
+	}
+	t.Cleanup(func() { _ = c.Close() })
+	return c
+}
+
 func TestClient_MusicBrainzClientContract(t *testing.T) {
 	musicbrainztest.TestMusicBrainzClient(t, func(t *testing.T, baseURL string) ports.MusicBrainzClient {
 		return newTestClient(t, baseURL)
 	})
 }
 
-// serveFixture returns an http.HandlerFunc that always replies 200 with the
-// recorded JSON fixture at testdata/name.json — a real, previously
-// recorded MusicBrainz response, per docs/adr/0003-go-testing-standards.md's
-// "recorded request/response fixtures" requirement for adapter-specific
-// tests beyond the shared contract test.
-func serveFixture(t *testing.T, name string) http.HandlerFunc {
+// rawFixture reads a recorded JSON fixture at testdata/name.json — a real,
+// previously recorded MusicBrainz response, per
+// docs/adr/0003-go-testing-standards.md's "recorded request/response
+// fixtures" requirement for adapter-specific tests beyond the shared
+// contract test.
+func rawFixture(t *testing.T, name string) []byte {
 	t.Helper()
 	data, err := os.ReadFile(filepath.Join("testdata", name+".json"))
 	if err != nil {
 		t.Fatalf("reading fixture %s: %v", name, err)
 	}
-	return func(w http.ResponseWriter, _ *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write(data)
-	}
+	return data
 }
 
 func TestLookupArtist_MapsRecordedBeatlesFixture(t *testing.T) {
-	server := httptest.NewServer(serveFixture(t, "artist_lookup"))
-	defer server.Close()
+	rt := httpmock.New(httpmock.Route{
+		Method:    http.MethodGet,
+		Path:      "/ws/2/artist/b10bbbfc-cf9e-42e0-be17-e2c3e1d2600d",
+		Responder: httpmock.Raw(http.StatusOK, rawFixture(t, "artist_lookup")),
+	})
 
-	c := newTestClient(t, server.URL)
+	c := newMockedTestClient(t, rt)
 	a, err := c.LookupArtist(context.Background(), "b10bbbfc-cf9e-42e0-be17-e2c3e1d2600d")
 	if err != nil {
 		t.Fatalf("LookupArtist returned error: %v", err)
@@ -92,10 +107,13 @@ func TestLookupArtist_MapsRecordedBeatlesFixture(t *testing.T) {
 }
 
 func TestLookupRelease_MapsRecordedReleaseFixture(t *testing.T) {
-	server := httptest.NewServer(serveFixture(t, "release_lookup"))
-	defer server.Close()
+	rt := httpmock.New(httpmock.Route{
+		Method:    http.MethodGet,
+		Path:      "/ws/2/release/ade577f6-6087-4a4f-8e87-38b0f8169814",
+		Responder: httpmock.Raw(http.StatusOK, rawFixture(t, "release_lookup")),
+	})
 
-	c := newTestClient(t, server.URL)
+	c := newMockedTestClient(t, rt)
 	r, err := c.LookupRelease(context.Background(), "ade577f6-6087-4a4f-8e87-38b0f8169814")
 	if err != nil {
 		t.Fatalf("LookupRelease returned error: %v", err)
@@ -120,10 +138,13 @@ func TestLookupRelease_MapsRecordedReleaseFixture(t *testing.T) {
 }
 
 func TestLookupReleaseGroup_MapsRecordedFixture(t *testing.T) {
-	server := httptest.NewServer(serveFixture(t, "releasegroup_lookup"))
-	defer server.Close()
+	rt := httpmock.New(httpmock.Route{
+		Method:    http.MethodGet,
+		Path:      "/ws/2/release-group/de208292-8db5-3aed-a14a-b37a84d8c521",
+		Responder: httpmock.Raw(http.StatusOK, rawFixture(t, "releasegroup_lookup")),
+	})
 
-	c := newTestClient(t, server.URL)
+	c := newMockedTestClient(t, rt)
 	rg, err := c.LookupReleaseGroup(context.Background(), "de208292-8db5-3aed-a14a-b37a84d8c521")
 	if err != nil {
 		t.Fatalf("LookupReleaseGroup returned error: %v", err)
@@ -134,10 +155,13 @@ func TestLookupReleaseGroup_MapsRecordedFixture(t *testing.T) {
 }
 
 func TestListReleasesForReleaseGroup_MapsRecordedFixture(t *testing.T) {
-	server := httptest.NewServer(serveFixture(t, "releases_for_releasegroup"))
-	defer server.Close()
+	rt := httpmock.New(httpmock.Route{
+		Method:    http.MethodGet,
+		Path:      "/ws/2/release",
+		Responder: httpmock.Raw(http.StatusOK, rawFixture(t, "releases_for_releasegroup")),
+	})
 
-	c := newTestClient(t, server.URL)
+	c := newMockedTestClient(t, rt)
 	releases, err := c.ListReleasesForReleaseGroup(context.Background(), "de208292-8db5-3aed-a14a-b37a84d8c521")
 	if err != nil {
 		t.Fatalf("ListReleasesForReleaseGroup returned error: %v", err)
@@ -153,10 +177,13 @@ func TestListReleasesForReleaseGroup_MapsRecordedFixture(t *testing.T) {
 }
 
 func TestSearchReleaseByBarcode_MapsRecordedFixture(t *testing.T) {
-	server := httptest.NewServer(serveFixture(t, "barcode_search"))
-	defer server.Close()
+	rt := httpmock.New(httpmock.Route{
+		Method:    http.MethodGet,
+		Path:      "/ws/2/release",
+		Responder: httpmock.Raw(http.StatusOK, rawFixture(t, "barcode_search")),
+	})
 
-	c := newTestClient(t, server.URL)
+	c := newMockedTestClient(t, rt)
 	releases, err := c.SearchReleaseByBarcode(context.Background(), "094638241621")
 	if err != nil {
 		t.Fatalf("SearchReleaseByBarcode returned error: %v", err)
@@ -173,10 +200,13 @@ func TestSearchReleaseByBarcode_MapsRecordedFixture(t *testing.T) {
 }
 
 func TestLookupRecordingByISRC_MapsRecordedFixture(t *testing.T) {
-	server := httptest.NewServer(serveFixture(t, "isrc_lookup"))
-	defer server.Close()
+	rt := httpmock.New(httpmock.Route{
+		Method:    http.MethodGet,
+		Path:      "/ws/2/isrc/GBAYE0600350",
+		Responder: httpmock.Raw(http.StatusOK, rawFixture(t, "isrc_lookup")),
+	})
 
-	c := newTestClient(t, server.URL)
+	c := newMockedTestClient(t, rt)
 	recs, err := c.LookupRecordingByISRC(context.Background(), "GBAYE0600350")
 	if err != nil {
 		t.Fatalf("LookupRecordingByISRC returned error: %v", err)
@@ -194,17 +224,18 @@ func TestLookupRecordingByISRC_MapsRecordedFixture(t *testing.T) {
 
 func TestNew_SetsFixedUserAgentRegardlessOfConfig(t *testing.T) {
 	var gotUA string
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		gotUA = r.Header.Get("User-Agent")
-		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`{"id":"x","title":"y"}`))
-	}))
-	defer server.Close()
+	rt := httpmock.New(httpmock.Route{
+		Method: http.MethodGet,
+		Path:   "/ws/2/release-group/x",
+		Responder: func(req *http.Request) (*http.Response, error) {
+			gotUA = req.Header.Get("User-Agent")
+			return httpmock.JSON(http.StatusOK, map[string]string{"id": "x", "title": "y"})(req)
+		},
+	})
 
 	cfg := musicbrainz.DefaultConfig()
-	cfg.BaseURL = server.URL
 	cfg.HTTPClient.UserAgent = "some-caller-supplied-value/9.9"
-	c, err := musicbrainz.New(cfg)
+	c, err := musicbrainz.New(cfg, musicbrainz.WithBaseTransport(rt))
 	if err != nil {
 		t.Fatalf("musicbrainz.New returned error: %v", err)
 	}
@@ -222,14 +253,16 @@ func TestNew_SetsFixedUserAgentRegardlessOfConfig(t *testing.T) {
 
 func TestClient_CachesGETResponses(t *testing.T) {
 	var hits int
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		hits++
-		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`{"id":"cache-test","title":"Cached Release Group"}`))
-	}))
-	defer server.Close()
+	rt := httpmock.New(httpmock.Route{
+		Method: http.MethodGet,
+		Path:   "/ws/2/release-group/cache-test",
+		Responder: func(req *http.Request) (*http.Response, error) {
+			hits++
+			return httpmock.JSON(http.StatusOK, map[string]string{"id": "cache-test", "title": "Cached Release Group"})(req)
+		},
+	})
 
-	c := newTestClient(t, server.URL)
+	c := newMockedTestClient(t, rt)
 	ctx := context.Background()
 
 	if _, err := c.LookupReleaseGroup(ctx, "cache-test"); err != nil {
@@ -247,26 +280,33 @@ func TestClient_CachesGETResponses(t *testing.T) {
 func TestClient_RateLimiterSerializesConcurrentRequests(t *testing.T) {
 	var mu sync.Mutex
 	var arrivals []time.Time
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+	recorder := func(req *http.Request) (*http.Response, error) {
 		mu.Lock()
 		arrivals = append(arrivals, time.Now())
 		mu.Unlock()
-		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`{"id":"x","title":"y"}`))
-	}))
-	defer server.Close()
-
-	c := newTestClient(t, server.URL)
+		return httpmock.JSON(http.StatusOK, map[string]string{"id": "x", "title": "y"})(req)
+	}
 
 	const n = 3
+	routes := make([]httpmock.Route, n)
+	for i := range n {
+		// Distinct MBIDs so the caching transport doesn't short-circuit
+		// requests 2 and 3 against request 1's cached response.
+		routes[i] = httpmock.Route{
+			Method:    http.MethodGet,
+			Path:      fmt.Sprintf("/ws/2/release-group/rate-limit-test-%d", i),
+			Responder: recorder,
+		}
+	}
+	rt := httpmock.New(routes...)
+	c := newMockedTestClient(t, rt)
+
 	var wg sync.WaitGroup
 	start := time.Now()
-	for i := 0; i < n; i++ {
+	for i := range n {
 		wg.Add(1)
 		go func(i int) {
 			defer wg.Done()
-			// Distinct MBIDs so the caching transport doesn't short-circuit
-			// requests 2 and 3 against request 1's cached response.
 			mbid := fmt.Sprintf("rate-limit-test-%d", i)
 			if _, err := c.LookupReleaseGroup(context.Background(), mbid); err != nil {
 				t.Errorf("LookupReleaseGroup returned error: %v", err)
@@ -291,23 +331,17 @@ func TestClient_RateLimiterSerializesConcurrentRequests(t *testing.T) {
 }
 
 func TestNew_WithOptions(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`{"id":"x","title":"y"}`))
-	}))
-	defer server.Close()
+	rt := httpmock.New(httpmock.Route{
+		Method:    http.MethodGet,
+		Path:      "/ws/2/release-group/x",
+		Responder: httpmock.JSON(http.StatusOK, map[string]string{"id": "x", "title": "y"}),
+	})
 
-	cfg := musicbrainz.DefaultConfig()
-	cfg.BaseURL = server.URL
-	c, err := musicbrainz.New(cfg,
+	c := newMockedTestClient(t, rt,
 		musicbrainz.WithLogger(slog.Default()),
 		musicbrainz.WithTracerProvider(otel.GetTracerProvider()),
 		musicbrainz.WithMeterProvider(otel.GetMeterProvider()),
 	)
-	if err != nil {
-		t.Fatalf("musicbrainz.New with options returned error: %v", err)
-	}
-	defer func() { _ = c.Close() }()
 
 	if _, err := c.LookupReleaseGroup(context.Background(), "x"); err != nil {
 		t.Fatalf("LookupReleaseGroup returned error: %v", err)
@@ -324,16 +358,18 @@ func TestNew_RejectsEmptyBaseURL(t *testing.T) {
 
 func TestSearchReleaseGroups_BuildsLuceneQueryFromArtistAndAlbumNames(t *testing.T) {
 	var gotQuery string
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		gotQuery = r.URL.Query().Get("query")
-		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(struct {
-			ReleaseGroups []ports.ReleaseGroup `json:"release-groups"`
-		}{})
-	}))
-	defer server.Close()
+	rt := httpmock.New(httpmock.Route{
+		Method: http.MethodGet,
+		Path:   "/ws/2/release-group",
+		Responder: func(req *http.Request) (*http.Response, error) {
+			gotQuery = req.URL.Query().Get("query")
+			return httpmock.JSON(http.StatusOK, struct {
+				ReleaseGroups []ports.ReleaseGroup `json:"release-groups"`
+			}{})(req)
+		},
+	})
 
-	c := newTestClient(t, server.URL)
+	c := newMockedTestClient(t, rt)
 	if _, err := c.SearchReleaseGroups(context.Background(), "The Beatles", "Please Please Me"); err != nil {
 		t.Fatalf("SearchReleaseGroups returned error: %v", err)
 	}

@@ -13,6 +13,7 @@ import (
 	"purser/internal/adapters/acoustid"
 	"purser/internal/adapters/datastore"
 	"purser/internal/adapters/musicbrainz"
+	"purser/internal/adapters/musicbrainz/fixtureserver"
 	"purser/internal/config"
 	"purser/internal/ports"
 	"purser/internal/service"
@@ -589,12 +590,25 @@ func wireScanPipeline(
 // (docs/adr/0025-music-identification-confidence-scoring.md), so an
 // unconfigured deployment gets noopAcoustIDClient instead of failing
 // startup.
+//
+// When PURSER_MUSICBRAINZ_MOCK is set (any non-empty value), the
+// MusicBrainz client is built with musicbrainz.WithBaseTransport pointed at
+// internal/adapters/musicbrainz/fixtureserver's canned route table instead
+// of a real transport — no real socket, not even loopback, ever opens.
+// This is CI-only wiring (k6's flow suite, per Makefile's k6-ci target),
+// never something an operator sets in a real deployment config, which is
+// why it's a bare env var read here rather than a config.MusicBrainz field.
 func newMusicIdentificationClients(mbCfg config.MusicBrainz, acoustIDCfg config.AcoustID, logger *slog.Logger) (ports.MusicBrainzClient, ports.AcoustIDClient, error) {
 	mbAdapterCfg := musicbrainz.DefaultConfig()
 	if mbCfg.BaseURL != "" {
 		mbAdapterCfg.BaseURL = mbCfg.BaseURL
 	}
-	mbClient, err := musicbrainz.New(mbAdapterCfg, musicbrainz.WithLogger(logger))
+	mbOpts := []musicbrainz.Option{musicbrainz.WithLogger(logger)}
+	if os.Getenv("PURSER_MUSICBRAINZ_MOCK") != "" {
+		logger.Warn("PURSER_MUSICBRAINZ_MOCK is set: MusicBrainz calls are answered from fixtureserver's canned data, never a live network call")
+		mbOpts = append(mbOpts, musicbrainz.WithBaseTransport(fixtureserver.Transport()))
+	}
+	mbClient, err := musicbrainz.New(mbAdapterCfg, mbOpts...)
 	if err != nil {
 		return nil, nil, fmt.Errorf("cmd/purser: constructing musicbrainz client: %w", err)
 	}
