@@ -259,6 +259,28 @@ func TestLoad_EnvOverridesPipelineHashToggles(t *testing.T) {
 	}
 }
 
+func TestLoad_UsesDefaultConfidenceThreshold(t *testing.T) {
+	cfg, err := config.Load(viper.New(), "")
+	if err != nil {
+		t.Fatalf("Load returned error: %v", err)
+	}
+	if cfg.Pipeline.ConfidenceThreshold != 0.75 {
+		t.Fatalf("Load returned Pipeline.ConfidenceThreshold=%v, want 0.75 by default", cfg.Pipeline.ConfidenceThreshold)
+	}
+}
+
+func TestLoad_EnvOverridesConfidenceThreshold(t *testing.T) {
+	t.Setenv("PURSER_PIPELINE_CONFIDENCE_THRESHOLD", "0.9")
+
+	cfg, err := config.Load(viper.New(), "")
+	if err != nil {
+		t.Fatalf("Load returned error: %v", err)
+	}
+	if cfg.Pipeline.ConfidenceThreshold != 0.9 {
+		t.Fatalf("Load returned Pipeline.ConfidenceThreshold=%v, want 0.9", cfg.Pipeline.ConfidenceThreshold)
+	}
+}
+
 func TestConfig_Validate_AcceptsAnyPipelineToggleCombination(t *testing.T) {
 	cfg, err := config.Load(viper.New(), "")
 	if err != nil {

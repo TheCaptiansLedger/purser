@@ -40,15 +40,26 @@ type Pipeline struct {
 	// docs/adr/0024-pipeline-core.md's "Discovery" section. Empty means no
 	// watcher is started at all: no cost to opt out.
 	ScanRoots []ScanRoot `mapstructure:"scan_roots"`
+
+	// ConfidenceThreshold is the auto-import cutoff the shared
+	// DecisionService compares a group's top domain.MatchCandidate.Score
+	// against (docs/adr/0024-pipeline-core.md's "decide" stage): at or
+	// above it, the candidate is auto-persisted; below it, the group stays
+	// in the UnmatchedFile review queue. 0.75 is a starting number carried
+	// from the fuzzy tier's score band in
+	// docs/technical/music-identification.md — unvalidated, not a claim
+	// it's correct.
+	ConfidenceThreshold float64 `mapstructure:"confidence_threshold"`
 }
 
 // DefaultPipeline returns Pipeline's defaults: both extra hashes off, no
-// watched roots.
+// watched roots, confidence threshold at its starting value of 0.75.
 func DefaultPipeline() Pipeline {
 	return Pipeline{
-		EnableMD5:    false,
-		EnableSHA512: false,
-		ScanRoots:    []ScanRoot{},
+		EnableMD5:           false,
+		EnableSHA512:        false,
+		ScanRoots:           []ScanRoot{},
+		ConfidenceThreshold: 0.75,
 	}
 }
 
