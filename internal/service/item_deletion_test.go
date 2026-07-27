@@ -182,6 +182,15 @@ func (f *deletionFakeExternalIDRepository) Get(context.Context, domain.EntityTyp
 	return nil, ports.ErrNotFound
 }
 
+func (f *deletionFakeExternalIDRepository) GetByValue(_ context.Context, entityType domain.EntityType, source domain.ExternalIDSource, value string) (*domain.ExternalID, error) {
+	for _, e := range f.rows {
+		if e.EntityType == entityType && e.Source == source && e.Value == value {
+			return e, nil
+		}
+	}
+	return nil, ports.ErrNotFound
+}
+
 func (f *deletionFakeExternalIDRepository) Update(context.Context, *domain.ExternalID) error {
 	return nil
 }

@@ -34,6 +34,12 @@ func (s *ExternalIDService) Get(ctx context.Context, entityType domain.EntityTyp
 	return s.repo.Get(ctx, entityType, entityID, source)
 }
 
+// GetByValue returns the ExternalID row currently linking source/value to
+// an entity of entityType, or ports.ErrNotFound.
+func (s *ExternalIDService) GetByValue(ctx context.Context, entityType domain.EntityType, source domain.ExternalIDSource, value string) (*domain.ExternalID, error) {
+	return s.repo.GetByValue(ctx, entityType, source, value)
+}
+
 // Update validates e and persists it in place of the existing record.
 func (s *ExternalIDService) Update(ctx context.Context, e *domain.ExternalID) (*domain.ExternalID, error) {
 	if err := e.Validate(); err != nil {

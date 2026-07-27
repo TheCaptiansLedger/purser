@@ -40,6 +40,16 @@ func (f *fakeExternalIDRepository) Get(_ context.Context, entityType domain.Enti
 	return &stored, nil
 }
 
+func (f *fakeExternalIDRepository) GetByValue(_ context.Context, entityType domain.EntityType, source domain.ExternalIDSource, value string) (*domain.ExternalID, error) {
+	for _, e := range f.byKey {
+		if e.EntityType == entityType && e.Source == source && e.Value == value {
+			stored := *e
+			return &stored, nil
+		}
+	}
+	return nil, ports.ErrNotFound
+}
+
 func (f *fakeExternalIDRepository) Update(_ context.Context, e *domain.ExternalID) error {
 	k := externalIDKey(e.EntityType, e.EntityID, string(e.Source))
 	if _, ok := f.byKey[k]; !ok {

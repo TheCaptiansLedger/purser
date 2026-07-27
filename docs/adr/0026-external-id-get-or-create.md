@@ -1,6 +1,6 @@
 # 0026. ExternalID Get-or-Create: Extending the Reservation-Document Pattern to (EntityType, Source, Value)
 
-Status: Proposed
+Status: Accepted
 
 ## Context
 
@@ -107,6 +107,24 @@ linking a single cross-repository transaction (which `Datastore` doesn't
 support, per [0012](0012-datastore-persistence.md), and 0019 already
 rejected building for one caller's benefit).
 
+### `Update` may still change `Value`, under the same reservation constraint
+
+`ExternalIDRepository.Update` already changes `Value` in place (the port's
+own doc comment has always said "only Value is mutable via Update"), and
+`UpdateExternalID` is a live, reachable RPC that calls it. Once `Value` is
+part of the reservation identity, an `Update` that moves `Value` without
+also moving the reservation would leave the entity's *current* value
+unreservationed — `GetByValue` on the value the row actually holds today
+would wrongly report `ports.ErrNotFound`. This is the same class of problem
+[0019](0019-tag-identity-and-get-or-create.md) solved for Tag's rename case
+("`UpdateTag` may still rename identity fields"), applied here: `Update`
+enforces the same uniqueness `Create` does when `Value` changes, following
+the identical reserve-new/delete-old ordering 0019's `Tag.Update` uses —
+reserve the new `(EntityType, Source, NewValue)` identity first (returning
+`ports.ErrConflict` if a different, live row already owns it), then update
+the `ExternalID` document, then best-effort delete the old reservation. An
+`Update` that leaves `Value` unchanged skips reservation work entirely.
+
 ### `Delete`/deletion-impact cleanup
 
 An entity's composing deletion service (per
@@ -123,6 +141,10 @@ risk, as 0019's `Tag` delete path.
   mutates its argument on a hit" — a real behavior change every existing
   caller of `ExternalIDRepository.Create` needs to be compatible with
   (idempotent re-linking becomes safe where it wasn't specified before).
+- `Update` also gains reservation-moving logic when `Value` changes, closing
+  a gap this ADR's first draft missed: without it, `UpdateExternalID` (a
+  live RPC) could silently leave a row unreachable via `GetByValue` at its
+  own current value. See "`Update` may still change `Value`" above.
 - Every future module doing "look up or create an entity from a
   provider's external identifier" (not just Music) reuses this — the
   composition pattern above is the template, the same way 0019 asked
@@ -158,3 +180,7 @@ risk, as 0019's `Tag` delete path.
    `GetByValue`/`Create`'s get-or-create contract and the composition
    pattern here? If yes — that's the reuse this ADR (and 0019 before it)
    exists for; point them here first.
+6. Does `Update` change `Value` without moving the `external_id_value`
+   reservation to match? If yes — fix it; that leaves the row unreachable
+   via `GetByValue` at its own current value, the exact gap this ADR's
+   "`Update` may still change `Value`" section closes.

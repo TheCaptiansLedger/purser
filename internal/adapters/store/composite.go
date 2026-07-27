@@ -39,8 +39,9 @@ type CompositeRepository[T any] struct {
 	keyOf      func(*T) (string, string, string)
 	indexOf    func(*T) map[string]string
 
-	logger *slog.Logger
-	tracer trace.Tracer
+	logger        *slog.Logger
+	tracer        trace.Tracer
+	meterProvider metric.MeterProvider
 
 	creates metric.Int64Counter
 	gets    metric.Int64Counter
@@ -77,13 +78,14 @@ func NewComposite[T any](name, collection string, ds datastore.Datastore, keyOf 
 	}
 
 	r := &CompositeRepository[T]{
-		name:       name,
-		collection: collection,
-		ds:         ds,
-		keyOf:      keyOf,
-		indexOf:    indexOf,
-		logger:     o.logger.With("component", "adapters.store."+collection, "repository.name", name),
-		tracer:     o.tracerProvider.Tracer(compositeInstrumentationName),
+		name:          name,
+		collection:    collection,
+		ds:            ds,
+		keyOf:         keyOf,
+		indexOf:       indexOf,
+		logger:        o.logger.With("component", "adapters.store."+collection, "repository.name", name),
+		tracer:        o.tracerProvider.Tracer(compositeInstrumentationName),
+		meterProvider: o.meterProvider,
 	}
 
 	meter := o.meterProvider.Meter(compositeInstrumentationName)
@@ -256,6 +258,36 @@ func (r *CompositeRepository[T]) id(v *T) string {
 	return joinKey(k1, k2, k3)
 }
 
+// DocumentID returns the opaque datastore.Document ID v's composite key
+// joins into. A hand-written adapter that must write v's document directly
+// via Datastore.CreateBatch alongside a document in a different collection
+// (bypassing Create/CreateBatch above — see
+// internal/adapters/store/externalid, and
+// docs/adr/0026-external-id-get-or-create.md) uses this to construct that
+// document with the exact same ID CompositeRepository's own methods would
+// use, instead of re-deriving the \x00-join convention itself.
+func (r *CompositeRepository[T]) DocumentID(v *T) string { return r.id(v) }
+
+// IndexOf returns the Index map v's document is stored under, per this
+// CompositeRepository[T]'s indexOf — see DocumentID.
+func (r *CompositeRepository[T]) IndexOf(v *T) map[string]string { return r.indexOf(v) }
+
 func joinKey(k1, k2, k3 string) string {
 	return k1 + keySeparator + k2 + keySeparator + k3
 }
+
+// Logger returns the logger this CompositeRepository[T] was constructed
+// with. For a hand-written adapter that embeds a CompositeRepository[T] for
+// part of its shape (see internal/adapters/store/externalid) and adds its
+// own instrumentation around it, reusing this avoids re-deriving options
+// from the same opts list a second time with a different (and possibly
+// inconsistent) result — see Repository[T].Logger.
+func (r *CompositeRepository[T]) Logger() *slog.Logger { return r.logger }
+
+// Tracer returns the tracer this CompositeRepository[T] was constructed
+// with — see Logger.
+func (r *CompositeRepository[T]) Tracer() trace.Tracer { return r.tracer }
+
+// MeterProvider returns the MeterProvider this CompositeRepository[T] was
+// constructed with — see Logger.
+func (r *CompositeRepository[T]) MeterProvider() metric.MeterProvider { return r.meterProvider }
