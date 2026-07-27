@@ -22,7 +22,8 @@ Organizer (M11).
 
 - **Automatic**: a shared, generic `DecisionService` ([0024](../adr/0024-pipeline-core.md))
   runs once per group, right after M7/M8 finish scoring. If the top
-  candidate's `Score` clears the configured threshold, it calls the
+  candidate's `Score` clears `config.Pipeline.ConfidenceThreshold`
+  (`internal/config/pipeline.go`, added by M9a), it calls the
   content-type-dispatched `Persister` for that candidate.
 - **Manual**: a new `AcceptCandidate(ctx, groupKey, externalRef string)` RPC.
   `externalRef` is just a raw MusicBrainz release MBID — it does not have
@@ -103,9 +104,13 @@ MBID), the group's consensus `Fingerprint`, and its `UnmatchedFile` rows:
    set directly from `UnmatchedFile.TrackNumber` — both strings, matching
    [0021](../adr/0021-music-domain-model.md)'s original vinyl intent
    exactly. Create an `Item(ContentType=music)` (`Title` from the canonical
-   MusicBrainz tracklist, `GroupID` from step 4, `Metadata["release_id"]`
-   from step 5, `Sequence`/`RuntimeSeconds`/`ExternalID(mbz_recording)`
-   per [0021](../adr/0021-music-domain-model.md)'s Track mapping), then a
+   MusicBrainz tracklist, `GroupID` from step 4, `LibraryEntryID` = the
+   Artist `LibraryEntry.ID` resolved in step 2 — required on every `Item`
+   per `internal/domain/item.go`, denormalized the same way `Group`'s own
+   `LibraryEntryID` already is, easy to miss since it isn't in the
+   MusicBrainz tracklist data itself — `Metadata["release_id"]` from step
+   5, `Sequence`/`RuntimeSeconds`/`ExternalID(mbz_recording)` per
+   [0021](../adr/0021-music-domain-model.md)'s Track mapping), then a
    `MediaFile` linking it to that file's path/hashes — the same
    `Create`/`Validate` shape today's `Resolve` already uses for a single
    file, just looped across the group. Tracklist entries with no matching
@@ -199,3 +204,7 @@ the group, since `pkg/jobqueue` has no job-level step concept.
    before `Create`? This is a known, currently-unresolved gap (see
    Consequences) — building step 6 without addressing it ships a
    duplicate-track bug on any partial-failure retry, not a hypothetical.
+7. Does any created `Item` leave `LibraryEntryID` unset (zero value)? It's
+   a `validate:"required"` kernel field `Create` will reject — set it from
+   the Artist resolved in step 2, the same value as the release's
+   `Group.LibraryEntryID`.

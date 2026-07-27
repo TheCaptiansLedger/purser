@@ -7,22 +7,29 @@ decided in [0025](../adr/0025-music-identification-confidence-scoring.md)
 status as work lands — this doc is state, not a spec; the ADR/technical doc
 are the spec.
 
-| ID | Milestone | Depends on | Status |
-|---|---|---|---|
-| M0 | ADR-0025: identification design | — | Done (Proposed; flip to Accepted once M8's fixture suite validates the model) |
-| M1 | Pipeline-core plumbing for grouping/candidates | M0 | Not started |
-| M2 | MusicBrainz adapter | — | Not started |
-| M3 | Music grouping capability | M1 | Done |
-| M4 | Music `FileFingerprinter` | M1 | Not started |
-| M5 | AcoustID adapter | — | Not started |
-| M6 | Filename/folder-name fallback parser | M2 | Done |
-| M7 | Music identifier / candidate generation | M2, M4, M6 | Done (Score not yet trusted for auto-import — depends on M8) |
-| M8 | Music `ConfidenceScore` + fixture suite | M5, M7 | Not started |
-| M9 | Decide/persist wiring | M8 | Not started |
-| M10 | Cover art & sidecar classification | M9 | Not started |
-| M11 | Organizer naming template for Music | M9 | Not started |
+| ID | Issue | Milestone | Depends on | Status |
+|---|---|---|---|---|
+| M0 | — | ADR-0025: identification design | — | Done (Proposed; flip to Accepted once M8's fixture suite validates the model) |
+| M1a | [#507](https://github.com/TheCaptiansLedger/purser/issues/507) | `Datastore.UpdateBatch` primitive | M0 | Done |
+| M1b | [#508](https://github.com/TheCaptiansLedger/purser/issues/508) | `UnmatchedFile` grouping/candidate fields + `ListGroup`/`DismissBatch` | M1a | Done |
+| M2 | [#509](https://github.com/TheCaptiansLedger/purser/issues/509) | MusicBrainz adapter | — | Done |
+| M3a | [#510](https://github.com/TheCaptiansLedger/purser/issues/510) | Generic `Grouping` port/registry + `ScanExecutor` wiring | M1b | Done |
+| M3b | [#511](https://github.com/TheCaptiansLedger/purser/issues/511) | Music's grouping algorithm (folder/multi-disc/multi-LP) | M3a | Done |
+| M4 | [#512](https://github.com/TheCaptiansLedger/purser/issues/512) | Music `FileFingerprinter` (ffprobe, vinyl-aware) | M1b | Done |
+| M5 | [#513](https://github.com/TheCaptiansLedger/purser/issues/513) | AcoustID adapter | — | Done |
+| M6 | [#514](https://github.com/TheCaptiansLedger/purser/issues/514) | Filename/folder-name fallback parser | M2 | Done |
+| M7 | [#515](https://github.com/TheCaptiansLedger/purser/issues/515) | Music identifier / candidate generation | M2, M4, M6 | Implemented, pending verification sign-off (Score not yet trusted for auto-import — depends on M8) |
+| M8 | [#516](https://github.com/TheCaptiansLedger/purser/issues/516) | Music `ConfidenceScore` + fixture suite | M5, M7 | Implemented, pending verification sign-off (fixture suite + worked-example numbers need manual review before M7's Score is trusted for auto-import) |
+| M9-pre | [#532](https://github.com/TheCaptiansLedger/purser/issues/532) | `ExternalIDRepository` `GetByValue` + get-or-create (ADR-0026) | — | Not started — must land before M9b |
+| M9a | [#517](https://github.com/TheCaptiansLedger/purser/issues/517) | Shared `DecisionService` (+ adds `config.Pipeline.ConfidenceThreshold`) | M8 | Not started |
+| M9b | [#518](https://github.com/TheCaptiansLedger/purser/issues/518) | Music `Persister` cascade + `MusicRelease` reservation fix + `AcceptCandidate` | M9-pre, M9a | Not started |
+| M10a | [#519](https://github.com/TheCaptiansLedger/purser/issues/519) | Sidecar classification (registry + Music rules + `Trigger` wiring) | M3a | Not started |
+| M10b | [#520](https://github.com/TheCaptiansLedger/purser/issues/520) | Cover-art attachment at persist time | M9b | Not started |
+| M11a | [#521](https://github.com/TheCaptiansLedger/purser/issues/521) | Generic `Organizer` mechanics (render/move/collision handling) | M9b | Not started |
+| M11b | [#522](https://github.com/TheCaptiansLedger/purser/issues/522) | Music `TemplateDataBuilder` + config + trigger wiring | M11a, M9b | Not started |
 
-M2 and M5 have no internal dependency and can be built in parallel with M1.
+M2, M5, and M9-pre have no internal dependency and can be built any time
+before whatever needs them (M6 for M2, M8 for M5, M9b for M9-pre).
 
 ## M0 — ADR-0025: identification design
 `docs/adr/0025-music-identification-confidence-scoring.md` +
@@ -30,13 +37,14 @@ M2 and M5 have no internal dependency and can be built in parallel with M1.
 candidate generation vs. scoring split, tiered confidence scoring, and the
 AcoustID/filename fallback chain.
 
-## M1 — Pipeline-core plumbing for grouping/candidates
+## M1a/M1b — Pipeline-core plumbing for grouping/candidates
 Design: [pipeline-unmatchedfile-grouping.md](pipeline-unmatchedfile-grouping.md).
-Adds `GroupKey`/`Fingerprint`/`Candidates` to `domain.UnmatchedFile`; a new
-`Datastore.UpdateBatch` primitive; `UnmatchedFileService.ListGroup` (read)
-and `DismissBatch` (bulk dismiss, explicit ID list from the caller —
-`Resolve`'s single-file match path is untouched). Generic — not
-Music-specific — since any future grouping content type reuses it.
+M1a: a new `Datastore.UpdateBatch` primitive (Badger + SQL). M1b: adds
+`GroupKey`/`Fingerprint`/`Candidates` to `domain.UnmatchedFile`;
+`UnmatchedFileService.ListGroup` (read) and `DismissBatch` (bulk dismiss,
+explicit ID list from the caller — `Resolve`'s single-file match path is
+untouched). Generic — not Music-specific — since any future grouping
+content type reuses it.
 
 ## M2 — MusicBrainz adapter
 Design: [music-musicbrainz-adapter.md](music-musicbrainz-adapter.md).
@@ -46,13 +54,13 @@ else depends on. Scoped to serve the scan pipeline only — a manual
 "add artist" flow is a noted future consumer of the same adapter, not
 part of this effort.
 
-## M3 — Grouping capability (registry + Music)
+## M3a/M3b — Grouping capability (registry + Music)
 Design: [pipeline-grouping-capability.md](pipeline-grouping-capability.md).
-Generic `Grouping` port/registry, wired into `ScanExecutor` (runs once per
-job, not per file); `config.Pipeline.ScanRoots` gains content-type pairs.
-Music's implementation: folder-based default + multi-disc subfolder
-roll-up (`CD1`/`Disc 2` naming patterns). Purely structural — no tag
-reading; the `DISCNUMBER` tag override happens later, in M4/M7.
+M3a: generic `Grouping` port/registry, wired into `ScanExecutor` (runs once
+per job, not per file); `config.Pipeline.ScanRoots` gains content-type
+pairs. M3b: Music's implementation — folder-based default + multi-disc
+subfolder roll-up (`CD1`/`Disc 2` naming patterns). Purely structural — no
+tag reading; the `DISCNUMBER` tag override happens later, in M4/M7.
 
 ## M4 — Music `FileFingerprinter`
 Design: [pipeline-music-fingerprinter.md](pipeline-music-fingerprinter.md).
@@ -95,8 +103,8 @@ fixture-backed tests, matching #515's own Scope/Verification checklist —
 **not yet wired into `ScanExecutor` or `cmd/purser`'s composition root**
 (no `MusicBrainzClient`/`AcoustIDClient` are constructed there yet, and
 `ScanService.Trigger` doesn't thread `scan_root` through `job.Params`).
-That wiring lands alongside M9, the first milestone that actually needs
-real, persisted candidates end-to-end.
+That wiring lands alongside M9a/M9b, the first milestones that actually
+need real, persisted candidates end-to-end.
 
 ## M8 — Music `ConfidenceScore` + fixture suite
 Design: [pipeline-music-confidence-score.md](pipeline-music-confidence-score.md).
@@ -106,38 +114,55 @@ per-candidate framing — same pattern as M3/M4). Per-tier formulas: flat
 weighted average `fuzzy` (the actual convergence-bug fix), dual-role
 `acoustic` (capped-alone / corroborating-bonus / contradiction-demotion).
 Ambiguity cap clamps to a fixed ceiling rather than needing the real
-config threshold. Ships with the required fixture suite and an explicit
+config threshold. Also closes a design-review gap: a coverage floor
+generically caps any candidate scored on too little evaluated-signal
+weight to the bottom half of its tier's band, so a filename-only
+candidate can't reach auto-import territory on a couple of strong signals
+alone. Ships with the required fixture suite and an explicit
 differentiation assertion.
 
-## M9 — Decide/persist wiring
-Design: [pipeline-music-persist.md](pipeline-music-persist.md). Depends on
-[0026](../adr/0026-external-id-get-or-create.md) (new ADR — get-or-create
-for Artist/Release Group via `ExternalID`, extending 0019's pattern).
-Two triggers (auto `DecisionService`, manual `AcceptCandidate` RPC), one
-`Persister` capability. VA sentinel resolves itself via ordinary
-get-or-create, no separate seed step. `MusicRelease` gets its own
-Music-local reservation-document fix (0019's pattern directly, no
-`ExternalID` involved). Adds `UnmatchedFile.DiscNumber`/`TrackNumber`
-(amends M1/M4) and `DeleteBatch` on `UnmatchedFileRepository` (reuses
-pre-M1 generic batch-delete primitives).
+## M9-pre — `ExternalID` get-or-create (ADR-0026)
+Design: [0026](../adr/0026-external-id-get-or-create.md). Adds
+`ExternalIDRepository.GetByValue` and turns `Create` into get-or-create on
+`(EntityType, Source, Value)`, via the same reservation-document mechanism
+0019 built for `Tag`. Not itself Music-specific, but M9b's Artist/Release
+Group get-or-create steps call it directly, so it must land first — split
+out as its own issue ([#532](https://github.com/TheCaptiansLedger/purser/issues/532))
+once M9b's own issue turned out to list this as a bare ADR dependency with
+no owning issue.
 
-## M10 — Cover art & sidecar classification
+## M9a/M9b — Decide/persist wiring
+Design: [pipeline-music-persist.md](pipeline-music-persist.md). M9a: the
+shared, content-type-agnostic `DecisionService` — compares the top
+candidate's `Score` against `config.Pipeline.ConfidenceThreshold` (a new
+field this milestone adds) and dispatches to the registered `Persister`.
+M9b: Music's `Persister` cascade, built on M9-pre's get-or-create mechanism
+for Artist/Release Group via `ExternalID`. Two triggers (auto
+`DecisionService`, manual `AcceptCandidate` RPC), one `Persister`
+capability. VA sentinel resolves itself via ordinary get-or-create, no
+separate seed step. `MusicRelease` gets its own Music-local
+reservation-document fix (0019's pattern directly, no `ExternalID`
+involved). Adds `UnmatchedFile.DiscNumber`/`TrackNumber` (amends M1/M4) and
+`DeleteBatch` on `UnmatchedFileRepository` (reuses pre-M1 generic
+batch-delete primitives).
+
+## M10a/M10b — Cover art & sidecar classification
 Design: [pipeline-music-sidecar-classifier.md](pipeline-music-sidecar-classifier.md).
-Classification runs in `ScanService.Trigger`, before Tasks exist — sidecar
-files never enter the pipeline at all. Simplifies M3 (its own "ignore
-non-audio" filter is now redundant, removed). Cover art isn't tracked
-between scan and persist — M9's `Persist` does a fresh folder listing at
-attach time. First real caller of `ImageStore`'s write path (a gap 0013
-already flagged). Duplicate-attachment guard is a plain existence check,
-not full reservation-document machinery.
+M10a: classification runs in `ScanService.Trigger`, before Tasks exist —
+sidecar files never enter the pipeline at all. Simplifies M3b (its own
+"ignore non-audio" filter is now redundant, removed). M10b: cover art isn't
+tracked between scan and persist — M9b's `Persist` does a fresh folder
+listing at attach time. First real caller of `ImageStore`'s write path (a
+gap 0013 already flagged). Duplicate-attachment guard is a plain existence
+check, not full reservation-document machinery.
 
-## M11 — Organizer naming template for Music
-Design: [pipeline-music-organizer.md](pipeline-music-organizer.md). Split
-into a generic `Organizer` (render + move, shared) and Music's
-`TemplateDataBuilder` (cross-entity data gathering: Item + Group +
-MusicRelease + LibraryEntry), same `ContentTypes()` registry pattern as
-M3/M4/M6/M10. `Rename` with a copy-verify-delete fallback for
+## M11a/M11b — Organizer naming template for Music
+Design: [pipeline-music-organizer.md](pipeline-music-organizer.md). M11a: a
+generic `Organizer` (render + move, shared), same `ContentTypes()` registry
+pattern as M3/M4/M6/M10. `Rename` with a copy-verify-delete fallback for
 cross-filesystem moves; refuses to overwrite on a destination collision.
+M11b: Music's `TemplateDataBuilder` (cross-entity data gathering: Item +
+Group + MusicRelease + LibraryEntry) and the config/trigger wiring.
 Per-content-type `{Root, Template}` config, not one global template.
-Auto-trigger from M9's `Persist`; manual trigger via a new
+Auto-trigger from M9b's `Persist`; manual trigger via a new
 `OrganizerService` RPC.

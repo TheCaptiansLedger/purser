@@ -459,13 +459,11 @@ func TestIdentifier_WorkedExample1_HiInfidelity(t *testing.T) {
 // fuzzy name search returns two release groups (the real box set and an
 // unrelated single-disc compilation whose title also fuzzy-matches);
 // track/medium counts are what actually separate them, not the name
-// signal alone. AcoustID structurally runs here too (no barcode/ISRC tags)
-// per docs/technical/pipeline-music-identifier.md's gate being purely
-// "no unique-ID match found" — this test does not assert AcoustID was
-// skipped, unlike the worked-example doc's own narrative (flagged
-// separately as a doc inconsistency, not implemented as a skip condition
-// here since the algorithm doc's gate is explicitly never score/confidence
-// based).
+// signal alone. AcoustID structurally runs here too (no barcode/ISRC
+// tags) per docs/technical/pipeline-music-identifier.md's gate being
+// purely "no unique-ID match found" — this test does not assert AcoustID
+// was skipped; the worked-example doc's narrative was corrected to match
+// (AcoustID runs but isn't what decides the outcome here).
 func TestIdentifier_WorkedExample2_StevieNicksBoxSet(t *testing.T) {
 	groupTitles := make([]string, 32)
 	groupDurations := make([]float64, 32)

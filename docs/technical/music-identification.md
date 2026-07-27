@@ -156,10 +156,17 @@ Illustrative box set, folder structure:
    ambiguous. Title-set comes back at ~30/32 clean matches — two tracks
    differ only in minor text formatting (e.g. "Edge of Seventeen (Live)"
    vs. "Edge Of 17"), which fuzzy title comparison still counts as
-   probable matches at lower confidence rather than "missing." AcoustID
-   isn't needed — the structural signals (disc/track counts) already
-   resolve this confidently, so the fingerprint lookup is skipped entirely
-   to save the CPU/network cost.
+   probable matches at lower confidence rather than "missing." No
+   barcode/ISRC tags exist on this rip either, so AcoustID's structural
+   gate (no unique-ID match found) still fires and it runs for all 32
+   files — that gate is purely "did we find a unique identifier," never a
+   confidence check, per
+   [pipeline-music-identifier.md](pipeline-music-identifier.md)'s M7/M8
+   boundary (M7 has no score to check yet). It just turns out not to be
+   *needed* here: the structural disc/track-count signals already
+   separate the two candidates decisively on their own, so AcoustID's
+   agreement, once it comes back, corroborates the winner without being
+   what actually decided it.
 8. **Decide**: score clears the auto-import threshold. All 32 tracks are
    present and positionally matched, so the resulting `MusicRelease.Status`
    is `imported`, not `partial`. The two title-text mismatches are kept in

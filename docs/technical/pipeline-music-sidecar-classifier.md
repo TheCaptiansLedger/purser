@@ -115,9 +115,11 @@ imageRepo.Create(ctx, &domain.Image{
 Re-running `Persist` on a retry (per M9's idempotent-recovery model) would
 re-attach the same cover art as duplicate `Image` rows, since images have
 no natural uniqueness key the way an MBID does. Before running the
-cover-art step, check `ImageRepository.List(ownerType, ownerID)` for the
-release; if it already has any images attached, skip the step entirely. A
-plain existence check, not a full reservation-document mechanism — a
+cover-art step, call `ImageRepository.List(ctx, "music_release",
+release.ID, 1, "")` (`pageSize=1` — existence is all that's needed, not
+the full set) for the release; if `len(images) > 0`, skip the step
+entirely. A plain existence check, not a full reservation-document
+mechanism — a
 duplicate `Image` row is a mess to clean up, not a correctness bug on the
 scale [0019](../adr/0019-tag-identity-and-get-or-create.md)/[0026](../adr/0026-external-id-get-or-create.md)
 exist to prevent, so it doesn't need their machinery.

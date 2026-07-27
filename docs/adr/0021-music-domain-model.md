@@ -52,7 +52,7 @@ specific pressing/edition, between `Group` (the logical album) and the
 |---|---|---|
 | Artist | `LibraryEntry(Kind=KindArtist)` | `Metadata`: `artist_type`, `aliases`, `founded_date`/`dissolved_date` (or `born_date`/`died_date` for solo), `isni`, `official_url`, `lastfm_url`, `wikipedia_url` |
 | Release Group (Album) | `Group` | `Metadata`: `album_type` (`studio`\|`live`\|`compilation`\|`ep`\|`single`\|`other`) |
-| Track | `Item(ContentType=music)` | `Metadata`: `release_id`, `disc_number`, `isrc`, `composer`, `lyricist`. `Sequence` = track/disc position (string). `ExternalID` source `mbz_recording` at `EntityType=item`. |
+| Track | `Item(ContentType=music)` | `Metadata`: `release_id`, `disc_number`, `isrc`, `composer`, `lyricist`. `Sequence` = track/disc position (string). `ExternalID` source `mbz_recording` at `EntityType=item`. `LibraryEntryID` (kernel-required on every `Item`) = the track's Artist, the same value as its `Group.LibraryEntryID` — denormalized, not derived, matching every other content type's `Item`/`Group` pairing. |
 | Audio file | `MediaFile` | `Metadata`: `acoustid` (populated by a future async job, not built here) |
 | Band members / solo self-link | `EntryPerson` + `Person` | Roles: `member`\|`former_member`\|`vocalist`\|`guitarist`\|`bassist`\|`drummer`\|`keyboardist`\|`producer` |
 | Track credits | `ItemPerson` | Roles: `artist`\|`featured_artist`\|`producer`\|`songwriter`. `CreditedAs` carries an artist-credit name distinct from `Person.Name`. |
