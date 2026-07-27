@@ -142,6 +142,16 @@ func fp(disc int, track, title string, duration float64, isrc, mbid string) doma
 	}
 }
 
+func fpWithReleaseGroup(disc int, track, title string, rgMBID string) domain.Fingerprint {
+	return domain.Fingerprint{
+		Tags: map[string]string{"TITLE": title, "MUSICBRAINZ_RELEASEGROUPID": rgMBID},
+		Metadata: map[string]any{
+			"disc_number":  disc,
+			"track_number": track,
+		},
+	}
+}
+
 func TestFileFingerprinter_Consensus_MajorityVoteIgnoresSingleOutlier(t *testing.T) {
 	f := music.New()
 
@@ -184,6 +194,24 @@ func TestFileFingerprinter_Consensus_ConflictingMBIDsKeptAsSet(t *testing.T) {
 	mbids, ok := got.Metadata["embedded_release_mbids"].([]string)
 	if !ok || len(mbids) != 2 {
 		t.Fatalf("Metadata[embedded_release_mbids] = %v, want both distinct MBIDs kept, not collapsed", got.Metadata["embedded_release_mbids"])
+	}
+}
+
+func TestFileFingerprinter_Consensus_ReleaseGroupMBIDsKeptAsSet(t *testing.T) {
+	f := music.New()
+
+	fingerprints := []domain.Fingerprint{
+		fpWithReleaseGroup(1, "1", "Track One", "cccccccc-cccc-cccc-cccc-cccccccccccc"),
+		fpWithReleaseGroup(1, "2", "Track Two", "cccccccc-cccc-cccc-cccc-cccccccccccc"),
+	}
+
+	got, err := f.Consensus(context.Background(), fingerprints)
+	if err != nil {
+		t.Fatalf("Consensus returned error: %v", err)
+	}
+	rgMBIDs, ok := got.Metadata["embedded_releasegroup_mbids"].([]string)
+	if !ok || len(rgMBIDs) != 1 || rgMBIDs[0] != "cccccccc-cccc-cccc-cccc-cccccccccccc" {
+		t.Fatalf("Metadata[embedded_releasegroup_mbids] = %v, want one agreeing MBID", got.Metadata["embedded_releasegroup_mbids"])
 	}
 }
 

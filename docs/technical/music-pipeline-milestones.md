@@ -15,8 +15,8 @@ are the spec.
 | M3 | Music grouping capability | M1 | Done |
 | M4 | Music `FileFingerprinter` | M1 | Not started |
 | M5 | AcoustID adapter | — | Not started |
-| M6 | Filename/folder-name fallback parser | M2 | Not started |
-| M7 | Music identifier / candidate generation | M2, M4, M6 | Not started |
+| M6 | Filename/folder-name fallback parser | M2 | Done |
+| M7 | Music identifier / candidate generation | M2, M4, M6 | Done (Score not yet trusted for auto-import — depends on M8) |
 | M8 | Music `ConfidenceScore` + fixture suite | M5, M7 | Not started |
 | M9 | Decide/persist wiring | M8 | Not started |
 | M10 | Cover art & sidecar classification | M9 | Not started |
@@ -89,6 +89,14 @@ score-based — keeps M7 independent of M8. Sets `Tier`/`Signals`/
 `Metadata` only; never sets `Score` — that boundary belongs to M8.
 Group-level work recorded redundantly across every task's Step in the
 group, since `pkg/jobqueue` has no job-level step concept.
+
+Shipped as a standalone `ports.Identifier`/`Identifier` capability plus
+fixture-backed tests, matching #515's own Scope/Verification checklist —
+**not yet wired into `ScanExecutor` or `cmd/purser`'s composition root**
+(no `MusicBrainzClient`/`AcoustIDClient` are constructed there yet, and
+`ScanService.Trigger` doesn't thread `scan_root` through `job.Params`).
+That wiring lands alongside M9, the first milestone that actually needs
+real, persisted candidates end-to-end.
 
 ## M8 — Music `ConfidenceScore` + fixture suite
 Design: [pipeline-music-confidence-score.md](pipeline-music-confidence-score.md).

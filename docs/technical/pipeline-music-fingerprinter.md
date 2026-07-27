@@ -100,6 +100,12 @@ consensus `Fingerprint` per group:
   deliberately not collapsed to one value. If two files disagree, that's a
   real conflict scoring needs to see, not something M4 quietly resolves by
   picking one.
+- **`Metadata["embedded_releasegroup_mbids"]`**: the same treatment for
+  `MUSICBRAINZ_RELEASEGROUPID` — a separate MusicBrainz entity from
+  `MUSICBRAINZ_ALBUMID` (release vs. release group), needed as its own
+  preserved set because M7's direct-ID short-circuit falls back to this tag
+  when the release-ID set doesn't resolve, per
+  [pipeline-music-identifier.md](pipeline-music-identifier.md).
 
 The consensus is written onto every `UnmatchedFile` row in the group with
 one `UpdateBatch` call — a second, internal caller of the same primitive

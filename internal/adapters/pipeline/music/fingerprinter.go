@@ -205,12 +205,19 @@ func findTag(idx map[string]string, names ...string) (string, bool) {
 // docs/technical/pipeline-music-fingerprinter.md's "Group consensus"
 // section. Pure in-memory reduction — no I/O, so unlike Fingerprint above
 // it carries no tracing (same treatment Grouping.GroupKeys gets).
+//
+// Metadata["embedded_release_mbids"]/["embedded_releasegroup_mbids"] are
+// both built the same way: the set of distinct non-empty
+// MUSICBRAINZ_ALBUMID/MUSICBRAINZ_RELEASEGROUPID values seen across the
+// group, never collapsed to one — M7's direct-ID short-circuit checks each
+// set's cardinality itself (docs/technical/pipeline-music-identifier.md).
 func (f *FileFingerprinter) Consensus(_ context.Context, fingerprints []domain.Fingerprint) (domain.Fingerprint, error) {
 	tags := majorityVoteTags(fingerprints)
 
 	entries := make([]trackEntry, 0, len(fingerprints))
 	discCount := 0
 	mbidSet := make(map[string]struct{})
+	rgMBIDSet := make(map[string]struct{})
 	for _, fp := range fingerprints {
 		disc, _ := fp.Metadata["disc_number"].(int)
 		if disc > discCount {
@@ -227,6 +234,9 @@ func (f *FileFingerprinter) Consensus(_ context.Context, fingerprints []domain.F
 		})
 		if mbid := fp.Tags["MUSICBRAINZ_ALBUMID"]; mbid != "" {
 			mbidSet[mbid] = struct{}{}
+		}
+		if rgMBID := fp.Tags["MUSICBRAINZ_RELEASEGROUPID"]; rgMBID != "" {
+			rgMBIDSet[rgMBID] = struct{}{}
 		}
 	}
 	sort.SliceStable(entries, func(i, j int) bool {
@@ -259,6 +269,14 @@ func (f *FileFingerprinter) Consensus(_ context.Context, fingerprints []domain.F
 		}
 		sort.Strings(mbids)
 		metadata["embedded_release_mbids"] = mbids
+	}
+	if len(rgMBIDSet) > 0 {
+		rgMBIDs := make([]string, 0, len(rgMBIDSet))
+		for mbid := range rgMBIDSet {
+			rgMBIDs = append(rgMBIDs, mbid)
+		}
+		sort.Strings(rgMBIDs)
+		metadata["embedded_releasegroup_mbids"] = rgMBIDs
 	}
 
 	return domain.Fingerprint{Tags: tags, Metadata: metadata}, nil
