@@ -16,23 +16,27 @@ import (
 // Config is the top-level configuration tree, assembled from component
 // structs.
 type Config struct {
-	Server    Server    `mapstructure:"server"`
-	Paths     Paths     `mapstructure:"paths"`
-	Database  Database  `mapstructure:"database"`
-	Media     Media     `mapstructure:"media"`
-	Telemetry Telemetry `mapstructure:"telemetry"`
-	Pipeline  Pipeline  `mapstructure:"pipeline"`
+	Server      Server      `mapstructure:"server"`
+	Paths       Paths       `mapstructure:"paths"`
+	Database    Database    `mapstructure:"database"`
+	Media       Media       `mapstructure:"media"`
+	Telemetry   Telemetry   `mapstructure:"telemetry"`
+	Pipeline    Pipeline    `mapstructure:"pipeline"`
+	MusicBrainz MusicBrainz `mapstructure:"musicbrainz"`
+	AcoustID    AcoustID    `mapstructure:"acoustid"`
 }
 
 // DefaultConfig returns the defaults every component starts from.
 func DefaultConfig() Config {
 	cfg := Config{
-		Server:    DefaultServer(),
-		Paths:     DefaultPaths(),
-		Database:  DefaultDatabase(),
-		Media:     DefaultMedia(),
-		Telemetry: DefaultTelemetry(),
-		Pipeline:  DefaultPipeline(),
+		Server:      DefaultServer(),
+		Paths:       DefaultPaths(),
+		Database:    DefaultDatabase(),
+		Media:       DefaultMedia(),
+		Telemetry:   DefaultTelemetry(),
+		Pipeline:    DefaultPipeline(),
+		MusicBrainz: DefaultMusicBrainz(),
+		AcoustID:    DefaultAcoustID(),
 	}
 	deriveDataDirDefaults(&cfg)
 	return cfg
@@ -93,6 +97,9 @@ func Load(v *viper.Viper, configPath string) (Config, error) {
 	v.SetDefault("pipeline.enable_sha512", defaults.Pipeline.EnableSHA512)
 	v.SetDefault("pipeline.scan_roots", defaults.Pipeline.ScanRoots)
 	v.SetDefault("pipeline.confidence_threshold", defaults.Pipeline.ConfidenceThreshold)
+	v.SetDefault("musicbrainz.base_url", defaults.MusicBrainz.BaseURL)
+	v.SetDefault("acoustid.base_url", defaults.AcoustID.BaseURL)
+	v.SetDefault("acoustid.api_key", defaults.AcoustID.APIKey)
 
 	v.SetEnvPrefix("purser")
 	v.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))

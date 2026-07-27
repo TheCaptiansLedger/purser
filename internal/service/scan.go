@@ -68,6 +68,7 @@ func (s *ScanService) Trigger(ctx context.Context, root string) (string, error) 
 		"enable_md5":    strconv.FormatBool(s.enableMD5),
 		"enable_sha512": strconv.FormatBool(s.enableSHA512),
 		"content_type":  string(s.resolveContentType(root)),
+		"scan_root":     root,
 	}
 
 	return s.pub.Trigger(ctx, scanJobKind, taskLabels, params)

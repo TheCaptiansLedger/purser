@@ -27,6 +27,7 @@ const (
 	stepFingerprint = "fingerprint"
 	stepCheckKnown  = "check_known"
 	stepQueue       = "queue"
+	stepDecide      = "decide"
 
 	// outcome values recorded on the "check_known" Step's Detail — see
 	// checkKnown and docs/adr/0024-pipeline-core.md's "already known"
@@ -35,6 +36,16 @@ const (
 	outcomeMatchedUnmatchedFile = "matched_unmatched_file"
 	outcomeNew                  = "new"
 )
+
+// decisionResolver is the narrow interface decideAndPersistGroups depends
+// on — satisfied structurally by *service.DecisionService without this
+// adapter-layer package importing internal/service (ScanExecutor already
+// depends on ports for everything else; this keeps that same direction for
+// the one piece decide/persist needs that isn't itself a port). See
+// docs/technical/pipeline-music-persist.md.
+type decisionResolver interface {
+	Decide(ctx context.Context, contentType domain.ContentType, fingerprint *domain.Fingerprint, candidates []domain.MatchCandidate, files []*domain.UnmatchedFile) (persisted bool, err error)
+}
 
 // ScanExecutor implements pkgjobqueue.Executor for "scan" Jobs. Each
 // Task's Label is the discovered file's full path (set by
@@ -45,9 +56,11 @@ const (
 // MediaFile or UnmatchedFile hit just gets its Path updated) or creating a
 // new UnmatchedFile (Step "queue"). Once every Task has run, buffered
 // per-file Fingerprints are reduced to one consensus Fingerprint per
-// GroupKey and written onto every UnmatchedFile row in that group — see
-// persistConsensus and docs/technical/pipeline-music-fingerprinter.md's
-// "Group consensus" section. It imports pkg/jobqueue directly — unlike
+// GroupKey, written onto every UnmatchedFile row in that group, and fed
+// through identify -> score -> decide -> (on success) delete — see
+// decideAndPersistGroups and docs/technical/pipeline-music-fingerprinter.md's
+// "Group consensus" section / docs/technical/pipeline-music-persist.md's
+// "Where this runs" section. It imports pkg/jobqueue directly — unlike
 // internal/service/scan.go — because it's the adapter glue registered on
 // the concrete *pkgjobqueue.Engine; it also needs
 // ports.UnmatchedFileRepository/ports.MediaFileRepository/
@@ -55,18 +68,32 @@ const (
 // never import (its "zero Purser knowledge" rule), which is why this type
 // can't live in pkg/jobqueue.
 type ScanExecutor struct {
-	repo          ports.UnmatchedFileRepository
-	mediaFileRepo ports.MediaFileRepository
-	grouping      ports.GroupingResolver
-	fingerprinter ports.FileFingerprinterResolver
+	repo            ports.UnmatchedFileRepository
+	mediaFileRepo   ports.MediaFileRepository
+	grouping        ports.GroupingResolver
+	fingerprinter   ports.FileFingerprinterResolver
+	identifier      ports.IdentifierResolver
+	confidenceScore ports.ConfidenceScoreResolver
+	decision        decisionResolver
 }
 
 var _ pkgjobqueue.Executor = (*ScanExecutor)(nil)
 
 // NewScanExecutor constructs a ScanExecutor backed by repo, mediaFileRepo,
-// grouping, and fingerprinter.
-func NewScanExecutor(repo ports.UnmatchedFileRepository, mediaFileRepo ports.MediaFileRepository, grouping ports.GroupingResolver, fingerprinter ports.FileFingerprinterResolver) *ScanExecutor {
-	return &ScanExecutor{repo: repo, mediaFileRepo: mediaFileRepo, grouping: grouping, fingerprinter: fingerprinter}
+// grouping, fingerprinter, identifier, confidenceScore, and decision.
+func NewScanExecutor(
+	repo ports.UnmatchedFileRepository,
+	mediaFileRepo ports.MediaFileRepository,
+	grouping ports.GroupingResolver,
+	fingerprinter ports.FileFingerprinterResolver,
+	identifier ports.IdentifierResolver,
+	confidenceScore ports.ConfidenceScoreResolver,
+	decision decisionResolver,
+) *ScanExecutor {
+	return &ScanExecutor{
+		repo: repo, mediaFileRepo: mediaFileRepo, grouping: grouping, fingerprinter: fingerprinter,
+		identifier: identifier, confidenceScore: confidenceScore, decision: decision,
+	}
 }
 
 // Execute implements pkgjobqueue.Executor. Grouping runs once for the
@@ -83,6 +110,7 @@ func (e *ScanExecutor) Execute(ctx context.Context, r *pkgjobqueue.Runner) error
 	enableMD5, _ := strconv.ParseBool(job.Params["enable_md5"])
 	enableSHA512, _ := strconv.ParseBool(job.Params["enable_sha512"])
 	contentType := domain.ContentType(job.Params["content_type"])
+	scanRoot := job.Params["scan_root"]
 
 	paths := make([]string, len(job.Tasks))
 	for i, task := range job.Tasks {
@@ -94,6 +122,7 @@ func (e *ScanExecutor) Execute(ctx context.Context, r *pkgjobqueue.Runner) error
 	}
 
 	fingerprintsByGroup := make(map[string][]domain.Fingerprint)
+	taskIDsByGroup := make(map[string][]string)
 	for _, task := range job.Tasks {
 		if err := r.StartTask(ctx, task.ID); err != nil {
 			return err
@@ -102,12 +131,13 @@ func (e *ScanExecutor) Execute(ctx context.Context, r *pkgjobqueue.Runner) error
 		if !ok {
 			groupResult = ports.GroupingResult{GroupKey: task.Label, DiscNumber: 0}
 		}
+		taskIDsByGroup[groupResult.GroupKey] = append(taskIDsByGroup[groupResult.GroupKey], task.ID)
 		if err := e.runTask(ctx, r, task.ID, task.Label, enableMD5, enableSHA512, contentType, groupResult, fingerprintsByGroup); err != nil {
 			return err
 		}
 	}
 
-	return e.persistConsensus(ctx, contentType, fingerprintsByGroup)
+	return e.decideAndPersistGroups(ctx, r, contentType, scanRoot, fingerprintsByGroup, taskIDsByGroup)
 }
 
 // runTask hashes the file at path (task.Label), extracts its per-file
@@ -136,8 +166,10 @@ func (e *ScanExecutor) runTask(ctx context.Context, r *pkgjobqueue.Runner, taskI
 	if err != nil {
 		return err
 	}
+	discNumber, trackNumber := groupResult.DiscNumber, ""
 	if ok {
 		fingerprintsByGroup[groupResult.GroupKey] = append(fingerprintsByGroup[groupResult.GroupKey], fp)
+		discNumber, trackNumber = trackPositionOf(fp, groupResult.DiscNumber)
 	}
 
 	proceed, err := e.runCheckKnownStep(ctx, r, taskID, path, oshash, sha1sum, md5sum, sha512sum)
@@ -145,7 +177,26 @@ func (e *ScanExecutor) runTask(ctx context.Context, r *pkgjobqueue.Runner, taskI
 		return err
 	}
 
-	return e.runQueueStep(ctx, r, taskID, path, oshash, sha1sum, md5sum, sha512sum, groupResult)
+	return e.runQueueStep(ctx, r, taskID, path, oshash, sha1sum, md5sum, sha512sum, contentType, groupResult.GroupKey, discNumber, trackNumber)
+}
+
+// trackPositionOf reads the per-file disc_number/track_number a
+// FileFingerprinter already computed into fp.Metadata (DISCNUMBER-tag
+// override applied, per FileFingerprinter.Fingerprint's own doc comment)
+// back out for the UnmatchedFile row being queued — fp.Metadata is
+// map[string]any, so disc_number decodes as int only within the same
+// process that just set it (never round-tripped through storage here, so
+// no float64 case is needed, unlike domain.Item.Metadata elsewhere).
+// fallbackDisc (the grouping guess) is used when no fingerprinter is
+// registered for this content type (NoopFingerprinter leaves
+// fp.Metadata empty).
+func trackPositionOf(fp domain.Fingerprint, fallbackDisc int) (discNumber int, trackNumber string) {
+	discNumber = fallbackDisc
+	if d, ok := fp.Metadata["disc_number"].(int); ok {
+		discNumber = d
+	}
+	trackNumber, _ = fp.Metadata["track_number"].(string)
+	return discNumber, trackNumber
 }
 
 // runFingerprintStep runs the "fingerprint" Step. Unlike hash/check_known/
@@ -177,17 +228,19 @@ func (e *ScanExecutor) runFingerprintStep(ctx context.Context, r *pkgjobqueue.Ru
 	return fp, true, nil
 }
 
-// persistConsensus reduces every GroupKey's buffered per-file Fingerprints
-// into one consensus Fingerprint (FileFingerprinterResolver.Consensus) and
+// decideAndPersistGroups reduces every GroupKey's buffered per-file
+// Fingerprints into one consensus Fingerprint (FileFingerprinterResolver.Consensus),
 // writes it onto every UnmatchedFile row currently in that group — not just
 // the rows this Job's tasks created, since a group can also contain rows
 // from an earlier run (per docs/technical/pipeline-music-fingerprinter.md's
-// "Group consensus" section). A content type with no real fingerprinter
-// registered (NoopFingerprinter) produces an empty consensus Fingerprint
-// for every group, which is deliberately skipped — writing an empty,
-// non-nil Fingerprint onto every UnmatchedFile row for content types this
-// feature doesn't touch yet would be a needless, unrequested write.
-func (e *ScanExecutor) persistConsensus(ctx context.Context, contentType domain.ContentType, fingerprintsByGroup map[string][]domain.Fingerprint) error {
+// "Group consensus" section) — then runs identify -> score -> decide for
+// the group and, on a successful auto-import, deletes its rows out of the
+// review queue (decideAndPersistGroup). A content type with no real
+// fingerprinter registered (NoopFingerprinter) produces an empty consensus
+// Fingerprint for every group, which is deliberately skipped entirely — no
+// consensus write and no identify/decide attempt; content types this
+// feature doesn't touch yet get no writes at all.
+func (e *ScanExecutor) decideAndPersistGroups(ctx context.Context, r *pkgjobqueue.Runner, contentType domain.ContentType, scanRoot string, fingerprintsByGroup map[string][]domain.Fingerprint, taskIDsByGroup map[string][]string) error {
 	for groupKey, fingerprints := range fingerprintsByGroup {
 		consensus, err := e.fingerprinter.Consensus(ctx, contentType, fingerprints)
 		if err != nil {
@@ -210,8 +263,87 @@ func (e *ScanExecutor) persistConsensus(ctx context.Context, contentType domain.
 		if err := e.repo.UpdateBatch(ctx, rows); err != nil {
 			return fmt.Errorf("pipeline: persisting fingerprint consensus for group %q: %w", groupKey, err)
 		}
+
+		if err := e.decideAndPersistGroup(ctx, r, contentType, scanRoot, groupKey, consensus, rows, taskIDsByGroup[groupKey]); err != nil {
+			return err
+		}
 	}
 	return nil
+}
+
+// decideAndPersistGroup runs one group's identify -> score -> decide pass
+// and, on a successful auto-import, deletes its rows via DeleteBatch — the
+// same "leaves the review queue by deletion" behavior Resolve/
+// AcceptCandidate already have, applied to the automatic path. The outcome
+// is recorded on every task's "decide" Step in the group — pkg/jobqueue
+// has no job-level step concept, so this is deliberately redundant across
+// every task, per docs/technical/pipeline-music-persist.md's "Where this
+// runs" section (the same convention M7's own group-level work already
+// follows).
+func (e *ScanExecutor) decideAndPersistGroup(ctx context.Context, r *pkgjobqueue.Runner, contentType domain.ContentType, scanRoot, groupKey string, consensus domain.Fingerprint, rows []*domain.UnmatchedFile, taskIDs []string) error {
+	paths := make([]string, len(rows))
+	for i, row := range rows {
+		paths[i] = row.Path
+	}
+
+	candidates, err := e.identifier.Identify(ctx, contentType, consensus, paths, groupKey, scanRoot)
+	if err != nil {
+		return e.finishDecideSteps(ctx, r, taskIDs, nil, false, fmt.Errorf("pipeline: identifying group %q: %w", groupKey, err))
+	}
+
+	scored, err := e.confidenceScore.ConfidenceScore(ctx, contentType, consensus, candidates)
+	if err != nil {
+		return e.finishDecideSteps(ctx, r, taskIDs, nil, false, fmt.Errorf("pipeline: scoring group %q: %w", groupKey, err))
+	}
+
+	persisted, err := e.decision.Decide(ctx, contentType, &consensus, scored, rows)
+	if err != nil {
+		return e.finishDecideSteps(ctx, r, taskIDs, scored, false, fmt.Errorf("pipeline: deciding group %q: %w", groupKey, err))
+	}
+
+	if err := e.finishDecideSteps(ctx, r, taskIDs, scored, persisted, nil); err != nil {
+		return err
+	}
+	if !persisted {
+		return nil
+	}
+
+	ids := make([]string, len(rows))
+	for i, row := range rows {
+		ids[i] = row.ID
+	}
+	if err := e.repo.DeleteBatch(ctx, ids); err != nil {
+		return fmt.Errorf("pipeline: deleting persisted group %q: %w", groupKey, err)
+	}
+	return nil
+}
+
+// finishDecideSteps records the "decide" Step's outcome (candidate_count,
+// persisted) on every task in the group, then returns cause unchanged
+// (nil on success) — the one place decideAndPersistGroup both reports
+// step-tracking and propagates whatever caused it to be called.
+func (e *ScanExecutor) finishDecideSteps(ctx context.Context, r *pkgjobqueue.Runner, taskIDs []string, candidates []domain.MatchCandidate, persisted bool, cause error) error {
+	status := pkgjobqueue.StatusSucceeded
+	message := ""
+	if cause != nil {
+		status = pkgjobqueue.StatusFailed
+		message = cause.Error()
+	}
+	detail := map[string]string{
+		"candidate_count": strconv.Itoa(len(candidates)),
+		"persisted":       strconv.FormatBool(persisted),
+	}
+
+	for _, taskID := range taskIDs {
+		handle, err := r.StartStep(ctx, taskID, stepDecide)
+		if err != nil {
+			return err
+		}
+		if err := r.FinishStep(handle, status, message, detail, cause); err != nil {
+			return err
+		}
+	}
+	return cause
 }
 
 // runCheckKnownStep runs the "check_known" Step: a MediaFile or
@@ -247,9 +379,16 @@ func (e *ScanExecutor) runCheckKnownStep(ctx context.Context, r *pkgjobqueue.Run
 
 // runQueueStep runs the "queue" Step for a genuinely new file: creates
 // and persists a new domain.UnmatchedFile, driving the Step and the
-// terminal Task status. groupResult is this path's outcome from Execute's
-// single per-Job grouping call.
-func (e *ScanExecutor) runQueueStep(ctx context.Context, r *pkgjobqueue.Runner, taskID, path, oshash, sha1sum, md5sum, sha512sum string, groupResult ports.GroupingResult) error {
+// terminal Task status. contentType is stamped onto the row so a later,
+// job-independent AcceptCandidate call can still tell which Persister to
+// dispatch to — see domain.UnmatchedFile.ContentType. discNumber/
+// trackNumber are the per-file position trackPositionOf already resolved
+// (the fingerprint step's DISCNUMBER-tag override applied, and the
+// TRACKNUMBER tag carried straight through — see trackPositionOf's doc
+// comment) — required for the Music Persister's tracklist matching
+// (docs/technical/pipeline-music-persist.md's step 6) to ever find a real
+// scanned file.
+func (e *ScanExecutor) runQueueStep(ctx context.Context, r *pkgjobqueue.Runner, taskID, path, oshash, sha1sum, md5sum, sha512sum string, contentType domain.ContentType, groupKey string, discNumber int, trackNumber string) error {
 	queueHandle, err := r.StartStep(ctx, taskID, stepQueue)
 	if err != nil {
 		return err
@@ -262,8 +401,10 @@ func (e *ScanExecutor) runQueueStep(ctx context.Context, r *pkgjobqueue.Runner, 
 	uf := &domain.UnmatchedFile{
 		ID:           domain.NewID(),
 		Path:         path,
-		GroupKey:     groupResult.GroupKey,
-		DiscNumber:   groupResult.DiscNumber,
+		ContentType:  contentType,
+		GroupKey:     groupKey,
+		DiscNumber:   discNumber,
+		TrackNumber:  trackNumber,
 		Size:         size,
 		OSHash:       oshash,
 		SHA1:         sha1sum,

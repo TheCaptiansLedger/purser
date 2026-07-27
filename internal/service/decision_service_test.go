@@ -15,13 +15,19 @@ import (
 type fakePersisterResolver struct {
 	err error
 
-	called    bool
-	candidate domain.MatchCandidate
+	called      bool
+	contentType domain.ContentType
+	fingerprint *domain.Fingerprint
+	candidate   domain.MatchCandidate
+	files       []*domain.UnmatchedFile
 }
 
-func (f *fakePersisterResolver) Persist(_ context.Context, _ domain.ContentType, _ *domain.Fingerprint, candidate domain.MatchCandidate, _ []*domain.UnmatchedFile) error {
+func (f *fakePersisterResolver) Persist(_ context.Context, contentType domain.ContentType, fingerprint *domain.Fingerprint, candidate domain.MatchCandidate, files []*domain.UnmatchedFile) error {
 	f.called = true
+	f.contentType = contentType
+	f.fingerprint = fingerprint
 	f.candidate = candidate
+	f.files = files
 	return f.err
 }
 

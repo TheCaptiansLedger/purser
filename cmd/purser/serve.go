@@ -10,7 +10,9 @@ import (
 	"os"
 	"os/exec"
 	"os/signal"
+	"purser/internal/adapters/acoustid"
 	"purser/internal/adapters/datastore"
+	"purser/internal/adapters/musicbrainz"
 	"purser/internal/config"
 	"purser/internal/ports"
 	"purser/internal/service"
@@ -30,10 +32,12 @@ import (
 	jobv1connect "purser/gen/go/purser/job/v1/jobv1connect"
 	musicv1connect "purser/gen/go/purser/music/v1/musicv1connect"
 	pipelinev1connect "purser/gen/go/purser/pipeline/v1/pipelinev1connect"
+
 	dsbadger "purser/internal/adapters/datastore/badger"
 	dssql "purser/internal/adapters/datastore/sql"
 	filewalkerlocal "purser/internal/adapters/filewalker/local"
 	adapterjobqueue "purser/internal/adapters/jobqueue"
+
 	adapterpipeline "purser/internal/adapters/pipeline"
 	pipelinemusic "purser/internal/adapters/pipeline/music"
 	storeentryperson "purser/internal/adapters/store/entryperson"
@@ -117,7 +121,7 @@ func runServe(ctx context.Context, configPath string) error {
 		}
 	}()
 
-	mux, watcherCloser, err := newServeMux(sigCtx, logger, ds, cfg.Pipeline)
+	mux, watcherCloser, err := newServeMux(sigCtx, logger, ds, cfg.Pipeline, cfg.MusicBrainz, cfg.AcoustID)
 	if err != nil {
 		return err
 	}
@@ -254,7 +258,7 @@ func openDatastore(cfg config.Database) (datastore.Datastore, io.Closer, error) 
 // Common Scan Pipeline's filesystem watcher/consumer goroutine, if one is
 // started (see wireScanPipeline); the returned io.Closer stops it during
 // shutdown and is nil when pipelineCfg.ScanRoots is empty.
-func newServeMux(ctx context.Context, logger *slog.Logger, ds datastore.Datastore, pipelineCfg config.Pipeline) (*http.ServeMux, io.Closer, error) {
+func newServeMux(ctx context.Context, logger *slog.Logger, ds datastore.Datastore, pipelineCfg config.Pipeline, mbCfg config.MusicBrainz, acoustIDCfg config.AcoustID) (*http.ServeMux, io.Closer, error) {
 	mux := http.NewServeMux()
 	interceptors := connect.WithInterceptors(apiconnect.NewLoggingInterceptor(logger))
 
@@ -456,7 +460,7 @@ func newServeMux(ctx context.Context, logger *slog.Logger, ds datastore.Datastor
 	// Common Scan Pipeline: split into its own function purely to keep
 	// newServeMux's cyclomatic complexity under budget — no behavior
 	// difference from being inlined here. See docs/adr/0024-pipeline-core.md.
-	watcherCloser, err := wireScanPipeline(ctx, mux, ds, logger, interceptors, jobEngine, jobAdapter, itemRepo, mediaFileRepo, pipelineCfg)
+	watcherCloser, err := wireScanPipeline(ctx, mux, ds, logger, interceptors, jobEngine, jobAdapter, itemRepo, mediaFileRepo, libraryEntryRepo, groupRepo, externalIDRepo, musicReleaseRepo, pipelineCfg, mbCfg, acoustIDCfg)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -491,17 +495,37 @@ func newServeMux(ctx context.Context, logger *slog.Logger, ds datastore.Datastor
 // jobEngine (exactly like "diagnostic" self-registers inside
 // pkgjobqueue.NewEngine), and mounts ScanService and UnmatchedFileService
 // on mux. jobAdapter is reused as ScanService's ports.JobPublisher —
-// neither service imports pkg/jobqueue directly. itemRepo/mediaFileRepo
-// are the already-constructed ports.ItemRepository/ports.MediaFileRepository
-// (built alongside ItemService/MediaFileService above) — ScanExecutor
-// needs mediaFileRepo for the "already known" short-circuit's MediaFile-
-// side lookup, and UnmatchedFileService needs both for Resolve's match
-// outcome (docs/adr/0015's composing-service exception, see
-// internal/service/unmatched_file.go). See docs/adr/0023-job-queue.md,
-// docs/adr/0024-pipeline-core.md. The returned io.Closer stops the
-// filesystem watcher started for pipelineCfg.ScanRoots (see
-// startScanWatcher); it is nil when no roots are configured.
-func wireScanPipeline(ctx context.Context, mux *http.ServeMux, ds datastore.Datastore, logger *slog.Logger, interceptors connect.HandlerOption, jobEngine *pkgjobqueue.Engine, jobAdapter *adapterjobqueue.Adapter, itemRepo ports.ItemRepository, mediaFileRepo ports.MediaFileRepository, pipelineCfg config.Pipeline) (io.Closer, error) {
+// neither service imports pkg/jobqueue directly. itemRepo/mediaFileRepo/
+// libraryEntryRepo/groupRepo/externalIDRepo/musicReleaseRepo are the
+// already-constructed repositories built alongside their own entity
+// services above — ScanExecutor needs mediaFileRepo for the "already
+// known" short-circuit's MediaFile-side lookup, UnmatchedFileService needs
+// itemRepo/mediaFileRepo for Resolve's match outcome (docs/adr/0015's
+// composing-service exception, see internal/service/unmatched_file.go),
+// and the Music Persister needs the rest for its Artist/Release Group/
+// MusicRelease/Item/MediaFile cascade (docs/technical/pipeline-music-persist.md).
+// See docs/adr/0023-job-queue.md, docs/adr/0024-pipeline-core.md. The
+// returned io.Closer stops the filesystem watcher started for
+// pipelineCfg.ScanRoots (see startScanWatcher); it is nil when no roots
+// are configured.
+func wireScanPipeline(
+	ctx context.Context,
+	mux *http.ServeMux,
+	ds datastore.Datastore,
+	logger *slog.Logger,
+	interceptors connect.HandlerOption,
+	jobEngine *pkgjobqueue.Engine,
+	jobAdapter *adapterjobqueue.Adapter,
+	itemRepo ports.ItemRepository,
+	mediaFileRepo ports.MediaFileRepository,
+	libraryEntryRepo ports.LibraryEntryRepository,
+	groupRepo ports.GroupRepository,
+	externalIDRepo ports.ExternalIDRepository,
+	musicReleaseRepo ports.MusicReleaseRepository,
+	pipelineCfg config.Pipeline,
+	mbCfg config.MusicBrainz,
+	acoustIDCfg config.AcoustID,
+) (io.Closer, error) {
 	unmatchedFileRepo, err := storeunmatchedfile.New("unmatched_file", ds, storeunmatchedfile.WithLogger(logger))
 	if err != nil {
 		return nil, fmt.Errorf("cmd/purser: constructing unmatched file repository: %w", err)
@@ -513,7 +537,21 @@ func wireScanPipeline(ctx context.Context, mux *http.ServeMux, ds datastore.Data
 	// Content types with no registered ports.FileFingerprinter
 	// implementation fall back to service.NoopFingerprinter.
 	fingerprinterRegistry := service.NewFileFingerprinterRegistry(pipelinemusic.New(pipelinemusic.WithLogger(logger)))
-	jobEngine.Register("scan", adapterpipeline.NewScanExecutor(unmatchedFileRepo, mediaFileRepo, groupingRegistry, fingerprinterRegistry))
+
+	mbClient, acoustIDClient, err := newMusicIdentificationClients(mbCfg, acoustIDCfg, logger)
+	if err != nil {
+		return nil, err
+	}
+	// Content types with no registered ports.Identifier/ports.ConfidenceScorer
+	// implementation fall back to service.NoopIdentifier/NoopConfidenceScore.
+	identifierRegistry := service.NewIdentifierRegistry(pipelinemusic.NewIdentifier(mbClient, acoustIDClient, pipelinemusic.FilenameParser{}, pipelinemusic.WithLogger(logger)))
+	confidenceScoreRegistry := service.NewConfidenceScoreRegistry(pipelinemusic.NewConfidenceScorer(pipelinemusic.WithLogger(logger)))
+
+	musicPersister := pipelinemusic.NewPersister(mbClient, externalIDRepo, libraryEntryRepo, groupRepo, musicReleaseRepo, itemRepo, mediaFileRepo, pipelinemusic.WithLogger(logger))
+	persisterRegistry := service.NewPersisterRegistry(musicPersister)
+	decisionSvc := service.NewDecisionService(pipelineCfg.ConfidenceThreshold, persisterRegistry)
+
+	jobEngine.Register("scan", adapterpipeline.NewScanExecutor(unmatchedFileRepo, mediaFileRepo, groupingRegistry, fingerprinterRegistry, identifierRegistry, confidenceScoreRegistry, decisionSvc))
 
 	fileWalker, err := filewalkerlocal.New(filewalkerlocal.WithLogger(logger))
 	if err != nil {
@@ -530,7 +568,7 @@ func wireScanPipeline(ctx context.Context, mux *http.ServeMux, ds datastore.Data
 	scanPath, scanConnectHandler := pipelinev1connect.NewScanServiceHandler(scanHandler, interceptors)
 	mux.Handle(scanPath, scanConnectHandler)
 
-	unmatchedFileSvc := service.NewUnmatchedFileService(unmatchedFileRepo, itemRepo, mediaFileRepo)
+	unmatchedFileSvc := service.NewUnmatchedFileService(unmatchedFileRepo, itemRepo, mediaFileRepo, persisterRegistry)
 	unmatchedFileHandler := apiconnect.NewUnmatchedFileHandler(unmatchedFileSvc, logger)
 	unmatchedFilePath, unmatchedFileConnectHandler := pipelinev1connect.NewUnmatchedFileServiceHandler(unmatchedFileHandler, interceptors)
 	mux.Handle(unmatchedFilePath, unmatchedFileConnectHandler)
@@ -540,6 +578,54 @@ func wireScanPipeline(ctx context.Context, mux *http.ServeMux, ds datastore.Data
 		return nil, err
 	}
 	return watcherCloser, nil
+}
+
+// newMusicIdentificationClients constructs the real MusicBrainz client
+// (always — mbCfg.BaseURL has a safe adapter-level default per
+// musicbrainz.DefaultConfig) and the AcoustID client only when an API key
+// is configured (acoustIDCfg.APIKey has no safe default — acoustid.New
+// errors on an empty one). AcoustID is optional corroboration, gated on
+// tag-derived signals not already resolving a group
+// (docs/adr/0025-music-identification-confidence-scoring.md), so an
+// unconfigured deployment gets noopAcoustIDClient instead of failing
+// startup.
+func newMusicIdentificationClients(mbCfg config.MusicBrainz, acoustIDCfg config.AcoustID, logger *slog.Logger) (ports.MusicBrainzClient, ports.AcoustIDClient, error) {
+	mbAdapterCfg := musicbrainz.DefaultConfig()
+	if mbCfg.BaseURL != "" {
+		mbAdapterCfg.BaseURL = mbCfg.BaseURL
+	}
+	mbClient, err := musicbrainz.New(mbAdapterCfg, musicbrainz.WithLogger(logger))
+	if err != nil {
+		return nil, nil, fmt.Errorf("cmd/purser: constructing musicbrainz client: %w", err)
+	}
+
+	if acoustIDCfg.APIKey == "" {
+		return mbClient, noopAcoustIDClient{}, nil
+	}
+	acoustIDAdapterCfg := acoustid.DefaultConfig()
+	acoustIDAdapterCfg.APIKey = acoustIDCfg.APIKey
+	if acoustIDCfg.BaseURL != "" {
+		acoustIDAdapterCfg.BaseURL = acoustIDCfg.BaseURL
+	}
+	acoustIDClient, err := acoustid.New(acoustIDAdapterCfg, acoustid.WithLogger(logger))
+	if err != nil {
+		return nil, nil, fmt.Errorf("cmd/purser: constructing acoustid client: %w", err)
+	}
+	return mbClient, acoustIDClient, nil
+}
+
+// noopAcoustIDClient is the ports.AcoustIDClient used when no AcoustID API
+// key is configured — Fingerprint always errors, which
+// music.Identifier.collectAcoustID already treats as non-fatal (logs and
+// skips the file, per-file, never per-group), so Lookup is never reached.
+type noopAcoustIDClient struct{}
+
+func (noopAcoustIDClient) Fingerprint(context.Context, string) (string, float64, error) {
+	return "", 0, errors.New("acoustid: no api key configured")
+}
+
+func (noopAcoustIDClient) Lookup(context.Context, string, float64) ([]ports.AcoustIDMatch, error) {
+	return nil, ports.ErrNotFound
 }
 
 // startScanWatcher starts a live pkg/fswatch.Watcher over roots' paths and

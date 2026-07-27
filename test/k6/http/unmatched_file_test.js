@@ -303,6 +303,20 @@ export default () => {
   );
   check(res, { 'ResolveUnmatchedFile with a nonexistent item_id is NotFound (404)': (r) => r.status === 404 });
 
+  // AcceptCandidate (#518) with an unknown group_key — a real NotFound
+  // error, checked before this RPC ever dispatches to a content type's
+  // Persister (which for a real group_key would mean a live MusicBrainz
+  // lookup — deliberately not exercised here; the full auto-import/
+  // manual-accept flow is covered by internal/adapters/pipeline/music's Go
+  // fixture tests and this issue's own manual dev-instance verification
+  // checklist, not live-network k6 CI).
+  res = invoke(
+    `${UNMATCHED_FILE_SERVICE}/AcceptCandidate`,
+    JSON.stringify({ groupKey: 'k6-http-no-such-group', externalRef: 'k6-http-fake-mbid' }),
+    HEADERS
+  );
+  check(res, { 'AcceptCandidate with an unknown group_key is NotFound (404)': (r) => r.status === 404 });
+
   // Clean up the match's MediaFile/Item — unlike dismiss (permanent, by
   // design), a match consumes one of the shared fixture files; deleting
   // both here reverts that path to "no known record" so the next run (or

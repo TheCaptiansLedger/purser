@@ -109,6 +109,23 @@ func (f *fakeUnmatchedFileRepository) UpdateBatch(_ context.Context, us []*domai
 	return nil
 }
 
+// DeleteBatch removes every id atomically — used by ScanExecutor's
+// decide/persist pass (Phase 6) once a group's winning candidate has been
+// persisted.
+func (f *fakeUnmatchedFileRepository) DeleteBatch(_ context.Context, ids []string) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	for _, id := range ids {
+		if _, ok := f.files[id]; !ok {
+			return ports.ErrNotFound
+		}
+	}
+	for _, id := range ids {
+		delete(f.files, id)
+	}
+	return nil
+}
+
 // ListByGroupKey is unused by ScanExecutor's tests (it only Creates/Gets/
 // Updates) — present solely to satisfy ports.UnmatchedFileRepository.
 func (f *fakeUnmatchedFileRepository) ListByGroupKey(_ context.Context, groupKey string) ([]*domain.UnmatchedFile, error) {
@@ -315,6 +332,61 @@ func (f *fakeFileFingerprinterResolver) Consensus(_ context.Context, _ domain.Co
 	return f.consensus, nil
 }
 
+// fakeIdentifierResolver is a minimal ports.IdentifierResolver double —
+// existing ScanExecutor tests don't exercise decide/persist, so this
+// defaults to returning no candidates unless configured.
+type fakeIdentifierResolver struct {
+	candidates []domain.MatchCandidate
+	err        error
+	calls      int
+}
+
+func (f *fakeIdentifierResolver) Identify(_ context.Context, _ domain.ContentType, _ domain.Fingerprint, _ []string, _, _ string) ([]domain.MatchCandidate, error) {
+	f.calls++
+	if f.err != nil {
+		return nil, f.err
+	}
+	return f.candidates, nil
+}
+
+// fakeConfidenceScoreResolver is a minimal ports.ConfidenceScoreResolver
+// double — passes candidates through unscored unless scored is set.
+type fakeConfidenceScoreResolver struct {
+	scored []domain.MatchCandidate
+	err    error
+	calls  int
+}
+
+func (f *fakeConfidenceScoreResolver) ConfidenceScore(_ context.Context, _ domain.ContentType, _ domain.Fingerprint, candidates []domain.MatchCandidate) ([]domain.MatchCandidate, error) {
+	f.calls++
+	if f.err != nil {
+		return nil, f.err
+	}
+	if f.scored != nil {
+		return f.scored, nil
+	}
+	return candidates, nil
+}
+
+// fakeDecisionResolver is a minimal pipeline.decisionResolver double —
+// satisfied structurally, the unexported interface type is never named
+// here. Defaults to persisted=false unless configured.
+type fakeDecisionResolver struct {
+	persisted bool
+	err       error
+	calls     int
+	gotFiles  []*domain.UnmatchedFile
+}
+
+func (f *fakeDecisionResolver) Decide(_ context.Context, _ domain.ContentType, _ *domain.Fingerprint, _ []domain.MatchCandidate, files []*domain.UnmatchedFile) (bool, error) {
+	f.calls++
+	f.gotFiles = files
+	if f.err != nil {
+		return false, f.err
+	}
+	return f.persisted, nil
+}
+
 func newEngine(t *testing.T, repo ports.UnmatchedFileRepository, mediaFileRepo ports.MediaFileRepository) *pkgjobqueue.Engine {
 	t.Helper()
 	return newEngineWithGrouping(t, repo, mediaFileRepo, &fakeGroupingResolver{})
@@ -327,8 +399,22 @@ func newEngineWithGrouping(t *testing.T, repo ports.UnmatchedFileRepository, med
 
 func newEngineWithFingerprinter(t *testing.T, repo ports.UnmatchedFileRepository, mediaFileRepo ports.MediaFileRepository, grouping ports.GroupingResolver, fingerprinter ports.FileFingerprinterResolver) *pkgjobqueue.Engine {
 	t.Helper()
+	return newEngineWithDecision(t, repo, mediaFileRepo, grouping, fingerprinter, &fakeIdentifierResolver{}, &fakeConfidenceScoreResolver{}, &fakeDecisionResolver{})
+}
+
+func newEngineWithDecision(
+	t *testing.T,
+	repo ports.UnmatchedFileRepository,
+	mediaFileRepo ports.MediaFileRepository,
+	grouping ports.GroupingResolver,
+	fingerprinter ports.FileFingerprinterResolver,
+	identifier ports.IdentifierResolver,
+	confidenceScore ports.ConfidenceScoreResolver,
+	decision *fakeDecisionResolver,
+) *pkgjobqueue.Engine {
+	t.Helper()
 	engine := pkgjobqueue.NewEngine(memory.New())
-	engine.Register("scan", pipeline.NewScanExecutor(repo, mediaFileRepo, grouping, fingerprinter))
+	engine.Register("scan", pipeline.NewScanExecutor(repo, mediaFileRepo, grouping, fingerprinter, identifier, confidenceScore, decision))
 	return engine
 }
 
@@ -387,6 +473,7 @@ func TestScanExecutor_Execute_Success(t *testing.T) {
 	id, err := engine.Trigger(context.Background(), "scan", []string{file1, file2}, map[string]string{
 		"enable_md5":    "true",
 		"enable_sha512": "false",
+		"content_type":  "music",
 	})
 	if err != nil {
 		t.Fatalf("Trigger returned error: %v", err)
@@ -535,6 +622,7 @@ func TestScanExecutor_Execute_SHA512Enabled(t *testing.T) {
 	id, err := engine.Trigger(context.Background(), "scan", []string{file}, map[string]string{
 		"enable_md5":    "false",
 		"enable_sha512": "true",
+		"content_type":  "music",
 	})
 	if err != nil {
 		t.Fatalf("Trigger returned error: %v", err)
@@ -627,7 +715,7 @@ func TestScanExecutor_Execute_RepositoryErrorFailsTask(t *testing.T) {
 	failingRepo := &alwaysFailUnmatchedFileRepository{err: errors.New("boom")}
 	mediaFileRepo := newFakeMediaFileRepository()
 	failEngine := pkgjobqueue.NewEngine(memory.New())
-	failEngine.Register("scan", pipeline.NewScanExecutor(failingRepo, mediaFileRepo, &fakeGroupingResolver{}, &fakeFileFingerprinterResolver{}))
+	failEngine.Register("scan", pipeline.NewScanExecutor(failingRepo, mediaFileRepo, &fakeGroupingResolver{}, &fakeFileFingerprinterResolver{}, &fakeIdentifierResolver{}, &fakeConfidenceScoreResolver{}, &fakeDecisionResolver{}))
 
 	id, err := failEngine.Trigger(context.Background(), "scan", []string{file}, nil)
 	if err != nil {
@@ -780,7 +868,7 @@ func TestScanExecutor_Execute_CheckKnownRepositoryErrorFailsTask(t *testing.T) {
 	repo := newFakeUnmatchedFileRepository()
 	failingMediaFileRepo := &alwaysFailMediaFileRepository{err: errors.New("boom")}
 	engine := pkgjobqueue.NewEngine(memory.New())
-	engine.Register("scan", pipeline.NewScanExecutor(repo, failingMediaFileRepo, &fakeGroupingResolver{}, &fakeFileFingerprinterResolver{}))
+	engine.Register("scan", pipeline.NewScanExecutor(repo, failingMediaFileRepo, &fakeGroupingResolver{}, &fakeFileFingerprinterResolver{}, &fakeIdentifierResolver{}, &fakeConfidenceScoreResolver{}, &fakeDecisionResolver{}))
 
 	id, err := engine.Trigger(context.Background(), "scan", []string{file}, nil)
 	if err != nil {
@@ -836,6 +924,10 @@ func (a *alwaysFailUnmatchedFileRepository) ListByGroupKey(context.Context, stri
 	return nil, a.err
 }
 
+func (a *alwaysFailUnmatchedFileRepository) DeleteBatch(context.Context, []string) error {
+	return a.err
+}
+
 type alwaysFailMediaFileRepository struct {
 	err error
 }
@@ -881,7 +973,7 @@ func TestScanExecutor_Execute_FingerprintStepRecordsTagCount(t *testing.T) {
 	}
 	engine := newEngineWithFingerprinter(t, repo, mediaFileRepo, &fakeGroupingResolver{}, fingerprinter)
 
-	id, err := engine.Trigger(context.Background(), "scan", []string{file}, nil)
+	id, err := engine.Trigger(context.Background(), "scan", []string{file}, map[string]string{"content_type": "music"})
 	if err != nil {
 		t.Fatalf("Trigger returned error: %v", err)
 	}
@@ -914,7 +1006,7 @@ func TestScanExecutor_Execute_FingerprintFailureIsNonFatal(t *testing.T) {
 	fingerprinter := &fakeFileFingerprinterResolver{fingerprintErr: errors.New("ffprobe: boom")}
 	engine := newEngineWithFingerprinter(t, repo, mediaFileRepo, &fakeGroupingResolver{}, fingerprinter)
 
-	id, err := engine.Trigger(context.Background(), "scan", []string{file}, nil)
+	id, err := engine.Trigger(context.Background(), "scan", []string{file}, map[string]string{"content_type": "music"})
 	if err != nil {
 		t.Fatalf("Trigger returned error: %v", err)
 	}
@@ -942,6 +1034,55 @@ func TestScanExecutor_Execute_FingerprintFailureIsNonFatal(t *testing.T) {
 // per-file Fingerprints for a shared GroupKey are reduced via Consensus and
 // written onto every UnmatchedFile row in that group with one UpdateBatch
 // call.
+// TestScanExecutor_Execute_QueuesRealTrackPosition covers a gap found
+// during #518: the per-file disc_number/track_number a FileFingerprinter
+// already computes (DISCNUMBER-tag override, TRACKNUMBER carried raw) was
+// never read back onto the queued UnmatchedFile row — DiscNumber stayed at
+// grouping's folder-only guess and TrackNumber was always empty, which
+// would have made the Music Persister's tracklist matching
+// (docs/technical/pipeline-music-persist.md's step 6) never match a single
+// real scanned file.
+func TestScanExecutor_Execute_QueuesRealTrackPosition(t *testing.T) {
+	dir := t.TempDir()
+	file := writeHashableFixture(t, dir, "one.flac")
+
+	repo := newFakeUnmatchedFileRepository()
+	mediaFileRepo := newFakeMediaFileRepository()
+	grouping := &fakeGroupingResolver{results: map[string]ports.GroupingResult{
+		file: {GroupKey: "shared-album", DiscNumber: 1}, // folder-derived guess
+	}}
+	fingerprinter := &fakeFileFingerprinterResolver{
+		byPath: map[string]domain.Fingerprint{
+			file: {
+				Tags:     map[string]string{"ALBUM": "Test Album"},
+				Metadata: map[string]any{"disc_number": 2, "track_number": "B3"}, // DISCNUMBER tag overrides the folder guess; vinyl side-lettering preserved
+			},
+		},
+	}
+	engine := newEngineWithFingerprinter(t, repo, mediaFileRepo, grouping, fingerprinter)
+
+	id, err := engine.Trigger(context.Background(), "scan", []string{file}, map[string]string{"content_type": "music"})
+	if err != nil {
+		t.Fatalf("Trigger returned error: %v", err)
+	}
+	job := waitForTerminal(t, engine, id.ID)
+	if job.Status != pkgjobqueue.StatusSucceeded {
+		t.Fatalf("job.Status = %q, want %q", job.Status, pkgjobqueue.StatusSucceeded)
+	}
+
+	ufID := findStep(job.Tasks[0], "queue").Detail["unmatched_file.id"]
+	got, err := repo.Get(context.Background(), ufID)
+	if err != nil {
+		t.Fatalf("repo.Get(%q) returned error: %v", ufID, err)
+	}
+	if got.DiscNumber != 2 {
+		t.Errorf("UnmatchedFile.DiscNumber = %d, want %d (the DISCNUMBER-tag override, not the folder-derived guess of 1)", got.DiscNumber, 2)
+	}
+	if got.TrackNumber != "B3" {
+		t.Errorf("UnmatchedFile.TrackNumber = %q, want %q (carried raw from the TRACKNUMBER tag)", got.TrackNumber, "B3")
+	}
+}
+
 func TestScanExecutor_Execute_PersistsConsensusOntoGroup(t *testing.T) {
 	dir := t.TempDir()
 	file1 := writeHashableFixture(t, dir, "one.flac")
@@ -1007,7 +1148,7 @@ func TestScanExecutor_Execute_SkipsConsensusWriteWhenEmpty(t *testing.T) {
 	mediaFileRepo := newFakeMediaFileRepository()
 	engine := newEngine(t, repo, mediaFileRepo)
 
-	id, err := engine.Trigger(context.Background(), "scan", []string{file}, nil)
+	id, err := engine.Trigger(context.Background(), "scan", []string{file}, map[string]string{"content_type": "music"})
 	if err != nil {
 		t.Fatalf("Trigger returned error: %v", err)
 	}
@@ -1020,6 +1161,133 @@ func TestScanExecutor_Execute_SkipsConsensusWriteWhenEmpty(t *testing.T) {
 	}
 	if got.Fingerprint != nil {
 		t.Fatalf("stored UnmatchedFile.Fingerprint = %+v, want nil (empty consensus must not be written)", got.Fingerprint)
+	}
+}
+
+// TestScanExecutor_Execute_SkipsDecideWhenConsensusEmpty extends the above:
+// a content type with no real fingerprinter registered must not attempt
+// identify/score/decide at all, the same "no writes for untouched content
+// types" rule already applies to the consensus write itself.
+func TestScanExecutor_Execute_SkipsDecideWhenConsensusEmpty(t *testing.T) {
+	dir := t.TempDir()
+	file := writeHashableFixture(t, dir, "one.flac")
+
+	repo := newFakeUnmatchedFileRepository()
+	mediaFileRepo := newFakeMediaFileRepository()
+	identifier := &fakeIdentifierResolver{}
+	confidenceScore := &fakeConfidenceScoreResolver{}
+	decision := &fakeDecisionResolver{}
+	engine := newEngineWithDecision(t, repo, mediaFileRepo, &fakeGroupingResolver{}, &fakeFileFingerprinterResolver{}, identifier, confidenceScore, decision)
+
+	id, err := engine.Trigger(context.Background(), "scan", []string{file}, map[string]string{"content_type": "music"})
+	if err != nil {
+		t.Fatalf("Trigger returned error: %v", err)
+	}
+	job := waitForTerminal(t, engine, id.ID)
+	if job.Status != pkgjobqueue.StatusSucceeded {
+		t.Fatalf("job.Status = %q, want %q", job.Status, pkgjobqueue.StatusSucceeded)
+	}
+
+	if identifier.calls != 0 || confidenceScore.calls != 0 || decision.calls != 0 {
+		t.Fatalf("identify/score/decide called %d/%d/%d times, want 0/0/0 for an empty consensus", identifier.calls, confidenceScore.calls, decision.calls)
+	}
+}
+
+// TestScanExecutor_Execute_DecideAndPersist_AutoImportDeletesGroup covers
+// the automatic path end to end: a group whose consensus clears the
+// (fake) decision's threshold is persisted and its UnmatchedFile rows
+// deleted out of the review queue — the same "leaves the queue by
+// deletion" behavior Resolve/AcceptCandidate already have, applied
+// automatically. The "decide" Step is recorded on the task even though it
+// already reached a terminal status earlier in the same Job.
+func TestScanExecutor_Execute_DecideAndPersist_AutoImportDeletesGroup(t *testing.T) {
+	dir := t.TempDir()
+	file := writeHashableFixture(t, dir, "one.flac")
+
+	repo := newFakeUnmatchedFileRepository()
+	mediaFileRepo := newFakeMediaFileRepository()
+	fingerprinter := &fakeFileFingerprinterResolver{
+		byPath:    map[string]domain.Fingerprint{file: {Tags: map[string]string{"ALBUM": "Test Album"}}},
+		consensus: domain.Fingerprint{Tags: map[string]string{"ALBUM": "Consensus Album"}},
+	}
+	candidate := domain.MatchCandidate{ExternalRef: "release-mbid-1", Score: 0.95}
+	identifier := &fakeIdentifierResolver{candidates: []domain.MatchCandidate{candidate}}
+	confidenceScore := &fakeConfidenceScoreResolver{}
+	decision := &fakeDecisionResolver{persisted: true}
+	engine := newEngineWithDecision(t, repo, mediaFileRepo, &fakeGroupingResolver{}, fingerprinter, identifier, confidenceScore, decision)
+
+	id, err := engine.Trigger(context.Background(), "scan", []string{file}, map[string]string{"content_type": "music"})
+	if err != nil {
+		t.Fatalf("Trigger returned error: %v", err)
+	}
+	job := waitForTerminal(t, engine, id.ID)
+	if job.Status != pkgjobqueue.StatusSucceeded {
+		t.Fatalf("job.Status = %q, want %q", job.Status, pkgjobqueue.StatusSucceeded)
+	}
+
+	if identifier.calls != 1 || confidenceScore.calls != 1 || decision.calls != 1 {
+		t.Fatalf("identify/score/decide called %d/%d/%d times, want 1/1/1", identifier.calls, confidenceScore.calls, decision.calls)
+	}
+	if len(decision.gotFiles) != 1 {
+		t.Fatalf("Decide called with %d files, want 1", len(decision.gotFiles))
+	}
+
+	ufID := findStep(job.Tasks[0], "queue").Detail["unmatched_file.id"]
+	if _, err := repo.Get(context.Background(), ufID); !errors.Is(err, ports.ErrNotFound) {
+		t.Fatalf("repo.Get after a persisted decide returned %v, want ErrNotFound (the group must be deleted)", err)
+	}
+
+	decideStep := findStep(job.Tasks[0], "decide")
+	if decideStep == nil || decideStep.Status != pkgjobqueue.StatusSucceeded {
+		t.Fatalf("decide step = %+v, want a succeeded step", decideStep)
+	}
+	if decideStep.Detail["persisted"] != "true" {
+		t.Errorf("decide step Detail[persisted] = %q, want %q", decideStep.Detail["persisted"], "true")
+	}
+	if decideStep.Detail["candidate_count"] != "1" {
+		t.Errorf("decide step Detail[candidate_count] = %q, want %q", decideStep.Detail["candidate_count"], "1")
+	}
+}
+
+// TestScanExecutor_Execute_DecideAndPersist_BelowThresholdLeavesGroupPending
+// covers the inverse: a group whose decision doesn't clear the threshold
+// stays in the review queue, untouched.
+func TestScanExecutor_Execute_DecideAndPersist_BelowThresholdLeavesGroupPending(t *testing.T) {
+	dir := t.TempDir()
+	file := writeHashableFixture(t, dir, "one.flac")
+
+	repo := newFakeUnmatchedFileRepository()
+	mediaFileRepo := newFakeMediaFileRepository()
+	fingerprinter := &fakeFileFingerprinterResolver{
+		byPath:    map[string]domain.Fingerprint{file: {Tags: map[string]string{"ALBUM": "Test Album"}}},
+		consensus: domain.Fingerprint{Tags: map[string]string{"ALBUM": "Consensus Album"}},
+	}
+	identifier := &fakeIdentifierResolver{}
+	confidenceScore := &fakeConfidenceScoreResolver{}
+	decision := &fakeDecisionResolver{persisted: false}
+	engine := newEngineWithDecision(t, repo, mediaFileRepo, &fakeGroupingResolver{}, fingerprinter, identifier, confidenceScore, decision)
+
+	id, err := engine.Trigger(context.Background(), "scan", []string{file}, map[string]string{"content_type": "music"})
+	if err != nil {
+		t.Fatalf("Trigger returned error: %v", err)
+	}
+	job := waitForTerminal(t, engine, id.ID)
+	if job.Status != pkgjobqueue.StatusSucceeded {
+		t.Fatalf("job.Status = %q, want %q", job.Status, pkgjobqueue.StatusSucceeded)
+	}
+
+	ufID := findStep(job.Tasks[0], "queue").Detail["unmatched_file.id"]
+	got, err := repo.Get(context.Background(), ufID)
+	if err != nil {
+		t.Fatalf("repo.Get after a below-threshold decide returned error: %v, want the row still present", err)
+	}
+	if got.Status != domain.UnmatchedFileStatusPending {
+		t.Fatalf("UnmatchedFile.Status = %q, want %q (untouched)", got.Status, domain.UnmatchedFileStatusPending)
+	}
+
+	decideStep := findStep(job.Tasks[0], "decide")
+	if decideStep == nil || decideStep.Detail["persisted"] != "false" {
+		t.Fatalf("decide step = %+v, want Detail[persisted]=false", decideStep)
 	}
 }
 

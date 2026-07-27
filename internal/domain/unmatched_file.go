@@ -69,6 +69,24 @@ type UnmatchedFile struct {
 	SHA1   string
 	SHA512 string
 
+	// ContentType is the domain.ContentType this file was discovered under
+	// (its scan root's configured content type) — needed because a manual
+	// AcceptCandidate call happens outside any scan Job's lifetime, so it
+	// can't read this off job.Params the way the automatic decide/persist
+	// pass does; it must be threaded onto the row itself. Set once by
+	// ScanExecutor when the row is first queued. Deliberately not
+	// validate:"required": a scan root with no configured
+	// config.Pipeline.ScanRoots entry resolves to an empty ContentType
+	// (ScanService.resolveContentType's own documented "no match" case),
+	// the same "not configured for this content type yet" signal
+	// Grouping/FileFingerprinter/Identifier/ConfidenceScore already treat
+	// as a legitimate, valid state (falling back to their Identity/Noop
+	// implementations) rather than an error — AcceptCandidate on such a
+	// group is equally well-defined: PersisterResolver falls back to
+	// NoopPersister for an empty/unregistered content type, the same
+	// fallback every other pipeline-core capability already gets.
+	ContentType ContentType
+
 	// GroupKey identifies the identification unit this file belongs to —
 	// files sharing a GroupKey are matched/decided together. Defaults to
 	// the file's own Path for ungrouped content types (a group of one, by

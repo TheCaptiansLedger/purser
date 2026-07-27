@@ -6,13 +6,18 @@ import (
 	"purser/internal/domain/music"
 )
 
-// MusicReleaseRepository is the persistence port for music.Release. GetByMBID
-// and GetByBarcode are unique point lookups; ListByGroup and ListByEntry are
-// independent, paginated, indexed filters. ListTracksByRelease answers the
-// Track ↔ Release link: it is owned by this repository, not
-// ports.ItemRepository, per docs/adr/0021-music-domain-model.md's "Track ↔
-// Release linkage" section — ItemRepository/its List filter gain nothing new
-// here.
+// MusicReleaseRepository is the persistence port for music.Release.
+// GetByBarcode is a plain (unenforced) point lookup; GetByMBID is a real
+// unique lookup — Create is get-or-create on r.MBID whenever it's non-empty
+// (a stub release with no MBID yet creates plainly, no uniqueness check):
+// if a release with that MBID already exists, r is mutated in place to the
+// pre-existing release and Create returns nil. See
+// docs/technical/pipeline-music-persist.md's "MusicRelease's own
+// reservation-document fix". ListByGroup and ListByEntry are independent,
+// paginated, indexed filters. ListTracksByRelease answers the Track ↔
+// Release link: it is owned by this repository, not ports.ItemRepository,
+// per docs/adr/0021-music-domain-model.md's "Track ↔ Release linkage"
+// section — ItemRepository/its List filter gain nothing new here.
 type MusicReleaseRepository interface {
 	Create(ctx context.Context, r *music.Release) error
 	Get(ctx context.Context, id string) (*music.Release, error)

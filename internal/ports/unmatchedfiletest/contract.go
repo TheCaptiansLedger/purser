@@ -42,6 +42,8 @@ func TestUnmatchedFileRepository(t *testing.T, newRepo NewRepositoryFunc) {
 	t.Run("update batch replaces every record in one call", func(t *testing.T) { testUpdateBatch(t, newRepo) })
 	t.Run("update batch is all-or-nothing on a missing id", func(t *testing.T) { testUpdateBatchMissing(t, newRepo) })
 	t.Run("track number round-trips a non-numeric value with no coercion", func(t *testing.T) { testTrackNumberNonNumeric(t, newRepo) })
+	t.Run("delete batch removes every unmatched file atomically", func(t *testing.T) { testDeleteBatch(t, newRepo) })
+	t.Run("delete batch with one missing id rolls back the whole batch", func(t *testing.T) { testDeleteBatchRollsBackOnMissing(t, newRepo) })
 }
 
 func mustCreate(t *testing.T, r ports.UnmatchedFileRepository, u *domain.UnmatchedFile) {
@@ -176,6 +178,7 @@ func sampleUnmatchedFileWithStatus(id string, status domain.UnmatchedFileStatus)
 	return &domain.UnmatchedFile{
 		ID:           id,
 		Path:         path,
+		ContentType:  domain.ContentTypeMusic,
 		GroupKey:     path,
 		Size:         123456,
 		OSHash:       "0123456789abcdef",
@@ -427,5 +430,40 @@ func testTrackNumberNonNumeric(t *testing.T, newRepo NewRepositoryFunc) {
 	}
 	if got.DiscNumber != 2 {
 		t.Fatalf("Get returned DiscNumber %d, want %d", got.DiscNumber, 2)
+	}
+}
+
+func testDeleteBatch(t *testing.T, newRepo NewRepositoryFunc) {
+	r := newRepo(t)
+	mustCreate(t, r, sampleUnmatchedFile("uf1"))
+	mustCreate(t, r, sampleUnmatchedFile("uf2"))
+	mustCreate(t, r, sampleUnmatchedFile("uf3"))
+
+	if err := r.DeleteBatch(context.Background(), []string{"uf1", "uf2"}); err != nil {
+		t.Fatalf("DeleteBatch returned error: %v", err)
+	}
+
+	if _, err := r.Get(context.Background(), "uf1"); !errors.Is(err, ports.ErrNotFound) {
+		t.Fatalf("Get after DeleteBatch for uf1 returned %v, want ErrNotFound", err)
+	}
+	if _, err := r.Get(context.Background(), "uf2"); !errors.Is(err, ports.ErrNotFound) {
+		t.Fatalf("Get after DeleteBatch for uf2 returned %v, want ErrNotFound", err)
+	}
+	if _, err := r.Get(context.Background(), "uf3"); err != nil {
+		t.Fatalf("DeleteBatch removed uf3, which wasn't in the batch: %v", err)
+	}
+}
+
+func testDeleteBatchRollsBackOnMissing(t *testing.T, newRepo NewRepositoryFunc) {
+	r := newRepo(t)
+	mustCreate(t, r, sampleUnmatchedFile("uf1"))
+
+	err := r.DeleteBatch(context.Background(), []string{"uf1", "missing"})
+	if !errors.Is(err, ports.ErrNotFound) {
+		t.Fatalf("DeleteBatch with a missing id returned %v, want ErrNotFound", err)
+	}
+
+	if _, err := r.Get(context.Background(), "uf1"); err != nil {
+		t.Fatalf("DeleteBatch removed uf1 despite rolling back: %v", err)
 	}
 }

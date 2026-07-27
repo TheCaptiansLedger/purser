@@ -19,6 +19,7 @@ type unmatchedFileService interface {
 	Resolve(ctx context.Context, id, itemID string, dismiss bool) (*domain.MediaFile, *domain.UnmatchedFile, error)
 	ListGroup(ctx context.Context, groupKey string) ([]*domain.UnmatchedFile, error)
 	DismissBatch(ctx context.Context, ids []string) ([]*domain.UnmatchedFile, error)
+	AcceptCandidate(ctx context.Context, groupKey, externalRef string) error
 }
 
 // UnmatchedFileHandler implements
@@ -109,4 +110,12 @@ func (h *UnmatchedFileHandler) DismissUnmatchedFileBatch(ctx context.Context, re
 		pbFiles = append(pbFiles, unmatchedFileToProto(u))
 	}
 	return connect.NewResponse(&pipelinev1.DismissUnmatchedFileBatchResponse{UnmatchedFiles: pbFiles}), nil
+}
+
+// AcceptCandidate implements pipelinev1connect.UnmatchedFileServiceHandler.
+func (h *UnmatchedFileHandler) AcceptCandidate(ctx context.Context, req *connect.Request[pipelinev1.AcceptCandidateRequest]) (*connect.Response[pipelinev1.AcceptCandidateResponse], error) {
+	if err := h.svc.AcceptCandidate(ctx, req.Msg.GetGroupKey(), req.Msg.GetExternalRef()); err != nil {
+		return nil, mapError(ctx, h.logger, err)
+	}
+	return connect.NewResponse(&pipelinev1.AcceptCandidateResponse{}), nil
 }

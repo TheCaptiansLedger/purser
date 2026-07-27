@@ -113,14 +113,31 @@ _k6-flow: $(GOBIN)/k6
 # .cidata/ is wiped at the *start* of _k6-app-start, not just cleaned up
 # after, so a run is hermetic even if a prior run's teardown was skipped
 # (Ctrl-C, CI runner killed mid-job) — it can never inherit state left on
-# the box, local or CI runner.
+# the box, local or CI runner. musicbrainz-fixture-server is started first
+# and purser serve is pointed at it via musicbrainz.base_url in the
+# generated CI config — every provider adapter a k6 test exercises must
+# run against fixture data, never a live network call (same reasoning
+# docs/technical/pipeline-music-persist.md's Persister tests already
+# apply at the Go level, extended to the k6/CI harness here). test/k6/flow/
+# accept_candidate_test.js scans .cidata/scan-music (real, tagged audio
+# fixtures copied from test/k6/fixtures/musicbrainz-audio/ — see that
+# directory's own generation notes) against the fixture release
+# internal/adapters/musicbrainz/fixtureserver defines.
 _k6-app-start: $(GOBIN)/k6
 	rm -rf .cidata
 	mkdir -p .cidata
 	mkdir -p .cidata/scan
 	@for f in one two three; do head -c 70000 /dev/urandom > .cidata/scan/$$f.bin; done
+	mkdir -p .cidata/scan-music/ambiguous
+	cp test/k6/fixtures/musicbrainz-audio/*.flac .cidata/scan-music/
+	cp test/k6/fixtures/musicbrainz-audio/ambiguous/*.flac .cidata/scan-music/ambiguous/
+	go build -o .cidata/musicbrainz-fixture-server ./cmd/musicbrainz-fixture-server
+	.cidata/musicbrainz-fixture-server & echo $$! > .cidata/musicbrainz-fixture-server.pid
+	@for i in $$(seq 1 60); do nc -z 127.0.0.1 18080 2>/dev/null && exit 0; sleep 0.5; done; \
+		echo "musicbrainz-fixture-server did not come up on :18080 within 30s" >&2; exit 1
+	printf 'pipeline:\n  scan_roots:\n    - path: %s/.cidata/scan-music\n      content_type: music\nmusicbrainz:\n  base_url: http://127.0.0.1:18080/\n' "$(CURDIR)" > .cidata/purser-ci.yaml
 	go build -o .cidata/purser ./cmd/purser
-	PURSER_PATHS_DATA_DIR=$(CURDIR)/.cidata/data .cidata/purser serve & echo $$! > .cidata/purser.pid
+	PURSER_PATHS_DATA_DIR=$(CURDIR)/.cidata/data .cidata/purser serve --config $(CURDIR)/.cidata/purser-ci.yaml & echo $$! > .cidata/purser.pid
 	@for i in $$(seq 1 60); do nc -z localhost 7474 2>/dev/null && exit 0; sleep 0.5; done; \
 		echo "purser serve did not come up on :7474 within 30s" >&2; exit 1
 
@@ -130,14 +147,21 @@ _k6-app-stop:
 		kill "$$pid" 2>/dev/null || true; \
 		for i in $$(seq 1 20); do kill -0 "$$pid" 2>/dev/null || break; sleep 0.5; done; \
 	fi
+	@if [ -f .cidata/musicbrainz-fixture-server.pid ]; then \
+		pid="$$(cat .cidata/musicbrainz-fixture-server.pid)"; \
+		kill "$$pid" 2>/dev/null || true; \
+		for i in $$(seq 1 20); do kill -0 "$$pid" 2>/dev/null || break; sleep 0.5; done; \
+	fi
 	rm -rf .cidata
 
 # PURSER_SCAN_FIXTURE_ROOT overrides test/k6/{grpc,http}/scan_test.js's
 # compose-oriented default (/media/content/scan) with the hermetic fixture
 # _k6-app-start just created under .cidata/scan — see
-# docs/adr/0024-pipeline-core.md.
+# docs/adr/0024-pipeline-core.md. PURSER_SCAN_MUSIC_FIXTURE_ROOT does the
+# same for test/k6/flow/accept_candidate_test*.js's own tagged-audio
+# fixture root — see docs/technical/pipeline-music-persist.md.
 k6-ci: _k6-app-start ## Build+run the app standalone (Badger, telemetry off, hermetic .cidata/) and run the full k6 suite against it — no compose stack needed
-	@PURSER_SCAN_FIXTURE_ROOT=$(CURDIR)/.cidata/scan $(MAKE) k6; status=$$?; $(MAKE) _k6-app-stop; exit $$status
+	@PURSER_SCAN_FIXTURE_ROOT=$(CURDIR)/.cidata/scan PURSER_SCAN_MUSIC_FIXTURE_ROOT=$(CURDIR)/.cidata/scan-music $(MAKE) k6; status=$$?; $(MAKE) _k6-app-stop; exit $$status
 
 # ── Local dev stack (Postgres + Grafana + Prometheus + Tempo [+ app]) ────────
 # One compose file, one Postgres instance — see

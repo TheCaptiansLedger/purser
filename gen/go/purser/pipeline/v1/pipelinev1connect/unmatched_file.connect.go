@@ -48,6 +48,9 @@ const (
 	// UnmatchedFileServiceDismissUnmatchedFileBatchProcedure is the fully-qualified name of the
 	// UnmatchedFileService's DismissUnmatchedFileBatch RPC.
 	UnmatchedFileServiceDismissUnmatchedFileBatchProcedure = "/purser.pipeline.v1.UnmatchedFileService/DismissUnmatchedFileBatch"
+	// UnmatchedFileServiceAcceptCandidateProcedure is the fully-qualified name of the
+	// UnmatchedFileService's AcceptCandidate RPC.
+	UnmatchedFileServiceAcceptCandidateProcedure = "/purser.pipeline.v1.UnmatchedFileService/AcceptCandidate"
 )
 
 // UnmatchedFileServiceClient is a client for the purser.pipeline.v1.UnmatchedFileService service.
@@ -57,6 +60,7 @@ type UnmatchedFileServiceClient interface {
 	ResolveUnmatchedFile(context.Context, *connect.Request[v1.ResolveUnmatchedFileRequest]) (*connect.Response[v1.ResolveUnmatchedFileResponse], error)
 	ListGroupUnmatchedFiles(context.Context, *connect.Request[v1.ListGroupUnmatchedFilesRequest]) (*connect.Response[v1.ListGroupUnmatchedFilesResponse], error)
 	DismissUnmatchedFileBatch(context.Context, *connect.Request[v1.DismissUnmatchedFileBatchRequest]) (*connect.Response[v1.DismissUnmatchedFileBatchResponse], error)
+	AcceptCandidate(context.Context, *connect.Request[v1.AcceptCandidateRequest]) (*connect.Response[v1.AcceptCandidateResponse], error)
 }
 
 // NewUnmatchedFileServiceClient constructs a client for the purser.pipeline.v1.UnmatchedFileService
@@ -100,6 +104,12 @@ func NewUnmatchedFileServiceClient(httpClient connect.HTTPClient, baseURL string
 			connect.WithSchema(unmatchedFileServiceMethods.ByName("DismissUnmatchedFileBatch")),
 			connect.WithClientOptions(opts...),
 		),
+		acceptCandidate: connect.NewClient[v1.AcceptCandidateRequest, v1.AcceptCandidateResponse](
+			httpClient,
+			baseURL+UnmatchedFileServiceAcceptCandidateProcedure,
+			connect.WithSchema(unmatchedFileServiceMethods.ByName("AcceptCandidate")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
@@ -110,6 +120,7 @@ type unmatchedFileServiceClient struct {
 	resolveUnmatchedFile      *connect.Client[v1.ResolveUnmatchedFileRequest, v1.ResolveUnmatchedFileResponse]
 	listGroupUnmatchedFiles   *connect.Client[v1.ListGroupUnmatchedFilesRequest, v1.ListGroupUnmatchedFilesResponse]
 	dismissUnmatchedFileBatch *connect.Client[v1.DismissUnmatchedFileBatchRequest, v1.DismissUnmatchedFileBatchResponse]
+	acceptCandidate           *connect.Client[v1.AcceptCandidateRequest, v1.AcceptCandidateResponse]
 }
 
 // GetUnmatchedFile calls purser.pipeline.v1.UnmatchedFileService.GetUnmatchedFile.
@@ -138,6 +149,11 @@ func (c *unmatchedFileServiceClient) DismissUnmatchedFileBatch(ctx context.Conte
 	return c.dismissUnmatchedFileBatch.CallUnary(ctx, req)
 }
 
+// AcceptCandidate calls purser.pipeline.v1.UnmatchedFileService.AcceptCandidate.
+func (c *unmatchedFileServiceClient) AcceptCandidate(ctx context.Context, req *connect.Request[v1.AcceptCandidateRequest]) (*connect.Response[v1.AcceptCandidateResponse], error) {
+	return c.acceptCandidate.CallUnary(ctx, req)
+}
+
 // UnmatchedFileServiceHandler is an implementation of the purser.pipeline.v1.UnmatchedFileService
 // service.
 type UnmatchedFileServiceHandler interface {
@@ -146,6 +162,7 @@ type UnmatchedFileServiceHandler interface {
 	ResolveUnmatchedFile(context.Context, *connect.Request[v1.ResolveUnmatchedFileRequest]) (*connect.Response[v1.ResolveUnmatchedFileResponse], error)
 	ListGroupUnmatchedFiles(context.Context, *connect.Request[v1.ListGroupUnmatchedFilesRequest]) (*connect.Response[v1.ListGroupUnmatchedFilesResponse], error)
 	DismissUnmatchedFileBatch(context.Context, *connect.Request[v1.DismissUnmatchedFileBatchRequest]) (*connect.Response[v1.DismissUnmatchedFileBatchResponse], error)
+	AcceptCandidate(context.Context, *connect.Request[v1.AcceptCandidateRequest]) (*connect.Response[v1.AcceptCandidateResponse], error)
 }
 
 // NewUnmatchedFileServiceHandler builds an HTTP handler from the service implementation. It returns
@@ -185,6 +202,12 @@ func NewUnmatchedFileServiceHandler(svc UnmatchedFileServiceHandler, opts ...con
 		connect.WithSchema(unmatchedFileServiceMethods.ByName("DismissUnmatchedFileBatch")),
 		connect.WithHandlerOptions(opts...),
 	)
+	unmatchedFileServiceAcceptCandidateHandler := connect.NewUnaryHandler(
+		UnmatchedFileServiceAcceptCandidateProcedure,
+		svc.AcceptCandidate,
+		connect.WithSchema(unmatchedFileServiceMethods.ByName("AcceptCandidate")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/purser.pipeline.v1.UnmatchedFileService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case UnmatchedFileServiceGetUnmatchedFileProcedure:
@@ -197,6 +220,8 @@ func NewUnmatchedFileServiceHandler(svc UnmatchedFileServiceHandler, opts ...con
 			unmatchedFileServiceListGroupUnmatchedFilesHandler.ServeHTTP(w, r)
 		case UnmatchedFileServiceDismissUnmatchedFileBatchProcedure:
 			unmatchedFileServiceDismissUnmatchedFileBatchHandler.ServeHTTP(w, r)
+		case UnmatchedFileServiceAcceptCandidateProcedure:
+			unmatchedFileServiceAcceptCandidateHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -224,4 +249,8 @@ func (UnimplementedUnmatchedFileServiceHandler) ListGroupUnmatchedFiles(context.
 
 func (UnimplementedUnmatchedFileServiceHandler) DismissUnmatchedFileBatch(context.Context, *connect.Request[v1.DismissUnmatchedFileBatchRequest]) (*connect.Response[v1.DismissUnmatchedFileBatchResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("purser.pipeline.v1.UnmatchedFileService.DismissUnmatchedFileBatch is not implemented"))
+}
+
+func (UnimplementedUnmatchedFileServiceHandler) AcceptCandidate(context.Context, *connect.Request[v1.AcceptCandidateRequest]) (*connect.Response[v1.AcceptCandidateResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("purser.pipeline.v1.UnmatchedFileService.AcceptCandidate is not implemented"))
 }

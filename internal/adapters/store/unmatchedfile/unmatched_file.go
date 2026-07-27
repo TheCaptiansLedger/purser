@@ -110,6 +110,11 @@ func (r *Repository) UpdateBatch(ctx context.Context, us []*domain.UnmatchedFile
 	return r.inner.UpdateBatch(ctx, us)
 }
 
+// DeleteBatch implements ports.UnmatchedFileRepository.
+func (r *Repository) DeleteBatch(ctx context.Context, ids []string) error {
+	return r.inner.DeleteBatch(ctx, ids)
+}
+
 // ListByGroupKey implements ports.UnmatchedFileRepository. Unlike GetByHash
 // (wants the first match, stops), this needs every row in the group, so it
 // loops pages to completion rather than assuming one page covers it.

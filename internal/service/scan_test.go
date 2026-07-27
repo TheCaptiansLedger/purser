@@ -70,6 +70,9 @@ func TestScanService_Trigger(t *testing.T) {
 	if pub.gotParams["enable_sha512"] != "false" {
 		t.Errorf("Trigger passed params[enable_sha512] = %q, want %q", pub.gotParams["enable_sha512"], "false")
 	}
+	if pub.gotParams["scan_root"] != "/media" {
+		t.Errorf("Trigger passed params[scan_root] = %q, want %q", pub.gotParams["scan_root"], "/media")
+	}
 }
 
 func TestScanService_Trigger_WalkerError(t *testing.T) {

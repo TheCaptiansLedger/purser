@@ -30,6 +30,8 @@ type fakeUnmatchedFileRepository struct {
 	groupErr       error
 	updateBatch    []*domain.UnmatchedFile
 	updateBatchErr error
+	deleteBatchIDs []string
+	deleteBatchErr error
 
 	// getByID, when non-nil, makes Get look up by id instead of always
 	// returning getFile — DismissBatch's tests need distinct records per
@@ -103,6 +105,14 @@ func (f *fakeUnmatchedFileRepository) UpdateBatch(_ context.Context, us []*domai
 	return nil
 }
 
+func (f *fakeUnmatchedFileRepository) DeleteBatch(_ context.Context, ids []string) error {
+	if f.deleteBatchErr != nil {
+		return f.deleteBatchErr
+	}
+	f.deleteBatchIDs = ids
+	return nil
+}
+
 func newUnmatchedFileService(repo *fakeUnmatchedFileRepository, items *fakeItemRepository, mediaFiles *fakeMediaFileRepository) *service.UnmatchedFileService {
 	if items == nil {
 		items = newFakeItemRepository()
@@ -110,7 +120,7 @@ func newUnmatchedFileService(repo *fakeUnmatchedFileRepository, items *fakeItemR
 	if mediaFiles == nil {
 		mediaFiles = newFakeMediaFileRepository()
 	}
-	return service.NewUnmatchedFileService(repo, items, mediaFiles)
+	return service.NewUnmatchedFileService(repo, items, mediaFiles, &fakePersisterResolver{})
 }
 
 func TestUnmatchedFileService_Get(t *testing.T) {
@@ -317,5 +327,90 @@ func TestUnmatchedFileService_DismissBatch_UpdateBatchError(t *testing.T) {
 
 	if _, err := svc.DismissBatch(context.Background(), []string{"uf-1"}); !errors.Is(err, wantErr) {
 		t.Fatalf("DismissBatch returned %v, want %v", err, wantErr)
+	}
+}
+
+func TestUnmatchedFileService_AcceptCandidate_ExistingCandidateMatch(t *testing.T) {
+	existing := domain.MatchCandidate{ExternalRef: "mbid-1", Tier: domain.MatchTierDirectID, Score: 0.95}
+	fp := &domain.Fingerprint{Tags: map[string]string{"ALBUM": "Hi Infidelity"}}
+	rows := []*domain.UnmatchedFile{
+		{ID: "uf-1", GroupKey: "group-1", ContentType: domain.ContentTypeMusic, Fingerprint: fp, Candidates: []domain.MatchCandidate{existing}},
+		{ID: "uf-2", GroupKey: "group-1", ContentType: domain.ContentTypeMusic},
+	}
+	repo := &fakeUnmatchedFileRepository{groupFiles: rows}
+	persister := &fakePersisterResolver{}
+	svc := service.NewUnmatchedFileService(repo, newFakeItemRepository(), newFakeMediaFileRepository(), persister)
+
+	if err := svc.AcceptCandidate(context.Background(), "group-1", "mbid-1"); err != nil {
+		t.Fatalf("AcceptCandidate returned error: %v", err)
+	}
+	if !persister.called {
+		t.Fatal("persister.Persist was not called")
+	}
+	if persister.candidate.ExternalRef != existing.ExternalRef || persister.candidate.Tier != existing.Tier || persister.candidate.Score != existing.Score {
+		t.Fatalf("persister.candidate = %+v, want the existing ranked candidate %+v (Tier/Score intact)", persister.candidate, existing)
+	}
+	if persister.contentType != domain.ContentTypeMusic {
+		t.Fatalf("persister.contentType = %q, want %q", persister.contentType, domain.ContentTypeMusic)
+	}
+	if persister.fingerprint != fp {
+		t.Fatalf("persister.fingerprint = %v, want the group's consensus Fingerprint %v", persister.fingerprint, fp)
+	}
+	if len(persister.files) != 2 {
+		t.Fatalf("persister.files has %d rows, want 2 (the whole group)", len(persister.files))
+	}
+	if len(repo.deleteBatchIDs) != 2 {
+		t.Fatalf("DeleteBatch called with %d ids, want 2", len(repo.deleteBatchIDs))
+	}
+}
+
+func TestUnmatchedFileService_AcceptCandidate_AdHocExternalRef(t *testing.T) {
+	rows := []*domain.UnmatchedFile{
+		{ID: "uf-1", GroupKey: "group-1", ContentType: domain.ContentTypeMusic},
+	}
+	repo := &fakeUnmatchedFileRepository{groupFiles: rows}
+	persister := &fakePersisterResolver{}
+	svc := service.NewUnmatchedFileService(repo, newFakeItemRepository(), newFakeMediaFileRepository(), persister)
+
+	if err := svc.AcceptCandidate(context.Background(), "group-1", "raw-mbid-not-in-list"); err != nil {
+		t.Fatalf("AcceptCandidate returned error: %v", err)
+	}
+	if !persister.called {
+		t.Fatal("persister.Persist was not called")
+	}
+	if persister.candidate.ExternalRef != "raw-mbid-not-in-list" {
+		t.Fatalf("persister.candidate.ExternalRef = %q, want %q", persister.candidate.ExternalRef, "raw-mbid-not-in-list")
+	}
+	if persister.candidate.Tier != "" || persister.candidate.Score != 0 {
+		t.Fatalf("ad-hoc candidate = %+v, want no Tier/Score (bypasses ConfidenceScore entirely)", persister.candidate)
+	}
+	if len(repo.deleteBatchIDs) != 1 {
+		t.Fatalf("DeleteBatch called with %d ids, want 1", len(repo.deleteBatchIDs))
+	}
+}
+
+func TestUnmatchedFileService_AcceptCandidate_UnknownGroupKeyReturnsNotFound(t *testing.T) {
+	repo := &fakeUnmatchedFileRepository{groupFiles: nil}
+	svc := newUnmatchedFileService(repo, nil, nil)
+
+	err := svc.AcceptCandidate(context.Background(), "missing-group", "mbid-1")
+	if !errors.Is(err, ports.ErrNotFound) {
+		t.Fatalf("AcceptCandidate on an unknown group key returned %v, want ErrNotFound", err)
+	}
+}
+
+func TestUnmatchedFileService_AcceptCandidate_PersistFailureLeavesRowsUntouched(t *testing.T) {
+	rows := []*domain.UnmatchedFile{{ID: "uf-1", GroupKey: "group-1", ContentType: domain.ContentTypeMusic}}
+	repo := &fakeUnmatchedFileRepository{groupFiles: rows}
+	wantErr := errors.New("persist failed")
+	persister := &fakePersisterResolver{err: wantErr}
+	svc := service.NewUnmatchedFileService(repo, newFakeItemRepository(), newFakeMediaFileRepository(), persister)
+
+	err := svc.AcceptCandidate(context.Background(), "group-1", "mbid-1")
+	if !errors.Is(err, wantErr) {
+		t.Fatalf("AcceptCandidate with a failing Persist returned %v, want %v", err, wantErr)
+	}
+	if repo.deleteBatchIDs != nil {
+		t.Fatalf("DeleteBatch was called despite Persist failing: %v", repo.deleteBatchIDs)
 	}
 }

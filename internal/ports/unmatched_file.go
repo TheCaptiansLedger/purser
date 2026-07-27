@@ -47,4 +47,13 @@ type UnmatchedFileRepository interface {
 	// ports.ErrNotFound if any id in us doesn't already exist. See
 	// docs/adr/0016-bulk-operations.md.
 	UpdateBatch(ctx context.Context, us []*domain.UnmatchedFile) error
+
+	// DeleteBatch removes every UnmatchedFile in ids as a single atomic
+	// transaction — all succeed or none do. Used once a group's winning
+	// candidate has been persisted: the whole group leaves the review
+	// queue by deletion, the same "a matched entry leaves the queue by
+	// deletion" behavior Resolve already has for a single file, applied to
+	// a whole group at once. Returns ports.ErrNotFound if any id in ids
+	// doesn't already exist. See docs/adr/0016-bulk-operations.md.
+	DeleteBatch(ctx context.Context, ids []string) error
 }

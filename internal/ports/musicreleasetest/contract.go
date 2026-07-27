@@ -24,8 +24,13 @@ func TestMusicReleaseRepository(t *testing.T, newRepo NewRepositoryFunc) {
 	t.Run("get on empty repository returns ErrNotFound", func(t *testing.T) { testGetOnEmptyNotFound(t, newRepo) })
 	t.Run("create then get round-trips the release", func(t *testing.T) { testCreateThenGet(t, newRepo) })
 	t.Run("create with a duplicate ID returns ErrConflict", func(t *testing.T) { testCreateDuplicate(t, newRepo) })
+	t.Run("create with a duplicate MBID but different ID is a get-or-create hit", func(t *testing.T) { testCreateGetOrCreateHit(t, newRepo) })
+	t.Run("create with a duplicate ID but different MBID returns ErrConflict", func(t *testing.T) { testCreateConflictingID(t, newRepo) })
+	t.Run("create with an empty MBID never collides across releases", func(t *testing.T) { testCreateEmptyMBIDNoCollision(t, newRepo) })
 	t.Run("update replaces an existing release", func(t *testing.T) { testUpdate(t, newRepo) })
 	t.Run("update on a missing release returns ErrNotFound", func(t *testing.T) { testUpdateMissing(t, newRepo) })
+	t.Run("update changing MBID moves the reservation", func(t *testing.T) { testUpdateChangingMBIDMovesReservation(t, newRepo) })
+	t.Run("update to an MBID already owned by a different release returns ErrConflict", func(t *testing.T) { testUpdateConflictingMBID(t, newRepo) })
 	t.Run("delete removes a release", func(t *testing.T) { testDelete(t, newRepo) })
 	t.Run("delete on a missing release returns ErrNotFound", func(t *testing.T) { testDeleteMissing(t, newRepo) })
 	t.Run("list returns every created release across pages", func(t *testing.T) { testListPaginates(t, newRepo) })
@@ -76,6 +81,46 @@ func testCreateDuplicate(t *testing.T, newRepo NewRepositoryFunc) {
 	}
 }
 
+func testCreateGetOrCreateHit(t *testing.T, newRepo NewRepositoryFunc) {
+	r := newRepo(t)
+	ctx := context.Background()
+	first := sampleReleaseWithFields("r1", "group1", "entry1", "shared-mbid", "barcode-1")
+	mustCreate(t, r, first)
+
+	second := sampleReleaseWithFields("r2", "group1", "entry1", "shared-mbid", "barcode-2")
+	if err := r.Create(ctx, second); err != nil {
+		t.Fatalf("Create with a duplicate MBID but different ID returned %v, want nil", err)
+	}
+	if second.ID != "r1" {
+		t.Fatalf("Create get-or-create hit returned ID %q, want the original owner %q", second.ID, "r1")
+	}
+}
+
+func testCreateConflictingID(t *testing.T, newRepo NewRepositoryFunc) {
+	r := newRepo(t)
+	mustCreate(t, r, sampleReleaseWithFields("r1", "group1", "entry1", "mbid-1", "barcode-1"))
+
+	conflicting := sampleReleaseWithFields("r1", "group1", "entry1", "mbid-2", "barcode-2")
+	err := r.Create(context.Background(), conflicting)
+	if !errors.Is(err, ports.ErrConflict) {
+		t.Fatalf("Create with a duplicate ID but different MBID returned %v, want ErrConflict", err)
+	}
+}
+
+func testCreateEmptyMBIDNoCollision(t *testing.T, newRepo NewRepositoryFunc) {
+	r := newRepo(t)
+	ctx := context.Background()
+	mustCreate(t, r, sampleRelease("r1"))
+
+	second := sampleRelease("r2")
+	if err := r.Create(ctx, second); err != nil {
+		t.Fatalf("Create with a second empty-MBID release returned %v, want nil (empty MBID must never reserve)", err)
+	}
+	if second.ID != "r2" {
+		t.Fatalf("Create with an empty MBID returned ID %q, want the requested %q (must not be treated as a get-or-create hit)", second.ID, "r2")
+	}
+}
+
 func testUpdate(t *testing.T, newRepo NewRepositoryFunc) {
 	r := newRepo(t)
 	rel := sampleRelease("r1")
@@ -100,6 +145,45 @@ func testUpdateMissing(t *testing.T, newRepo NewRepositoryFunc) {
 	err := r.Update(context.Background(), sampleRelease("missing"))
 	if !errors.Is(err, ports.ErrNotFound) {
 		t.Fatalf("Update on missing release returned %v, want ErrNotFound", err)
+	}
+}
+
+func testUpdateChangingMBIDMovesReservation(t *testing.T, newRepo NewRepositoryFunc) {
+	r := newRepo(t)
+	ctx := context.Background()
+	rel := sampleReleaseWithFields("r1", "group1", "entry1", "old-mbid", "barcode-1")
+	mustCreate(t, r, rel)
+
+	rel.MBID = "new-mbid"
+	if err := r.Update(ctx, rel); err != nil {
+		t.Fatalf("Update changing MBID returned error: %v", err)
+	}
+
+	got, err := r.GetByMBID(ctx, "new-mbid")
+	if err != nil {
+		t.Fatalf("GetByMBID on the new MBID returned error: %v, want the updated release", err)
+	}
+	if got.ID != "r1" {
+		t.Fatalf("GetByMBID on the new MBID returned ID %q, want %q", got.ID, "r1")
+	}
+
+	if _, err := r.GetByMBID(ctx, "old-mbid"); !errors.Is(err, ports.ErrNotFound) {
+		t.Fatalf("GetByMBID on the old (pre-Update) MBID returned %v, want ErrNotFound", err)
+	}
+}
+
+func testUpdateConflictingMBID(t *testing.T, newRepo NewRepositoryFunc) {
+	r := newRepo(t)
+	ctx := context.Background()
+	first := sampleReleaseWithFields("r1", "group1", "entry1", "mbid-1", "barcode-1")
+	mustCreate(t, r, first)
+	second := sampleReleaseWithFields("r2", "group1", "entry1", "mbid-2", "barcode-2")
+	mustCreate(t, r, second)
+
+	first.MBID = "mbid-2"
+	err := r.Update(ctx, first)
+	if !errors.Is(err, ports.ErrConflict) {
+		t.Fatalf("Update to an MBID already owned by a different release returned %v, want ErrConflict", err)
 	}
 }
 

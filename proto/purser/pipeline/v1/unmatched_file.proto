@@ -57,6 +57,14 @@ message UnmatchedFile {
   string path = 2;
   int64 size = 3;
 
+  // content_type is this file's scan root's configured domain.ContentType —
+  // a plain, open string, matching purser.domain.v1.Item's own content_type
+  // field (internal/domain.ContentType is a deliberately open vocabulary,
+  // not a closed proto enum). Needed so a manual AcceptCandidate call,
+  // which happens outside any scan Job's lifetime, still knows which
+  // content type's Persister to dispatch to.
+  string content_type = 15;
+
   string os_hash = 4;
   string md5 = 5;
   string sha1 = 6;
@@ -151,6 +159,22 @@ message DismissUnmatchedFileBatchResponse {
   repeated UnmatchedFile unmatched_files = 1;
 }
 
+// AcceptCandidateRequest persists a group's winning release, one of two
+// ways: external_ref matches an existing ranked MatchCandidate in the
+// group's Candidates (the common case — a human picks any ranked
+// candidate, not necessarily the top-scored one), or it's a raw MusicBrainz
+// release MBID the pipeline never generated (a human already knows the
+// correct release and typed it in) — the review UI must expose both paths
+// at once. On success, every UnmatchedFile sharing group_key leaves the
+// review queue by deletion, the same behavior ResolveUnmatchedFile already
+// has for a single file. See docs/technical/pipeline-music-persist.md.
+message AcceptCandidateRequest {
+  string group_key = 1;
+  string external_ref = 2;
+}
+
+message AcceptCandidateResponse {}
+
 // UnmatchedFileService is the review queue's Get/List/Resolve surface.
 // Follows the same handler/service/error-mapping conventions as every
 // other entity's Connect service (docs/adr/0011-api-design.md). See
@@ -161,4 +185,5 @@ service UnmatchedFileService {
   rpc ResolveUnmatchedFile(ResolveUnmatchedFileRequest) returns (ResolveUnmatchedFileResponse);
   rpc ListGroupUnmatchedFiles(ListGroupUnmatchedFilesRequest) returns (ListGroupUnmatchedFilesResponse);
   rpc DismissUnmatchedFileBatch(DismissUnmatchedFileBatchRequest) returns (DismissUnmatchedFileBatchResponse);
+  rpc AcceptCandidate(AcceptCandidateRequest) returns (AcceptCandidateResponse);
 }

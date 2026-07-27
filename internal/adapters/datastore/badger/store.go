@@ -19,6 +19,18 @@ import (
 
 const instrumentationName = "purser/internal/adapters/datastore/badger"
 
+// updateTxnRetries bounds how many times updateWithRetry retries a
+// transaction that failed with BadgerDB's own optimistic-concurrency
+// badgerdb.ErrConflict — a transient "two transactions touched overlapping
+// keys" signal, distinct from and never itself ports.ErrConflict (this
+// package's own deliberate "document already exists" semantic conflict,
+// which a txn function returns intentionally and which must never be
+// retried, since it's a real, permanent identity conflict, not a race to
+// retry past). BadgerDB's own docs describe exactly this: ErrConflict "can
+// happen in the middle of a transaction or during commit. If you see this
+// error, the transaction should be retried."
+const updateTxnRetries = 5
+
 // envelope is the on-disk shape of a datastore.Document's primary record.
 // Data is kept as json.RawMessage so the caller's already-JSON-encoded
 // entity isn't re-escaped into a string.
@@ -89,6 +101,28 @@ func New(name string, db *badgerdb.DB, opts ...Option) (*Store, error) {
 	return s, nil
 }
 
+// updateWithRetry runs fn inside s.db.Update, retrying up to
+// updateTxnRetries times if BadgerDB itself reports a transaction
+// conflict — needed because the reservation-document get-or-create
+// mechanism (docs/adr/0019-tag-identity-and-get-or-create.md,
+// docs/adr/0026-external-id-get-or-create.md, and
+// internal/adapters/store/music's MBID reservation fix) relies on
+// CreateBatch's atomicity to detect a genuine identity conflict
+// (ports.ErrConflict) — two concurrent callers racing to reserve the same
+// identity under real load hit exactly this transient BadgerDB conflict
+// first, and it must not surface as an opaque, unretried error instead of
+// letting the race resolve the way that mechanism depends on.
+func (s *Store) updateWithRetry(fn func(txn *badgerdb.Txn) error) error {
+	var err error
+	for range updateTxnRetries {
+		err = s.db.Update(fn)
+		if !errors.Is(err, badgerdb.ErrConflict) {
+			return err
+		}
+	}
+	return err
+}
+
 // Create implements datastore.Datastore.
 func (s *Store) Create(ctx context.Context, doc datastore.Document) error {
 	ctx, span := s.tracer.Start(ctx, "datastore_badger.create", trace.WithAttributes(
@@ -98,7 +132,7 @@ func (s *Store) Create(ctx context.Context, doc datastore.Document) error {
 	))
 	defer span.End()
 
-	err := s.db.Update(func(txn *badgerdb.Txn) error {
+	err := s.updateWithRetry(func(txn *badgerdb.Txn) error {
 		_, getErr := txn.Get(kPrimary(doc.Collection, doc.ID))
 		if getErr == nil {
 			return ports.ErrConflict
@@ -159,7 +193,7 @@ func (s *Store) Update(ctx context.Context, doc datastore.Document) error {
 	))
 	defer span.End()
 
-	err := s.db.Update(func(txn *badgerdb.Txn) error {
+	err := s.updateWithRetry(func(txn *badgerdb.Txn) error {
 		old, loadErr := loadEnvelope(txn, doc.Collection, doc.ID)
 		if loadErr != nil {
 			return loadErr
@@ -190,7 +224,7 @@ func (s *Store) Delete(ctx context.Context, collection, id string) error {
 	))
 	defer span.End()
 
-	err := s.db.Update(func(txn *badgerdb.Txn) error {
+	err := s.updateWithRetry(func(txn *badgerdb.Txn) error {
 		old, loadErr := loadEnvelope(txn, collection, id)
 		if loadErr != nil {
 			return loadErr
@@ -280,7 +314,7 @@ func (s *Store) CreateBatch(ctx context.Context, docs []datastore.Document) erro
 	))
 	defer span.End()
 
-	err := s.db.Update(func(txn *badgerdb.Txn) error {
+	err := s.updateWithRetry(func(txn *badgerdb.Txn) error {
 		for _, doc := range docs {
 			_, getErr := txn.Get(kPrimary(doc.Collection, doc.ID))
 			if getErr == nil {
@@ -316,7 +350,7 @@ func (s *Store) DeleteBatch(ctx context.Context, collection string, ids []string
 	))
 	defer span.End()
 
-	err := s.db.Update(func(txn *badgerdb.Txn) error {
+	err := s.updateWithRetry(func(txn *badgerdb.Txn) error {
 		for _, id := range ids {
 			old, loadErr := loadEnvelope(txn, collection, id)
 			if loadErr != nil {
@@ -351,7 +385,7 @@ func (s *Store) UpdateBatch(ctx context.Context, docs []datastore.Document) erro
 	))
 	defer span.End()
 
-	err := s.db.Update(func(txn *badgerdb.Txn) error {
+	err := s.updateWithRetry(func(txn *badgerdb.Txn) error {
 		for _, doc := range docs {
 			old, loadErr := loadEnvelope(txn, doc.Collection, doc.ID)
 			if loadErr != nil {

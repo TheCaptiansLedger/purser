@@ -20,12 +20,14 @@ type UnmatchedFileService struct {
 	repo       ports.UnmatchedFileRepository
 	items      ports.ItemRepository
 	mediaFiles ports.MediaFileRepository
+	persister  ports.PersisterResolver
 }
 
 // NewUnmatchedFileService constructs an UnmatchedFileService backed by
-// repo, items, and mediaFiles.
-func NewUnmatchedFileService(repo ports.UnmatchedFileRepository, items ports.ItemRepository, mediaFiles ports.MediaFileRepository) *UnmatchedFileService {
-	return &UnmatchedFileService{repo: repo, items: items, mediaFiles: mediaFiles}
+// repo, items, mediaFiles, and persister (AcceptCandidate's dispatch to a
+// content type's Persister).
+func NewUnmatchedFileService(repo ports.UnmatchedFileRepository, items ports.ItemRepository, mediaFiles ports.MediaFileRepository, persister ports.PersisterResolver) *UnmatchedFileService {
+	return &UnmatchedFileService{repo: repo, items: items, mediaFiles: mediaFiles, persister: persister}
 }
 
 // Get returns the UnmatchedFile with the given id, or ports.ErrNotFound.
@@ -132,4 +134,67 @@ func (s *UnmatchedFileService) Resolve(ctx context.Context, id, itemID string, d
 		return nil, nil, err
 	}
 	return mf, nil, nil
+}
+
+// AcceptCandidate persists groupKey's winning release, per
+// docs/technical/pipeline-music-persist.md's "Two triggers, one Persister"
+// section: externalRef matches an existing ranked MatchCandidate in the
+// group's rows (the common case — a human picks any ranked candidate, not
+// necessarily the top-scored one) or it's a raw external ID the pipeline
+// never generated (a human already knows the correct release), in which
+// case an ad-hoc domain.MatchCandidate{ExternalRef: externalRef} with no
+// Tier/Score is built and persisted directly — bypassing ConfidenceScore
+// entirely, since a human-supplied identifier is definitionally
+// corroborated. Both paths call the exact same Persister. On success,
+// every UnmatchedFile sharing groupKey leaves the review queue via
+// DeleteBatch — the same "a matched entry leaves the queue by deletion"
+// behavior Resolve already has for a single file. On failure, the group's
+// rows are left untouched and the error is returned as-is. Returns
+// ports.ErrNotFound if groupKey has no rows.
+func (s *UnmatchedFileService) AcceptCandidate(ctx context.Context, groupKey, externalRef string) error {
+	rows, err := s.repo.ListByGroupKey(ctx, groupKey)
+	if err != nil {
+		return err
+	}
+	if len(rows) == 0 {
+		return ports.ErrNotFound
+	}
+
+	candidate := findCandidate(rows, externalRef)
+	if candidate == nil {
+		candidate = &domain.MatchCandidate{ExternalRef: externalRef}
+	}
+
+	var fingerprint *domain.Fingerprint
+	for _, row := range rows {
+		if row.Fingerprint != nil {
+			fingerprint = row.Fingerprint
+			break
+		}
+	}
+
+	if err := s.persister.Persist(ctx, rows[0].ContentType, fingerprint, *candidate, rows); err != nil {
+		return err
+	}
+
+	ids := make([]string, len(rows))
+	for i, row := range rows {
+		ids[i] = row.ID
+	}
+	return s.repo.DeleteBatch(ctx, ids)
+}
+
+// findCandidate searches every row's Candidates for one whose ExternalRef
+// matches externalRef, returning it as-is (Tier/Score/Signals intact) —
+// the common "a human picks a ranked candidate" path. Returns nil if none
+// matches, meaning externalRef is a raw, human-supplied identifier.
+func findCandidate(rows []*domain.UnmatchedFile, externalRef string) *domain.MatchCandidate {
+	for _, row := range rows {
+		for i := range row.Candidates {
+			if row.Candidates[i].ExternalRef == externalRef {
+				return &row.Candidates[i]
+			}
+		}
+	}
+	return nil
 }

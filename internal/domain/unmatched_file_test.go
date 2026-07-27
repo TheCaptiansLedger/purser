@@ -4,10 +4,11 @@ import "testing"
 
 func validUnmatchedFile() UnmatchedFile {
 	return UnmatchedFile{
-		ID:       "uf1",
-		Path:     "/media/incoming/new-arrivals/track01.flac",
-		GroupKey: "/media/incoming/new-arrivals/track01.flac",
-		Status:   UnmatchedFileStatusPending,
+		ID:          "uf1",
+		Path:        "/media/incoming/new-arrivals/track01.flac",
+		ContentType: ContentTypeMusic,
+		GroupKey:    "/media/incoming/new-arrivals/track01.flac",
+		Status:      UnmatchedFileStatusPending,
 	}
 }
 
@@ -20,6 +21,7 @@ func TestUnmatchedFile_Validate(t *testing.T) {
 		{"valid", func(_ *UnmatchedFile) {}, false},
 		{"missing ID", func(u *UnmatchedFile) { u.ID = "" }, true},
 		{"missing Path", func(u *UnmatchedFile) { u.Path = "" }, true},
+		{"missing ContentType is valid (an unconfigured scan root)", func(u *UnmatchedFile) { u.ContentType = "" }, false},
 		{"missing GroupKey", func(u *UnmatchedFile) { u.GroupKey = "" }, true},
 		{"missing Status", func(u *UnmatchedFile) { u.Status = "" }, true},
 		{"invalid Status", func(u *UnmatchedFile) { u.Status = "bogus" }, true},

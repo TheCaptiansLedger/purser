@@ -15,6 +15,7 @@ import (
 // unconfigured lookup returns ports.ErrNotFound / an empty slice, matching
 // the real adapter's documented "empty is not an error" search semantics.
 type fakeMusicBrainz struct {
+	artists              map[string]ports.Artist
 	releaseGroups        map[string]ports.ReleaseGroup
 	releaseGroupsByQuery map[string][]ports.ReleaseGroup // key: artist+"|"+album
 	releases             map[string]ports.Release
@@ -30,6 +31,7 @@ var _ ports.MusicBrainzClient = (*fakeMusicBrainz)(nil)
 
 func newFakeMusicBrainz() *fakeMusicBrainz {
 	return &fakeMusicBrainz{
+		artists:              map[string]ports.Artist{},
 		releaseGroups:        map[string]ports.ReleaseGroup{},
 		releaseGroupsByQuery: map[string][]ports.ReleaseGroup{},
 		releases:             map[string]ports.Release{},
@@ -39,7 +41,14 @@ func newFakeMusicBrainz() *fakeMusicBrainz {
 	}
 }
 
-func (f *fakeMusicBrainz) LookupArtist(_ context.Context, _ string) (*ports.Artist, error) {
+// LookupArtist resolves from artists, keyed by MBID — unused by
+// Identifier's own tests (M7 never calls it), but real (not always
+// ports.ErrNotFound) since the Music Persister's own tests
+// (persister_test.go) reuse this fake and do call it.
+func (f *fakeMusicBrainz) LookupArtist(_ context.Context, mbid string) (*ports.Artist, error) {
+	if a, ok := f.artists[mbid]; ok {
+		return &a, nil
+	}
 	return nil, ports.ErrNotFound
 }
 

@@ -35,8 +35,9 @@ type FilteredRepository[T any] struct {
 	idOf       func(*T) string
 	indexOf    func(*T) map[string]string
 
-	logger *slog.Logger
-	tracer trace.Tracer
+	logger        *slog.Logger
+	tracer        trace.Tracer
+	meterProvider metric.MeterProvider
 
 	creates metric.Int64Counter
 	gets    metric.Int64Counter
@@ -73,13 +74,14 @@ func NewFiltered[T any](name, collection string, ds datastore.Datastore, idOf fu
 	}
 
 	r := &FilteredRepository[T]{
-		name:       name,
-		collection: collection,
-		ds:         ds,
-		idOf:       idOf,
-		indexOf:    indexOf,
-		logger:     o.logger.With("component", "adapters.store."+collection, "repository.name", name),
-		tracer:     o.tracerProvider.Tracer(filteredInstrumentationName),
+		name:          name,
+		collection:    collection,
+		ds:            ds,
+		idOf:          idOf,
+		indexOf:       indexOf,
+		logger:        o.logger.With("component", "adapters.store."+collection, "repository.name", name),
+		tracer:        o.tracerProvider.Tracer(filteredInstrumentationName),
+		meterProvider: o.meterProvider,
 	}
 
 	meter := o.meterProvider.Meter(filteredInstrumentationName)
@@ -262,3 +264,31 @@ func (r *FilteredRepository[T]) List(ctx context.Context, filter map[string]stri
 	r.logger.DebugContext(ctx, r.collection+" list", "count", len(records), "next_page_token", nextToken)
 	return records, nextToken, nil
 }
+
+// Logger returns the logger this FilteredRepository[T] was constructed
+// with. For a hand-written adapter that embeds a FilteredRepository[T] for
+// part of its shape (see internal/adapters/store/music) and adds its own
+// instrumentation around it, reusing this avoids re-deriving options from
+// the same opts list a second time with a different (and possibly
+// inconsistent) result — see store.Repository[T].Logger.
+func (r *FilteredRepository[T]) Logger() *slog.Logger { return r.logger }
+
+// Tracer returns the tracer this FilteredRepository[T] was constructed
+// with — see Logger.
+func (r *FilteredRepository[T]) Tracer() trace.Tracer { return r.tracer }
+
+// MeterProvider returns the MeterProvider this FilteredRepository[T] was
+// constructed with — see Logger.
+func (r *FilteredRepository[T]) MeterProvider() metric.MeterProvider { return r.meterProvider }
+
+// DocumentID returns the opaque datastore.Document ID v's own ID (idOf(v))
+// is stored under. A hand-written adapter that must write v's document
+// directly via Datastore.CreateBatch alongside a document in a different
+// collection (bypassing Create/CreateBatch above — see
+// internal/adapters/store/music's MBID reservation fix) uses this instead
+// of re-deriving idOf itself.
+func (r *FilteredRepository[T]) DocumentID(v *T) string { return r.idOf(v) }
+
+// IndexOf returns the Index map v's document is stored under, per this
+// FilteredRepository[T]'s indexOf — see DocumentID.
+func (r *FilteredRepository[T]) IndexOf(v *T) map[string]string { return r.indexOf(v) }

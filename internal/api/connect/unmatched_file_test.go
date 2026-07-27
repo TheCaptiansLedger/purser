@@ -40,6 +40,10 @@ type fakeUnmatchedFileService struct {
 	dismissBatchFiles []*domain.UnmatchedFile
 	dismissBatchErr   error
 	dismissBatchIDs   []string
+
+	acceptCandidateErr         error
+	acceptCandidateGroupKey    string
+	acceptCandidateExternalRef string
 }
 
 func (f *fakeUnmatchedFileService) Get(_ context.Context, _ string) (*domain.UnmatchedFile, error) {
@@ -83,6 +87,12 @@ func (f *fakeUnmatchedFileService) DismissBatch(_ context.Context, ids []string)
 		return nil, f.dismissBatchErr
 	}
 	return f.dismissBatchFiles, nil
+}
+
+func (f *fakeUnmatchedFileService) AcceptCandidate(_ context.Context, groupKey, externalRef string) error {
+	f.acceptCandidateGroupKey = groupKey
+	f.acceptCandidateExternalRef = externalRef
+	return f.acceptCandidateErr
 }
 
 func TestUnmatchedFileHandler_GetUnmatchedFile(t *testing.T) {
@@ -337,5 +347,38 @@ func TestUnmatchedFileHandler_DismissUnmatchedFileBatch_Error(t *testing.T) {
 	}
 	if connErr.Code() != connect.CodeNotFound {
 		t.Fatalf("DismissUnmatchedFileBatch returned code %v, want %v", connErr.Code(), connect.CodeNotFound)
+	}
+}
+
+func TestUnmatchedFileHandler_AcceptCandidate(t *testing.T) {
+	svc := &fakeUnmatchedFileService{}
+	h := apiconnect.NewUnmatchedFileHandler(svc, nil)
+
+	_, err := h.AcceptCandidate(context.Background(), connect.NewRequest(&pipelinev1.AcceptCandidateRequest{
+		GroupKey:    "group-1",
+		ExternalRef: "release-mbid-1",
+	}))
+	if err != nil {
+		t.Fatalf("AcceptCandidate returned error: %v", err)
+	}
+	if svc.acceptCandidateGroupKey != "group-1" || svc.acceptCandidateExternalRef != "release-mbid-1" {
+		t.Fatalf("AcceptCandidate passed (groupKey, externalRef) = (%q, %q), want (group-1, release-mbid-1)", svc.acceptCandidateGroupKey, svc.acceptCandidateExternalRef)
+	}
+}
+
+func TestUnmatchedFileHandler_AcceptCandidate_Error(t *testing.T) {
+	svc := &fakeUnmatchedFileService{acceptCandidateErr: ports.ErrNotFound}
+	h := apiconnect.NewUnmatchedFileHandler(svc, nil)
+
+	_, err := h.AcceptCandidate(context.Background(), connect.NewRequest(&pipelinev1.AcceptCandidateRequest{
+		GroupKey:    "missing-group",
+		ExternalRef: "release-mbid-1",
+	}))
+	var connErr *connect.Error
+	if !errors.As(err, &connErr) {
+		t.Fatalf("AcceptCandidate returned %v, want a *connect.Error", err)
+	}
+	if connErr.Code() != connect.CodeNotFound {
+		t.Fatalf("AcceptCandidate returned code %v, want %v", connErr.Code(), connect.CodeNotFound)
 	}
 }

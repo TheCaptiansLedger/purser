@@ -43,6 +43,7 @@ func unmatchedFileToProto(u *domain.UnmatchedFile) *pipelinev1.UnmatchedFile {
 	return &pipelinev1.UnmatchedFile{
 		Id:           u.ID,
 		Path:         u.Path,
+		ContentType:  string(u.ContentType),
 		Size:         u.Size,
 		OsHash:       u.OSHash,
 		Md5:          u.MD5,
