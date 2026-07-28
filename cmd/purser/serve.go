@@ -535,6 +535,9 @@ func wireScanPipeline(
 	// Content types with no registered ports.Grouping implementation fall
 	// back to service.IdentityGrouping.
 	groupingRegistry := service.NewGroupingRegistry(pipelinemusic.Grouping{})
+	// Content types with no registered ports.SidecarClassifier
+	// implementation fall back to service.NoopClassifier.
+	sidecarClassifierRegistry := service.NewSidecarClassifierRegistry(pipelinemusic.SidecarClassifier{})
 	// Content types with no registered ports.FileFingerprinter
 	// implementation fall back to service.NoopFingerprinter.
 	fingerprinterRegistry := service.NewFileFingerprinterRegistry(pipelinemusic.New(pipelinemusic.WithLogger(logger)))
@@ -564,7 +567,7 @@ func wireScanPipeline(
 		roots[i] = service.RootContentType{Path: r.Path, ContentType: r.ContentType}
 	}
 
-	scanSvc := service.NewScanService(jobAdapter, fileWalker, pipelineCfg.EnableMD5, pipelineCfg.EnableSHA512, roots)
+	scanSvc := service.NewScanService(jobAdapter, fileWalker, pipelineCfg.EnableMD5, pipelineCfg.EnableSHA512, roots, sidecarClassifierRegistry)
 	scanHandler := apiconnect.NewScanHandler(scanSvc, logger)
 	scanPath, scanConnectHandler := pipelinev1connect.NewScanServiceHandler(scanHandler, interceptors)
 	mux.Handle(scanPath, scanConnectHandler)

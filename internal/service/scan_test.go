@@ -3,6 +3,8 @@ package service_test
 import (
 	"context"
 	"errors"
+	"os"
+	"path/filepath"
 	"purser/internal/domain"
 	"purser/internal/ports"
 	"purser/internal/service"
@@ -37,13 +39,29 @@ func (f *fakeFileWalker) Walk(_ context.Context, _ string) ([]ports.DiscoveredFi
 	return f.files, nil
 }
 
+// fakeSidecarClassifierResolver is a minimal ports.SidecarClassifierResolver
+// double. A nil/empty kindByPath classifies every path as
+// ports.SidecarKindNone (the zero value), matching NoopClassifier's
+// behavior — the "nothing filtered" default most Trigger tests want.
+type fakeSidecarClassifierResolver struct {
+	kindByPath map[string]ports.SidecarKind
+	err        error
+}
+
+func (f *fakeSidecarClassifierResolver) Classify(_ context.Context, _ domain.ContentType, path string) (ports.SidecarKind, error) {
+	if f.err != nil {
+		return "", f.err
+	}
+	return f.kindByPath[path], nil
+}
+
 func TestScanService_Trigger(t *testing.T) {
 	pub := &fakeScanJobPublisher{returnID: "job-1"}
 	walker := &fakeFileWalker{files: []ports.DiscoveredFile{
 		{Path: "/media/a.flac", Size: 1},
 		{Path: "/media/b.flac", Size: 2},
 	}}
-	svc := service.NewScanService(pub, walker, true, false, nil)
+	svc := service.NewScanService(pub, walker, true, false, nil, &fakeSidecarClassifierResolver{})
 
 	id, err := svc.Trigger(context.Background(), "/media")
 	if err != nil {
@@ -79,7 +97,7 @@ func TestScanService_Trigger_WalkerError(t *testing.T) {
 	wantErr := errors.New("boom")
 	pub := &fakeScanJobPublisher{}
 	walker := &fakeFileWalker{err: wantErr}
-	svc := service.NewScanService(pub, walker, false, false, nil)
+	svc := service.NewScanService(pub, walker, false, false, nil, &fakeSidecarClassifierResolver{})
 
 	if _, err := svc.Trigger(context.Background(), "/media"); !errors.Is(err, wantErr) {
 		t.Fatalf("Trigger returned %v, want wrapping %v", err, wantErr)
@@ -90,7 +108,7 @@ func TestScanService_Trigger_PublisherError(t *testing.T) {
 	wantErr := errors.New("boom")
 	pub := &fakeScanJobPublisher{err: wantErr}
 	walker := &fakeFileWalker{files: []ports.DiscoveredFile{{Path: "/media/a.flac"}}}
-	svc := service.NewScanService(pub, walker, false, false, nil)
+	svc := service.NewScanService(pub, walker, false, false, nil, &fakeSidecarClassifierResolver{})
 
 	if _, err := svc.Trigger(context.Background(), "/media"); !errors.Is(err, wantErr) {
 		t.Fatalf("Trigger returned %v, want %v", err, wantErr)
@@ -100,7 +118,7 @@ func TestScanService_Trigger_PublisherError(t *testing.T) {
 func TestScanService_Trigger_EmptyDirectory(t *testing.T) {
 	pub := &fakeScanJobPublisher{returnID: "job-empty"}
 	walker := &fakeFileWalker{files: nil}
-	svc := service.NewScanService(pub, walker, false, false, nil)
+	svc := service.NewScanService(pub, walker, false, false, nil, &fakeSidecarClassifierResolver{})
 
 	id, err := svc.Trigger(context.Background(), "/media/empty")
 	if err != nil {
@@ -121,7 +139,7 @@ func TestScanService_Trigger_ResolvesContentTypeFromConfiguredRoot(t *testing.T)
 		{Path: "/media/incoming", ContentType: domain.ContentTypeMusic},
 		{Path: "/media/movies", ContentType: domain.ContentTypeMovie},
 	}
-	svc := service.NewScanService(pub, walker, false, false, roots)
+	svc := service.NewScanService(pub, walker, false, false, roots, &fakeSidecarClassifierResolver{})
 
 	if _, err := svc.Trigger(context.Background(), "/media/incoming"); err != nil {
 		t.Fatalf("Trigger returned error: %v", err)
@@ -137,7 +155,7 @@ func TestScanService_Trigger_ResolvesContentTypeForWatcherTriggeredSubfolder(t *
 	roots := []service.RootContentType{
 		{Path: "/media/incoming", ContentType: domain.ContentTypeMusic},
 	}
-	svc := service.NewScanService(pub, walker, false, false, roots)
+	svc := service.NewScanService(pub, walker, false, false, roots, &fakeSidecarClassifierResolver{})
 
 	// A watcher's debounced event fires on a settled subfolder unit, not
 	// necessarily the configured root itself — Trigger must still resolve
@@ -157,7 +175,7 @@ func TestScanService_Trigger_LongestPrefixWinsAmongOverlappingRoots(t *testing.T
 		{Path: "/media/incoming", ContentType: domain.ContentTypeMovie},
 		{Path: "/media/incoming/soundtracks", ContentType: domain.ContentTypeMusic},
 	}
-	svc := service.NewScanService(pub, walker, false, false, roots)
+	svc := service.NewScanService(pub, walker, false, false, roots, &fakeSidecarClassifierResolver{})
 
 	if _, err := svc.Trigger(context.Background(), "/media/incoming/soundtracks"); err != nil {
 		t.Fatalf("Trigger returned error: %v", err)
@@ -173,7 +191,7 @@ func TestScanService_Trigger_NoMatchingRootResolvesEmptyContentType(t *testing.T
 	roots := []service.RootContentType{
 		{Path: "/media/incoming", ContentType: domain.ContentTypeMusic},
 	}
-	svc := service.NewScanService(pub, walker, false, false, roots)
+	svc := service.NewScanService(pub, walker, false, false, roots, &fakeSidecarClassifierResolver{})
 
 	if _, err := svc.Trigger(context.Background(), "/other"); err != nil {
 		t.Fatalf("Trigger returned error: %v", err)
@@ -189,7 +207,7 @@ func TestScanService_Trigger_DoesNotMatchSimilarlyNamedRoot(t *testing.T) {
 	roots := []service.RootContentType{
 		{Path: "/media/incoming", ContentType: domain.ContentTypeMusic},
 	}
-	svc := service.NewScanService(pub, walker, false, false, roots)
+	svc := service.NewScanService(pub, walker, false, false, roots, &fakeSidecarClassifierResolver{})
 
 	// "/media/incoming-backup" must not match the "/media/incoming" root
 	// as a prefix — only real path-segment descendants should match.
@@ -198,5 +216,73 @@ func TestScanService_Trigger_DoesNotMatchSimilarlyNamedRoot(t *testing.T) {
 	}
 	if pub.gotParams["content_type"] != "" {
 		t.Fatalf("Trigger passed params[content_type] = %q, want empty (no real match)", pub.gotParams["content_type"])
+	}
+}
+
+func TestScanService_Trigger_ExcludesClassifiedSidecarsFromTaskLabels(t *testing.T) {
+	pub := &fakeScanJobPublisher{returnID: "job-1"}
+	walker := &fakeFileWalker{files: []ports.DiscoveredFile{
+		{Path: "/media/incoming/01.flac"},
+		{Path: "/media/incoming/cover.jpg"},
+		{Path: "/media/incoming/album.nfo"},
+	}}
+	classifier := &fakeSidecarClassifierResolver{kindByPath: map[string]ports.SidecarKind{
+		"/media/incoming/cover.jpg": ports.SidecarKindImage,
+		"/media/incoming/album.nfo": ports.SidecarKindOther,
+	}}
+	roots := []service.RootContentType{
+		{Path: "/media/incoming", ContentType: domain.ContentTypeMusic},
+	}
+	svc := service.NewScanService(pub, walker, false, false, roots, classifier)
+
+	if _, err := svc.Trigger(context.Background(), "/media/incoming"); err != nil {
+		t.Fatalf("Trigger returned error: %v", err)
+	}
+	wantLabels := []string{"/media/incoming/01.flac"}
+	if len(pub.gotLabels) != len(wantLabels) {
+		t.Fatalf("Trigger passed task labels %v, want %v", pub.gotLabels, wantLabels)
+	}
+	for i, l := range wantLabels {
+		if pub.gotLabels[i] != l {
+			t.Errorf("Trigger passed label[%d] = %q, want %q", i, pub.gotLabels[i], l)
+		}
+	}
+}
+
+func TestScanService_Trigger_ClassifierError(t *testing.T) {
+	wantErr := errors.New("boom")
+	pub := &fakeScanJobPublisher{returnID: "job-1"}
+	walker := &fakeFileWalker{files: []ports.DiscoveredFile{{Path: "/media/a.flac"}}}
+	classifier := &fakeSidecarClassifierResolver{err: wantErr}
+	svc := service.NewScanService(pub, walker, false, false, nil, classifier)
+
+	if _, err := svc.Trigger(context.Background(), "/media"); !errors.Is(err, wantErr) {
+		t.Fatalf("Trigger returned %v, want wrapping %v", err, wantErr)
+	}
+}
+
+func TestScanService_Trigger_ResolvesContentTypeWhenConfiguredRootIsRelativeButIncomingRootIsAbsolute(t *testing.T) {
+	cwd, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("os.Getwd: %v", err)
+	}
+	absRoot := filepath.Join(cwd, "incoming", "music")
+
+	pub := &fakeScanJobPublisher{returnID: "job-1"}
+	walker := &fakeFileWalker{files: []ports.DiscoveredFile{{Path: filepath.Join(absRoot, "a.flac")}}}
+	roots := []service.RootContentType{
+		// Deliberately relative, as a config file could plausibly write it —
+		// pkg/fswatch always hands Trigger an absolute path for a
+		// watcher-triggered scan regardless, so resolution must still
+		// succeed against that absolute path.
+		{Path: filepath.Join("incoming", "music"), ContentType: domain.ContentTypeMusic},
+	}
+	svc := service.NewScanService(pub, walker, false, false, roots, &fakeSidecarClassifierResolver{})
+
+	if _, err := svc.Trigger(context.Background(), absRoot); err != nil {
+		t.Fatalf("Trigger returned error: %v", err)
+	}
+	if pub.gotParams["content_type"] != string(domain.ContentTypeMusic) {
+		t.Fatalf("Trigger passed params[content_type] = %q, want %q (relative configured root must still resolve against an absolute incoming root)", pub.gotParams["content_type"], domain.ContentTypeMusic)
 	}
 }

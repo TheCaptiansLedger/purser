@@ -23,7 +23,7 @@ are the spec.
 | M9-pre | [#532](https://github.com/TheCaptiansLedger/purser/issues/532) | `ExternalIDRepository` `GetByValue` + get-or-create (ADR-0026) | — | Not started — must land before M9b |
 | M9a | [#517](https://github.com/TheCaptiansLedger/purser/issues/517) | Shared `DecisionService` (+ adds `config.Pipeline.ConfidenceThreshold`) | M8 | Not started |
 | M9b | [#518](https://github.com/TheCaptiansLedger/purser/issues/518) | Music `Persister` cascade + `MusicRelease` reservation fix + `AcceptCandidate` | M9-pre, M9a | Not started |
-| M10a | [#519](https://github.com/TheCaptiansLedger/purser/issues/519) | Sidecar classification (registry + Music rules + `Trigger` wiring) | M3a | Not started |
+| M10a | [#519](https://github.com/TheCaptiansLedger/purser/issues/519) | Sidecar classification (registry + Music rules + `Trigger` wiring) | M3a | Implemented, pending manual verification sign-off (see issue checklist) |
 | M10b | [#520](https://github.com/TheCaptiansLedger/purser/issues/520) | Cover-art attachment at persist time | M9b | Not started |
 | M11a | [#521](https://github.com/TheCaptiansLedger/purser/issues/521) | Generic `Organizer` mechanics (render/move/collision handling) | M9b | Not started |
 | M11b | [#522](https://github.com/TheCaptiansLedger/purser/issues/522) | Music `TemplateDataBuilder` + config + trigger wiring | M11a, M9b | Not started |
