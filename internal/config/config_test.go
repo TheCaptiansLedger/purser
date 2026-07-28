@@ -351,3 +351,74 @@ func TestPipeline_Validate_AcceptsWellFormedScanRoots(t *testing.T) {
 		t.Fatalf("Validate() = %v, want nil", err)
 	}
 }
+
+func TestLoad_UsesDefaultEmptyOrganize(t *testing.T) {
+	cfg, err := config.Load(viper.New(), "")
+	if err != nil {
+		t.Fatalf("Load returned error: %v", err)
+	}
+	if len(cfg.Pipeline.Organize) != 0 {
+		t.Fatalf("Load returned %d Organize entries, want 0 by default", len(cfg.Pipeline.Organize))
+	}
+}
+
+func TestLoad_ConfigFileOrganizeUnmarshalsRootTemplatePairs(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "purser.yaml")
+	yaml := "pipeline:\n  organize:\n    music:\n      root: /library/music\n      template: \"{{.ArtistName}}/{{.AlbumTitle}}/{{.TrackTitle}}{{.Ext}}\"\n"
+	if err := os.WriteFile(path, []byte(yaml), 0o600); err != nil {
+		t.Fatalf("WriteFile returned error: %v", err)
+	}
+
+	cfg, err := config.Load(viper.New(), path)
+	if err != nil {
+		t.Fatalf("Load returned error: %v", err)
+	}
+	want := config.OrganizeConfig{Root: "/library/music", Template: "{{.ArtistName}}/{{.AlbumTitle}}/{{.TrackTitle}}{{.Ext}}"}
+	got, ok := cfg.Pipeline.Organize[domain.ContentTypeMusic]
+	if !ok {
+		t.Fatalf("Load returned Organize %+v, missing music entry", cfg.Pipeline.Organize)
+	}
+	if got != want {
+		t.Fatalf("Organize[music] = %+v, want %+v", got, want)
+	}
+}
+
+func TestPipeline_Validate_RejectsOrganizeEntryMissingRoot(t *testing.T) {
+	cfg := config.DefaultConfig()
+	cfg.Pipeline.Organize = map[domain.ContentType]config.OrganizeConfig{
+		domain.ContentTypeMusic: {Root: "", Template: "{{.TrackTitle}}{{.Ext}}"},
+	}
+	if err := cfg.Validate(); err == nil {
+		t.Fatal("Validate() = nil, want error for organize entry missing root")
+	}
+}
+
+func TestPipeline_Validate_RejectsOrganizeEntryMissingTemplate(t *testing.T) {
+	cfg := config.DefaultConfig()
+	cfg.Pipeline.Organize = map[domain.ContentType]config.OrganizeConfig{
+		domain.ContentTypeMusic: {Root: "/library/music", Template: ""},
+	}
+	if err := cfg.Validate(); err == nil {
+		t.Fatal("Validate() = nil, want error for organize entry missing template")
+	}
+}
+
+func TestPipeline_Validate_RejectsOrganizeEntryWithInvalidTemplate(t *testing.T) {
+	cfg := config.DefaultConfig()
+	cfg.Pipeline.Organize = map[domain.ContentType]config.OrganizeConfig{
+		domain.ContentTypeMusic: {Root: "/library/music", Template: "{{.TrackTitle"},
+	}
+	if err := cfg.Validate(); err == nil {
+		t.Fatal("Validate() = nil, want error for organize entry with an unparseable template")
+	}
+}
+
+func TestPipeline_Validate_AcceptsWellFormedOrganizeEntry(t *testing.T) {
+	cfg := config.DefaultConfig()
+	cfg.Pipeline.Organize = map[domain.ContentType]config.OrganizeConfig{
+		domain.ContentTypeMusic: {Root: "/library/music", Template: "{{.ArtistName}}/{{.TrackTitle}}{{.Ext}}"},
+	}
+	if err := cfg.Validate(); err != nil {
+		t.Fatalf("Validate() = %v, want nil", err)
+	}
+}

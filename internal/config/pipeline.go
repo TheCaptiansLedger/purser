@@ -3,6 +3,7 @@ package config
 import (
 	"fmt"
 	"purser/internal/domain"
+	"text/template"
 )
 
 // ScanRoot pairs a watched/scannable directory with the domain.ContentType
@@ -50,23 +51,50 @@ type Pipeline struct {
 	// docs/technical/music-identification.md — unvalidated, not a claim
 	// it's correct.
 	ConfidenceThreshold float64 `mapstructure:"confidence_threshold"`
+
+	// Organize configures the generic Organizer (docs/adr/0024-pipeline-core.md,
+	// docs/technical/pipeline-music-organizer.md), keyed by domain.ContentType
+	// so each content type can organize into an entirely different library
+	// tree with an entirely different naming convention rather than sharing
+	// one global root/template.
+	Organize map[domain.ContentType]OrganizeConfig `mapstructure:"organize"`
+}
+
+// OrganizeConfig pairs the base directory a content type organizes into
+// with the relative Go text/template naming pattern joined onto it.
+type OrganizeConfig struct {
+	// Root is the base directory this content type organizes into.
+	Root string `mapstructure:"root"`
+
+	// Template is a relative Go text/template pattern, joined onto Root,
+	// rendered against whatever map the content type's TemplateDataBuilder
+	// produces.
+	Template string `mapstructure:"template"`
 }
 
 // DefaultPipeline returns Pipeline's defaults: both extra hashes off, no
-// watched roots, confidence threshold at its starting value of 0.75.
+// watched roots, confidence threshold at its starting value of 0.75, no
+// organize configuration (organizing a content type with no entry here is
+// a configuration error surfaced by the Organizer itself, not a silent
+// no-op).
 func DefaultPipeline() Pipeline {
 	return Pipeline{
 		EnableMD5:           false,
 		EnableSHA512:        false,
 		ScanRoots:           []ScanRoot{},
 		ConfidenceThreshold: 0.75,
+		Organize:            map[domain.ContentType]OrganizeConfig{},
 	}
 }
 
 // Validate checks that every configured ScanRoot carries both a Path and a
 // ContentType — a root missing either can never be resolved to a Grouping
 // implementation, so it fails fast at startup rather than silently falling
-// back to IdentityGrouping for every file under it.
+// back to IdentityGrouping for every file under it. Every configured
+// OrganizeConfig entry must carry a non-empty Root and a Template that
+// parses as valid Go text/template syntax — a broken naming template
+// should fail at startup, not on the first file an operator tries to
+// organize.
 func (p Pipeline) Validate() error {
 	for _, r := range p.ScanRoots {
 		if r.Path == "" {
@@ -74,6 +102,18 @@ func (p Pipeline) Validate() error {
 		}
 		if r.ContentType == "" {
 			return fmt.Errorf("pipeline: scan_roots entry %q missing content_type", r.Path)
+		}
+	}
+
+	for contentType, oc := range p.Organize {
+		if oc.Root == "" {
+			return fmt.Errorf("pipeline: organize entry %q missing root", contentType)
+		}
+		if oc.Template == "" {
+			return fmt.Errorf("pipeline: organize entry %q missing template", contentType)
+		}
+		if _, err := template.New("organize").Parse(oc.Template); err != nil {
+			return fmt.Errorf("pipeline: organize entry %q has an invalid template: %w", contentType, err)
 		}
 	}
 	return nil

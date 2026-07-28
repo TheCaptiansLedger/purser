@@ -97,6 +97,7 @@ func Load(v *viper.Viper, configPath string) (Config, error) {
 	v.SetDefault("pipeline.enable_sha512", defaults.Pipeline.EnableSHA512)
 	v.SetDefault("pipeline.scan_roots", defaults.Pipeline.ScanRoots)
 	v.SetDefault("pipeline.confidence_threshold", defaults.Pipeline.ConfidenceThreshold)
+	v.SetDefault("pipeline.organize", defaults.Pipeline.Organize)
 	v.SetDefault("musicbrainz.base_url", defaults.MusicBrainz.BaseURL)
 	v.SetDefault("acoustid.base_url", defaults.AcoustID.BaseURL)
 	v.SetDefault("acoustid.api_key", defaults.AcoustID.APIKey)
