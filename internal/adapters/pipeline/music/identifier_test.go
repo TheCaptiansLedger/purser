@@ -6,6 +6,7 @@ import (
 	"purser/internal/domain"
 	"purser/internal/ports"
 	"strings"
+	"sync"
 	"testing"
 )
 
@@ -14,7 +15,11 @@ import (
 // consume" rule — no HTTP fixture server needed for logic tests. Every
 // unconfigured lookup returns ports.ErrNotFound / an empty slice, matching
 // the real adapter's documented "empty is not an error" search semantics.
+// persister_test.go's concurrent-Persist tests drive this fake from
+// multiple goroutines, so every field access is guarded by mu.
 type fakeMusicBrainz struct {
+	mu sync.Mutex
+
 	artists              map[string]ports.Artist
 	releaseGroups        map[string]ports.ReleaseGroup
 	releaseGroupsByQuery map[string][]ports.ReleaseGroup // key: artist+"|"+album
@@ -46,6 +51,8 @@ func newFakeMusicBrainz() *fakeMusicBrainz {
 // ports.ErrNotFound) since the Music Persister's own tests
 // (persister_test.go) reuse this fake and do call it.
 func (f *fakeMusicBrainz) LookupArtist(_ context.Context, mbid string) (*ports.Artist, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	if a, ok := f.artists[mbid]; ok {
 		return &a, nil
 	}
@@ -57,6 +64,8 @@ func (f *fakeMusicBrainz) SearchArtists(_ context.Context, _ string) ([]ports.Ar
 }
 
 func (f *fakeMusicBrainz) LookupReleaseGroup(_ context.Context, mbid string) (*ports.ReleaseGroup, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	if rg, ok := f.releaseGroups[mbid]; ok {
 		return &rg, nil
 	}
@@ -68,11 +77,15 @@ func (f *fakeMusicBrainz) ListReleaseGroupsForArtist(_ context.Context, _ string
 }
 
 func (f *fakeMusicBrainz) SearchReleaseGroups(_ context.Context, artistName, albumName string) ([]ports.ReleaseGroup, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	f.searchReleaseGroupCalls++
 	return f.releaseGroupsByQuery[artistName+"|"+albumName], nil
 }
 
 func (f *fakeMusicBrainz) LookupRelease(_ context.Context, mbid string) (*ports.Release, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	f.lookupReleaseCalls++
 	if r, ok := f.releases[mbid]; ok {
 		return &r, nil
@@ -81,14 +94,20 @@ func (f *fakeMusicBrainz) LookupRelease(_ context.Context, mbid string) (*ports.
 }
 
 func (f *fakeMusicBrainz) ListReleasesForReleaseGroup(_ context.Context, rgMBID string) ([]ports.Release, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	return f.releasesByRG[rgMBID], nil
 }
 
 func (f *fakeMusicBrainz) SearchReleaseByBarcode(_ context.Context, barcode string) ([]ports.Release, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	return f.releasesByBarcode[barcode], nil
 }
 
 func (f *fakeMusicBrainz) LookupRecordingByISRC(_ context.Context, isrc string) ([]ports.Recording, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	if recs, ok := f.recordingsByISRC[isrc]; ok {
 		return recs, nil
 	}

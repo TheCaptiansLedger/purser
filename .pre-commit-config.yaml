@@ -11,7 +11,7 @@ repos:
       - id: go-unit-tests
         name: unit tests
         language: system
-        entry: go test -count=1 ./...
+        entry: make test-ci
         pass_filenames: false
         always_run: true
 
