@@ -4,10 +4,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
+	"path/filepath"
 	dsbadger "purser/internal/adapters/datastore/badger"
+	imagestorelocal "purser/internal/adapters/imagestore/local"
 	"purser/internal/adapters/pipeline/music"
 	"purser/internal/adapters/store/externalid"
 	"purser/internal/adapters/store/group"
+	storeimage "purser/internal/adapters/store/image"
 	"purser/internal/adapters/store/item"
 	"purser/internal/adapters/store/libraryentry"
 	"purser/internal/adapters/store/mediafile"
@@ -18,6 +22,11 @@ import (
 	"sync"
 	"testing"
 )
+
+// fakeJPEGBytes sniffs as image/jpeg via http.DetectContentType's exact-sig
+// match on the JPEG SOI marker — enough for imagestore/local's extension
+// detection, no real image data needed.
+var fakeJPEGBytes = []byte{0xFF, 0xD8, 0xFF, 0xE0, 0x00, 0x10, 'J', 'F', 'I', 'F'}
 
 // persisterDeps bundles a Persister backed by real Badger-backed
 // repositories (needed to genuinely exercise get-or-create races,
@@ -32,6 +41,8 @@ type persisterDeps struct {
 	releases       ports.MusicReleaseRepository
 	items          ports.ItemRepository
 	mediaFiles     ports.MediaFileRepository
+	images         ports.ImageRepository
+	imageStore     ports.ImageStore
 	persister      *music.Persister
 }
 
@@ -75,13 +86,22 @@ func newPersisterDeps(t *testing.T) *persisterDeps {
 	if err != nil {
 		t.Fatalf("mediafile.New returned error: %v", err)
 	}
+	images, err := storeimage.New("test", ds)
+	if err != nil {
+		t.Fatalf("storeimage.New returned error: %v", err)
+	}
+	imageStore, err := imagestorelocal.New("test", t.TempDir())
+	if err != nil {
+		t.Fatalf("imagestorelocal.New returned error: %v", err)
+	}
 
 	mb := newFakeMusicBrainz()
-	persister := music.NewPersister(mb, externalIDs, libraryEntries, groups, releases, items, mediaFiles)
+	persister := music.NewPersister(mb, externalIDs, libraryEntries, groups, releases, items, mediaFiles, images, imageStore)
 
 	return &persisterDeps{
 		mb: mb, externalIDs: externalIDs, libraryEntries: libraryEntries, groups: groups,
-		releases: releases, items: items, mediaFiles: mediaFiles, persister: persister,
+		releases: releases, items: items, mediaFiles: mediaFiles, images: images, imageStore: imageStore,
+		persister: persister,
 	}
 }
 
@@ -115,18 +135,22 @@ func hiInfidelityFixture(d *persisterDeps) string {
 	return releaseMBID
 }
 
-func track1File() *domain.UnmatchedFile {
+// track1File and track2File model the two files of the "Hi Infidelity"
+// fixture living in dir — a real directory (not just a string) since
+// Persist's cover-art step (M10b) does a genuine os.ReadDir against
+// GroupKey.
+func track1File(dir string) *domain.UnmatchedFile {
 	return &domain.UnmatchedFile{
-		ID: domain.NewID(), Path: "/music/Hi Infidelity/01 Don't Let Him Go.flac", ContentType: domain.ContentTypeMusic,
-		GroupKey: "/music/Hi Infidelity", DiscNumber: 1, TrackNumber: "1",
+		ID: domain.NewID(), Path: filepath.Join(dir, "01 Don't Let Him Go.flac"), ContentType: domain.ContentTypeMusic,
+		GroupKey: dir, DiscNumber: 1, TrackNumber: "1",
 		OSHash: "oshash-track1", SHA1: "sha1-track1", Status: domain.UnmatchedFileStatusPending,
 	}
 }
 
-func track2File() *domain.UnmatchedFile {
+func track2File(dir string) *domain.UnmatchedFile {
 	return &domain.UnmatchedFile{
-		ID: domain.NewID(), Path: "/music/Hi Infidelity/02 Keep on Loving You.flac", ContentType: domain.ContentTypeMusic,
-		GroupKey: "/music/Hi Infidelity", DiscNumber: 1, TrackNumber: "2",
+		ID: domain.NewID(), Path: filepath.Join(dir, "02 Keep on Loving You.flac"), ContentType: domain.ContentTypeMusic,
+		GroupKey: dir, DiscNumber: 1, TrackNumber: "2",
 		OSHash: "oshash-track2", SHA1: "sha1-track2", Status: domain.UnmatchedFileStatusPending,
 	}
 }
@@ -134,7 +158,8 @@ func track2File() *domain.UnmatchedFile {
 func TestPersister_Persist_HappyPath(t *testing.T) {
 	d := newPersisterDeps(t)
 	releaseMBID := hiInfidelityFixture(d)
-	files := []*domain.UnmatchedFile{track1File(), track2File()}
+	dir := t.TempDir()
+	files := []*domain.UnmatchedFile{track1File(dir), track2File(dir)}
 	candidate := domain.MatchCandidate{ExternalRef: releaseMBID, Tier: domain.MatchTierDirectID, Score: 0.98}
 
 	if err := d.persister.Persist(context.Background(), nil, candidate, files); err != nil {
@@ -191,7 +216,8 @@ func TestPersister_Persist_HappyPath(t *testing.T) {
 func TestPersister_Persist_PartialWhenATrackHasNoFile(t *testing.T) {
 	d := newPersisterDeps(t)
 	releaseMBID := hiInfidelityFixture(d)
-	files := []*domain.UnmatchedFile{track1File()} // track 2 has no file
+	dir := t.TempDir()
+	files := []*domain.UnmatchedFile{track1File(dir)} // track 2 has no file
 	candidate := domain.MatchCandidate{ExternalRef: releaseMBID}
 
 	if err := d.persister.Persist(context.Background(), nil, candidate, files); err != nil {
@@ -248,11 +274,12 @@ func (f *failNthMediaFileCreate) Create(ctx context.Context, m *domain.MediaFile
 func TestPersister_Persist_RetryAfterPartialFailureDoesNotDuplicate(t *testing.T) {
 	d := newPersisterDeps(t)
 	releaseMBID := hiInfidelityFixture(d)
-	files := []*domain.UnmatchedFile{track1File(), track2File()}
+	dir := t.TempDir()
+	files := []*domain.UnmatchedFile{track1File(dir), track2File(dir)}
 	candidate := domain.MatchCandidate{ExternalRef: releaseMBID}
 
 	failing := &failNthMediaFileCreate{MediaFileRepository: d.mediaFiles, failOnCall: 2}
-	failingPersister := music.NewPersister(d.mb, d.externalIDs, d.libraryEntries, d.groups, d.releases, d.items, failing)
+	failingPersister := music.NewPersister(d.mb, d.externalIDs, d.libraryEntries, d.groups, d.releases, d.items, failing, d.images, d.imageStore)
 
 	err := failingPersister.Persist(context.Background(), nil, candidate, files)
 	if err == nil {
@@ -353,6 +380,151 @@ func TestPersister_Persist_ConcurrentSameArtistLandsOnOneLibraryEntry(t *testing
 	}
 	if len(entries) != 1 {
 		t.Fatalf("List LibraryEntries returned %d rows, want exactly 1 (the race must not create two)", len(entries))
+	}
+}
+
+// writeFixtureImage writes fakeJPEGBytes to dir/name, failing the test on
+// error.
+func writeFixtureImage(t *testing.T, dir, name string) {
+	t.Helper()
+	if err := os.WriteFile(filepath.Join(dir, name), fakeJPEGBytes, 0o600); err != nil {
+		t.Fatalf("writing fixture image %s: %v", name, err)
+	}
+}
+
+// TestPersister_Persist_CoverArtRankingAndAttachment is the M10b happy
+// path: cover.jpg/folder.jpg/front.jpg (plus a non-convention "back.jpg"
+// and a non-image sidecar) sitting in the group's folder all attach as
+// Image rows, ranked cover > folder > front/album > other, and the actual
+// bytes round-trip back out of ImageStore — per issue #520's verification
+// checklist.
+func TestPersister_Persist_CoverArtRankingAndAttachment(t *testing.T) {
+	d := newPersisterDeps(t)
+	releaseMBID := hiInfidelityFixture(d)
+	dir := t.TempDir()
+	files := []*domain.UnmatchedFile{track1File(dir), track2File(dir)}
+	candidate := domain.MatchCandidate{ExternalRef: releaseMBID}
+
+	// Deliberately written out of rank order, to prove ranking (not
+	// directory-listing order) decides Priority.
+	writeFixtureImage(t, dir, "back.jpg")
+	writeFixtureImage(t, dir, "front.jpg")
+	writeFixtureImage(t, dir, "folder.jpg")
+	writeFixtureImage(t, dir, "cover.jpg")
+	if err := os.WriteFile(filepath.Join(dir, "album.nfo"), []byte("not an image"), 0o600); err != nil {
+		t.Fatalf("writing non-image sidecar: %v", err)
+	}
+
+	if err := d.persister.Persist(context.Background(), nil, candidate, files); err != nil {
+		t.Fatalf("Persist returned error: %v", err)
+	}
+
+	release, err := d.releases.GetByMBID(context.Background(), releaseMBID)
+	if err != nil {
+		t.Fatalf("GetByMBID returned error: %v", err)
+	}
+
+	images, _, err := d.images.List(context.Background(), "music_release", release.ID, 10, "")
+	if err != nil {
+		t.Fatalf("images.List returned error: %v", err)
+	}
+	if len(images) != 4 {
+		t.Fatalf("images.List returned %d images, want 4 (album.nfo must not attach)", len(images))
+	}
+
+	byPriority := make(map[int]*domain.Image, len(images))
+	for _, img := range images {
+		if existing, dup := byPriority[img.Priority]; dup {
+			t.Fatalf("two images share Priority %d: %+v and %+v", img.Priority, existing, img)
+		}
+		byPriority[img.Priority] = img
+	}
+	for rank := range 4 {
+		img, ok := byPriority[rank]
+		if !ok {
+			t.Fatalf("no image found with Priority %d", rank)
+		}
+		if img.OwnerType != "music_release" || img.OwnerID != release.ID {
+			t.Errorf("image at Priority %d has OwnerType/OwnerID = %q/%q, want music_release/%q", rank, img.OwnerType, img.OwnerID, release.ID)
+		}
+		if img.ImageType != domain.ImageTypePoster {
+			t.Errorf("image at Priority %d has ImageType = %q, want %q", rank, img.ImageType, domain.ImageTypePoster)
+		}
+
+		rc, err := d.imageStore.Get(context.Background(), img.URL)
+		if err != nil {
+			t.Fatalf("imageStore.Get(%q) returned error: %v", img.URL, err)
+		}
+		got := make([]byte, len(fakeJPEGBytes))
+		if _, err := rc.Read(got); err != nil {
+			t.Fatalf("reading image bytes returned error: %v", err)
+		}
+		rc.Close()
+		for i, b := range fakeJPEGBytes {
+			if got[i] != b {
+				t.Fatalf("image bytes at Priority %d = %v, want %v", rank, got, fakeJPEGBytes)
+			}
+		}
+	}
+}
+
+// TestPersister_Persist_CoverArtRetryDoesNotDuplicate confirms the
+// duplicate-attachment guard: re-running Persist against an
+// already-imported release (simulating a retry) must not create additional
+// Image rows.
+func TestPersister_Persist_CoverArtRetryDoesNotDuplicate(t *testing.T) {
+	d := newPersisterDeps(t)
+	releaseMBID := hiInfidelityFixture(d)
+	dir := t.TempDir()
+	files := []*domain.UnmatchedFile{track1File(dir), track2File(dir)}
+	candidate := domain.MatchCandidate{ExternalRef: releaseMBID}
+	writeFixtureImage(t, dir, "cover.jpg")
+
+	if err := d.persister.Persist(context.Background(), nil, candidate, files); err != nil {
+		t.Fatalf("first Persist returned error: %v", err)
+	}
+	if err := d.persister.Persist(context.Background(), nil, candidate, files); err != nil {
+		t.Fatalf("retry Persist returned error: %v", err)
+	}
+
+	release, err := d.releases.GetByMBID(context.Background(), releaseMBID)
+	if err != nil {
+		t.Fatalf("GetByMBID returned error: %v", err)
+	}
+	images, _, err := d.images.List(context.Background(), "music_release", release.ID, 10, "")
+	if err != nil {
+		t.Fatalf("images.List returned error: %v", err)
+	}
+	if len(images) != 1 {
+		t.Fatalf("images.List after retry returned %d images, want exactly 1 (no duplicates)", len(images))
+	}
+}
+
+// TestPersister_Persist_NoImagesInFolderAttachesNothing confirms a group
+// folder with no recognized image files leaves the release with zero
+// Image rows — the ordinary case for most releases, and proof
+// persistCoverArt doesn't error when there's simply nothing to attach.
+func TestPersister_Persist_NoImagesInFolderAttachesNothing(t *testing.T) {
+	d := newPersisterDeps(t)
+	releaseMBID := hiInfidelityFixture(d)
+	dir := t.TempDir()
+	files := []*domain.UnmatchedFile{track1File(dir), track2File(dir)}
+	candidate := domain.MatchCandidate{ExternalRef: releaseMBID}
+
+	if err := d.persister.Persist(context.Background(), nil, candidate, files); err != nil {
+		t.Fatalf("Persist returned error: %v", err)
+	}
+
+	release, err := d.releases.GetByMBID(context.Background(), releaseMBID)
+	if err != nil {
+		t.Fatalf("GetByMBID returned error: %v", err)
+	}
+	images, _, err := d.images.List(context.Background(), "music_release", release.ID, 10, "")
+	if err != nil {
+		t.Fatalf("images.List returned error: %v", err)
+	}
+	if len(images) != 0 {
+		t.Fatalf("images.List returned %d images, want 0", len(images))
 	}
 }
 

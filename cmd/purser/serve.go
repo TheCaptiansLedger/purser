@@ -37,6 +37,7 @@ import (
 	dsbadger "purser/internal/adapters/datastore/badger"
 	dssql "purser/internal/adapters/datastore/sql"
 	filewalkerlocal "purser/internal/adapters/filewalker/local"
+	imagestorelocal "purser/internal/adapters/imagestore/local"
 	adapterjobqueue "purser/internal/adapters/jobqueue"
 
 	adapterpipeline "purser/internal/adapters/pipeline"
@@ -122,7 +123,7 @@ func runServe(ctx context.Context, configPath string) error {
 		}
 	}()
 
-	mux, watcherCloser, err := newServeMux(sigCtx, logger, ds, cfg.Pipeline, cfg.MusicBrainz, cfg.AcoustID)
+	mux, watcherCloser, err := newServeMux(sigCtx, logger, ds, cfg.Pipeline, cfg.MusicBrainz, cfg.AcoustID, cfg.Media)
 	if err != nil {
 		return err
 	}
@@ -259,7 +260,7 @@ func openDatastore(cfg config.Database) (datastore.Datastore, io.Closer, error) 
 // Common Scan Pipeline's filesystem watcher/consumer goroutine, if one is
 // started (see wireScanPipeline); the returned io.Closer stops it during
 // shutdown and is nil when pipelineCfg.ScanRoots is empty.
-func newServeMux(ctx context.Context, logger *slog.Logger, ds datastore.Datastore, pipelineCfg config.Pipeline, mbCfg config.MusicBrainz, acoustIDCfg config.AcoustID) (*http.ServeMux, io.Closer, error) {
+func newServeMux(ctx context.Context, logger *slog.Logger, ds datastore.Datastore, pipelineCfg config.Pipeline, mbCfg config.MusicBrainz, acoustIDCfg config.AcoustID, mediaCfg config.Media) (*http.ServeMux, io.Closer, error) {
 	mux := http.NewServeMux()
 	interceptors := connect.WithInterceptors(apiconnect.NewLoggingInterceptor(logger))
 
@@ -461,7 +462,7 @@ func newServeMux(ctx context.Context, logger *slog.Logger, ds datastore.Datastor
 	// Common Scan Pipeline: split into its own function purely to keep
 	// newServeMux's cyclomatic complexity under budget — no behavior
 	// difference from being inlined here. See docs/adr/0024-pipeline-core.md.
-	watcherCloser, err := wireScanPipeline(ctx, mux, ds, logger, interceptors, jobEngine, jobAdapter, itemRepo, mediaFileRepo, libraryEntryRepo, groupRepo, externalIDRepo, musicReleaseRepo, pipelineCfg, mbCfg, acoustIDCfg)
+	watcherCloser, err := wireScanPipeline(ctx, mux, ds, logger, interceptors, jobEngine, jobAdapter, itemRepo, mediaFileRepo, libraryEntryRepo, groupRepo, externalIDRepo, musicReleaseRepo, imageRepo, pipelineCfg, mbCfg, acoustIDCfg, mediaCfg)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -523,9 +524,11 @@ func wireScanPipeline(
 	groupRepo ports.GroupRepository,
 	externalIDRepo ports.ExternalIDRepository,
 	musicReleaseRepo ports.MusicReleaseRepository,
+	imageRepo ports.ImageRepository,
 	pipelineCfg config.Pipeline,
 	mbCfg config.MusicBrainz,
 	acoustIDCfg config.AcoustID,
+	mediaCfg config.Media,
 ) (io.Closer, error) {
 	unmatchedFileRepo, err := storeunmatchedfile.New("unmatched_file", ds, storeunmatchedfile.WithLogger(logger))
 	if err != nil {
@@ -551,7 +554,15 @@ func wireScanPipeline(
 	identifierRegistry := service.NewIdentifierRegistry(pipelinemusic.NewIdentifier(mbClient, acoustIDClient, pipelinemusic.FilenameParser{}, pipelinemusic.WithLogger(logger)))
 	confidenceScoreRegistry := service.NewConfidenceScoreRegistry(pipelinemusic.NewConfidenceScorer(pipelinemusic.WithLogger(logger)))
 
-	musicPersister := pipelinemusic.NewPersister(mbClient, externalIDRepo, libraryEntryRepo, groupRepo, musicReleaseRepo, itemRepo, mediaFileRepo, pipelinemusic.WithLogger(logger))
+	// The local imagestore adapter — see docs/adr/0013-image-blob-storage.md.
+	// The Music Persister's cover-art step (M10b) is its first real caller;
+	// no other code path writes image bytes yet.
+	imageStore, err := imagestorelocal.New("image", mediaCfg.Path, imagestorelocal.WithLogger(logger))
+	if err != nil {
+		return nil, fmt.Errorf("cmd/purser: constructing image store: %w", err)
+	}
+
+	musicPersister := pipelinemusic.NewPersister(mbClient, externalIDRepo, libraryEntryRepo, groupRepo, musicReleaseRepo, itemRepo, mediaFileRepo, imageRepo, imageStore, pipelinemusic.WithLogger(logger))
 	persisterRegistry := service.NewPersisterRegistry(musicPersister)
 	decisionSvc := service.NewDecisionService(pipelineCfg.ConfidenceThreshold, persisterRegistry)
 

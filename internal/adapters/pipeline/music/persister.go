@@ -5,15 +5,23 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"os"
+	"path/filepath"
 	"purser/internal/domain"
 	"purser/internal/domain/music"
 	"purser/internal/ports"
+	"sort"
 	"strings"
 	"time"
 
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 )
+
+// musicReleaseOwnerType is the Image.OwnerType value used for cover art
+// attached to a MusicRelease — Image.OwnerType is deliberately a plain,
+// open string (not domain.EntityType), per domain.Image's doc comment.
+const musicReleaseOwnerType = "music_release"
 
 // Persister implements ports.Persister for domain.ContentTypeMusic — the
 // artist -> release group -> release -> item -> media-file cascade given a
@@ -27,6 +35,8 @@ type Persister struct {
 	releases       ports.MusicReleaseRepository
 	items          ports.ItemRepository
 	mediaFiles     ports.MediaFileRepository
+	images         ports.ImageRepository
+	imageStore     ports.ImageStore
 
 	logger *slog.Logger
 	tracer trace.Tracer
@@ -46,6 +56,8 @@ func NewPersister(
 	releases ports.MusicReleaseRepository,
 	items ports.ItemRepository,
 	mediaFiles ports.MediaFileRepository,
+	images ports.ImageRepository,
+	imageStore ports.ImageStore,
 	opts ...Option,
 ) *Persister {
 	o := defaultOptions()
@@ -60,6 +72,8 @@ func NewPersister(
 		releases:       releases,
 		items:          items,
 		mediaFiles:     mediaFiles,
+		images:         images,
+		imageStore:     imageStore,
 		logger:         o.logger.With("component", "adapters.pipeline.music.persister"),
 		tracer:         o.tracerProvider.Tracer(instrumentationName),
 	}
@@ -126,6 +140,10 @@ func (p *Persister) Persist(ctx context.Context, _ *domain.Fingerprint, candidat
 		if err := p.releases.Update(ctx, release); err != nil {
 			return fmt.Errorf("adapters/pipeline/music: updating release %s status: %w", release.ID, err)
 		}
+	}
+
+	if err := p.persistCoverArt(ctx, release, files); err != nil {
+		return fmt.Errorf("adapters/pipeline/music: persisting cover art for release %s: %w", release.ID, err)
 	}
 
 	p.logger.InfoContext(ctx, "music release persisted",
@@ -473,6 +491,146 @@ func findUnmatchedFile(files []*domain.UnmatchedFile, discNumber int, trackNumbe
 		if f.DiscNumber == discNumber && f.TrackNumber == trackNumber {
 			return f
 		}
+	}
+	return nil
+}
+
+// coverArtRankCover, coverArtRankFolder, coverArtRankFrontAlbum, and
+// coverArtRankOther are the filename-convention ranks persistCoverArt
+// assigns to Image.Priority, per docs/technical/pipeline-music-sidecar-classifier.md's
+// "cover.* highest, folder.* next, front.*/album.* after that, any other
+// image file last." Lower is higher priority (shown first).
+const (
+	coverArtRankCover = iota
+	coverArtRankFolder
+	coverArtRankFrontAlbum
+	coverArtRankOther
+)
+
+// coverArtRankNotImage marks a directory entry that isn't a recognized
+// image extension — excluded from cover-art candidates entirely.
+const coverArtRankNotImage = -1
+
+// coverArtRank returns filename's cover-art priority rank, or
+// coverArtRankNotImage if its extension isn't a recognized image type (per
+// imageExtensions, the same map sidecar_classifier.go uses — one
+// authoritative "is this an image" definition, per that file's own
+// commentary on avoiding drift between classification and attachment).
+func coverArtRank(filename string) int {
+	ext := strings.ToLower(filepath.Ext(filename))
+	if _, ok := imageExtensions[ext]; !ok {
+		return coverArtRankNotImage
+	}
+	switch strings.ToLower(strings.TrimSuffix(filepath.Base(filename), ext)) {
+	case "cover":
+		return coverArtRankCover
+	case "folder":
+		return coverArtRankFolder
+	case "front", "album":
+		return coverArtRankFrontAlbum
+	default:
+		return coverArtRankOther
+	}
+}
+
+// coverArtCandidate is one image file found by persistCoverArt's directory
+// listing, paired with its filename-convention rank.
+type coverArtCandidate struct {
+	path string
+	rank int
+}
+
+// persistCoverArt implements M10b: after release is resolved, one plain,
+// non-recursive directory listing of the group's folder
+// (files[0].GroupKey — already a folder path per M3's grouping design, see
+// docs/technical/pipeline-grouping-capability.md) for image files, ranked
+// by filename convention. All matches attach, not just the top-ranked one
+// — see docs/technical/pipeline-music-sidecar-classifier.md's "Cover art"
+// section. Guarded by a plain existence check (ImageRepository.List,
+// pageSize=1) so a Persist retry against an already-imported release never
+// re-attaches duplicates — deliberately simpler than
+// docs/adr/0026-external-id-get-or-create.md's reservation-document
+// mechanism, per that doc's "a duplicate Image row is a mess to clean up,
+// not a correctness bug on that scale" reasoning.
+func (p *Persister) persistCoverArt(ctx context.Context, release *music.Release, files []*domain.UnmatchedFile) error {
+	if len(files) == 0 {
+		return nil
+	}
+
+	existing, _, err := p.images.List(ctx, musicReleaseOwnerType, release.ID, 1, "")
+	if err != nil {
+		return fmt.Errorf("checking existing images for release %s: %w", release.ID, err)
+	}
+	if len(existing) > 0 {
+		return nil
+	}
+
+	folder := files[0].GroupKey
+	entries, err := os.ReadDir(folder)
+	if err != nil {
+		return fmt.Errorf("listing group folder %s: %w", folder, err)
+	}
+
+	var candidates []coverArtCandidate
+	for _, e := range entries {
+		if e.IsDir() {
+			continue
+		}
+		rank := coverArtRank(e.Name())
+		if rank == coverArtRankNotImage {
+			continue
+		}
+		candidates = append(candidates, coverArtCandidate{path: filepath.Join(folder, e.Name()), rank: rank})
+	}
+	sort.SliceStable(candidates, func(i, j int) bool { return candidates[i].rank < candidates[j].rank })
+
+	for _, c := range candidates {
+		if err := p.attachCoverArt(ctx, release, c); err != nil {
+			return err
+		}
+	}
+
+	if len(candidates) > 0 {
+		p.logger.InfoContext(ctx, "cover art attached",
+			"music_release.id", release.ID, "images.count", len(candidates))
+	}
+	return nil
+}
+
+// attachCoverArt writes c's bytes via ImageStore (keyed on the Image's own
+// generated ID, per docs/adr/0013-image-blob-storage.md's sharding
+// decision — not release.ID, since a release can have more than one
+// attached image and two images sharing an extension would otherwise
+// collide on the same key), then persists the Image metadata row. Bytes
+// are written before the row that points at them, per 0013's ordering
+// requirement.
+func (p *Persister) attachCoverArt(ctx context.Context, release *music.Release, c coverArtCandidate) error {
+	f, err := os.Open(c.path) //nolint:gosec // c.path is built from a real directory listing, not user input
+	if err != nil {
+		return fmt.Errorf("opening cover art %s: %w", c.path, err)
+	}
+	defer func() { _ = f.Close() }()
+
+	img := &domain.Image{
+		ID:        domain.NewID(),
+		OwnerType: musicReleaseOwnerType,
+		OwnerID:   release.ID,
+		ImageType: domain.ImageTypePoster,
+		Priority:  c.rank,
+		Source:    "local_scan",
+	}
+
+	key, err := p.imageStore.Put(ctx, musicReleaseOwnerType, img.ID, f)
+	if err != nil {
+		return fmt.Errorf("writing cover art %s: %w", c.path, err)
+	}
+	img.URL = key
+
+	if err := img.Validate(); err != nil {
+		return err
+	}
+	if err := p.images.Create(ctx, img); err != nil {
+		return fmt.Errorf("creating image row for %s: %w", c.path, err)
 	}
 	return nil
 }
