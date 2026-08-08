@@ -36,8 +36,8 @@ func NewPersisterRegistry(persisters ...ports.Persister) *PersisterRegistry {
 }
 
 // Persist implements ports.PersisterResolver.
-func (r *PersisterRegistry) Persist(ctx context.Context, contentType domain.ContentType, fingerprint *domain.Fingerprint, candidate domain.MatchCandidate, files []*domain.UnmatchedFile) error {
-	return r.resolve(contentType).Persist(ctx, fingerprint, candidate, files)
+func (r *PersisterRegistry) Persist(ctx context.Context, contentType domain.ContentType, fingerprint *domain.Fingerprint, candidates []domain.MatchCandidate, files []*domain.UnmatchedFile) error {
+	return r.resolve(contentType).Persist(ctx, fingerprint, candidates, files)
 }
 
 func (r *PersisterRegistry) resolve(contentType domain.ContentType) ports.Persister {
@@ -66,6 +66,6 @@ var _ ports.Persister = NoopPersister{}
 func (NoopPersister) ContentTypes() []domain.ContentType { return nil }
 
 // Persist implements ports.Persister: always nil, regardless of input.
-func (NoopPersister) Persist(_ context.Context, _ *domain.Fingerprint, _ domain.MatchCandidate, _ []*domain.UnmatchedFile) error {
+func (NoopPersister) Persist(_ context.Context, _ *domain.Fingerprint, _ []domain.MatchCandidate, _ []*domain.UnmatchedFile) error {
 	return nil
 }

@@ -16,15 +16,15 @@ type fakePersister struct {
 	contentTypes []domain.ContentType
 	err          error
 
-	called    bool
-	candidate domain.MatchCandidate
+	called     bool
+	candidates []domain.MatchCandidate
 }
 
 func (f *fakePersister) ContentTypes() []domain.ContentType { return f.contentTypes }
 
-func (f *fakePersister) Persist(_ context.Context, _ *domain.Fingerprint, candidate domain.MatchCandidate, _ []*domain.UnmatchedFile) error {
+func (f *fakePersister) Persist(_ context.Context, _ *domain.Fingerprint, candidates []domain.MatchCandidate, _ []*domain.UnmatchedFile) error {
 	f.called = true
-	f.candidate = candidate
+	f.candidates = candidates
 	return f.err
 }
 
@@ -32,15 +32,15 @@ func TestPersisterRegistry_DispatchesToRegisteredImplementation(t *testing.T) {
 	music := &fakePersister{contentTypes: []domain.ContentType{domain.ContentTypeMusic}}
 	registry := service.NewPersisterRegistry(music)
 
-	candidate := domain.MatchCandidate{ExternalRef: "release-mbid"}
-	if err := registry.Persist(context.Background(), domain.ContentTypeMusic, nil, candidate, nil); err != nil {
+	candidates := []domain.MatchCandidate{{ExternalRef: "release-mbid"}}
+	if err := registry.Persist(context.Background(), domain.ContentTypeMusic, nil, candidates, nil); err != nil {
 		t.Fatalf("Persist returned error: %v", err)
 	}
 	if !music.called {
 		t.Fatal("Persist did not dispatch to the registered fakePersister")
 	}
-	if music.candidate.ExternalRef != "release-mbid" {
-		t.Fatalf("Persist called with candidate %+v, want ExternalRef=release-mbid", music.candidate)
+	if len(music.candidates) != 1 || music.candidates[0].ExternalRef != "release-mbid" {
+		t.Fatalf("Persist called with candidates %+v, want [{ExternalRef: release-mbid}]", music.candidates)
 	}
 }
 
@@ -49,7 +49,7 @@ func TestPersisterRegistry_PropagatesPersisterError(t *testing.T) {
 	music := &fakePersister{contentTypes: []domain.ContentType{domain.ContentTypeMusic}, err: wantErr}
 	registry := service.NewPersisterRegistry(music)
 
-	err := registry.Persist(context.Background(), domain.ContentTypeMusic, nil, domain.MatchCandidate{}, nil)
+	err := registry.Persist(context.Background(), domain.ContentTypeMusic, nil, []domain.MatchCandidate{{}}, nil)
 	if !errors.Is(err, wantErr) {
 		t.Fatalf("Persist returned error %v, want %v", err, wantErr)
 	}
@@ -59,7 +59,7 @@ func TestPersisterRegistry_FallsBackToNoopWhenUnregistered(t *testing.T) {
 	music := &fakePersister{contentTypes: []domain.ContentType{domain.ContentTypeMusic}}
 	registry := service.NewPersisterRegistry(music)
 
-	if err := registry.Persist(context.Background(), domain.ContentTypeMovie, nil, domain.MatchCandidate{}, nil); err != nil {
+	if err := registry.Persist(context.Background(), domain.ContentTypeMovie, nil, []domain.MatchCandidate{{}}, nil); err != nil {
 		t.Fatalf("Persist returned error: %v", err)
 	}
 	if music.called {
@@ -70,14 +70,14 @@ func TestPersisterRegistry_FallsBackToNoopWhenUnregistered(t *testing.T) {
 func TestPersisterRegistry_NoRegistrationsFallsBackForEveryContentType(t *testing.T) {
 	registry := service.NewPersisterRegistry()
 
-	if err := registry.Persist(context.Background(), domain.ContentTypeMusic, nil, domain.MatchCandidate{}, nil); err != nil {
+	if err := registry.Persist(context.Background(), domain.ContentTypeMusic, nil, []domain.MatchCandidate{{}}, nil); err != nil {
 		t.Fatalf("Persist returned error: %v", err)
 	}
 }
 
 func TestNoopPersister_ReturnsNil(t *testing.T) {
 	p := service.NoopPersister{}
-	if err := p.Persist(context.Background(), nil, domain.MatchCandidate{}, nil); err != nil {
+	if err := p.Persist(context.Background(), nil, []domain.MatchCandidate{{}}, nil); err != nil {
 		t.Fatalf("Persist returned error: %v", err)
 	}
 }

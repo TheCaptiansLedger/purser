@@ -98,12 +98,20 @@ func (p *Persister) ContentTypes() []domain.ContentType {
 // this cascade needs comes from the resolved MusicBrainz release itself
 // (candidate.ExternalRef), not the group's consensus Fingerprint — the
 // parameter exists only to satisfy the shared, content-type-agnostic
-// Persister signature. No cross-repository transaction backs this: each
-// step below is look-up-or-create, so a retry after a partial failure
-// picks up wherever the previous attempt left off, per
+// Persister signature. candidates is always length 1 in practice: Music
+// dedups its grouped files to one MBID before scoring (docs/adr/0025), so
+// there is never more than one MusicBrainz release candidate per group to
+// begin with — unlike AfterDark's StashDB/ThePornDB, which score
+// independently and can both clear threshold (ADR-0027). Only candidates[0]
+// is used; a future content type that genuinely needs to merge N candidates
+// into one persisted entity gets its own Persister implementation, not a
+// loop added here. No cross-repository transaction backs this: each step
+// below is look-up-or-create, so a retry after a partial failure picks up
+// wherever the previous attempt left off, per
 // docs/technical/pipeline-music-persist.md's "No true cross-repository
 // transaction" section.
-func (p *Persister) Persist(ctx context.Context, _ *domain.Fingerprint, candidate domain.MatchCandidate, files []*domain.UnmatchedFile) error {
+func (p *Persister) Persist(ctx context.Context, _ *domain.Fingerprint, candidates []domain.MatchCandidate, files []*domain.UnmatchedFile) error {
+	candidate := candidates[0]
 	ctx, span := p.tracer.Start(ctx, "music.persister.persist", trace.WithAttributes(
 		attribute.String("music.external_ref", candidate.ExternalRef),
 	))

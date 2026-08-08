@@ -232,7 +232,7 @@ func TestPersister_Persist_HappyPath(t *testing.T) {
 	files := []*domain.UnmatchedFile{track1File(dir), track2File(dir)}
 	candidate := domain.MatchCandidate{ExternalRef: releaseMBID, Tier: domain.MatchTierDirectID, Score: 0.98}
 
-	if err := d.persister.Persist(context.Background(), nil, candidate, files); err != nil {
+	if err := d.persister.Persist(context.Background(), nil, []domain.MatchCandidate{candidate}, files); err != nil {
 		t.Fatalf("Persist returned error: %v", err)
 	}
 
@@ -290,7 +290,7 @@ func TestPersister_Persist_CallsOrganizerOncePerCreatedMediaFile(t *testing.T) {
 	files := []*domain.UnmatchedFile{track1File(dir), track2File(dir)}
 	candidate := domain.MatchCandidate{ExternalRef: releaseMBID}
 
-	if err := d.persister.Persist(context.Background(), nil, candidate, files); err != nil {
+	if err := d.persister.Persist(context.Background(), nil, []domain.MatchCandidate{candidate}, files); err != nil {
 		t.Fatalf("Persist returned error: %v", err)
 	}
 
@@ -307,7 +307,7 @@ func TestPersister_Persist_OrganizerErrorIsLoggedAndSwallowed(t *testing.T) {
 	files := []*domain.UnmatchedFile{track1File(dir), track2File(dir)}
 	candidate := domain.MatchCandidate{ExternalRef: releaseMBID}
 
-	if err := d.persister.Persist(context.Background(), nil, candidate, files); err != nil {
+	if err := d.persister.Persist(context.Background(), nil, []domain.MatchCandidate{candidate}, files); err != nil {
 		t.Fatalf("Persist returned error %v, want nil — an organizer failure must never fail Persist", err)
 	}
 
@@ -330,7 +330,7 @@ func TestPersister_Persist_PartialWhenATrackHasNoFile(t *testing.T) {
 	files := []*domain.UnmatchedFile{track1File(dir)} // track 2 has no file
 	candidate := domain.MatchCandidate{ExternalRef: releaseMBID}
 
-	if err := d.persister.Persist(context.Background(), nil, candidate, files); err != nil {
+	if err := d.persister.Persist(context.Background(), nil, []domain.MatchCandidate{candidate}, files); err != nil {
 		t.Fatalf("Persist returned error: %v", err)
 	}
 
@@ -391,7 +391,7 @@ func TestPersister_Persist_RetryAfterPartialFailureDoesNotDuplicate(t *testing.T
 	failing := &failNthMediaFileCreate{MediaFileRepository: d.mediaFiles, failOnCall: 2}
 	failingPersister := music.NewPersister(d.mb, d.externalIDs, d.libraryEntries, d.groups, d.releases, d.items, failing, d.images, d.imageStore, newFakeOrganizer())
 
-	err := failingPersister.Persist(context.Background(), nil, candidate, files)
+	err := failingPersister.Persist(context.Background(), nil, []domain.MatchCandidate{candidate}, files)
 	if err == nil {
 		t.Fatal("Persist with a forced MediaFile.Create failure returned nil, want an error")
 	}
@@ -402,7 +402,7 @@ func TestPersister_Persist_RetryAfterPartialFailureDoesNotDuplicate(t *testing.T
 	// Retry with a Persister backed by the real (non-failing) MediaFile
 	// repository — same underlying storage, so this exercises genuine
 	// resume-from-partial-failure, not a fresh attempt.
-	if err := d.persister.Persist(context.Background(), nil, candidate, files); err != nil {
+	if err := d.persister.Persist(context.Background(), nil, []domain.MatchCandidate{candidate}, files); err != nil {
 		t.Fatalf("retry Persist returned error: %v", err)
 	}
 
@@ -461,7 +461,7 @@ func TestPersister_Persist_ConcurrentSameArtistLandsOnOneLibraryEntry(t *testing
 		go func(i int) {
 			defer wg.Done()
 			candidate := domain.MatchCandidate{ExternalRef: releaseMBIDs[i]}
-			errs[i] = d.persister.Persist(context.Background(), nil, candidate, nil)
+			errs[i] = d.persister.Persist(context.Background(), nil, []domain.MatchCandidate{candidate}, nil)
 		}(i)
 	}
 	wg.Wait()
@@ -525,7 +525,7 @@ func TestPersister_Persist_CoverArtRankingAndAttachment(t *testing.T) {
 		t.Fatalf("writing non-image sidecar: %v", err)
 	}
 
-	if err := d.persister.Persist(context.Background(), nil, candidate, files); err != nil {
+	if err := d.persister.Persist(context.Background(), nil, []domain.MatchCandidate{candidate}, files); err != nil {
 		t.Fatalf("Persist returned error: %v", err)
 	}
 
@@ -601,7 +601,7 @@ func TestPersister_Persist_CoverArtInSubfolderAttaches(t *testing.T) {
 	}
 	writeFixtureImage(t, nested, "cover.jpg")
 
-	if err := d.persister.Persist(context.Background(), nil, candidate, files); err != nil {
+	if err := d.persister.Persist(context.Background(), nil, []domain.MatchCandidate{candidate}, files); err != nil {
 		t.Fatalf("Persist returned error: %v", err)
 	}
 
@@ -630,10 +630,10 @@ func TestPersister_Persist_CoverArtRetryDoesNotDuplicate(t *testing.T) {
 	candidate := domain.MatchCandidate{ExternalRef: releaseMBID}
 	writeFixtureImage(t, dir, "cover.jpg")
 
-	if err := d.persister.Persist(context.Background(), nil, candidate, files); err != nil {
+	if err := d.persister.Persist(context.Background(), nil, []domain.MatchCandidate{candidate}, files); err != nil {
 		t.Fatalf("first Persist returned error: %v", err)
 	}
-	if err := d.persister.Persist(context.Background(), nil, candidate, files); err != nil {
+	if err := d.persister.Persist(context.Background(), nil, []domain.MatchCandidate{candidate}, files); err != nil {
 		t.Fatalf("retry Persist returned error: %v", err)
 	}
 
@@ -661,7 +661,7 @@ func TestPersister_Persist_NoImagesInFolderAttachesNothing(t *testing.T) {
 	files := []*domain.UnmatchedFile{track1File(dir), track2File(dir)}
 	candidate := domain.MatchCandidate{ExternalRef: releaseMBID}
 
-	if err := d.persister.Persist(context.Background(), nil, candidate, files); err != nil {
+	if err := d.persister.Persist(context.Background(), nil, []domain.MatchCandidate{candidate}, files); err != nil {
 		t.Fatalf("Persist returned error: %v", err)
 	}
 
@@ -697,7 +697,7 @@ func TestPersister_Persist_VariousArtistsFirstImportNeedsNoSeedStep(t *testing.T
 	}
 
 	candidate := domain.MatchCandidate{ExternalRef: releaseMBID}
-	if err := d.persister.Persist(context.Background(), nil, candidate, nil); err != nil {
+	if err := d.persister.Persist(context.Background(), nil, []domain.MatchCandidate{candidate}, nil); err != nil {
 		t.Fatalf("Persist returned error: %v", err)
 	}
 

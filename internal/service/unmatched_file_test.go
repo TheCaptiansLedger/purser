@@ -347,8 +347,11 @@ func TestUnmatchedFileService_AcceptCandidate_ExistingCandidateMatch(t *testing.
 	if !persister.called {
 		t.Fatal("persister.Persist was not called")
 	}
-	if persister.candidate.ExternalRef != existing.ExternalRef || persister.candidate.Tier != existing.Tier || persister.candidate.Score != existing.Score {
-		t.Fatalf("persister.candidate = %+v, want the existing ranked candidate %+v (Tier/Score intact)", persister.candidate, existing)
+	if len(persister.candidates) != 1 {
+		t.Fatalf("persister.candidates has %d entries, want 1", len(persister.candidates))
+	}
+	if persister.candidates[0].ExternalRef != existing.ExternalRef || persister.candidates[0].Tier != existing.Tier || persister.candidates[0].Score != existing.Score {
+		t.Fatalf("persister.candidates[0] = %+v, want the existing ranked candidate %+v (Tier/Score intact)", persister.candidates[0], existing)
 	}
 	if persister.contentType != domain.ContentTypeMusic {
 		t.Fatalf("persister.contentType = %q, want %q", persister.contentType, domain.ContentTypeMusic)
@@ -378,11 +381,14 @@ func TestUnmatchedFileService_AcceptCandidate_AdHocExternalRef(t *testing.T) {
 	if !persister.called {
 		t.Fatal("persister.Persist was not called")
 	}
-	if persister.candidate.ExternalRef != "raw-mbid-not-in-list" {
-		t.Fatalf("persister.candidate.ExternalRef = %q, want %q", persister.candidate.ExternalRef, "raw-mbid-not-in-list")
+	if len(persister.candidates) != 1 {
+		t.Fatalf("persister.candidates has %d entries, want 1", len(persister.candidates))
 	}
-	if persister.candidate.Tier != "" || persister.candidate.Score != 0 {
-		t.Fatalf("ad-hoc candidate = %+v, want no Tier/Score (bypasses ConfidenceScore entirely)", persister.candidate)
+	if persister.candidates[0].ExternalRef != "raw-mbid-not-in-list" {
+		t.Fatalf("persister.candidates[0].ExternalRef = %q, want %q", persister.candidates[0].ExternalRef, "raw-mbid-not-in-list")
+	}
+	if persister.candidates[0].Tier != "" || persister.candidates[0].Score != 0 {
+		t.Fatalf("ad-hoc candidate = %+v, want no Tier/Score (bypasses ConfidenceScore entirely)", persister.candidates[0])
 	}
 	if len(repo.deleteBatchIDs) != 1 {
 		t.Fatalf("DeleteBatch called with %d ids, want 1", len(repo.deleteBatchIDs))

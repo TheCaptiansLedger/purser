@@ -18,15 +18,15 @@ type fakePersisterResolver struct {
 	called      bool
 	contentType domain.ContentType
 	fingerprint *domain.Fingerprint
-	candidate   domain.MatchCandidate
+	candidates  []domain.MatchCandidate
 	files       []*domain.UnmatchedFile
 }
 
-func (f *fakePersisterResolver) Persist(_ context.Context, contentType domain.ContentType, fingerprint *domain.Fingerprint, candidate domain.MatchCandidate, files []*domain.UnmatchedFile) error {
+func (f *fakePersisterResolver) Persist(_ context.Context, contentType domain.ContentType, fingerprint *domain.Fingerprint, candidates []domain.MatchCandidate, files []*domain.UnmatchedFile) error {
 	f.called = true
 	f.contentType = contentType
 	f.fingerprint = fingerprint
-	f.candidate = candidate
+	f.candidates = candidates
 	f.files = files
 	return f.err
 }
@@ -78,13 +78,18 @@ func TestDecisionService_Decide_EmptyCandidatesLeftAlone(t *testing.T) {
 	}
 }
 
-func TestDecisionService_Decide_PicksTopScoredCandidateRegardlessOfOrder(t *testing.T) {
+// TestDecisionService_Decide_CollectsEveryCandidateAtOrAboveThreshold covers
+// the N-candidates case: every provider (e.g. StashDB and ThePornDB scored
+// independently, per ADR-0027) that clears threshold is collected and
+// dispatched together, in input order — DecisionService never picks a
+// single winner or re-sorts by Score.
+func TestDecisionService_Decide_CollectsEveryCandidateAtOrAboveThreshold(t *testing.T) {
 	resolver := &fakePersisterResolver{}
 	svc := service.NewDecisionService(0.75, resolver)
 	candidates := []domain.MatchCandidate{
-		{ExternalRef: "runner-up", Score: 0.8},
-		{ExternalRef: "winner", Score: 0.95},
-		{ExternalRef: "also-ran", Score: 0.5},
+		{ExternalRef: "stashdb", Score: 0.8},
+		{ExternalRef: "below-threshold", Score: 0.5},
+		{ExternalRef: "theporndb", Score: 0.95},
 	}
 
 	persisted, err := svc.Decide(context.Background(), domain.ContentTypeMusic, &domain.Fingerprint{}, candidates, nil)
@@ -94,8 +99,14 @@ func TestDecisionService_Decide_PicksTopScoredCandidateRegardlessOfOrder(t *test
 	if !persisted {
 		t.Fatal("Decide() persisted = false, want true")
 	}
-	if resolver.candidate.ExternalRef != "winner" {
-		t.Fatalf("Persist called with candidate %+v, want ExternalRef=winner", resolver.candidate)
+	want := []string{"stashdb", "theporndb"}
+	if len(resolver.candidates) != len(want) {
+		t.Fatalf("Persist called with %d candidates, want %d: %+v", len(resolver.candidates), len(want), resolver.candidates)
+	}
+	for i, ref := range want {
+		if resolver.candidates[i].ExternalRef != ref {
+			t.Fatalf("Persist candidates[%d].ExternalRef = %q, want %q (input order preserved, no ranking)", i, resolver.candidates[i].ExternalRef, ref)
+		}
 	}
 }
 

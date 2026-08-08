@@ -173,7 +173,7 @@ func (s *UnmatchedFileService) AcceptCandidate(ctx context.Context, groupKey, ex
 		}
 	}
 
-	if err := s.persister.Persist(ctx, rows[0].ContentType, fingerprint, *candidate, rows); err != nil {
+	if err := s.persister.Persist(ctx, rows[0].ContentType, fingerprint, []domain.MatchCandidate{*candidate}, rows); err != nil {
 		return err
 	}
 

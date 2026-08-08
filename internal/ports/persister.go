@@ -6,14 +6,18 @@ import (
 )
 
 // Persister is a content-type-scoped capability: given a group's consensus
-// domain.Fingerprint, the winning domain.MatchCandidate (either the shared
-// DecisionService's auto-import pick or a human's manual accept), and the
-// group's domain.UnmatchedFile rows, create the real library rows (Artist/
-// Release Group/Release/Item/MediaFile for Music; the equivalent cascade for
-// any other content type) and return. What that cascade looks like is
-// entirely module-owned — nothing about it belongs in the shared decision
-// service that calls it. Fanned out to by PersisterResolver via
-// ContentTypes(), the same registry pattern
+// domain.Fingerprint, the winning domain.MatchCandidate(s) (either the
+// shared DecisionService's every-above-threshold set — one per independently
+// scored provider, e.g. StashDB and ThePornDB, per
+// docs/adr/0027-provider-independence.md — or a human's single manual
+// accept), and the group's domain.UnmatchedFile rows, create the real
+// library rows (Artist/Release Group/Release/Item/MediaFile for Music; the
+// equivalent cascade for any other content type) and return. What that
+// cascade looks like, including how multiple candidates get merged into one
+// set of rows, is entirely module-owned — nothing about it belongs in the
+// shared decision service that calls it. candidates is never empty: callers
+// only invoke Persist once at least one candidate exists. Fanned out to by
+// PersisterResolver via ContentTypes(), the same registry pattern
 // Grouping/FileFingerprinter/Identifier/ConfidenceScorer already
 // established — adding a new content type's persistence cascade is a new
 // Persister implementation, never an edit to the registry or its caller.
@@ -23,11 +27,11 @@ type Persister interface {
 	// implementation handles.
 	ContentTypes() []domain.ContentType
 
-	// Persist creates the real library rows for candidate against
+	// Persist creates the real library rows for candidates against
 	// fingerprint and files. On success, the caller is responsible for
 	// removing files from the review queue — Persist itself only creates,
 	// never deletes.
-	Persist(ctx context.Context, fingerprint *domain.Fingerprint, candidate domain.MatchCandidate, files []*domain.UnmatchedFile) error
+	Persist(ctx context.Context, fingerprint *domain.Fingerprint, candidates []domain.MatchCandidate, files []*domain.UnmatchedFile) error
 }
 
 // PersisterResolver is the fan-out dispatch capability a decide/persist
@@ -39,5 +43,5 @@ type Persister interface {
 // sees a contentType argument; the resolver is what decides which one to
 // call.
 type PersisterResolver interface {
-	Persist(ctx context.Context, contentType domain.ContentType, fingerprint *domain.Fingerprint, candidate domain.MatchCandidate, files []*domain.UnmatchedFile) error
+	Persist(ctx context.Context, contentType domain.ContentType, fingerprint *domain.Fingerprint, candidates []domain.MatchCandidate, files []*domain.UnmatchedFile) error
 }
