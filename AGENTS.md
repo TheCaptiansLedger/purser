@@ -42,6 +42,7 @@ Do not read all project documentation. Determine what the task touches, then loa
 - [docs/adr/0024-pipeline-core.md](docs/adr/0024-pipeline-core.md) — scan/fingerprint/identify/organize architecture shared across content types; required for any disk-scan, `UnmatchedFile`, `FileFingerprinter`/identifier, or Organizer code
 - [docs/adr/0025-music-identification-confidence-scoring.md](docs/adr/0025-music-identification-confidence-scoring.md) — Music's grouping/candidate-generation/confidence-scoring design on top of the pipeline core; required for any Music `FileFingerprinter`, grouping, identifier, or `ConfidenceScore` code, or any `UnmatchedFile` `GroupKey`/`Fingerprint`/`MatchCandidate` change
 - [docs/adr/0026-external-id-get-or-create.md](docs/adr/0026-external-id-get-or-create.md) — get-or-create on `ExternalIDRepository` via a reservation document, extending 0019's pattern to `(EntityType, Source, Value)`; required for any `internal/adapters/store/externalid` change, or any code that creates a kernel entity from a provider's external identifier (get-or-create-by-external-ID)
+- [docs/adr/0027-provider-independence.md](docs/adr/0027-provider-independence.md) — one port/adapter/Connect service per external provider, read-only passthrough, no server-side ranking or merging across providers; required for any new or changed metadata/image provider port, adapter, or lookup RPC (StashDB, ThePornDB, TheAudioDB, fanart.tv, MusicBrainz, or any future provider)
 
 **After finishing any ask/task/session:** run the self-audit checklist in [0001](docs/adr/0001-hexagonal-architecture.md) and [0002](docs/adr/0002-solid-design-principles.md) (and [0003](docs/adr/0003-go-testing-standards.md)/[0004](docs/adr/0004-typescript-react-testing-standards.md) if tests were written) and state the result explicitly — do not skip this silently.
 
@@ -137,6 +138,15 @@ Documentation under `docs/` (architecture overview, development guides, technica
 - [docs/adr/0007-telemetry.md](docs/adr/0007-telemetry.md)
 - [docs/adr/0008-structured-logging.md](docs/adr/0008-structured-logging.md)
 
+### Building an external metadata/image provider adapter or lookup RPC (StashDB, ThePornDB, TheAudioDB, fanart.tv, MusicBrainz, or any future provider)
+- [docs/adr/0027-provider-independence.md](docs/adr/0027-provider-independence.md) — one port/adapter/Connect service per provider, read-only passthrough, no server-side ranking or merging
+- [docs/adr/0011-api-design.md](docs/adr/0011-api-design.md)
+- [docs/adr/0001-hexagonal-architecture.md](docs/adr/0001-hexagonal-architecture.md)
+- [docs/adr/0002-solid-design-principles.md](docs/adr/0002-solid-design-principles.md)
+- [docs/adr/0003-go-testing-standards.md](docs/adr/0003-go-testing-standards.md)
+- [docs/adr/0007-telemetry.md](docs/adr/0007-telemetry.md)
+- [docs/adr/0008-structured-logging.md](docs/adr/0008-structured-logging.md)
+
 ### Building search (`internal/adapters/searchindex`)
 - [docs/adr/0014-search-embedded-full-text-index.md](docs/adr/0014-search-embedded-full-text-index.md)
 - [docs/adr/0001-hexagonal-architecture.md](docs/adr/0001-hexagonal-architecture.md)
@@ -154,6 +164,7 @@ Documentation under `docs/` (architecture overview, development guides, technica
 ### Building the Music module (`internal/domain/music`, `internal/adapters/store/music`, `proto/purser/music/v1`)
 - [docs/adr/0021-music-domain-model.md](docs/adr/0021-music-domain-model.md)
 - [docs/adr/0025-music-identification-confidence-scoring.md](docs/adr/0025-music-identification-confidence-scoring.md) — if the change touches Music's scan-pipeline identification (grouping, fingerprinting, candidate generation, confidence scoring), not just the CRUD/domain layer
+- [docs/adr/0027-provider-independence.md](docs/adr/0027-provider-independence.md) — if the change adds/touches a manual, human-driven provider lookup RPC (MusicBrainz search/browse, or a future image-provider lookup) — distinct from 0025's automatic scan-time identification
 - [docs/adr/0026-external-id-get-or-create.md](docs/adr/0026-external-id-get-or-create.md) — if the change touches decide/persist wiring (creating/finding an Artist or Release Group from a MusicBrainz ID), or `MusicRelease`'s own MBID uniqueness
 - [docs/adr/0012-datastore-persistence.md](docs/adr/0012-datastore-persistence.md)
 - [docs/adr/0015-deletion-impact-and-composing-services.md](docs/adr/0015-deletion-impact-and-composing-services.md) — the Music release deletion service, and the required `GroupDeletionService`/`LibraryEntryDeletionService` referrer updates

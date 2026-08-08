@@ -45,6 +45,7 @@ ADR wins.
 | [0024](0024-pipeline-core.md) | Pipeline Core: Scan, Fingerprint, Identify, and Organize | Accepted |
 | [0025](0025-music-identification-confidence-scoring.md) | Music Identification: Grouping and Confidence Scoring | Proposed |
 | [0026](0026-external-id-get-or-create.md) | ExternalID Get-or-Create: Extending the Reservation-Document Pattern to (EntityType, Source, Value) | Proposed |
+| [0027](0027-provider-independence.md) | Provider Independence: One RPC per Provider, No Server-Side Merge | Proposed |
 
 ## Adding a new ADR
 
