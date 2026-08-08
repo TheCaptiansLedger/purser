@@ -284,7 +284,15 @@ func TestWatcher_ConcurrentBursts(t *testing.T) {
 	root := t.TempDir()
 	cfg := fswatch.DefaultConfig()
 	cfg.CoalesceDepth = 1
-	cfg.SettleWindow = 30 * time.Millisecond
+	// 30ms was too tight: under a contended scheduler (as seen in CI), the
+	// gap between a unit's first Emit (directory create) and its next one
+	// (first file create, after a real mkdir/write) can exceed a very
+	// short settle window, firing a premature "created" event with zero
+	// files followed by a second "updated" event once the file events
+	// arrive — a real flake in the test's margin, not a watcher bug.
+	// Reproduced locally under GOMAXPROCS=1/2; stable at 250ms across 20+
+	// runs under the same contention.
+	cfg.SettleWindow = 250 * time.Millisecond
 	cfg.MaxWait = 3 * time.Second
 
 	w, src := startTestWatcher(t, root, cfg)
