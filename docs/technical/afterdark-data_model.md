@@ -1,10 +1,9 @@
 # AfterDark Module — Data Model Proposal
 
-> Status: proposal, not yet an ADR-backed decision. Second module in the
-> per-module documentation pass (after [Music](music-data_model.md)), same
-> template, same ground rules: nothing here commits to a Go type, People/Tags
-> are deferred as external shared concepts, and this doc is independently
-> derived rather than assuming any prior shape is correct.
+> Status: decided (Section 5) during AfterDark scan-pipeline planning — no
+> new ADR, since nothing here is a new architectural decision, just 0024/
+> 0026/0027 applied to a new content type. Sections 1-4 remain the original
+> research pass; Section 5 records the resolutions.
 
 Scope decision from the planning conversation: **AfterDark is one module**,
 covering both western adult content and JAV, via StashDB and ThePornDB
@@ -325,42 +324,45 @@ frozen `v1/` snapshot). That recovered doc is the actual prior art here:
 
 ---
 
-## 5. Open questions
+## 5. Resolved (was "Open questions" — decided during scan-pipeline planning)
 
-1. **Fingerprint matching as a shared, first-class pipeline concept** — see
-   Section 3. If the pipeline core (point 9) is where file-identification
-   logic should live, does it need a generic `ContentFingerprintSource` port
-   usable by both AfterDark (StashDB/ThePornDB hashes) and, potentially,
-   Music (AcoustID)? This is the single highest-value question this doc
-   raises for the cross-module synthesis phase.
-2. **StashDB vs. ThePornDB as primary identity source.** They already
-   cross-reference each other by performer URL. Does one become canonical
-   (with the other as enrichment/fallback, mirroring Music's
-   MusicBrainz-is-the-join-key pattern), or are both treated as
-   co-equal and reconciled by fingerprint match? StashDB's richer tag
-   taxonomy and crowd-edit workflow argue for it being primary; ThePornDB's
-   broader site coverage and native JAV `/jav?parse=` code-lookup argue the
-   other way for JAV specifically.
-3. **Tag category/group structure** (StashDB) vs. flat `(key, value,
-   scope)` (v1's shared `Tag` shape). Does AfterDark need `Tag` to grow a
-   category concept, and if so, is that shared-domain change justified by
-   this module alone, or should it wait to see if another module needs it
-   too?
-4. **Performer alias modeling mismatch** — StashDB's flat `aliases[]` vs.
-   ThePornDB's separate-entity-with-parent-link model. Reconciling these
-   into one shared **People** alias mechanism (v1's `Person.Aliases[]`,
-   reused successfully by Music) needs a decision on which shape wins, or
-   whether ThePornDB's alias-records get flattened into strings on import.
-5. **Self-hosted Stash instance** (`STASH_URL` in `.env`) — not one of the
-   two requested providers, not investigated in this pass, but worth a
-   deliberate decision on whether it's a third AfterDark data source
-   (the user's own curated local library, potentially higher-trust than
-   either community database) or entirely out of scope for the metadata
-   pipeline.
-6. **Contributing back to StashDB** (`submitFingerprint`,
-   `submitSceneDraft`) — v1's Music pipeline was read-only against every
-   provider. StashDB supports write-back. Whether Purser should ever
-   submit fingerprints/edits is a product decision, not a data-model one,
-   but it affects whether the StashDB port needs a write capability at all
-   (ISP-relevant: a read-only `MetadataSource` vs. an additional
-   write-capable interface only StashDB would implement).
+1. **No new domain types.** Scene/JAV-Title = kernel `domain.Item`
+   (`ContentType=adult`), `Metadata["kind"]="scene"|"jav_title"` as the
+   display discriminator. Studio/Network = kernel `domain.LibraryEntry`
+   (`Kind=studio|network`). Performer = `domain.Person` +
+   `afterdark.PerformerProfile` + `ItemPerson` credits. No `music.Release`-
+   style edition tier — a scene has no pressing/edition concept.
+2. **Fingerprint matching is not a new shared port.** Reuses 0024's
+   existing per-content-type `FileFingerprinter`/`Identifier` pattern, same
+   as Music's AcoustID. In scope: both OSHash (`pkg/filehash.OSHash`,
+   already implemented) and PHash (new — a video perceptual hash matching
+   Stash's own algorithm closely enough to be lookup-compatible; doesn't
+   exist in the repo yet, real work, not deferred). Fingerprint is the
+   *primary* identification tier for this module (reversed from Music,
+   where AcoustID was a fallback) since both providers converge on the
+   same hash for the same content.
+3. **StashDB vs. ThePornDB: neither is canonical, ever — automatic or
+   manual.** Each gets its own port/adapter/Connect service
+   ([0027](../adr/0027-provider-independence.md)). Inside the automatic
+   scan pipeline, each provider's match is scored independently; every one
+   that clears the confidence threshold gets merged into the persisted
+   scene (external IDs/tags/images unioned). Scalar-field conflicts
+   (Title/Overview/Date) resolve via a user-configured provider priority
+   list, not a hardcoded pick. Below threshold: existing manual
+   `AcceptCandidate` path (one candidate or a raw ID) — any human-side
+   merging is client/UI work, not backend.
+4. **Tag category/group structure flattens** into the existing flat
+   `Tag(scope,key,value)` shape at ingest (`key="category:group"` style).
+   No kernel `Tag` schema change — revisit only if a second module needs
+   real category structure.
+5. **Performer alias mismatch flattens** into kernel `Person.Aliases[]`.
+   StashDB's `aliases[]` maps directly. ThePornDB's parent-linked alias
+   performer's name becomes a string in the canonical performer's
+   `Aliases[]`; its own ThePornDB ID is *also* linked via its own
+   `ExternalID` row to the same `Person` (multiple `ExternalID` rows can
+   point at one `EntityID`, already schema-legal).
+6. **Self-hosted Stash instance (`STASH_URL`)** — out of scope. Not one of
+   the two providers this module targets.
+7. **Contributing back to StashDB** — out of scope. Read-only, matching
+   [0027](../adr/0027-provider-independence.md)'s read-only-passthrough
+   rule; no write capability built.
