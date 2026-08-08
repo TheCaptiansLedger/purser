@@ -518,6 +518,47 @@ func TestLoad_EnvOverridesStashDBEnabledAndAPIKey(t *testing.T) {
 	}
 }
 
+func TestLoad_UsesDefaultThePornDBDisabledWithNoAPIKey(t *testing.T) {
+	// Defensive against the same ambient-.env risk StashDB's identical test
+	// documents — PURSER_SOURCES_TPDB_* isn't in this repo's .env today,
+	// but the promotion gap docs/technical/afterdark-data_model.md Section 1
+	// flags (only the legacy unprefixed THEPORNDB_API_KEY is set there) is
+	// worth guarding against here rather than after it lands.
+	unsetEnvForTest(t, "PURSER_SOURCES_TPDB_ENABLED", "PURSER_SOURCES_TPDB_API_KEY")
+
+	cfg, err := config.Load(viper.New(), "")
+	if err != nil {
+		t.Fatalf("Load returned error: %v", err)
+	}
+	if cfg.Sources.ThePornDB.Enabled {
+		t.Fatal("Load returned Sources.ThePornDB.Enabled=true by default, want false")
+	}
+	if cfg.Sources.ThePornDB.APIKey != "" {
+		t.Fatalf("Load returned Sources.ThePornDB.APIKey=%q by default, want empty", cfg.Sources.ThePornDB.APIKey)
+	}
+}
+
+// PURSER_SOURCES_TPDB_* is not a made-up convention — it's already
+// documented in .env.example (PURSER_SOURCES_TPDB_ENABLED/
+// PURSER_SOURCES_TPDB_API_KEY), hence Config.Sources.ThePornDB with
+// mapstructure "tpdb" rather than a flat Config.ThePornDB or a "theporndb"
+// key — see config.Sources' own doc comment.
+func TestLoad_EnvOverridesThePornDBEnabledAndAPIKey(t *testing.T) {
+	t.Setenv("PURSER_SOURCES_TPDB_ENABLED", "true")
+	t.Setenv("PURSER_SOURCES_TPDB_API_KEY", "test-key")
+
+	cfg, err := config.Load(viper.New(), "")
+	if err != nil {
+		t.Fatalf("Load returned error: %v", err)
+	}
+	if !cfg.Sources.ThePornDB.Enabled {
+		t.Fatal("Load returned Sources.ThePornDB.Enabled=false, want true from env override")
+	}
+	if cfg.Sources.ThePornDB.APIKey != "test-key" {
+		t.Fatalf("Load returned Sources.ThePornDB.APIKey=%q, want %q", cfg.Sources.ThePornDB.APIKey, "test-key")
+	}
+}
+
 // unsetEnvForTest removes each of keys from the process environment for
 // the duration of t, restoring whatever value (set or unset) it found
 // beforehand once t completes. Unlike t.Setenv, this can actually remove a

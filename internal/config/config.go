@@ -107,6 +107,8 @@ func Load(v *viper.Viper, configPath string) (Config, error) {
 	v.SetDefault("acoustid.api_key", defaults.AcoustID.APIKey)
 	v.SetDefault("sources.stashdb.enabled", defaults.Sources.StashDB.Enabled)
 	v.SetDefault("sources.stashdb.api_key", defaults.Sources.StashDB.APIKey)
+	v.SetDefault("sources.tpdb.enabled", defaults.Sources.ThePornDB.Enabled)
+	v.SetDefault("sources.tpdb.api_key", defaults.Sources.ThePornDB.APIKey)
 
 	v.SetEnvPrefix("purser")
 	v.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
