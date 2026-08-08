@@ -124,7 +124,12 @@ _k6-flow: $(GOBIN)/k6
 # accept_candidate_test.js scans .cidata/scan-music (real, tagged audio
 # fixtures copied from test/k6/fixtures/musicbrainz-audio/ — see that
 # directory's own generation notes) against the fixture release
-# internal/adapters/musicbrainz/fixtureserver defines.
+# internal/adapters/musicbrainz/fixtureserver defines. The organize.adult
+# entry gives test/k6/grpc/organizer_test.js (M11b) a real destination to
+# render into for content_type "adult" (which has no registered
+# TemplateDataBuilder — the template only uses generic keys: Metadata
+# passthrough + Ext) without colliding across reruns against a long-lived
+# dev server, since the suite renders a fresh, unique k6_marker each run.
 _k6-app-start: $(GOBIN)/k6
 	rm -rf .cidata
 	mkdir -p .cidata
@@ -133,7 +138,7 @@ _k6-app-start: $(GOBIN)/k6
 	mkdir -p .cidata/scan-music/ambiguous
 	cp test/k6/fixtures/musicbrainz-audio/*.flac .cidata/scan-music/
 	cp test/k6/fixtures/musicbrainz-audio/ambiguous/*.flac .cidata/scan-music/ambiguous/
-	printf 'pipeline:\n  scan_roots:\n    - path: %s/.cidata/scan-music\n      content_type: music\n' "$(CURDIR)" > .cidata/purser-ci.yaml
+	printf 'pipeline:\n  scan_roots:\n    - path: %s/.cidata/scan-music\n      content_type: music\n  organize:\n    adult:\n      root: %s/.cidata/organized\n      template: "{{.Metadata.k6_marker}}{{.Ext}}"\n' "$(CURDIR)" "$(CURDIR)" > .cidata/purser-ci.yaml
 	go build -o .cidata/purser ./cmd/purser
 	PURSER_PATHS_DATA_DIR=$(CURDIR)/.cidata/data PURSER_MUSICBRAINZ_MOCK=1 .cidata/purser serve --config $(CURDIR)/.cidata/purser-ci.yaml & echo $$! > .cidata/purser.pid
 	@for i in $$(seq 1 60); do nc -z localhost 7474 2>/dev/null && exit 0; sleep 0.5; done; \

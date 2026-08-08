@@ -11,6 +11,7 @@ package pipeline
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -241,6 +242,7 @@ func (e *ScanExecutor) runFingerprintStep(ctx context.Context, r *pkgjobqueue.Ru
 // consensus write and no identify/decide attempt; content types this
 // feature doesn't touch yet get no writes at all.
 func (e *ScanExecutor) decideAndPersistGroups(ctx context.Context, r *pkgjobqueue.Runner, contentType domain.ContentType, scanRoot string, fingerprintsByGroup map[string][]domain.Fingerprint, taskIDsByGroup map[string][]string) error {
+	var groupErrs error
 	for groupKey, fingerprints := range fingerprintsByGroup {
 		consensus, err := e.fingerprinter.Consensus(ctx, contentType, fingerprints)
 		if err != nil {
@@ -265,11 +267,39 @@ func (e *ScanExecutor) decideAndPersistGroups(ctx context.Context, r *pkgjobqueu
 		}
 
 		if err := e.decideAndPersistGroup(ctx, r, contentType, scanRoot, groupKey, consensus, rows, taskIDsByGroup[groupKey]); err != nil {
+			var groupErr *groupBusinessError
+			if errors.As(err, &groupErr) {
+				// This group's own identify/score/decide pass failed
+				// (already recorded as a failed "decide" Step on every
+				// task in the group) — a bad MusicBrainz response, a
+				// transient timeout, or similar doesn't get to take
+				// every other group in this Job down with it. Keep
+				// going, and surface the failure at the Job level once
+				// every group has had its own independent attempt.
+				groupErrs = errors.Join(groupErrs, err)
+				continue
+			}
+			// Anything else here is a Runner/store failure (StartStep,
+			// FinishStep, DeleteBatch) — step-tracking itself can no
+			// longer be trusted, so this does abort the whole Job,
+			// unlike a groupBusinessError.
 			return err
 		}
 	}
-	return nil
+	return groupErrs
 }
+
+// groupBusinessError marks a decideAndPersistGroup failure that has
+// already been recorded on its group's "decide" Steps (identify, score, or
+// Decide itself returning an error) — decideAndPersistGroups uses this
+// marker to keep processing the Job's remaining groups instead of
+// aborting the whole Job over one group's failure. An unmarked error
+// means Step-tracking (the Runner) itself failed, which still aborts
+// immediately — see decideAndPersistGroups.
+type groupBusinessError struct{ err error }
+
+func (e *groupBusinessError) Error() string { return e.err.Error() }
+func (e *groupBusinessError) Unwrap() error { return e.err }
 
 // decideAndPersistGroup runs one group's identify -> score -> decide pass
 // and, on a successful auto-import, deletes its rows via DeleteBatch — the
@@ -280,6 +310,18 @@ func (e *ScanExecutor) decideAndPersistGroups(ctx context.Context, r *pkgjobqueu
 // every task, per docs/technical/pipeline-music-persist.md's "Where this
 // runs" section (the same convention M7's own group-level work already
 // follows).
+//
+// A group that isn't auto-imported (below threshold, or Decide itself
+// failed) has its real scored candidates saved onto its rows via
+// UpdateBatch before returning — domain.UnmatchedFile.Candidates has
+// existed since M1b, and AcceptCandidateRequest's own doc comment already
+// describes "a human picks any ranked candidate" as the primary review
+// flow, but nothing ever actually wrote a score into it: GetUnmatchedFile/
+// ListUnmatchedFiles/ListGroupUnmatchedFiles returned an empty Candidates
+// list for every group that didn't clear the threshold, 100% of the time
+// — the real match and its confidence score were computed, then thrown
+// away. See docs/technical/pipeline-music-organizer.md's manual
+// verification and purser#522.
 func (e *ScanExecutor) decideAndPersistGroup(ctx context.Context, r *pkgjobqueue.Runner, contentType domain.ContentType, scanRoot, groupKey string, consensus domain.Fingerprint, rows []*domain.UnmatchedFile, taskIDs []string) error {
 	paths := make([]string, len(rows))
 	for i, row := range rows {
@@ -296,9 +338,17 @@ func (e *ScanExecutor) decideAndPersistGroup(ctx context.Context, r *pkgjobqueue
 		return e.finishDecideSteps(ctx, r, taskIDs, nil, false, fmt.Errorf("pipeline: scoring group %q: %w", groupKey, err))
 	}
 
-	persisted, err := e.decision.Decide(ctx, contentType, &consensus, scored, rows)
-	if err != nil {
-		return e.finishDecideSteps(ctx, r, taskIDs, scored, false, fmt.Errorf("pipeline: deciding group %q: %w", groupKey, err))
+	persisted, decideErr := e.decision.Decide(ctx, contentType, &consensus, scored, rows)
+	if !persisted {
+		for _, row := range rows {
+			row.Candidates = scored
+		}
+		if err := e.repo.UpdateBatch(ctx, rows); err != nil {
+			return fmt.Errorf("pipeline: persisting candidates for group %q: %w", groupKey, err)
+		}
+	}
+	if decideErr != nil {
+		return e.finishDecideSteps(ctx, r, taskIDs, scored, false, fmt.Errorf("pipeline: deciding group %q: %w", groupKey, decideErr))
 	}
 
 	if err := e.finishDecideSteps(ctx, r, taskIDs, scored, persisted, nil); err != nil {
@@ -319,9 +369,25 @@ func (e *ScanExecutor) decideAndPersistGroup(ctx context.Context, r *pkgjobqueue
 }
 
 // finishDecideSteps records the "decide" Step's outcome (candidate_count,
-// persisted) on every task in the group, then returns cause unchanged
-// (nil on success) — the one place decideAndPersistGroup both reports
-// step-tracking and propagates whatever caused it to be called.
+// persisted, and the full scored candidate list) on every task in the
+// group, then returns cause wrapped in groupBusinessError (nil on
+// success) — the one place decideAndPersistGroup both reports
+// step-tracking and propagates whatever caused it to be called. cause
+// comes back wrapped, not raw, so decideAndPersistGroups' caller can tell
+// "this group's own business logic failed, already recorded on its
+// Steps" apart from a Runner/step-tracking failure (the unwrapped errors
+// StartStep/FinishStep themselves can return below) — only the latter
+// should abort the whole Job.
+//
+// Detail["candidates"] is every scored domain.MatchCandidate (ExternalRef,
+// Title, Tier, Score, Signals, Metadata), JSON-encoded — per ADR-0023's
+// own framing of Step.Detail ("a matched MBID, a computed confidence
+// score"), this is exactly what it's for. Real, inspectable Job data via
+// JobService.GetJob/ListJobs, replacing what purser#522's manual
+// verification was previously pulling out with a temporary slog line:
+// why a group didn't clear the auto-import threshold is now answerable
+// from the Job itself, not by re-running the pipeline with debug logging
+// bolted on.
 func (e *ScanExecutor) finishDecideSteps(ctx context.Context, r *pkgjobqueue.Runner, taskIDs []string, candidates []domain.MatchCandidate, persisted bool, cause error) error {
 	status := pkgjobqueue.StatusSucceeded
 	message := ""
@@ -333,6 +399,19 @@ func (e *ScanExecutor) finishDecideSteps(ctx context.Context, r *pkgjobqueue.Run
 		"candidate_count": strconv.Itoa(len(candidates)),
 		"persisted":       strconv.FormatBool(persisted),
 	}
+	if len(candidates) > 0 {
+		// Best-effort: domain.MatchCandidate is plain scalars/maps, so
+		// this realistically never fails, but a bad value in some
+		// future Identifier's Metadata shouldn't block persistence
+		// over a Detail field. The failure itself stays visible on the
+		// Job (not silently dropped) rather than needing a logger
+		// dependency this type doesn't otherwise carry.
+		if encoded, err := json.Marshal(candidates); err != nil {
+			detail["candidates_error"] = err.Error()
+		} else {
+			detail["candidates"] = string(encoded)
+		}
+	}
 
 	for _, taskID := range taskIDs {
 		handle, err := r.StartStep(ctx, taskID, stepDecide)
@@ -343,7 +422,10 @@ func (e *ScanExecutor) finishDecideSteps(ctx context.Context, r *pkgjobqueue.Run
 			return err
 		}
 	}
-	return cause
+	if cause == nil {
+		return nil
+	}
+	return &groupBusinessError{cause}
 }
 
 // runCheckKnownStep runs the "check_known" Step: a MediaFile or

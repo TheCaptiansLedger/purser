@@ -1,0 +1,31 @@
+syntax = "proto3";
+
+package purser.pipeline.v1;
+
+import "purser/domain/v1/media_file.proto";
+
+option go_package = "purser/gen/go/purser/pipeline/v1;pipelinev1";
+
+// OrganizeRequest triggers the generic Organizer for an already-created
+// MediaFile — always available regardless of
+// config.Pipeline.AutoOrganize's current setting, per
+// docs/technical/pipeline-music-organizer.md.
+message OrganizeRequest {
+  string media_file_id = 1;
+}
+
+message OrganizeResponse {
+  // media_file is the MediaFile with its updated Path, once the move has
+  // fully succeeded.
+  purser.domain.v1.MediaFile media_file = 1;
+}
+
+// OrganizerService is the manual-trigger surface for
+// docs/adr/0024-pipeline-core.md's Organizer stage — a single, synchronous
+// RPC (organizing one already-identified file is a fast filesystem
+// operation, not a long-running scan, so it's not Job-queued like
+// ScanService.TriggerScan). Follows the same handler/service/error-mapping
+// conventions as every other Connect service (docs/adr/0011-api-design.md).
+service OrganizerService {
+  rpc Organize(OrganizeRequest) returns (OrganizeResponse);
+}

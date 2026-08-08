@@ -71,3 +71,13 @@ pipeline:
   scan_roots:
     - path: /media/incoming
       content_type: music
+
+# MusicBrainz adapter (internal/adapters/musicbrainz) — see
+# docs/technical/music-musicbrainz-adapter.md. base_url is empty by default
+# (the adapter's own musicbrainz.org default); response_header_timeout is
+# empty by default too (the adapter's own 25s default, already raised
+# above pkg/httpclient's generic 10s — a real, uncached release/artist
+# lookup with a heavy inc= can legitimately take 8-10s+ on a cold request).
+# Raise it further here if your deployment sees it timing out anyway.
+# musicbrainz:
+#   response_header_timeout: 45s

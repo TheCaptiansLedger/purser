@@ -15,6 +15,7 @@ import (
 	"purser/internal/adapters/musicbrainz"
 	"purser/internal/adapters/musicbrainz/fixtureserver"
 	"purser/internal/config"
+	"purser/internal/domain"
 	"purser/internal/ports"
 	"purser/internal/service"
 	"purser/pkg/fswatch"
@@ -485,6 +486,7 @@ func newServeMux(ctx context.Context, logger *slog.Logger, ds datastore.Datastor
 		jobv1connect.JobServiceName,
 		pipelinev1connect.ScanServiceName,
 		pipelinev1connect.UnmatchedFileServiceName,
+		pipelinev1connect.OrganizerServiceName,
 	)
 	mux.Handle(grpcreflect.NewHandlerV1(reflector))
 	mux.Handle(grpcreflect.NewHandlerV1Alpha(reflector))
@@ -562,7 +564,28 @@ func wireScanPipeline(
 		return nil, fmt.Errorf("cmd/purser: constructing image store: %w", err)
 	}
 
-	musicPersister := pipelinemusic.NewPersister(mbClient, externalIDRepo, libraryEntryRepo, groupRepo, musicReleaseRepo, itemRepo, mediaFileRepo, imageRepo, imageStore, pipelinemusic.WithLogger(logger))
+	// Content types with no registered ports.TemplateDataBuilder
+	// implementation fall back to service.NoopTemplateDataBuilder.
+	musicTemplateDataBuilder := pipelinemusic.NewTemplateDataBuilder(groupRepo, musicReleaseRepo, libraryEntryRepo, pipelinemusic.WithLogger(logger))
+	templateDataRegistry := service.NewTemplateDataBuilderRegistry(musicTemplateDataBuilder)
+
+	organizeConfigs := make(map[domain.ContentType]service.OrganizeConfig, len(pipelineCfg.Organize))
+	for ct, oc := range pipelineCfg.Organize {
+		organizeConfigs[ct] = service.OrganizeConfig{Root: oc.Root, Template: oc.Template}
+	}
+	// organizerSvc is always constructed — needed for the manual
+	// OrganizerService RPC regardless of AutoOrganize's setting — but only
+	// wired into musicPersister's auto-trigger below when AutoOrganize is
+	// on; otherwise musicPersister gets noopOrganizer{}. See
+	// docs/technical/pipeline-music-organizer.md.
+	organizerSvc := service.NewOrganizer(mediaFileRepo, itemRepo, templateDataRegistry, organizeConfigs, logger)
+
+	var musicAutoOrganizer ports.Organizer = noopOrganizer{}
+	if pipelineCfg.AutoOrganize {
+		musicAutoOrganizer = organizerSvc
+	}
+
+	musicPersister := pipelinemusic.NewPersister(mbClient, externalIDRepo, libraryEntryRepo, groupRepo, musicReleaseRepo, itemRepo, mediaFileRepo, imageRepo, imageStore, musicAutoOrganizer, pipelinemusic.WithLogger(logger))
 	persisterRegistry := service.NewPersisterRegistry(musicPersister)
 	decisionSvc := service.NewDecisionService(pipelineCfg.ConfidenceThreshold, persisterRegistry)
 
@@ -587,6 +610,10 @@ func wireScanPipeline(
 	unmatchedFileHandler := apiconnect.NewUnmatchedFileHandler(unmatchedFileSvc, logger)
 	unmatchedFilePath, unmatchedFileConnectHandler := pipelinev1connect.NewUnmatchedFileServiceHandler(unmatchedFileHandler, interceptors)
 	mux.Handle(unmatchedFilePath, unmatchedFileConnectHandler)
+
+	organizerHandler := apiconnect.NewOrganizerHandler(organizerSvc, logger)
+	organizerPath, organizerConnectHandler := pipelinev1connect.NewOrganizerServiceHandler(organizerHandler, interceptors)
+	mux.Handle(organizerPath, organizerConnectHandler)
 
 	watcherCloser, err := startScanWatcher(ctx, pipelineCfg.ScanRoots, scanSvc, logger)
 	if err != nil {
@@ -616,6 +643,9 @@ func newMusicIdentificationClients(mbCfg config.MusicBrainz, acoustIDCfg config.
 	mbAdapterCfg := musicbrainz.DefaultConfig()
 	if mbCfg.BaseURL != "" {
 		mbAdapterCfg.BaseURL = mbCfg.BaseURL
+	}
+	if mbCfg.ResponseHeaderTimeout > 0 {
+		mbAdapterCfg.HTTPClient.ResponseHeaderTimeout = mbCfg.ResponseHeaderTimeout
 	}
 	mbOpts := []musicbrainz.Option{musicbrainz.WithLogger(logger)}
 	if os.Getenv("PURSER_MUSICBRAINZ_MOCK") != "" {
@@ -654,6 +684,18 @@ func (noopAcoustIDClient) Fingerprint(context.Context, string) (string, float64,
 
 func (noopAcoustIDClient) Lookup(context.Context, string, float64) ([]ports.AcoustIDMatch, error) {
 	return nil, ports.ErrNotFound
+}
+
+// noopOrganizer is the ports.Organizer a content type's Persister is wired
+// with when config.Pipeline.AutoOrganize is off — Organize is a no-op,
+// never an error, so a Persister that always calls it unconditionally
+// never has anything to log. Auto-organize is decided once, here at the
+// composition root, never as a nil-check inside a Persister — see
+// pipelinemusic.NewPersister's own doc comment.
+type noopOrganizer struct{}
+
+func (noopOrganizer) Organize(context.Context, string) (*domain.MediaFile, error) {
+	return nil, nil //nolint:nilnil // deliberate: AutoOrganize off means nothing to do, not an error
 }
 
 // startScanWatcher starts a live pkg/fswatch.Watcher over roots' paths and

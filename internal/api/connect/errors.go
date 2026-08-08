@@ -51,6 +51,10 @@ func mapError(ctx context.Context, logger *slog.Logger, err error) error {
 		return connect.NewError(connect.CodeAlreadyExists, err)
 	case errors.Is(err, ports.ErrDeletionBlocked):
 		return connect.NewError(connect.CodeFailedPrecondition, err)
+	case errors.Is(err, ports.ErrDestinationExists):
+		return connect.NewError(connect.CodeAlreadyExists, err)
+	case errors.Is(err, ports.ErrDestinationOutsideRoot):
+		return connect.NewError(connect.CodeFailedPrecondition, err)
 	case errors.Is(err, jobqueue.ErrUnknownKind):
 		return connect.NewError(connect.CodeInvalidArgument, err)
 	default:

@@ -74,6 +74,40 @@ func TestFileFingerprinter_Fingerprint_FullyTaggedFLAC(t *testing.T) {
 	}
 }
 
+// TestFileFingerprinter_Fingerprint_EmbeddedCoverArtDoesNotClobberTitle is
+// a regression test for mergedTagIndex's real, previously-invisible bug
+// (purser#522's manual verification): an embedded cover-art picture
+// stream carries its own "title" tag (ffprobe reports it lowercase, e.g.
+// "cover" or "Cover (front)"), distinct from the audio's real format-level
+// "TITLE" tag. mergedTagIndex's own doc comment promises "format takes
+// priority on collision," but the old implementation compared raw-case
+// keys while merging (format's "TITLE" and a stream's "title" never
+// collide as exact strings) and only lowercased in a second pass at the
+// end — so whichever of the two that final pass's inherently-randomized
+// Go map iteration happened to visit last silently won, picking the wrong
+// value on an unpredictable fraction of files despite every file sharing
+// the identical embedded-picture-stream shape. Confirmed directly against
+// a real 53-track fixture: about a third of its extracted titles came
+// back as "cover" instead of the real track title, which alone was enough
+// to drag a real MusicBrainz match's title_set_overlap signal down from a
+// clean match to below the auto-import confidence threshold.
+func TestFileFingerprinter_Fingerprint_EmbeddedCoverArtDoesNotClobberTitle(t *testing.T) {
+	requireFfprobe(t)
+	f := music.New()
+
+	// testdata/tagged_with_cover_art.flac carries format TITLE="Real
+	// Track Title" and an attached-picture stream whose own tags are
+	// title="cover", comment="Cover (front)" — the exact shape ffprobe
+	// reports for a real embedded cover image.
+	got, err := f.Fingerprint(context.Background(), "testdata/tagged_with_cover_art.flac", 1)
+	if err != nil {
+		t.Fatalf("Fingerprint returned error: %v", err)
+	}
+	if got.Tags["TITLE"] != "Real Track Title" {
+		t.Errorf("Tags[TITLE] = %q, want %q (the embedded cover art's own \"title\" tag must never win)", got.Tags["TITLE"], "Real Track Title")
+	}
+}
+
 func TestFileFingerprinter_Fingerprint_BlankTagsFallsBackToGuess(t *testing.T) {
 	requireFfprobe(t)
 	f := music.New()

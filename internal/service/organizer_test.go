@@ -141,7 +141,7 @@ func TestOrganizer_Organize_CollisionAtDestinationRefusesToOverwrite(t *testing.
 	}
 
 	_, err := organizer.Organize(context.Background(), "mf1")
-	if !errors.Is(err, service.ErrDestinationExists) {
+	if !errors.Is(err, ports.ErrDestinationExists) {
 		t.Fatalf("Organize returned %v, want ErrDestinationExists", err)
 	}
 
@@ -273,6 +273,70 @@ func TestOrganizer_Organize_InvalidTemplateSyntax(t *testing.T) {
 	}
 }
 
+func TestOrganizer_Organize_MetadataMergedFromItemAndMediaFile(t *testing.T) {
+	srcDir := t.TempDir()
+	destRoot := t.TempDir()
+	srcPath := filepath.Join(srcDir, "source.flac")
+	if err := os.WriteFile(srcPath, []byte("hello world"), 0o644); err != nil {
+		t.Fatalf("writing source file: %v", err)
+	}
+
+	items := newFakeItemRepository()
+	item := &domain.Item{
+		ID:             "item1",
+		ContentType:    domain.ContentTypeMusic,
+		LibraryEntryID: "entry1",
+		Title:          "Test Track",
+		Status:         domain.ItemStatusImported,
+		Metadata:       map[string]any{"isrc": "item-isrc", "composer": "Item Composer"},
+	}
+	if err := items.Create(context.Background(), item); err != nil {
+		t.Fatalf("creating fixture item: %v", err)
+	}
+
+	mediaFiles := newFakeMediaFileRepository()
+	mf := &domain.MediaFile{ID: "mf1", ItemID: item.ID, Path: srcPath, Metadata: map[string]string{"isrc": "file-isrc", "acoustid": "abc123"}}
+	if err := mediaFiles.Create(context.Background(), mf); err != nil {
+		t.Fatalf("creating fixture media file: %v", err)
+	}
+
+	registry := service.NewTemplateDataBuilderRegistry(newFixtureBuilder())
+	configs := map[domain.ContentType]service.OrganizeConfig{
+		domain.ContentTypeMusic: {Root: destRoot, Template: "{{.Metadata.isrc}}-{{.Metadata.composer}}-{{.Metadata.acoustid}}{{.Ext}}"},
+	}
+	organizer := service.NewOrganizer(mediaFiles, items, registry, configs, nil)
+
+	got, err := organizer.Organize(context.Background(), "mf1")
+	if err != nil {
+		t.Fatalf("Organize returned error: %v", err)
+	}
+
+	// MediaFile's "isrc" wins over Item's on collision; Item-only and
+	// MediaFile-only keys both survive the merge.
+	want := filepath.Join(destRoot, "file-isrc-Item Composer-abc123.flac")
+	if got.Path != want {
+		t.Fatalf("Organize returned Path %q, want %q", got.Path, want)
+	}
+}
+
+func TestOrganizer_Organize_DefaultFuncFallsBackOnMissingMetadata(t *testing.T) {
+	mediaFiles, items, _, _, destRoot, _ := newOrganizerFixture(t, "hello world")
+	registry := service.NewTemplateDataBuilderRegistry(newFixtureBuilder())
+	configs := map[domain.ContentType]service.OrganizeConfig{
+		domain.ContentTypeMusic: {Root: destRoot, Template: `{{.Metadata.isrc | default "unknown"}}{{.Ext}}`},
+	}
+	organizer := service.NewOrganizer(mediaFiles, items, registry, configs, nil)
+
+	got, err := organizer.Organize(context.Background(), "mf1")
+	if err != nil {
+		t.Fatalf("Organize returned error: %v", err)
+	}
+	want := filepath.Join(destRoot, "unknown.flac")
+	if got.Path != want {
+		t.Fatalf("Organize returned Path %q, want %q", got.Path, want)
+	}
+}
+
 func TestOrganizer_Organize_DestinationOutsideRootIsRefused(t *testing.T) {
 	mediaFiles, items, _, _, destRoot, _ := newOrganizerFixture(t, "hello world")
 	builder := &fakeTemplateDataBuilder{
@@ -286,7 +350,7 @@ func TestOrganizer_Organize_DestinationOutsideRootIsRefused(t *testing.T) {
 	organizer := service.NewOrganizer(mediaFiles, items, registry, configs, nil)
 
 	_, err := organizer.Organize(context.Background(), "mf1")
-	if !errors.Is(err, service.ErrDestinationOutsideRoot) {
+	if !errors.Is(err, ports.ErrDestinationOutsideRoot) {
 		t.Fatalf("Organize returned %v, want ErrDestinationOutsideRoot", err)
 	}
 }

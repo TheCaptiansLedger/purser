@@ -169,21 +169,37 @@ func (f *FileFingerprinter) Fingerprint(ctx context.Context, path string, discNu
 // mergedTagIndex merges out.Format.Tags and every stream's Tags (format
 // taking priority on collision) into a single case-insensitive lookup index
 // keyed by lowercased tag name.
+//
+// Every insertion lowercases its key immediately and only writes when that
+// lowercased key isn't already present — collision detection has to happen
+// on the same, already-folded key every step writes, not on the raw
+// as-reported case. The previous version compared raw keys while merging
+// (format "TITLE" vs. a stream's own "title" — e.g. an embedded cover-art
+// picture stream's title, distinct from the audio's own — never collide as
+// exact strings, so both survived into one intermediate map under two
+// different keys) and only lowercased in a second pass at the end, so
+// whichever of "TITLE"/"title" that pass's map iteration happened to visit
+// last silently won — Go deliberately randomizes map iteration order, so
+// this picked a different, wrong winner from file to file despite every
+// file sharing the identical embedded-picture-stream shape. Confirmed
+// directly during purser#522's manual verification: about a third of a
+// real 53-track fixture's extracted titles came back as the embedded
+// cover art's own tag value ("cover") instead of the real track title.
 func mergedTagIndex(out ffprobeOutput) map[string]string {
-	merged := make(map[string]string, len(out.Format.Tags))
+	idx := make(map[string]string, len(out.Format.Tags))
+	insert := func(k, v string) {
+		lk := strings.ToLower(k)
+		if _, exists := idx[lk]; !exists {
+			idx[lk] = v
+		}
+	}
 	for k, v := range out.Format.Tags {
-		merged[k] = v
+		insert(k, v)
 	}
 	for _, s := range out.Streams {
 		for k, v := range s.Tags {
-			if _, exists := merged[k]; !exists {
-				merged[k] = v
-			}
+			insert(k, v)
 		}
-	}
-	idx := make(map[string]string, len(merged))
-	for k, v := range merged {
-		idx[strings.ToLower(k)] = v
 	}
 	return idx
 }
@@ -291,6 +307,26 @@ type trackEntry struct {
 	title    string
 	duration float64
 	isrc     string
+}
+
+// trackNumberEqual reports whether a and b refer to the same track
+// position, tolerant of the formatting gap between a raw TRACKNUMBER tag
+// and MusicBrainz's own track.Number — most concretely, zero-padding:
+// "01" (a common tagger convention, and what persister.go's
+// findUnmatchedFile was comparing) never string-equals MusicBrainz's own
+// unpadded "1", so every single-digit track failed to positionally match
+// against a real MusicBrainz release. Confirmed directly against the live
+// API during purser#522's manual verification. Numeric when both parse as
+// plain integers (the common CD case, same as trackNumberLess below);
+// exact string equality otherwise, so a vinyl side-lettered value ("A1",
+// "B2") that has no int form at all still only matches itself.
+func trackNumberEqual(a, b string) bool {
+	if a == b {
+		return true
+	}
+	ai, aErr := strconv.Atoi(a)
+	bi, bErr := strconv.Atoi(b)
+	return aErr == nil && bErr == nil && ai == bi
 }
 
 // trackNumberLess orders two raw TRACKNUMBER strings: numerically when both

@@ -2,6 +2,7 @@ package music_test
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -33,6 +34,34 @@ var fakeJPEGBytes = []byte{0xFF, 0xD8, 0xFF, 0xE0, 0x00, 0x10, 'J', 'F', 'I', 'F
 // GetByHash, and Item.Metadata's real JSON round-trip — an in-memory fake
 // would silently hide the int/float64 disc_number decoding issue a real
 // Datastore round-trip produces) plus a fakeMusicBrainz double.
+// fakeOrganizer is a ports.Organizer test double recording every
+// mediaFileID it was called with, optionally returning err — used to
+// assert the Persister calls it exactly once per created MediaFile, and
+// that an organizer error never fails Persist.
+type fakeOrganizer struct {
+	mu          sync.Mutex
+	calls       []string
+	organizeErr error
+}
+
+func newFakeOrganizer() *fakeOrganizer { return &fakeOrganizer{} }
+
+func (f *fakeOrganizer) Organize(_ context.Context, mediaFileID string) (*domain.MediaFile, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.calls = append(f.calls, mediaFileID)
+	if f.organizeErr != nil {
+		return nil, f.organizeErr
+	}
+	return &domain.MediaFile{ID: mediaFileID}, nil
+}
+
+func (f *fakeOrganizer) callCount() int {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return len(f.calls)
+}
+
 type persisterDeps struct {
 	mb             *fakeMusicBrainz
 	externalIDs    ports.ExternalIDRepository
@@ -43,6 +72,7 @@ type persisterDeps struct {
 	mediaFiles     ports.MediaFileRepository
 	images         ports.ImageRepository
 	imageStore     ports.ImageStore
+	organizer      *fakeOrganizer
 	persister      *music.Persister
 }
 
@@ -96,53 +126,93 @@ func newPersisterDeps(t *testing.T) *persisterDeps {
 	}
 
 	mb := newFakeMusicBrainz()
-	persister := music.NewPersister(mb, externalIDs, libraryEntries, groups, releases, items, mediaFiles, images, imageStore)
+	organizer := newFakeOrganizer()
+	persister := music.NewPersister(mb, externalIDs, libraryEntries, groups, releases, items, mediaFiles, images, imageStore, organizer)
 
 	return &persisterDeps{
 		mb: mb, externalIDs: externalIDs, libraryEntries: libraryEntries, groups: groups,
 		releases: releases, items: items, mediaFiles: mediaFiles, images: images, imageStore: imageStore,
-		persister: persister,
+		organizer: organizer, persister: persister,
 	}
 }
 
-// hiInfidelityFixture wires up a two-track single-disc release into a
-// persisterDeps' fakeMusicBrainz, modeled after the M8 "Hi Infidelity"
-// worked example. Returns the release MBID.
-func hiInfidelityFixture(d *persisterDeps) string {
-	const (
-		artistMBID  = "artist-reo-speedwagon"
-		rgMBID      = "rg-hi-infidelity"
-		releaseMBID = "release-hi-infidelity"
-	)
+// hiInfidelityFixture wires up REO Speedwagon's real "Hi Infidelity"
+// MusicBrainz release into a persisterDeps' fakeMusicBrainz — loaded
+// directly from a real recorded response
+// (testdata/release_lookup_hi_infidelity.json,
+// testdata/artist_lookup_reo_speedwagon.json), not hand-typed field
+// values. This is exactly what purser#522's manual verification used to
+// catch two real, previously-invisible bugs that a guessed fixture had
+// accidentally matched around: a raw TRACKNUMBER tag's zero-padding
+// ("01") never string-equals MusicBrainz's own unpadded track.Number
+// ("1"), and MusicBrainz's medium.position is always >= 1 (never 0,
+// even for a single-disc release's only disc) while Purser's own
+// DiscNumber defaults to 0 whenever nothing gave it a real value — see
+// findUnmatchedFile's own doc comment for the fix. Trimmed to the
+// release's first 2 tracks (real values, just fewer of them) to match
+// track1File/track2File below. Returns the real release MBID.
+func hiInfidelityFixture(t *testing.T, d *persisterDeps) string {
+	t.Helper()
 
-	d.mb.artists[artistMBID] = ports.Artist{
-		ID: artistMBID, Name: "REO Speedwagon", SortName: "REO Speedwagon", Type: "Group",
-		LifeSpan: ports.LifeSpan{Begin: "1967"},
+	var release ports.Release
+	loadTestdataJSON(t, "release_lookup_hi_infidelity.json", &release)
+	var artist ports.Artist
+	loadTestdataJSON(t, "artist_lookup_reo_speedwagon.json", &artist)
+
+	if len(release.Media) != 1 || len(release.Media[0].Tracks) < 2 || release.ReleaseGroup == nil {
+		t.Fatalf("testdata/release_lookup_hi_infidelity.json shape changed unexpectedly: %+v", release)
 	}
-	d.mb.releaseGroups[rgMBID] = ports.ReleaseGroup{ID: rgMBID, Title: "Hi Infidelity", PrimaryType: "Album"}
-	d.mb.releases[releaseMBID] = ports.Release{
-		ID: releaseMBID, Title: "Hi Infidelity (2024 Remaster)", Country: "US", Date: "1980-11-21",
-		ReleaseGroup: &ports.ReleaseGroup{ID: rgMBID, Title: "Hi Infidelity", PrimaryType: "Album"},
-		ArtistCredit: []ports.ArtistCredit{{Name: "REO Speedwagon", Artist: ports.RelationArtist{ID: artistMBID, Name: "REO Speedwagon"}}},
-		Media: []ports.Medium{{
-			Position: 1, Format: "CD",
-			Tracks: []ports.Track{
-				{Position: 1, Number: "1", Title: "Don't Let Him Go", Length: 227000, Recording: &ports.Recording{ID: "rec-1", ISRCs: []string{"ISRC1"}}},
-				{Position: 1, Number: "2", Title: "Keep on Loving You", Length: 206000, Recording: &ports.Recording{ID: "rec-2"}},
-			},
-		}},
+	release.Media[0].Tracks = release.Media[0].Tracks[:2]
+
+	d.mb.artists[artist.ID] = artist
+	d.mb.releaseGroups[release.ReleaseGroup.ID] = *release.ReleaseGroup
+	d.mb.releases[release.ID] = release
+	return release.ID
+}
+
+// loadTestdataJSON decodes testdata/name (a real recorded MusicBrainz
+// response — see hiInfidelityFixture) into out, failing the test on any
+// error.
+func loadTestdataJSON(t *testing.T, name string, out any) {
+	t.Helper()
+	data, err := os.ReadFile(filepath.Join("testdata", name))
+	if err != nil {
+		t.Fatalf("reading testdata/%s: %v", name, err)
 	}
-	return releaseMBID
+	if err := json.Unmarshal(data, out); err != nil {
+		t.Fatalf("decoding testdata/%s: %v", name, err)
+	}
 }
 
 // track1File and track2File model the two files of the "Hi Infidelity"
 // fixture living in dir — a real directory (not just a string) since
 // Persist's cover-art step (M10b) does a genuine os.ReadDir against
-// GroupKey.
+// GroupKey. DiscNumber/TrackNumber are the exact values Purser's own
+// scan pipeline produced for the real Hi Infidelity FLAC fixture
+// (test-data/music/1980 Hi Infidelity), captured live during purser#522's
+// manual verification via ListUnmatchedFiles — not guessed:
+//
+//   - TrackNumber "01"/"02" — zero-padded, the raw TRACKNUMBER tag value
+//     ffprobe read straight off the file. hiInfidelityFixture's real
+//     MusicBrainz data reports the same tracks as unpadded "1"/"2" — a
+//     real formatting gap findUnmatchedFile's old naive string equality
+//     missed entirely.
+//   - DiscNumber 0 — no DISCNUMBER tag on the file at all (there's only
+//     one disc; nothing to tag), Purser's own "no disc info given"
+//     sentinel. MusicBrainz's medium.position is always >= 1, never 0,
+//     even for a single-disc release's only disc — another real gap
+//     findUnmatchedFile missed, and the more consequential one: it broke
+//     positional matching for every ordinary single-disc album with no
+//     explicit disc tag, not just an edge case.
+//
+// Both gaps are exactly what a hand-typed fixture (DiscNumber: 1,
+// TrackNumber matching MusicBrainz's own unpadded value) had accidentally
+// matched around before this fixture was corrected to reflect reality —
+// see findUnmatchedFile's own doc comment for the fix.
 func track1File(dir string) *domain.UnmatchedFile {
 	return &domain.UnmatchedFile{
 		ID: domain.NewID(), Path: filepath.Join(dir, "01 Don't Let Him Go.flac"), ContentType: domain.ContentTypeMusic,
-		GroupKey: dir, DiscNumber: 1, TrackNumber: "1",
+		GroupKey: dir, DiscNumber: 0, TrackNumber: "01",
 		OSHash: "oshash-track1", SHA1: "sha1-track1", Status: domain.UnmatchedFileStatusPending,
 	}
 }
@@ -150,14 +220,14 @@ func track1File(dir string) *domain.UnmatchedFile {
 func track2File(dir string) *domain.UnmatchedFile {
 	return &domain.UnmatchedFile{
 		ID: domain.NewID(), Path: filepath.Join(dir, "02 Keep on Loving You.flac"), ContentType: domain.ContentTypeMusic,
-		GroupKey: dir, DiscNumber: 1, TrackNumber: "2",
+		GroupKey: dir, DiscNumber: 0, TrackNumber: "02",
 		OSHash: "oshash-track2", SHA1: "sha1-track2", Status: domain.UnmatchedFileStatusPending,
 	}
 }
 
 func TestPersister_Persist_HappyPath(t *testing.T) {
 	d := newPersisterDeps(t)
-	releaseMBID := hiInfidelityFixture(d)
+	releaseMBID := hiInfidelityFixture(t, d)
 	dir := t.TempDir()
 	files := []*domain.UnmatchedFile{track1File(dir), track2File(dir)}
 	candidate := domain.MatchCandidate{ExternalRef: releaseMBID, Tier: domain.MatchTierDirectID, Score: 0.98}
@@ -213,9 +283,49 @@ func TestPersister_Persist_HappyPath(t *testing.T) {
 	}
 }
 
+func TestPersister_Persist_CallsOrganizerOncePerCreatedMediaFile(t *testing.T) {
+	d := newPersisterDeps(t)
+	releaseMBID := hiInfidelityFixture(t, d)
+	dir := t.TempDir()
+	files := []*domain.UnmatchedFile{track1File(dir), track2File(dir)}
+	candidate := domain.MatchCandidate{ExternalRef: releaseMBID}
+
+	if err := d.persister.Persist(context.Background(), nil, candidate, files); err != nil {
+		t.Fatalf("Persist returned error: %v", err)
+	}
+
+	if got := d.organizer.callCount(); got != 2 {
+		t.Fatalf("organizer was called %d times, want 2 (once per created MediaFile)", got)
+	}
+}
+
+func TestPersister_Persist_OrganizerErrorIsLoggedAndSwallowed(t *testing.T) {
+	d := newPersisterDeps(t)
+	d.organizer.organizeErr = errors.New("simulated organize failure")
+	releaseMBID := hiInfidelityFixture(t, d)
+	dir := t.TempDir()
+	files := []*domain.UnmatchedFile{track1File(dir), track2File(dir)}
+	candidate := domain.MatchCandidate{ExternalRef: releaseMBID}
+
+	if err := d.persister.Persist(context.Background(), nil, candidate, files); err != nil {
+		t.Fatalf("Persist returned error %v, want nil — an organizer failure must never fail Persist", err)
+	}
+
+	release, err := d.releases.GetByMBID(context.Background(), releaseMBID)
+	if err != nil {
+		t.Fatalf("GetByMBID returned error: %v", err)
+	}
+	if release.Status != musicdomain.ReleaseStatusImported {
+		t.Fatalf("release.Status = %q, want %q despite the organizer failure", release.Status, musicdomain.ReleaseStatusImported)
+	}
+	if got := d.organizer.callCount(); got != 2 {
+		t.Fatalf("organizer was called %d times, want 2", got)
+	}
+}
+
 func TestPersister_Persist_PartialWhenATrackHasNoFile(t *testing.T) {
 	d := newPersisterDeps(t)
-	releaseMBID := hiInfidelityFixture(d)
+	releaseMBID := hiInfidelityFixture(t, d)
 	dir := t.TempDir()
 	files := []*domain.UnmatchedFile{track1File(dir)} // track 2 has no file
 	candidate := domain.MatchCandidate{ExternalRef: releaseMBID}
@@ -273,13 +383,13 @@ func (f *failNthMediaFileCreate) Create(ctx context.Context, m *domain.MediaFile
 // MediaFiles loop must not duplicate the tracks that already succeeded.
 func TestPersister_Persist_RetryAfterPartialFailureDoesNotDuplicate(t *testing.T) {
 	d := newPersisterDeps(t)
-	releaseMBID := hiInfidelityFixture(d)
+	releaseMBID := hiInfidelityFixture(t, d)
 	dir := t.TempDir()
 	files := []*domain.UnmatchedFile{track1File(dir), track2File(dir)}
 	candidate := domain.MatchCandidate{ExternalRef: releaseMBID}
 
 	failing := &failNthMediaFileCreate{MediaFileRepository: d.mediaFiles, failOnCall: 2}
-	failingPersister := music.NewPersister(d.mb, d.externalIDs, d.libraryEntries, d.groups, d.releases, d.items, failing, d.images, d.imageStore)
+	failingPersister := music.NewPersister(d.mb, d.externalIDs, d.libraryEntries, d.groups, d.releases, d.items, failing, d.images, d.imageStore, newFakeOrganizer())
 
 	err := failingPersister.Persist(context.Background(), nil, candidate, files)
 	if err == nil {
@@ -400,7 +510,7 @@ func writeFixtureImage(t *testing.T, dir, name string) {
 // checklist.
 func TestPersister_Persist_CoverArtRankingAndAttachment(t *testing.T) {
 	d := newPersisterDeps(t)
-	releaseMBID := hiInfidelityFixture(d)
+	releaseMBID := hiInfidelityFixture(t, d)
 	dir := t.TempDir()
 	files := []*domain.UnmatchedFile{track1File(dir), track2File(dir)}
 	candidate := domain.MatchCandidate{ExternalRef: releaseMBID}
@@ -468,13 +578,53 @@ func TestPersister_Persist_CoverArtRankingAndAttachment(t *testing.T) {
 	}
 }
 
+// TestPersister_Persist_CoverArtInSubfolderAttaches is a regression test
+// for purser#522's manual verification finding: a real box set's cover
+// art commonly lives in its own subfolder ("Covers"/"Scans"/"Artwork") or
+// inside a per-disc subfolder, not loose next to the audio — the exact
+// shape of the real Hi Infidelity fixture (test-data/music/1980 Hi
+// Infidelity/Covers/*.png). persistCoverArt used to be a flat,
+// single-level os.ReadDir of the group's own folder only, so a subfolder
+// like this attached zero images, every time. It's now a recursive walk
+// (see persistCoverArt's own doc comment) — this proves an image nested
+// two levels down (dir/Artwork/Scans/cover.jpg) is found and attached.
+func TestPersister_Persist_CoverArtInSubfolderAttaches(t *testing.T) {
+	d := newPersisterDeps(t)
+	releaseMBID := hiInfidelityFixture(t, d)
+	dir := t.TempDir()
+	files := []*domain.UnmatchedFile{track1File(dir), track2File(dir)}
+	candidate := domain.MatchCandidate{ExternalRef: releaseMBID}
+
+	nested := filepath.Join(dir, "Artwork", "Scans")
+	if err := os.MkdirAll(nested, 0o750); err != nil {
+		t.Fatalf("creating nested fixture dir: %v", err)
+	}
+	writeFixtureImage(t, nested, "cover.jpg")
+
+	if err := d.persister.Persist(context.Background(), nil, candidate, files); err != nil {
+		t.Fatalf("Persist returned error: %v", err)
+	}
+
+	release, err := d.releases.GetByMBID(context.Background(), releaseMBID)
+	if err != nil {
+		t.Fatalf("GetByMBID returned error: %v", err)
+	}
+	images, _, err := d.images.List(context.Background(), "music_release", release.ID, 10, "")
+	if err != nil {
+		t.Fatalf("images.List returned error: %v", err)
+	}
+	if len(images) != 1 {
+		t.Fatalf("images.List returned %d images, want 1 (the nested Artwork/Scans/cover.jpg)", len(images))
+	}
+}
+
 // TestPersister_Persist_CoverArtRetryDoesNotDuplicate confirms the
 // duplicate-attachment guard: re-running Persist against an
 // already-imported release (simulating a retry) must not create additional
 // Image rows.
 func TestPersister_Persist_CoverArtRetryDoesNotDuplicate(t *testing.T) {
 	d := newPersisterDeps(t)
-	releaseMBID := hiInfidelityFixture(d)
+	releaseMBID := hiInfidelityFixture(t, d)
 	dir := t.TempDir()
 	files := []*domain.UnmatchedFile{track1File(dir), track2File(dir)}
 	candidate := domain.MatchCandidate{ExternalRef: releaseMBID}
@@ -506,7 +656,7 @@ func TestPersister_Persist_CoverArtRetryDoesNotDuplicate(t *testing.T) {
 // persistCoverArt doesn't error when there's simply nothing to attach.
 func TestPersister_Persist_NoImagesInFolderAttachesNothing(t *testing.T) {
 	d := newPersisterDeps(t)
-	releaseMBID := hiInfidelityFixture(d)
+	releaseMBID := hiInfidelityFixture(t, d)
 	dir := t.TempDir()
 	files := []*domain.UnmatchedFile{track1File(dir), track2File(dir)}
 	candidate := domain.MatchCandidate{ExternalRef: releaseMBID}

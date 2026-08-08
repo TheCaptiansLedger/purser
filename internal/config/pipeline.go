@@ -3,6 +3,7 @@ package config
 import (
 	"fmt"
 	"purser/internal/domain"
+	"purser/pkg/nametemplate"
 	"text/template"
 )
 
@@ -58,6 +59,13 @@ type Pipeline struct {
 	// tree with an entirely different naming convention rather than sharing
 	// one global root/template.
 	Organize map[domain.ContentType]OrganizeConfig `mapstructure:"organize"`
+
+	// AutoOrganize gates whether a content type's Persister calls the
+	// Organizer automatically immediately after creating a MediaFile.
+	// Regardless of this setting, organizing is always available as an
+	// explicit, user-triggered RPC — auto-organize being off never removes
+	// the manual path. See docs/technical/pipeline-music-organizer.md.
+	AutoOrganize bool `mapstructure:"auto_organize"`
 }
 
 // OrganizeConfig pairs the base directory a content type organizes into
@@ -76,7 +84,8 @@ type OrganizeConfig struct {
 // watched roots, confidence threshold at its starting value of 0.75, no
 // organize configuration (organizing a content type with no entry here is
 // a configuration error surfaced by the Organizer itself, not a silent
-// no-op).
+// no-op), and AutoOrganize off — organizing only ever runs when an operator
+// opts in, per its own doc comment.
 func DefaultPipeline() Pipeline {
 	return Pipeline{
 		EnableMD5:           false,
@@ -84,6 +93,7 @@ func DefaultPipeline() Pipeline {
 		ScanRoots:           []ScanRoot{},
 		ConfidenceThreshold: 0.75,
 		Organize:            map[domain.ContentType]OrganizeConfig{},
+		AutoOrganize:        false,
 	}
 }
 
@@ -112,7 +122,7 @@ func (p Pipeline) Validate() error {
 		if oc.Template == "" {
 			return fmt.Errorf("pipeline: organize entry %q missing template", contentType)
 		}
-		if _, err := template.New("organize").Parse(oc.Template); err != nil {
+		if _, err := template.New("organize").Funcs(nametemplate.Funcs()).Parse(oc.Template); err != nil {
 			return fmt.Errorf("pipeline: organize entry %q has an invalid template: %w", contentType, err)
 		}
 	}

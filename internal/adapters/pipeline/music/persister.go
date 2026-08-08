@@ -37,6 +37,7 @@ type Persister struct {
 	mediaFiles     ports.MediaFileRepository
 	images         ports.ImageRepository
 	imageStore     ports.ImageStore
+	organizer      ports.Organizer
 
 	logger *slog.Logger
 	tracer trace.Tracer
@@ -45,9 +46,16 @@ type Persister struct {
 var _ ports.Persister = (*Persister)(nil)
 
 // NewPersister constructs a Persister backed by mb and the given
-// repositories. Reuses the same Option/WithLogger/WithTracerProvider used
-// by New/NewIdentifier/NewConfidenceScorer — all four share the same
-// {logger, tracerProvider} shape.
+// repositories. organizer is called after every MediaFile this Persister
+// creates (see createOrAttachTrack) — always non-nil: the composition root
+// passes a no-op implementation when config.Pipeline.AutoOrganize is off,
+// per this codebase's "inject a Noop, never nil-check an optional port"
+// convention (e.g. NoopPersister, cmd/purser/serve.go's
+// noopAcoustIDClient) — auto-organize is a wiring-time decision, never
+// something this type branches on. Reuses the same
+// Option/WithLogger/WithTracerProvider used by
+// New/NewIdentifier/NewConfidenceScorer/NewTemplateDataBuilder — all share
+// the same {logger, tracerProvider} shape.
 func NewPersister(
 	mb ports.MusicBrainzClient,
 	externalIDs ports.ExternalIDRepository,
@@ -58,6 +66,7 @@ func NewPersister(
 	mediaFiles ports.MediaFileRepository,
 	images ports.ImageRepository,
 	imageStore ports.ImageStore,
+	organizer ports.Organizer,
 	opts ...Option,
 ) *Persister {
 	o := defaultOptions()
@@ -74,6 +83,7 @@ func NewPersister(
 		mediaFiles:     mediaFiles,
 		images:         images,
 		imageStore:     imageStore,
+		organizer:      organizer,
 		logger:         o.logger.With("component", "adapters.pipeline.music.persister"),
 		tracer:         o.tracerProvider.Tracer(instrumentationName),
 	}
@@ -382,7 +392,13 @@ func (p *Persister) persistOneTrack(ctx context.Context, release *music.Release,
 
 // createOrAttachTrack reuses existingItem (a stub from a prior attempt) or
 // creates a new Item, links its Recording MBID, creates the MediaFile
-// linking it to uf, and flips its Status to imported.
+// linking it to uf, flips its Status to imported, and — as the last step,
+// once that state is fully persisted — calls the Organizer. Any organizer
+// error is logged and swallowed, never returned: Persist's success is
+// defined by correct Item/MediaFile rows, and organizing is a best-effort
+// bonus step on top, matching the "no cost to opt out" treatment
+// AcoustID/MD5/SHA512 already get elsewhere in this pipeline. See
+// docs/technical/pipeline-music-organizer.md.
 func (p *Persister) createOrAttachTrack(ctx context.Context, release *music.Release, artistID string, medium ports.Medium, track ports.Track, existingItem *domain.Item, uf *domain.UnmatchedFile) error {
 	item := existingItem
 	if item == nil {
@@ -413,7 +429,14 @@ func (p *Persister) createOrAttachTrack(ctx context.Context, release *music.Rele
 	}
 
 	item.Status = domain.ItemStatusImported
-	return p.items.Update(ctx, item)
+	if err := p.items.Update(ctx, item); err != nil {
+		return err
+	}
+
+	if _, err := p.organizer.Organize(ctx, mf.ID); err != nil {
+		p.logger.ErrorContext(ctx, "auto-organize failed", "media_file.id", mf.ID, "error", err)
+	}
+	return nil
 }
 
 // ensureItemImported flips itemID's Status to imported if it isn't
@@ -482,17 +505,38 @@ func discNumberOf(i *domain.Item) int {
 }
 
 // findUnmatchedFile returns the UnmatchedFile in files whose (DiscNumber,
-// TrackNumber) directly matches (discNumber, trackNumber) — MusicBrainz's
-// own (medium.position int, track.number string) shape needs no
-// translation on either side, per
-// docs/technical/pipeline-music-persist.md's step 6.
+// TrackNumber) matches (discNumber, trackNumber) — MusicBrainz's own
+// (medium.position int, track.number string). Neither side is a direct
+// match without normalization, confirmed against a real recorded
+// MusicBrainz response during purser#522's manual verification
+// (testdata/release_lookup_hi_infidelity.json): MusicBrainz always
+// numbers a release's mediums starting at 1 — even a single-disc
+// release's only disc is medium.position=1, never 0 — but Purser's own
+// grouping/fingerprint code defaults DiscNumber to 0 whenever nothing
+// gave it a real value (no DISCNUMBER tag, no CD1/Disc2 subfolder),
+// which is the ordinary case for most single-disc albums: there's no
+// reason to tag a disc number when there's only one disc. 0 is treated
+// as "disc 1" here on both sides, not "disc 0" — a disc MusicBrainz
+// never has. trackNumberEqual handles the parallel track.Number gap
+// (zero-padding a raw TRACKNUMBER tag commonly has that MusicBrainz's
+// own numbering doesn't).
 func findUnmatchedFile(files []*domain.UnmatchedFile, discNumber int, trackNumber string) *domain.UnmatchedFile {
+	discNumber = normalizeDiscNumber(discNumber)
 	for _, f := range files {
-		if f.DiscNumber == discNumber && f.TrackNumber == trackNumber {
+		if normalizeDiscNumber(f.DiscNumber) == discNumber && trackNumberEqual(f.TrackNumber, trackNumber) {
 			return f
 		}
 	}
 	return nil
+}
+
+// normalizeDiscNumber maps 0 ("no disc info given") to 1 ("the first,
+// possibly only, disc") — see findUnmatchedFile's doc comment.
+func normalizeDiscNumber(discNumber int) int {
+	if discNumber == 0 {
+		return 1
+	}
+	return discNumber
 }
 
 // coverArtRankCover, coverArtRankFolder, coverArtRankFrontAlbum, and
@@ -540,15 +584,23 @@ type coverArtCandidate struct {
 	rank int
 }
 
-// persistCoverArt implements M10b: after release is resolved, one plain,
-// non-recursive directory listing of the group's folder
-// (files[0].GroupKey — already a folder path per M3's grouping design, see
-// docs/technical/pipeline-grouping-capability.md) for image files, ranked
-// by filename convention. All matches attach, not just the top-ranked one
-// — see docs/technical/pipeline-music-sidecar-classifier.md's "Cover art"
-// section. Guarded by a plain existence check (ImageRepository.List,
-// pageSize=1) so a Persist retry against an already-imported release never
-// re-attaches duplicates — deliberately simpler than
+// persistCoverArt implements M10b: after release is resolved, a recursive
+// walk of the group's folder (files[0].GroupKey — already a folder path
+// per M3's grouping design, see
+// docs/technical/pipeline-grouping-capability.md) for image files
+// anywhere under it, ranked by filename convention. Recursive — not just
+// GroupKey's own top-level entries — because a real box set's cover art
+// commonly lives in its own subfolder (a "Covers"/"Scans"/"Artwork"
+// convention, or per-disc art inside a "CD1"/"Disc 2" subfolder), not
+// loose next to the audio; a flat, single-level listing found nothing at
+// all for exactly that real case (confirmed directly on the Hi Infidelity
+// fixture during purser#522's manual verification: a top-level Covers/
+// subfolder holding all four of its images). See
+// docs/technical/pipeline-music-sidecar-classifier.md's "Cover art"
+// section. All matches attach, not just the top-ranked one. Guarded by a
+// plain existence check (ImageRepository.List, pageSize=1) so a Persist
+// retry against an already-imported release never re-attaches duplicates
+// — deliberately simpler than
 // docs/adr/0026-external-id-get-or-create.md's reservation-document
 // mechanism, per that doc's "a duplicate Image row is a mess to clean up,
 // not a correctness bug on that scale" reasoning.
@@ -566,21 +618,23 @@ func (p *Persister) persistCoverArt(ctx context.Context, release *music.Release,
 	}
 
 	folder := files[0].GroupKey
-	entries, err := os.ReadDir(folder)
-	if err != nil {
-		return fmt.Errorf("listing group folder %s: %w", folder, err)
-	}
-
 	var candidates []coverArtCandidate
-	for _, e := range entries {
-		if e.IsDir() {
-			continue
+	walkErr := filepath.WalkDir(folder, func(path string, d os.DirEntry, err error) error {
+		if err != nil {
+			return err
 		}
-		rank := coverArtRank(e.Name())
+		if d.IsDir() {
+			return nil
+		}
+		rank := coverArtRank(d.Name())
 		if rank == coverArtRankNotImage {
-			continue
+			return nil
 		}
-		candidates = append(candidates, coverArtCandidate{path: filepath.Join(folder, e.Name()), rank: rank})
+		candidates = append(candidates, coverArtCandidate{path: path, rank: rank})
+		return nil
+	})
+	if walkErr != nil {
+		return fmt.Errorf("walking group folder %s: %w", folder, walkErr)
 	}
 	sort.SliceStable(candidates, func(i, j int) bool { return candidates[i].rank < candidates[j].rank })
 

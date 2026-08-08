@@ -25,8 +25,8 @@ are the spec.
 | M9b | [#518](https://github.com/TheCaptiansLedger/purser/issues/518) | Music `Persister` cascade + `MusicRelease` reservation fix + `AcceptCandidate` | M9-pre, M9a | Not started |
 | M10a | [#519](https://github.com/TheCaptiansLedger/purser/issues/519) | Sidecar classification (registry + Music rules + `Trigger` wiring) | M3a | Implemented, pending manual verification sign-off (see issue checklist) |
 | M10b | [#520](https://github.com/TheCaptiansLedger/purser/issues/520) | Cover-art attachment at persist time | M9b | Not started |
-| M11a | [#521](https://github.com/TheCaptiansLedger/purser/issues/521) | Generic `Organizer` mechanics (render/move/collision handling) | M9b | Not started |
-| M11b | [#522](https://github.com/TheCaptiansLedger/purser/issues/522) | Music `TemplateDataBuilder` + config + trigger wiring | M11a, M9b | Not started |
+| M11a | [#521](https://github.com/TheCaptiansLedger/purser/issues/521) | Generic `Organizer` mechanics (render/move/collision handling) | M9b | Done |
+| M11b | [#522](https://github.com/TheCaptiansLedger/purser/issues/522) | Music `TemplateDataBuilder` + config + trigger wiring | M11a, M9b | Implemented, pending manual verification sign-off (see issue checklist) |
 
 M2, M5, and M9-pre have no internal dependency and can be built any time
 before whatever needs them (M6 for M2, M8 for M5, M9b for M9-pre).
@@ -164,5 +164,11 @@ cross-filesystem moves; refuses to overwrite on a destination collision.
 M11b: Music's `TemplateDataBuilder` (cross-entity data gathering: Item +
 Group + MusicRelease + LibraryEntry) and the config/trigger wiring.
 Per-content-type `{Root, Template}` config, not one global template.
-Auto-trigger from M9b's `Persist`; manual trigger via a new
-`OrganizerService` RPC.
+Auto-trigger from M9b's `Persist` (`config.Pipeline.AutoOrganize`, new this
+milestone); manual trigger via a new `OrganizerService` RPC, always
+available regardless of the toggle. Extended beyond the original design:
+the generic Organizer also injects a `.Metadata` map (merged `Item`+
+`MediaFile` metadata) and a shared `default` template function
+(`pkg/nametemplate`), both available to every content type, not just
+Music — see pipeline-music-organizer.md's own "Template data beyond a
+content type's own curated fields" section.

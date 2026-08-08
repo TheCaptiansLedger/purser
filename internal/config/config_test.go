@@ -6,6 +6,7 @@ import (
 	"purser/internal/config"
 	"purser/internal/domain"
 	"testing"
+	"time"
 
 	"github.com/spf13/viper"
 )
@@ -281,6 +282,28 @@ func TestLoad_EnvOverridesConfidenceThreshold(t *testing.T) {
 	}
 }
 
+func TestLoad_UsesDefaultMusicBrainzResponseHeaderTimeout(t *testing.T) {
+	cfg, err := config.Load(viper.New(), "")
+	if err != nil {
+		t.Fatalf("Load returned error: %v", err)
+	}
+	if cfg.MusicBrainz.ResponseHeaderTimeout != 0 {
+		t.Fatalf("Load returned MusicBrainz.ResponseHeaderTimeout=%v, want 0 (adapter default) by default", cfg.MusicBrainz.ResponseHeaderTimeout)
+	}
+}
+
+func TestLoad_EnvOverridesMusicBrainzResponseHeaderTimeout(t *testing.T) {
+	t.Setenv("PURSER_MUSICBRAINZ_RESPONSE_HEADER_TIMEOUT", "45s")
+
+	cfg, err := config.Load(viper.New(), "")
+	if err != nil {
+		t.Fatalf("Load returned error: %v", err)
+	}
+	if cfg.MusicBrainz.ResponseHeaderTimeout != 45*time.Second {
+		t.Fatalf("Load returned MusicBrainz.ResponseHeaderTimeout=%v, want 45s", cfg.MusicBrainz.ResponseHeaderTimeout)
+	}
+}
+
 func TestConfig_Validate_AcceptsAnyPipelineToggleCombination(t *testing.T) {
 	cfg, err := config.Load(viper.New(), "")
 	if err != nil {
@@ -420,5 +443,36 @@ func TestPipeline_Validate_AcceptsWellFormedOrganizeEntry(t *testing.T) {
 	}
 	if err := cfg.Validate(); err != nil {
 		t.Fatalf("Validate() = %v, want nil", err)
+	}
+}
+
+func TestPipeline_Validate_AcceptsOrganizeTemplateUsingDefaultFunc(t *testing.T) {
+	cfg := config.DefaultConfig()
+	cfg.Pipeline.Organize = map[domain.ContentType]config.OrganizeConfig{
+		domain.ContentTypeMusic: {Root: "/library/music", Template: `{{.Metadata.isrc | default "unknown"}}{{.Ext}}`},
+	}
+	if err := cfg.Validate(); err != nil {
+		t.Fatalf("Validate() = %v, want nil for a template using the shared default() func", err)
+	}
+}
+
+func TestLoad_UsesDefaultAutoOrganizeOff(t *testing.T) {
+	cfg, err := config.Load(viper.New(), "")
+	if err != nil {
+		t.Fatalf("Load returned error: %v", err)
+	}
+	if cfg.Pipeline.AutoOrganize {
+		t.Fatal("Load returned AutoOrganize=true by default, want false")
+	}
+}
+
+func TestLoad_EnvOverridesAutoOrganize(t *testing.T) {
+	t.Setenv("PURSER_PIPELINE_AUTO_ORGANIZE", "true")
+	cfg, err := config.Load(viper.New(), "")
+	if err != nil {
+		t.Fatalf("Load returned error: %v", err)
+	}
+	if !cfg.Pipeline.AutoOrganize {
+		t.Fatal("Load returned AutoOrganize=false, want true from env override")
 	}
 }

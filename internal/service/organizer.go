@@ -11,27 +11,10 @@ import (
 	"path/filepath"
 	"purser/internal/domain"
 	"purser/internal/ports"
+	"purser/pkg/nametemplate"
 	"strings"
 	"text/template"
 )
-
-// ErrDestinationExists is returned when the computed destination path
-// already has something at it. The Organizer never overwrites — a
-// template bug or a leftover from an interrupted previous organize could
-// otherwise destroy an unrelated file. Per
-// docs/technical/pipeline-music-organizer.md, what a caller does with this
-// error differs by trigger: the manual RPC path (built in a later
-// milestone) surfaces it directly; the automatic path (also a later
-// milestone) logs it and leaves the file where it is, never blocking the
-// overall persist operation. That differential handling lives in whoever
-// calls Organize, not here.
-var ErrDestinationExists = errors.New("organizer: destination already exists")
-
-// ErrDestinationOutsideRoot is returned when the rendered template
-// produces a path that escapes its configured OrganizeConfig.Root (e.g.
-// a "../" segment from unexpected metadata). The Organizer refuses rather
-// than writing outside the tree an operator configured.
-var ErrDestinationOutsideRoot = errors.New("organizer: rendered destination escapes configured root")
 
 // OrganizeConfig pairs the base directory a content type organizes into
 // with the relative Go text/template naming pattern joined onto it — this
@@ -119,9 +102,9 @@ func NewOrganizer(mediaFiles ports.MediaFileRepository, items ports.ItemReposito
 // Item and that Item's content-type naming data, renders the configured
 // template, moves the file to the computed destination, and persists the
 // MediaFile's new Path. A collision at the destination
-// (ErrDestinationExists) and every other failure leave the MediaFile and
-// the file on disk untouched — Path is only ever updated after the move
-// itself has fully succeeded.
+// (ports.ErrDestinationExists) and every other failure leave the MediaFile
+// and the file on disk untouched — Path is only ever updated after the
+// move itself has fully succeeded.
 func (o *Organizer) Organize(ctx context.Context, mediaFileID string) (*domain.MediaFile, error) {
 	mf, err := o.mediaFiles.Get(ctx, mediaFileID)
 	if err != nil {
@@ -146,6 +129,7 @@ func (o *Organizer) Organize(ctx context.Context, mediaFileID string) (*domain.M
 		data = map[string]any{}
 	}
 	data["Ext"] = filepath.Ext(mf.Path)
+	data["Metadata"] = mergedMetadata(item, mf)
 
 	dest, err := renderDestination(cfg, data)
 	if err != nil {
@@ -153,7 +137,7 @@ func (o *Organizer) Organize(ctx context.Context, mediaFileID string) (*domain.M
 	}
 
 	if _, statErr := os.Lstat(dest); statErr == nil {
-		return nil, fmt.Errorf("%w: %s", ErrDestinationExists, dest)
+		return nil, fmt.Errorf("%w: %s", ports.ErrDestinationExists, dest)
 	} else if !errors.Is(statErr, os.ErrNotExist) {
 		return nil, fmt.Errorf("organizer: checking destination %q: %w", dest, statErr)
 	}
@@ -175,13 +159,35 @@ func (o *Organizer) Organize(ctx context.Context, mediaFileID string) (*domain.M
 	return mf, nil
 }
 
+// mergedMetadata builds the raw, content-type-agnostic metadata map every
+// naming template can reach via {{.Metadata.<key>}} — independent of
+// whether a TemplateDataBuilder is registered for item's content type; even
+// a content type falling back to NoopTemplateDataBuilder still gets this.
+// Nested under its own "Metadata" key (never flat-merged into data) so a
+// raw metadata key can never silently shadow a curated field a
+// TemplateDataBuilder set (e.g. "ArtistName"). Starts from item.Metadata
+// and overlays mf.Metadata on top, converting each string value to any —
+// MediaFile is the more specific, physical-file-level entity actually
+// being organized, so it wins on any key collision with the Item's own
+// metadata.
+func mergedMetadata(item *domain.Item, mf *domain.MediaFile) map[string]any {
+	merged := make(map[string]any, len(item.Metadata)+len(mf.Metadata))
+	for k, v := range item.Metadata {
+		merged[k] = v
+	}
+	for k, v := range mf.Metadata {
+		merged[k] = v
+	}
+	return merged
+}
+
 // renderDestination renders cfg.Template against data and joins the result
-// onto cfg.Root, refusing (ErrDestinationOutsideRoot) if the rendered path
-// would land outside Root — a defense against unexpected metadata (e.g. an
-// artist name containing "../") relocating a file outside the operator's
-// configured tree.
+// onto cfg.Root, refusing (ports.ErrDestinationOutsideRoot) if the rendered
+// path would land outside Root — a defense against unexpected metadata
+// (e.g. an artist name containing "../") relocating a file outside the
+// operator's configured tree.
 func renderDestination(cfg OrganizeConfig, data map[string]any) (string, error) {
-	tmpl, err := template.New("organize").Parse(cfg.Template)
+	tmpl, err := template.New("organize").Funcs(nametemplate.Funcs()).Parse(cfg.Template)
 	if err != nil {
 		return "", fmt.Errorf("organizer: parsing template %q: %w", cfg.Template, err)
 	}
@@ -198,7 +204,7 @@ func renderDestination(cfg OrganizeConfig, data map[string]any) (string, error) 
 
 	dest := filepath.Join(root, buf.String())
 	if dest != root && !strings.HasPrefix(dest, root+string(filepath.Separator)) {
-		return "", fmt.Errorf("%w: %s", ErrDestinationOutsideRoot, dest)
+		return "", fmt.Errorf("%w: %s", ports.ErrDestinationOutsideRoot, dest)
 	}
 	return dest, nil
 }

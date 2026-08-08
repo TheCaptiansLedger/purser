@@ -2,6 +2,7 @@ package musicbrainz_test
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -125,6 +126,16 @@ func TestLookupRelease_MapsRecordedReleaseFixture(t *testing.T) {
 	if r.ReleaseGroup == nil || r.ReleaseGroup.ID != "de208292-8db5-3aed-a14a-b37a84d8c521" {
 		t.Errorf("ReleaseGroup = %+v, want ID=de208292-8db5-3aed-a14a-b37a84d8c521", r.ReleaseGroup)
 	}
+	// Regression coverage for purser#522: LookupRelease's inc= omitted
+	// artist-credits and isrcs, so ArtistCredit came back empty on every
+	// real (non-fixture) call — adapters/pipeline/music.Persist reads
+	// ArtistCredit[0].Artist.ID to resolve/create the Artist, so this
+	// broke every real import. The fixture itself was re-recorded
+	// against the live API with the corrected inc= to catch a
+	// regression here, not just in the query string LookupRelease sends.
+	if len(r.ArtistCredit) == 0 || r.ArtistCredit[0].Artist.Name != "The Beatles" {
+		t.Errorf("ArtistCredit = %+v, want one credit to The Beatles", r.ArtistCredit)
+	}
 	if len(r.Media) != 1 {
 		t.Fatalf("Media has %d entries, want 1", len(r.Media))
 	}
@@ -134,6 +145,9 @@ func TestLookupRelease_MapsRecordedReleaseFixture(t *testing.T) {
 	first := r.Media[0].Tracks[0]
 	if first.Recording == nil || first.Recording.Title == "" {
 		t.Errorf("first track's Recording = %+v, want a populated recording", first.Recording)
+	}
+	if first.Recording == nil || len(first.Recording.ISRCs) == 0 {
+		t.Errorf("first track's Recording.ISRCs = %+v, want at least one recorded ISRC", first.Recording)
 	}
 }
 
@@ -377,5 +391,115 @@ func TestSearchReleaseGroups_BuildsLuceneQueryFromArtistAndAlbumNames(t *testing
 	want := `artist:"The Beatles" AND releasegroup:"Please Please Me"`
 	if gotQuery != want {
 		t.Errorf("query = %q, want %q", gotQuery, want)
+	}
+}
+
+// TestGet_RetriesOn503ThenSucceeds covers purser#522's finding:
+// MusicBrainz's own rate-limit response is 503, documented as transient
+// ("declined until the rate drops again"), not permanent — a well-behaved
+// client retries rather than failing the whole group over one 503.
+func TestGet_RetriesOn503ThenSucceeds(t *testing.T) {
+	var calls int
+	rt := httpmock.New(httpmock.Route{
+		Method: http.MethodGet,
+		Path:   "/ws/2/release-group/x",
+		Responder: func(req *http.Request) (*http.Response, error) {
+			calls++
+			if calls < 3 {
+				return httpmock.Status(http.StatusServiceUnavailable)(req)
+			}
+			return httpmock.JSON(http.StatusOK, map[string]string{"id": "x", "title": "y"})(req)
+		},
+	})
+
+	c := newMockedTestClient(t, rt, musicbrainz.WithRetryBaseDelay(time.Millisecond))
+	rg, err := c.LookupReleaseGroup(context.Background(), "x")
+	if err != nil {
+		t.Fatalf("LookupReleaseGroup returned error: %v", err)
+	}
+	if rg.ID != "x" {
+		t.Errorf("ID = %q, want %q", rg.ID, "x")
+	}
+	if calls != 3 {
+		t.Errorf("Responder called %d times, want 3 (two 503s then a success)", calls)
+	}
+}
+
+// TestGet_GivesUpAfter503EveryAttempt covers the bound: a persistent 503
+// (the IP genuinely still over budget) fails after maxAttempts, not
+// forever.
+func TestGet_GivesUpAfter503EveryAttempt(t *testing.T) {
+	var calls int
+	rt := httpmock.New(httpmock.Route{
+		Method: http.MethodGet,
+		Path:   "/ws/2/release-group/x",
+		Responder: func(req *http.Request) (*http.Response, error) {
+			calls++
+			return httpmock.Status(http.StatusServiceUnavailable)(req)
+		},
+	})
+
+	c := newMockedTestClient(t, rt, musicbrainz.WithRetryBaseDelay(time.Millisecond))
+	if _, err := c.LookupReleaseGroup(context.Background(), "x"); err == nil {
+		t.Fatal("LookupReleaseGroup with a persistent 503 returned nil error")
+	}
+	if calls != 4 {
+		t.Errorf("Responder called %d times, want 4 (maxAttempts, then give up)", calls)
+	}
+}
+
+// TestGet_DoesNotRetry404 covers the other half of retryableStatus: a 404
+// is a real, meaningful answer ("this MBID doesn't exist"), not a
+// transient failure — retrying it would only waste time before returning
+// the same ports.ErrNotFound.
+func TestGet_DoesNotRetry404(t *testing.T) {
+	var calls int
+	rt := httpmock.New(httpmock.Route{
+		Method: http.MethodGet,
+		Path:   "/ws/2/release-group/x",
+		Responder: func(req *http.Request) (*http.Response, error) {
+			calls++
+			return httpmock.Status(http.StatusNotFound)(req)
+		},
+	})
+
+	c := newMockedTestClient(t, rt, musicbrainz.WithRetryBaseDelay(time.Millisecond))
+	if _, err := c.LookupReleaseGroup(context.Background(), "x"); !errors.Is(err, ports.ErrNotFound) {
+		t.Fatalf("LookupReleaseGroup returned %v, want ports.ErrNotFound", err)
+	}
+	if calls != 1 {
+		t.Errorf("Responder called %d times, want 1 — a 404 is a real answer, not a transient failure", calls)
+	}
+}
+
+// TestGet_RetriesTransportTimeoutThenSucceeds covers the other retryable
+// case: a request that never got an HTTP response at all (status 0) — the
+// same shape a cold, slow MusicBrainz lookup timing out on
+// ResponseHeaderTimeout produces (confirmed against the live API during
+// purser#522's manual verification).
+func TestGet_RetriesTransportTimeoutThenSucceeds(t *testing.T) {
+	var calls int
+	rt := httpmock.New(httpmock.Route{
+		Method: http.MethodGet,
+		Path:   "/ws/2/release-group/x",
+		Responder: func(req *http.Request) (*http.Response, error) {
+			calls++
+			if calls == 1 {
+				return httpmock.Timeout()(req)
+			}
+			return httpmock.JSON(http.StatusOK, map[string]string{"id": "x", "title": "y"})(req)
+		},
+	})
+
+	c := newMockedTestClient(t, rt, musicbrainz.WithRetryBaseDelay(time.Millisecond))
+	rg, err := c.LookupReleaseGroup(context.Background(), "x")
+	if err != nil {
+		t.Fatalf("LookupReleaseGroup returned error: %v", err)
+	}
+	if rg.ID != "x" {
+		t.Errorf("ID = %q, want %q", rg.ID, "x")
+	}
+	if calls != 2 {
+		t.Errorf("Responder called %d times, want 2 (one simulated timeout then a success)", calls)
 	}
 }

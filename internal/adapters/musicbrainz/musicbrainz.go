@@ -37,6 +37,15 @@ const (
 	// requestsPerSecond is MusicBrainz's own enforced rate limit — not
 	// configurable, since it's the provider's policy, not a tuning knob.
 	requestsPerSecond = 1
+
+	// maxAttempts bounds retries of a transient failure (HTTP 503, or a
+	// transport-level error like a timeout) in get — see get's retry
+	// loop and docs/technical/music-musicbrainz-adapter.md.
+	// MusicBrainz's own rate-limiting docs describe 503 as
+	// "declined until the rate drops again," not a permanent failure, so
+	// a well-behaved client backs off and retries rather than failing
+	// the whole group over one transient response.
+	maxAttempts = 4
 )
 
 // Config configures a Client built by New. Every field has a sane default
@@ -62,13 +71,26 @@ type Config struct {
 // DefaultConfig returns the sane defaults every Client starts from. The
 // cache's DefaultTTL is set well above pkg/cache's own 15-minute default —
 // MusicBrainz's identity-graph data is close to static.
+//
+// ResponseHeaderTimeout is raised well above pkg/httpclient's generic 10s
+// default — a real, uncached release/artist lookup with a heavy
+// inc=recordings+labels+release-groups can legitimately take 8-10s+ on a
+// cold request against musicbrainz.org itself (confirmed directly with
+// repeated curl timings during M11b's manual verification, purser#522: a
+// cold lookup ran 3.7-8s+, the identical URL requested again moments later
+// ran 0.7s). 10s cuts that off mid-flight on a fair fraction of first
+// attempts; config.MusicBrainz.ResponseHeaderTimeout lets an operator
+// raise it further still without a code change.
 func DefaultConfig() Config {
 	cacheCfg := cache.DefaultConfig()
 	cacheCfg.DefaultTTL = 24 * time.Hour
 
+	httpCfg := httpclient.DefaultConfig()
+	httpCfg.ResponseHeaderTimeout = 25 * time.Second
+
 	return Config{
 		BaseURL:    defaultBaseURL,
-		HTTPClient: httpclient.DefaultConfig(),
+		HTTPClient: httpCfg,
 		Cache:      cacheCfg,
 	}
 }
@@ -76,10 +98,11 @@ func DefaultConfig() Config {
 // Client is the MusicBrainz ports.MusicBrainzClient adapter. Safe for
 // concurrent use.
 type Client struct {
-	baseURL string
-	http    *http.Client
-	cache   cache.Cache
-	limiter *rate.Limiter
+	baseURL        string
+	http           *http.Client
+	cache          cache.Cache
+	limiter        *rate.Limiter
+	retryBaseDelay time.Duration
 
 	logger *slog.Logger
 	tracer trace.Tracer
@@ -149,13 +172,14 @@ func New(cfg Config, opts ...Option) (*Client, error) {
 	}
 
 	return &Client{
-		baseURL:  cfg.BaseURL,
-		http:     httpClient,
-		cache:    c,
-		limiter:  rate.NewLimiter(rate.Limit(requestsPerSecond), 1),
-		logger:   o.logger.With("component", "adapters.musicbrainz"),
-		tracer:   o.tracerProvider.Tracer(instrumentationName),
-		requests: requests,
+		baseURL:        cfg.BaseURL,
+		http:           httpClient,
+		cache:          c,
+		limiter:        rate.NewLimiter(rate.Limit(requestsPerSecond), 1),
+		retryBaseDelay: o.retryBaseDelay,
+		logger:         o.logger.With("component", "adapters.musicbrainz"),
+		tracer:         o.tracerProvider.Tracer(instrumentationName),
+		requests:       requests,
 	}, nil
 }
 
@@ -228,10 +252,21 @@ func (c *Client) SearchReleaseGroups(ctx context.Context, artistName, albumName 
 	return resp.ReleaseGroups, nil
 }
 
-// LookupRelease implements ports.MusicBrainzClient.
+// LookupRelease implements ports.MusicBrainzClient. inc must list every
+// sub-resource this codebase actually reads off the result — MusicBrainz
+// omits each one from the response entirely unless explicitly requested,
+// it doesn't just default them empty. artist-credits and isrcs were
+// missing here until purser#522's manual verification caught it: every
+// real (non-fixture) Persist call was failing on ports.Release.
+// ArtistCredit being empty, 100% reproducibly — confirmed directly
+// against musicbrainz.org (identical URL, artist-credit present with the
+// inc token, absent without it). recordings/labels/release-groups feed
+// Track.Recording, LabelInfo, and ReleaseGroup respectively (see
+// adapters/pipeline/music/persister.go and identifier.go's readers of
+// this DTO).
 func (c *Client) LookupRelease(ctx context.Context, mbid string) (*ports.Release, error) {
 	q := url.Values{}
-	q.Set("inc", "recordings labels release-groups")
+	q.Set("inc", "recordings labels release-groups artist-credits isrcs")
 
 	var r ports.Release
 	if err := c.get(ctx, "release/"+mbid, q, &r); err != nil {
@@ -289,6 +324,18 @@ func (c *Client) LookupRecordingByISRC(ctx context.Context, isrc string) ([]port
 // ports.ErrNotFound — the single choke point every method above routes
 // through, so rate limiting, tracing, metrics, and error mapping are
 // implemented exactly once.
+//
+// A transient failure — HTTP 503 (MusicBrainz's own documented
+// rate-limit response: "declined until the rate drops again," not a
+// permanent failure — see docs/technical/music-musicbrainz-adapter.md)
+// or a transport-level error (a slow/cold request timing out, confirmed
+// against the real API during purser#522's manual verification: a cold,
+// heavy release lookup legitimately took 8-10s+ on a first attempt, then
+// under a second moments later) — is retried up to maxAttempts times
+// with an increasing delay, still paced through the limiter on every
+// attempt so a retry storm can't itself violate the rate limit.
+// Anything else (404, another non-2xx, a malformed body) fails
+// immediately — retrying those wouldn't change the outcome.
 func (c *Client) get(ctx context.Context, path string, q url.Values, out any) error {
 	if q == nil {
 		q = url.Values{}
@@ -300,19 +347,60 @@ func (c *Client) get(ctx context.Context, path string, q url.Values, out any) er
 	))
 	defer span.End()
 
-	if err := c.limiter.Wait(ctx); err != nil {
-		return fmt.Errorf("adapters/musicbrainz: rate limiter: %w", err)
-	}
-
 	reqURL := c.baseURL + path + "?" + q.Encode()
+
+	var lastErr error
+	for attempt := 1; attempt <= maxAttempts; attempt++ {
+		if err := c.limiter.Wait(ctx); err != nil {
+			return fmt.Errorf("adapters/musicbrainz: rate limiter: %w", err)
+		}
+
+		status, err := c.getOnce(ctx, path, reqURL, out, span)
+		if err == nil {
+			return nil
+		}
+		lastErr = err
+
+		if attempt == maxAttempts || !retryableStatus(status) {
+			return err
+		}
+
+		delay := c.retryBaseDelay * time.Duration(attempt)
+		c.logger.WarnContext(ctx, "musicbrainz request failed, retrying",
+			"path", path, "attempt", attempt, "delay", delay, "error", err)
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(delay):
+		}
+	}
+	return lastErr
+}
+
+// retryableStatus reports whether status is worth another attempt: 0 (a
+// transport-level failure that never got an HTTP response at all — a
+// timeout, a connection error) or MusicBrainz's own documented
+// rate-limit signal, 503. Anything else — 404, another non-2xx, a
+// successfully-received but malformed body (which still carries its
+// real 2xx status here) — is not: retrying wouldn't change the outcome.
+func retryableStatus(status int) bool {
+	return status == 0 || status == http.StatusServiceUnavailable
+}
+
+// getOnce issues a single GET attempt against reqURL, decodes the JSON
+// response into out, and maps a 404 to ports.ErrNotFound. Returns the
+// HTTP status actually received (0 if the request never got a response
+// at all) so get's retry loop can classify the failure via
+// retryableStatus.
+func (c *Client) getOnce(ctx context.Context, path, reqURL string, out any, span trace.Span) (int, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, reqURL, nil)
 	if err != nil {
-		return fmt.Errorf("adapters/musicbrainz: building request for %s: %w", path, err)
+		return 0, fmt.Errorf("adapters/musicbrainz: building request for %s: %w", path, err)
 	}
 
 	resp, err := c.http.Do(req)
 	if err != nil {
-		return fmt.Errorf("adapters/musicbrainz: requesting %s: %w", path, err)
+		return 0, fmt.Errorf("adapters/musicbrainz: requesting %s: %w", path, err)
 	}
 	defer func() { _ = resp.Body.Close() }()
 
@@ -324,18 +412,18 @@ func (c *Client) get(ctx context.Context, path string, q url.Values, out any) er
 
 	if resp.StatusCode == http.StatusNotFound {
 		c.logger.DebugContext(ctx, "musicbrainz not found", "path", path)
-		return fmt.Errorf("adapters/musicbrainz: %s: %w", path, ports.ErrNotFound)
+		return resp.StatusCode, fmt.Errorf("adapters/musicbrainz: %s: %w", path, ports.ErrNotFound)
 	}
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return fmt.Errorf("adapters/musicbrainz: %s: unexpected status %d", path, resp.StatusCode)
+		return resp.StatusCode, fmt.Errorf("adapters/musicbrainz: %s: unexpected status %d", path, resp.StatusCode)
 	}
 
 	if err := json.NewDecoder(resp.Body).Decode(out); err != nil {
-		return fmt.Errorf("adapters/musicbrainz: decoding %s response: %w", path, err)
+		return resp.StatusCode, fmt.Errorf("adapters/musicbrainz: decoding %s response: %w", path, err)
 	}
 
 	c.logger.DebugContext(ctx, "musicbrainz request succeeded", "path", path)
-	return nil
+	return resp.StatusCode, nil
 }
 
 // Option customizes a Client constructed via New.
@@ -346,6 +434,7 @@ type options struct {
 	tracerProvider trace.TracerProvider
 	meterProvider  metric.MeterProvider
 	baseTransport  http.RoundTripper
+	retryBaseDelay time.Duration
 }
 
 func defaultOptions() *options {
@@ -353,6 +442,7 @@ func defaultOptions() *options {
 		logger:         slog.Default(),
 		tracerProvider: otel.GetTracerProvider(),
 		meterProvider:  otel.GetMeterProvider(),
+		retryBaseDelay: 2 * time.Second,
 	}
 }
 
@@ -369,6 +459,15 @@ func WithTracerProvider(tp trace.TracerProvider) Option {
 // WithMeterProvider overrides the default (global) MeterProvider.
 func WithMeterProvider(mp metric.MeterProvider) Option {
 	return func(o *options) { o.meterProvider = mp }
+}
+
+// WithRetryBaseDelay overrides the base delay get waits before retrying a
+// transient failure (HTTP 503, or a transport-level error) — attempt N's
+// delay is this value times N. Defaults to 2s; tests override this to a
+// near-zero value so a retry-path test doesn't have to actually sleep for
+// several real seconds.
+func WithRetryBaseDelay(d time.Duration) Option {
+	return func(o *options) { o.retryBaseDelay = d }
 }
 
 // WithBaseTransport overrides the transport pkg/httpclient.New builds from

@@ -106,6 +106,27 @@ A starting default for Music, not asserted as the right convention:
 {{.ArtistName}}/{{.AlbumTitle}}{{if .Year}} ({{.Year}}){{end}}/{{if gt .DiscCount 1}}{{.DiscNumber}}-{{end}}{{printf "%02d" .TrackNumber}} - {{.TrackTitle}}{{.Ext}}
 ```
 
+## Template data beyond a content type's own curated fields: `.Metadata` and `default`
+
+Two additions live in the *generic* Organizer (`internal/service/organizer.go`)
+and `pkg/nametemplate`, not in Music's `TemplateDataBuilder` — every content
+type gets them for free, including one with no registered
+`TemplateDataBuilder` at all (falling back to `NoopTemplateDataBuilder`):
+
+- **`.Metadata`**: a merged map of the `Item`'s own `Metadata` and the
+  `MediaFile`'s own `Metadata`, nested under its own key so a raw metadata
+  field can never silently shadow a curated field like `.ArtistName`
+  (`MediaFile`'s value wins on a key collision between the two, since it's
+  the more specific, physical-file-level entity actually being organized).
+  Lets an operator's template reach any metadata value without a
+  `TemplateDataBuilder` change, e.g. `{{.Metadata.isrc}}`.
+- **`default`**: a Sprig-style template function (`pkg/nametemplate.Funcs()`,
+  registered on every `text/template.Parse` call a naming template goes
+  through — both config validation and the real render step) —
+  `{{.Metadata.isrc | default "unknown"}}` falls back to `"unknown"` when
+  `isrc` is missing or its zero value. Only `default` exists today; more
+  functions get added if a real template needs them, not speculatively.
+
 ## "Never triggers a reimport" — already guaranteed, no new work needed here
 
 The Organizer updates `MediaFile.Path` as part of the move. Even if

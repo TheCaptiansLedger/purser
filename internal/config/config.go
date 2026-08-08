@@ -98,7 +98,9 @@ func Load(v *viper.Viper, configPath string) (Config, error) {
 	v.SetDefault("pipeline.scan_roots", defaults.Pipeline.ScanRoots)
 	v.SetDefault("pipeline.confidence_threshold", defaults.Pipeline.ConfidenceThreshold)
 	v.SetDefault("pipeline.organize", defaults.Pipeline.Organize)
+	v.SetDefault("pipeline.auto_organize", defaults.Pipeline.AutoOrganize)
 	v.SetDefault("musicbrainz.base_url", defaults.MusicBrainz.BaseURL)
+	v.SetDefault("musicbrainz.response_header_timeout", defaults.MusicBrainz.ResponseHeaderTimeout)
 	v.SetDefault("acoustid.base_url", defaults.AcoustID.BaseURL)
 	v.SetDefault("acoustid.api_key", defaults.AcoustID.APIKey)
 

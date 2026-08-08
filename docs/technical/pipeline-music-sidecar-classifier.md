@@ -78,11 +78,18 @@ No new entity or repository is needed to "remember" a classified image
 file from scan time until a `MusicRelease` exists to own it. `GroupKey` is
 already a folder path, and it's still sitting there when M9's `Persist`
 runs — so `Persist`, after resolving the `MusicRelease` (M9 step 5), does
-one plain directory listing of the group's folder for image files, ranked
-by filename convention: `cover.*` highest, `folder.*` next, `front.*`/
-`album.*` after that, any other image file last. If a group is dismissed
-and never persisted, nothing ever looks at its images — correct, since
-there's no release to attach them to.
+a recursive walk of the group's folder tree for image files anywhere
+under it, ranked by filename convention: `cover.*` highest, `folder.*`
+next, `front.*`/`album.*` after that, any other image file last.
+Recursive, not just `GroupKey`'s own top-level entries — a real box set's
+cover art commonly lives in its own subfolder (a "Covers"/"Scans"/
+"Artwork" convention, or per-disc art inside a "CD1"/"Disc 2" subfolder),
+not loose next to the audio; a flat, single-level listing (this
+milestone's original implementation) found nothing at all for exactly
+that real case, confirmed directly on the Hi Infidelity fixture during
+purser#522's manual verification. If a group is dismissed and never
+persisted, nothing ever looks at its images — correct, since there's no
+release to attach them to.
 
 **All matched images get attached, not just the top-ranked one.**
 `domain.Image` already has a `Priority int` field for exactly this — each
@@ -126,8 +133,16 @@ exist to prevent, so it doesn't need their machinery.
 
 ## What this deliberately doesn't do
 
-- No recursion into disc subfolders for per-medium art (e.g. `cdart`) —
-  only the group's top-level folder (`GroupKey`) is checked. Worth
-  revisiting if real box sets turn out to need it.
 - No provider-fetched cover art (TheAudioDB, fanart.tv) — this milestone
   only covers art already sitting on disk next to the audio files.
+  `domain.Image.Source` already carries `"local_scan"` precisely so a
+  future provider adapter can write `Source: "fanart_tv"`-style rows into
+  the same `Priority`-ranked list without a domain change — a future
+  `ImageSource` adapter's job (0013 already notes this gap), not
+  something this milestone builds.
+- No improvement to the filename-convention ranking heuristic itself —
+  `coverArtRank` matches a bare stem (`cover.jpg`, `front.png`) exactly;
+  a real file named `"Hi Infidelity Front.png"` doesn't hit the `front`
+  bucket and ranks as "other" instead. Recursion (above) fixed *finding*
+  images anywhere under the group folder; it doesn't make the ranking
+  itself smarter about real-world filenames.

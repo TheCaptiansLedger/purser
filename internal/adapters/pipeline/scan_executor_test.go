@@ -2,6 +2,7 @@ package pipeline_test
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"os"
 	"path/filepath"
@@ -334,15 +335,30 @@ func (f *fakeFileFingerprinterResolver) Consensus(_ context.Context, _ domain.Co
 
 // fakeIdentifierResolver is a minimal ports.IdentifierResolver double —
 // existing ScanExecutor tests don't exercise decide/persist, so this
-// defaults to returning no candidates unless configured.
+// defaults to returning no candidates unless configured. errForGroupKey
+// (optional) fails only the named group, so a test can prove one group's
+// failure doesn't stop a sibling group in the same Job from being
+// attempted — err (unqualified) fails every group, for tests that don't
+// care about per-group isolation.
 type fakeIdentifierResolver struct {
-	candidates []domain.MatchCandidate
-	err        error
-	calls      int
+	mu             sync.Mutex
+	candidates     []domain.MatchCandidate
+	err            error
+	errForGroupKey map[string]error
+	calls          int
+	calledGroups   []string
 }
 
-func (f *fakeIdentifierResolver) Identify(_ context.Context, _ domain.ContentType, _ domain.Fingerprint, _ []string, _, _ string) ([]domain.MatchCandidate, error) {
+func (f *fakeIdentifierResolver) Identify(_ context.Context, _ domain.ContentType, _ domain.Fingerprint, _ []string, groupKey, _ string) ([]domain.MatchCandidate, error) {
+	f.mu.Lock()
 	f.calls++
+	f.calledGroups = append(f.calledGroups, groupKey)
+	f.mu.Unlock()
+	if f.errForGroupKey != nil {
+		if err, ok := f.errForGroupKey[groupKey]; ok {
+			return nil, err
+		}
+	}
 	if f.err != nil {
 		return nil, f.err
 	}
@@ -1247,6 +1263,19 @@ func TestScanExecutor_Execute_DecideAndPersist_AutoImportDeletesGroup(t *testing
 	if decideStep.Detail["candidate_count"] != "1" {
 		t.Errorf("decide step Detail[candidate_count] = %q, want %q", decideStep.Detail["candidate_count"], "1")
 	}
+
+	// The full scored candidate list — ExternalRef, Score, Tier, Signals —
+	// lives on the Job itself (docs/adr/0023-job-queue.md's own framing of
+	// Step.Detail: "a matched MBID, a computed confidence score"), so
+	// answering "why did/didn't this group auto-import" never needs a
+	// temporary debug log bolted onto the pipeline.
+	var gotCandidates []domain.MatchCandidate
+	if err := json.Unmarshal([]byte(decideStep.Detail["candidates"]), &gotCandidates); err != nil {
+		t.Fatalf("decoding decide step Detail[candidates] returned error: %v (raw: %q)", err, decideStep.Detail["candidates"])
+	}
+	if len(gotCandidates) != 1 || gotCandidates[0].ExternalRef != "release-mbid-1" || gotCandidates[0].Score != 0.95 {
+		t.Errorf("decide step Detail[candidates] decoded to %+v, want one candidate matching %+v", gotCandidates, candidate)
+	}
 }
 
 // TestScanExecutor_Execute_DecideAndPersist_BelowThresholdLeavesGroupPending
@@ -1262,7 +1291,8 @@ func TestScanExecutor_Execute_DecideAndPersist_BelowThresholdLeavesGroupPending(
 		byPath:    map[string]domain.Fingerprint{file: {Tags: map[string]string{"ALBUM": "Test Album"}}},
 		consensus: domain.Fingerprint{Tags: map[string]string{"ALBUM": "Consensus Album"}},
 	}
-	identifier := &fakeIdentifierResolver{}
+	candidate := domain.MatchCandidate{ExternalRef: "release-mbid-1", Score: 0.70, Tier: domain.MatchTierFuzzy}
+	identifier := &fakeIdentifierResolver{candidates: []domain.MatchCandidate{candidate}}
 	confidenceScore := &fakeConfidenceScoreResolver{}
 	decision := &fakeDecisionResolver{persisted: false}
 	engine := newEngineWithDecision(t, repo, mediaFileRepo, &fakeGroupingResolver{}, fingerprinter, identifier, confidenceScore, decision)
@@ -1284,10 +1314,103 @@ func TestScanExecutor_Execute_DecideAndPersist_BelowThresholdLeavesGroupPending(
 	if got.Status != domain.UnmatchedFileStatusPending {
 		t.Fatalf("UnmatchedFile.Status = %q, want %q (untouched)", got.Status, domain.UnmatchedFileStatusPending)
 	}
+	// The real scored candidate must land on the row — a caller
+	// (GetUnmatchedFile/ListUnmatchedFiles/ListGroupUnmatchedFiles) needs
+	// to actually see the match and its confidence score to let a human
+	// accept it, per AcceptCandidateRequest's own doc comment ("a human
+	// picks any ranked candidate"). This used to come back empty every
+	// time — the scored candidate was computed, then thrown away.
+	if len(got.Candidates) != 1 || got.Candidates[0].ExternalRef != candidate.ExternalRef || got.Candidates[0].Score != candidate.Score {
+		t.Fatalf("UnmatchedFile.Candidates = %+v, want [%+v]", got.Candidates, candidate)
+	}
 
 	decideStep := findStep(job.Tasks[0], "decide")
 	if decideStep == nil || decideStep.Detail["persisted"] != "false" {
 		t.Fatalf("decide step = %+v, want Detail[persisted]=false", decideStep)
+	}
+}
+
+// TestScanExecutor_Execute_OneGroupsDecideFailureDoesNotBlockSiblingGroup
+// covers decideAndPersistGroups' groupBusinessError isolation: one group's
+// identify/score/decide failure (a MusicBrainz timeout, in production)
+// must not stop a sibling group in the same Job from getting its own
+// independent identify/score/decide attempt and, on success, being
+// auto-imported — a regression test for purser#522's manual verification
+// finding that a single group's failure was silently swallowing every
+// other group's Job.
+func TestScanExecutor_Execute_OneGroupsDecideFailureDoesNotBlockSiblingGroup(t *testing.T) {
+	dir := t.TempDir()
+	failFile := writeHashableFixture(t, dir, "fails.flac")
+	okFile := writeHashableFixture(t, dir, "ok.flac")
+
+	repo := newFakeUnmatchedFileRepository()
+	mediaFileRepo := newFakeMediaFileRepository()
+	fingerprinter := &fakeFileFingerprinterResolver{
+		byPath: map[string]domain.Fingerprint{
+			failFile: {Tags: map[string]string{"ALBUM": "Fails"}},
+			okFile:   {Tags: map[string]string{"ALBUM": "OK"}},
+		},
+		consensus: domain.Fingerprint{Tags: map[string]string{"ALBUM": "Consensus"}},
+	}
+	candidate := domain.MatchCandidate{ExternalRef: "release-mbid-1", Score: 0.95}
+	identifier := &fakeIdentifierResolver{
+		candidates:     []domain.MatchCandidate{candidate},
+		errForGroupKey: map[string]error{failFile: errors.New("musicbrainz: timeout awaiting response headers")},
+	}
+	confidenceScore := &fakeConfidenceScoreResolver{}
+	decision := &fakeDecisionResolver{persisted: true}
+	// Default fakeGroupingResolver puts every path in its own group
+	// (GroupKey == path), so failFile and okFile are two independent
+	// groups in the same Job.
+	engine := newEngineWithDecision(t, repo, mediaFileRepo, &fakeGroupingResolver{}, fingerprinter, identifier, confidenceScore, decision)
+
+	id, err := engine.Trigger(context.Background(), "scan", []string{failFile, okFile}, map[string]string{"content_type": "music"})
+	if err != nil {
+		t.Fatalf("Trigger returned error: %v", err)
+	}
+	job := waitForTerminal(t, engine, id.ID)
+
+	if identifier.calls != 2 {
+		t.Fatalf("Identify called %d times, want 2 — okFile's group must still be attempted after failFile's group fails", identifier.calls)
+	}
+	// The Job as a whole still reports failure — one of its groups
+	// genuinely needs attention — but that's now an accurate summary of
+	// a partial outcome, not a report that nothing happened at all.
+	if job.Status != pkgjobqueue.StatusFailed {
+		t.Fatalf("job.Status = %q, want %q (one group failed)", job.Status, pkgjobqueue.StatusFailed)
+	}
+
+	var failTask, okTask *pkgjobqueue.Task
+	for _, task := range job.Tasks {
+		switch task.Label {
+		case failFile:
+			failTask = task
+		case okFile:
+			okTask = task
+		}
+	}
+	if failTask == nil || okTask == nil {
+		t.Fatalf("expected tasks for both %q and %q, got %d tasks", failFile, okFile, len(job.Tasks))
+	}
+
+	failDecide := findStep(failTask, "decide")
+	if failDecide == nil || failDecide.Status != pkgjobqueue.StatusFailed {
+		t.Fatalf("failFile's decide step = %+v, want a failed step", failDecide)
+	}
+	okDecide := findStep(okTask, "decide")
+	if okDecide == nil || okDecide.Status != pkgjobqueue.StatusSucceeded || okDecide.Detail["persisted"] != "true" {
+		t.Fatalf("okFile's decide step = %+v, want a succeeded step with persisted=true", okDecide)
+	}
+
+	// okFile's group was auto-imported (its row deleted); failFile's
+	// group is still sitting in the review queue, untouched.
+	okUfID := findStep(okTask, "queue").Detail["unmatched_file.id"]
+	if _, err := repo.Get(context.Background(), okUfID); !errors.Is(err, ports.ErrNotFound) {
+		t.Fatalf("repo.Get(okFile's row) after a persisted decide returned %v, want ErrNotFound", err)
+	}
+	failUfID := findStep(failTask, "queue").Detail["unmatched_file.id"]
+	if _, err := repo.Get(context.Background(), failUfID); err != nil {
+		t.Fatalf("repo.Get(failFile's row) after a failed decide returned error: %v, want the row still present", err)
 	}
 }
 

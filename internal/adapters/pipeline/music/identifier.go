@@ -620,59 +620,122 @@ func trackCountSignal(fp domain.Fingerprint, release *ports.Release) (float64, b
 	return float64(lo) / float64(hi), true
 }
 
-// titleSetSignal compares the group's ordered track_titles (indexed by
-// (disc, track) — see docs/technical/pipeline-music-fingerprinter.md)
-// against release's tracks flattened in the same (medium, track) position
-// order, position-for-position. The denominator is always the group's own
-// track count, matching the "10/10", "30/32" coverage-fraction framing in
-// docs/technical/music-identification.md's worked examples, not just the
-// subset of positions that happened to have a comparable candidate track.
-func titleSetSignal(fp domain.Fingerprint, release *ports.Release) (float64, bool) {
-	titles, _ := fp.Metadata["track_titles"].([]string)
-	if len(titles) == 0 {
-		return 0, false
-	}
-	candidateTracks := flattenReleaseTracks(release)
-	if len(candidateTracks) == 0 {
-		return 0, false
-	}
-
-	credit := 0.0
-	for i, title := range titles {
-		if title == "" || i >= len(candidateTracks) {
-			continue
-		}
-		switch sim := nameSimilarity(title, candidateTracks[i].Title); {
-		case sim >= titleMatchThreshold:
-			credit += 1
-		case sim >= titlePartialThreshold:
-			credit += titlePartialCredit
-		}
-	}
-	return credit / float64(len(titles)), true
+// titleComparison is one (disc, track)-position's title comparison —
+// exposed (alongside titleComparisons) purely so diagnostic tooling (see
+// diagnostic_test.go) can report the same position-by-position detail
+// titleSetSignal's aggregate is computed from, instead of a caller having
+// to reimplement this comparison itself and risk drifting from what the
+// real scoring code actually does.
+type titleComparison struct {
+	position       int
+	ourTitle       string
+	candidateTitle string
+	similarity     float64
+	credit         float64
 }
 
-func durationSignal(fp domain.Fingerprint, release *ports.Release) (float64, bool) {
-	durations, _ := fp.Metadata["track_durations"].([]float64)
-	if len(durations) == 0 {
-		return 0, false
+// titleComparisons compares the group's ordered track_titles (indexed by
+// (disc, track) — see docs/technical/pipeline-music-fingerprinter.md)
+// against release's tracks flattened in the same (medium, track) position
+// order, position-for-position. ok is false when either side has nothing
+// to compare (titleSetSignal's "signal not evaluable" case).
+func titleComparisons(fp domain.Fingerprint, release *ports.Release) (comparisons []titleComparison, ok bool) {
+	titles, _ := fp.Metadata["track_titles"].([]string)
+	if len(titles) == 0 {
+		return nil, false
 	}
 	candidateTracks := flattenReleaseTracks(release)
 	if len(candidateTracks) == 0 {
-		return 0, false
+		return nil, false
 	}
 
-	within := 0
+	comparisons = make([]titleComparison, len(titles))
+	for i, title := range titles {
+		c := titleComparison{position: i, ourTitle: title}
+		if i < len(candidateTracks) {
+			c.candidateTitle = candidateTracks[i].Title
+		}
+		if title != "" && i < len(candidateTracks) {
+			c.similarity = nameSimilarity(title, candidateTracks[i].Title)
+			switch {
+			case c.similarity >= titleMatchThreshold:
+				c.credit = 1
+			case c.similarity >= titlePartialThreshold:
+				c.credit = titlePartialCredit
+			}
+		}
+		comparisons[i] = c
+	}
+	return comparisons, true
+}
+
+// titleSetSignal is titleComparisons' aggregate: the denominator is always
+// the group's own track count, matching the "10/10", "30/32"
+// coverage-fraction framing in docs/technical/music-identification.md's
+// worked examples, not just the subset of positions that happened to have
+// a comparable candidate track.
+func titleSetSignal(fp domain.Fingerprint, release *ports.Release) (float64, bool) {
+	comparisons, ok := titleComparisons(fp, release)
+	if !ok {
+		return 0, false
+	}
+	credit := 0.0
+	for _, c := range comparisons {
+		credit += c.credit
+	}
+	return credit / float64(len(comparisons)), true
+}
+
+// durationComparison is one (disc, track)-position's duration comparison —
+// see titleComparison's doc comment; same reasoning, same shape.
+type durationComparison struct {
+	position         int
+	ourSeconds       float64
+	candidateSeconds float64
+	withinTolerance  bool
+	evaluable        bool
+}
+
+// durationComparisons is durationSignal's per-position detail — see
+// titleComparisons' doc comment.
+func durationComparisons(fp domain.Fingerprint, release *ports.Release) (comparisons []durationComparison, ok bool) {
+	durations, _ := fp.Metadata["track_durations"].([]float64)
+	if len(durations) == 0 {
+		return nil, false
+	}
+	candidateTracks := flattenReleaseTracks(release)
+	if len(candidateTracks) == 0 {
+		return nil, false
+	}
+
+	comparisons = make([]durationComparison, len(durations))
 	for i, d := range durations {
+		c := durationComparison{position: i, ourSeconds: d}
 		if d <= 0 || i >= len(candidateTracks) || candidateTracks[i].Length <= 0 {
+			comparisons[i] = c
 			continue
 		}
-		candidateSeconds := float64(candidateTracks[i].Length) / 1000.0
-		if math.Abs(d-candidateSeconds) <= durationToleranceSeconds {
+		c.evaluable = true
+		c.candidateSeconds = float64(candidateTracks[i].Length) / 1000.0
+		c.withinTolerance = math.Abs(d-c.candidateSeconds) <= durationToleranceSeconds
+		comparisons[i] = c
+	}
+	return comparisons, true
+}
+
+// durationSignal is durationComparisons' aggregate.
+func durationSignal(fp domain.Fingerprint, release *ports.Release) (float64, bool) {
+	comparisons, ok := durationComparisons(fp, release)
+	if !ok {
+		return 0, false
+	}
+	within := 0
+	for _, c := range comparisons {
+		if c.evaluable && c.withinTolerance {
 			within++
 		}
 	}
-	return float64(within) / float64(len(durations)), true
+	return float64(within) / float64(len(comparisons)), true
 }
 
 func acousticAgreementSignal(acoustic map[string][]ports.AcoustIDMatch, releaseGroupMBID string) (float64, bool) {
