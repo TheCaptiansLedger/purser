@@ -1,0 +1,88 @@
+syntax = "proto3";
+
+package purser.music.v1;
+
+option go_package = "purser/gen/go/purser/music/v1;musicv1";
+
+// MusicBrainzReleaseGroup is one candidate album MusicBrainz's own free-text
+// search returned — the conceptual album, independent of any specific
+// pressing/edition. Named distinctly from this package's own ReleaseGroup-
+// shaped domain messages (purser.domain.v1.Group) since this is raw
+// external identity-graph data, not a persisted Purser entity — mirrors
+// ports.ReleaseGroup (internal/adapters/musicbrainz)'s own DTO/domain
+// separation.
+message MusicBrainzReleaseGroup {
+  string mbid = 1;
+  string title = 2;
+  string disambiguation = 3;
+  string primary_type = 4;
+  repeated string secondary_types = 5;
+  string first_release_date = 6;
+}
+
+// MusicBrainzRelease is one specific pressing/edition of a
+// MusicBrainzReleaseGroup — what a human is actually choosing between when
+// picking which edition of an album is the one on disk.
+// format/medium_count/track_count/label summarize the first medium/
+// label-info entry, enough to distinguish editions in a list without a
+// second round trip per candidate; the full tracklist isn't duplicated
+// here — AcceptCandidateRequest's external_ref is the chosen release's
+// mbid, and Persist (docs/technical/pipeline-music-persist.md) fetches
+// the full release itself once a specific edition is accepted.
+message MusicBrainzRelease {
+  string mbid = 1;
+  string title = 2;
+  string disambiguation = 3;
+  string country = 4;
+  string date = 5;
+  string barcode = 6;
+  string status = 7;
+  string format = 8;
+  int32 medium_count = 9;
+  int32 track_count = 10;
+  repeated string artist_credit_names = 11;
+  string label = 12;
+}
+
+// SearchMusicBrainzReleaseGroupsRequest free-text searches MusicBrainz by
+// artist and album name — the same query M7's own fuzzy-tag identification
+// path already issues automatically (adapters/pipeline/music.Identifier),
+// now available as an explicit, human-driven RPC: "search for this album"
+// rather than only ever running implicitly during a scan.
+message SearchMusicBrainzReleaseGroupsRequest {
+  string artist_name = 1;
+  string album_name = 2;
+}
+
+message SearchMusicBrainzReleaseGroupsResponse {
+  repeated MusicBrainzReleaseGroup release_groups = 1;
+}
+
+// ListMusicBrainzReleasesRequest lists every known pressing/edition of one
+// release group — the step after SearchReleaseGroups narrows to a single
+// album: "which of these N editions is the one on disk."
+message ListMusicBrainzReleasesRequest {
+  string release_group_mbid = 1;
+}
+
+message ListMusicBrainzReleasesResponse {
+  repeated MusicBrainzRelease releases = 1;
+}
+
+// MusicBrainzService exposes internal/adapters/musicbrainz's read-only
+// search/browse capability directly — both RPCs already existed as
+// ports.MusicBrainzClient methods (SearchReleaseGroups,
+// ListReleasesForReleaseGroup), used internally by the identifier's own
+// candidate generation, but were never reachable by a caller wanting to
+// browse MusicBrainz directly: AcceptCandidateRequest only ever accepted a
+// candidate the automatic search already surfaced, or a raw MBID a human
+// already knew from browsing musicbrainz.org outside Purser entirely. This
+// is the "manual add an artist"-style consumer M2's own design doc noted
+// as a future user of the same adapter (docs/technical/music-musicbrainz-
+// adapter.md) — arriving here. Deliberately read-only: neither RPC writes
+// anything; AcceptCandidate (purser.pipeline.v1.UnmatchedFileService) is
+// still the only write path, unchanged.
+service MusicBrainzService {
+  rpc SearchReleaseGroups(SearchMusicBrainzReleaseGroupsRequest) returns (SearchMusicBrainzReleaseGroupsResponse);
+  rpc ListReleasesForReleaseGroup(ListMusicBrainzReleasesRequest) returns (ListMusicBrainzReleasesResponse);
+}

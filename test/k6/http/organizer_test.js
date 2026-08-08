@@ -1,16 +1,18 @@
 // k6 HTTP/JSON suite for OrganizerService (M11b) — see
 // test/k6/grpc/organizer_test.js for the full rationale (organize.adult's
 // template, the "adult" content type's no-registered-TemplateDataBuilder
-// significance, the unique-per-run k6_marker). Reuses the exact
-// TriggerScan-then-ResolveUnmatchedFile fixture pattern
-// test/k6/http/unmatched_file_test.js already establishes.
+// significance, the unique-per-run k6_marker, and why FIXTURE_ROOT is its
+// own single-file .cidata/scan-organize-http root rather than
+// PURSER_SCAN_FIXTURE_ROOT's shared .cidata/scan or the grpc variant's own
+// isolated root). Reuses the exact TriggerScan-then-ResolveUnmatchedFile
+// fixture pattern test/k6/http/unmatched_file_test.js already establishes.
 import http from 'k6/http';
 import { check, sleep } from 'k6';
 import { options } from '../lib/options.js';
 export { options };
 
 const BASE_URL = __ENV.PURSER_HTTP_URL || 'http://localhost:7474';
-const FIXTURE_ROOT = __ENV.PURSER_SCAN_FIXTURE_ROOT || '/media/content/scan';
+const FIXTURE_ROOT = __ENV.PURSER_SCAN_ORGANIZE_HTTP_FIXTURE_ROOT || '/media/content/scan-organize-http';
 const SCAN_SERVICE = `${BASE_URL}/purser.pipeline.v1.ScanService`;
 const JOB_SERVICE = `${BASE_URL}/purser.job.v1.JobService`;
 const UNMATCHED_FILE_SERVICE = `${BASE_URL}/purser.pipeline.v1.UnmatchedFileService`;

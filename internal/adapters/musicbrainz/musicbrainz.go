@@ -287,7 +287,14 @@ func (c *Client) LookupRelease(ctx context.Context, mbid string) (*ports.Release
 func (c *Client) ListReleasesForReleaseGroup(ctx context.Context, rgMBID string) ([]ports.Release, error) {
 	q := url.Values{}
 	q.Set("release-group", rgMBID)
-	q.Set("inc", "labels media")
+	// artist-credits added for MusicBrainzService's edition-search RPC
+	// (proto/purser/music/v1/musicbrainz_search.proto) — every returned
+	// Release.ArtistCredit came back empty without it, the exact same
+	// missing-inc= shape LookupRelease had (purser#522). identifier.go's
+	// own internal use of this method (releaseTrackCountSane) never
+	// needed ArtistCredit, so this was invisible until a second consumer
+	// actually wanted it.
+	q.Set("inc", "labels media artist-credits")
 	q.Set("limit", "100")
 
 	var resp struct {

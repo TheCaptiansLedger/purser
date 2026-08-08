@@ -125,20 +125,64 @@ _k6-flow: $(GOBIN)/k6
 # fixtures copied from test/k6/fixtures/musicbrainz-audio/ — see that
 # directory's own generation notes) against the fixture release
 # internal/adapters/musicbrainz/fixtureserver defines. The organize.adult
-# entry gives test/k6/grpc/organizer_test.js (M11b) a real destination to
-# render into for content_type "adult" (which has no registered
-# TemplateDataBuilder — the template only uses generic keys: Metadata
-# passthrough + Ext) without colliding across reruns against a long-lived
-# dev server, since the suite renders a fresh, unique k6_marker each run.
+# entry gives test/k6/grpc/organizer_test.js and test/k6/http/organizer_test.js
+# (M11b) a real destination to render into for content_type "adult" (which
+# has no registered TemplateDataBuilder — the template only uses generic
+# keys: Metadata passthrough + Ext) without colliding across reruns against
+# a long-lived dev server, since the suite renders a fresh, unique k6_marker
+# each run. Each of those two scripts gets its own single-file
+# .cidata/scan-organize-{grpc,http} root (a real, confirmed CI failure, not
+# a hypothetical): both used to default PURSER_SCAN_FIXTURE_ROOT to the same
+# .cidata/scan test/k6/{grpc,http}/scan_test.js and
+# test/k6/{grpc,http}/unmatched_file_test.js also scan, and Organize
+# physically moves the file it's given — whichever of scan_test.js/
+# unmatched_file_test.js runs after organizer_test.js in the same
+# _k6-endpoint loop then walked a directory one file short of what it
+# expected (3 fixture files became 2), failing scan_test.js's own "3 tasks"
+# check. grpc and http additionally can't share even their own isolated
+# root with each other: _k6-endpoint runs every test/k6/grpc/*.js file
+# before any test/k6/http/*.js file, so if both organizer_test.js variants
+# pointed at the same single-file root, the http run would find the file
+# already moved out from under it by the grpc run moments earlier. The
+# organize.music entry gives test/k6/flow/organize_music_test.js a
+# real destination to manually Organize into, proving Music's actual
+# TemplateDataBuilder renders every real field (ArtistName/AlbumTitle/Year/
+# DiscCount/TrackTitle/Ext) end-to-end against a live server — nothing did
+# before (organizer_test.js deliberately avoids TemplateDataBuilder
+# entirely by using content_type "adult"). That flow scans its own
+# isolated .cidata/scan-music-organize root (fixtures copied from
+# test/k6/fixtures/musicbrainz-audio/organize/ — same MBID/tags as
+# scan-music's own 01/02 so it identifies and auto-imports exactly the
+# same way, but genuinely distinct audio bytes/hash, generated
+# specifically so this never collides with accept_candidate_test*.js's
+# own files) rather than reusing scan-music directly: Organize physically
+# moves the file, and accept_candidate_test.js/accept_candidate_test_http.js
+# both scan the exact same scan-music fixtures later in the same
+# k6-ci invocation — organizing one out from under it would silently break
+# whichever of those two runs second. auto_organize itself stays off
+# (unset/default false) for the same reason at the config level: it's a
+# single global toggle, so leaving it off and calling Organize explicitly
+# in the one flow that wants it is what keeps this safe, rather than
+# trying to scope AutoOrganize's effect to just one scan root. No
+# printf-template-function %02d zero-padding here (unlike the documented
+# default template) — avoiding a doubly-escaped % and nested quote inside
+# this already-single-quoted shell printf isn't worth it just to prove
+# wiring; zero-padding itself is proven separately (Go unit tests, and
+# this milestone's own manual verification).
 _k6-app-start: $(GOBIN)/k6
 	rm -rf .cidata
 	mkdir -p .cidata
 	mkdir -p .cidata/scan
 	@for f in one two three; do head -c 70000 /dev/urandom > .cidata/scan/$$f.bin; done
+	mkdir -p .cidata/scan-organize-grpc .cidata/scan-organize-http
+	@head -c 70000 /dev/urandom > .cidata/scan-organize-grpc/fixture.bin
+	@head -c 70000 /dev/urandom > .cidata/scan-organize-http/fixture.bin
 	mkdir -p .cidata/scan-music/ambiguous
 	cp test/k6/fixtures/musicbrainz-audio/*.flac .cidata/scan-music/
 	cp test/k6/fixtures/musicbrainz-audio/ambiguous/*.flac .cidata/scan-music/ambiguous/
-	printf 'pipeline:\n  scan_roots:\n    - path: %s/.cidata/scan-music\n      content_type: music\n  organize:\n    adult:\n      root: %s/.cidata/organized\n      template: "{{.Metadata.k6_marker}}{{.Ext}}"\n' "$(CURDIR)" "$(CURDIR)" > .cidata/purser-ci.yaml
+	mkdir -p .cidata/scan-music-organize
+	cp test/k6/fixtures/musicbrainz-audio/organize/*.flac .cidata/scan-music-organize/
+	printf 'pipeline:\n  scan_roots:\n    - path: %s/.cidata/scan-music\n      content_type: music\n    - path: %s/.cidata/scan-music-organize\n      content_type: music\n  organize:\n    adult:\n      root: %s/.cidata/organized\n      template: "{{.Metadata.k6_marker}}{{.Ext}}"\n    music:\n      root: %s/.cidata/organized-music\n      template: "{{.ArtistName}}/{{.AlbumTitle}}{{if .Year}} ({{.Year}}){{end}}/{{if gt .DiscCount 1}}{{.DiscNumber}}-{{end}}{{.TrackNumber}} - {{.TrackTitle}}{{.Ext}}"\n' "$(CURDIR)" "$(CURDIR)" "$(CURDIR)" "$(CURDIR)" > .cidata/purser-ci.yaml
 	go build -o .cidata/purser ./cmd/purser
 	PURSER_PATHS_DATA_DIR=$(CURDIR)/.cidata/data PURSER_MUSICBRAINZ_MOCK=1 .cidata/purser serve --config $(CURDIR)/.cidata/purser-ci.yaml & echo $$! > .cidata/purser.pid
 	@for i in $$(seq 1 60); do nc -z localhost 7474 2>/dev/null && exit 0; sleep 0.5; done; \
@@ -158,8 +202,15 @@ _k6-app-stop:
 # docs/adr/0024-pipeline-core.md. PURSER_SCAN_MUSIC_FIXTURE_ROOT does the
 # same for test/k6/flow/accept_candidate_test*.js's own tagged-audio
 # fixture root — see docs/technical/pipeline-music-persist.md.
+# PURSER_SCAN_MUSIC_ORGANIZE_FIXTURE_ROOT does the same for
+# test/k6/flow/organize_music_test.js's own isolated fixture root — see
+# that flow's own header comment for why it can't reuse scan-music.
+# PURSER_SCAN_ORGANIZE_GRPC_FIXTURE_ROOT / PURSER_SCAN_ORGANIZE_HTTP_FIXTURE_ROOT
+# give test/k6/{grpc,http}/organizer_test.js their own single-file roots —
+# see _k6-app-start's own comment for why reusing .cidata/scan (or each
+# other's root) isn't safe once Organize is in the picture.
 k6-ci: _k6-app-start ## Build+run the app standalone (Badger, telemetry off, hermetic .cidata/) and run the full k6 suite against it — no compose stack needed
-	@PURSER_SCAN_FIXTURE_ROOT=$(CURDIR)/.cidata/scan PURSER_SCAN_MUSIC_FIXTURE_ROOT=$(CURDIR)/.cidata/scan-music $(MAKE) k6; status=$$?; $(MAKE) _k6-app-stop; exit $$status
+	@PURSER_SCAN_FIXTURE_ROOT=$(CURDIR)/.cidata/scan PURSER_SCAN_MUSIC_FIXTURE_ROOT=$(CURDIR)/.cidata/scan-music PURSER_SCAN_MUSIC_ORGANIZE_FIXTURE_ROOT=$(CURDIR)/.cidata/scan-music-organize PURSER_SCAN_ORGANIZE_GRPC_FIXTURE_ROOT=$(CURDIR)/.cidata/scan-organize-grpc PURSER_SCAN_ORGANIZE_HTTP_FIXTURE_ROOT=$(CURDIR)/.cidata/scan-organize-http $(MAKE) k6; status=$$?; $(MAKE) _k6-app-stop; exit $$status
 
 # ── Local dev stack (Postgres + Grafana + Prometheus + Tempo [+ app]) ────────
 # One compose file, one Postgres instance — see

@@ -51,3 +51,32 @@ ffmpeg -y -f lavfi -i "sine=frequency=659:duration=6" -ar 44100 -ac 2 -compressi
   -metadata ALBUM="K6 Ambiguous Album" -metadata ALBUMARTIST="K6 Ambiguous Artist" \
   -metadata TITLE="K6 Ambiguous Track" -metadata TRACKNUMBER="1" -metadata DISCNUMBER="1" \
   ambiguous/03-k6-ambiguous-track.flac
+
+# organize/ — test/k6/flow/organize_music_test.js's own isolated copy of
+# the direct-ID pair. Same MBID/tags as 01/02 (so it identifies and
+# auto-imports exactly the same way) but genuinely distinct audio content
+# (different sine frequencies), never the SAME bytes as 01/02 — that
+# flow calls OrganizerService.Organize, which physically moves the file;
+# reusing 01/02's own bytes (even from a different path — filehash's
+# "already known" short-circuit matches on content hash, not path) would
+# let a hash-based match land the SAME MediaFile row on two different
+# physical locations depending on scan order, and moving 01/02 out of
+# .cidata/scan-music/ would silently break accept_candidate_test*.js's own
+# rerun against those exact files later in the same k6-ci invocation. See
+# that flow's own header comment.
+mkdir -p organize
+ffmpeg -y -f lavfi -i "sine=frequency=349:duration=6" -ar 44100 -ac 2 -compression_level 0 \
+  -metadata ALBUM="K6 Fixture Album" -metadata ALBUMARTIST="K6 Fixture Artist" \
+  -metadata TITLE="K6 Fixture Track One" -metadata TRACKNUMBER="1" -metadata DISCNUMBER="1" \
+  -metadata ISRC="XXK6F0000001" \
+  -metadata MUSICBRAINZ_ALBUMID="33333333-3333-3333-3333-333333333333" \
+  -metadata MUSICBRAINZ_RELEASEGROUPID="22222222-2222-2222-2222-222222222222" \
+  organize/01-k6-organize-track-one.flac
+
+ffmpeg -y -f lavfi -i "sine=frequency=392:duration=6" -ar 44100 -ac 2 -compression_level 0 \
+  -metadata ALBUM="K6 Fixture Album" -metadata ALBUMARTIST="K6 Fixture Artist" \
+  -metadata TITLE="K6 Fixture Track Two" -metadata TRACKNUMBER="2" -metadata DISCNUMBER="1" \
+  -metadata ISRC="XXK6F0000002" \
+  -metadata MUSICBRAINZ_ALBUMID="33333333-3333-3333-3333-333333333333" \
+  -metadata MUSICBRAINZ_RELEASEGROUPID="22222222-2222-2222-2222-222222222222" \
+  organize/02-k6-organize-track-two.flac

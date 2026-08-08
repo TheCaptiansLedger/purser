@@ -483,6 +483,7 @@ func newServeMux(ctx context.Context, logger *slog.Logger, ds datastore.Datastor
 		afterdarkv1connect.PerformerProfileServiceName,
 		afterdarkv1connect.BrowseServiceName,
 		musicv1connect.MusicReleaseServiceName,
+		musicv1connect.MusicBrainzServiceName,
 		jobv1connect.JobServiceName,
 		pipelinev1connect.ScanServiceName,
 		pipelinev1connect.UnmatchedFileServiceName,
@@ -614,6 +615,11 @@ func wireScanPipeline(
 	organizerHandler := apiconnect.NewOrganizerHandler(organizerSvc, logger)
 	organizerPath, organizerConnectHandler := pipelinev1connect.NewOrganizerServiceHandler(organizerHandler, interceptors)
 	mux.Handle(organizerPath, organizerConnectHandler)
+
+	musicBrainzSearchSvc := service.NewMusicBrainzSearch(mbClient)
+	musicBrainzSearchHandler := apiconnect.NewMusicBrainzSearchHandler(musicBrainzSearchSvc, logger)
+	musicBrainzSearchPath, musicBrainzSearchConnectHandler := musicv1connect.NewMusicBrainzServiceHandler(musicBrainzSearchHandler, interceptors)
+	mux.Handle(musicBrainzSearchPath, musicBrainzSearchConnectHandler)
 
 	watcherCloser, err := startScanWatcher(ctx, pipelineCfg.ScanRoots, scanSvc, logger)
 	if err != nil {

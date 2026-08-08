@@ -18,13 +18,25 @@
 // unique k6_marker each run avoids destination collisions on a rerun
 // against a long-lived dev server (Make's own k6-ci wipes .cidata/ between
 // runs, so this only matters outside CI).
+//
+// FIXTURE_ROOT is its own single-file .cidata/scan-organize-grpc root, not
+// PURSER_SCAN_FIXTURE_ROOT's shared .cidata/scan — a real CI failure, not
+// a hypothetical: this script's own Organize call physically moves the
+// file it's given, and test/k6/grpc/scan_test.js and
+// test/k6/grpc/unmatched_file_test.js both scan .cidata/scan later in the
+// same _k6-endpoint loop expecting all of its fixture files still present
+// (scan_test.js's own "N tasks" check failed 3→2 this way). It's also not
+// shared with test/k6/http/organizer_test.js's own isolated root: grpc
+// runs before http in the same loop, so a shared root would leave the
+// http run's file already moved out from under it. See Make's
+// _k6-app-start comment for the full reasoning.
 import grpc from 'k6/net/grpc';
 import { check, sleep } from 'k6';
 import { options } from '../lib/options.js';
 export { options };
 
 const ADDR = __ENV.PURSER_GRPC_ADDR || 'localhost:7474';
-const FIXTURE_ROOT = __ENV.PURSER_SCAN_FIXTURE_ROOT || '/media/content/scan';
+const FIXTURE_ROOT = __ENV.PURSER_SCAN_ORGANIZE_GRPC_FIXTURE_ROOT || '/media/content/scan-organize-grpc';
 
 const client = new grpc.Client();
 client.load(
