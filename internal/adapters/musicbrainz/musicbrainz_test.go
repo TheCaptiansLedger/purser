@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"go.opentelemetry.io/otel"
+	"golang.org/x/time/rate"
 )
 
 func newTestClient(t *testing.T, baseURL string) *musicbrainz.Client {
@@ -276,7 +277,12 @@ func TestClient_CachesGETResponses(t *testing.T) {
 		},
 	})
 
-	c := newMockedTestClient(t, rt)
+	// Rate limiting isn't what this test is about — the rate limiter runs
+	// before the caching transport even gets a chance to short-circuit
+	// the second call, so without this override the second (cache-hit)
+	// call would still pay a real ~1s wait for no reason relevant to
+	// caching.
+	c := newMockedTestClient(t, rt, musicbrainz.WithRateLimit(rate.Inf))
 	ctx := context.Background()
 
 	if _, err := c.LookupReleaseGroup(ctx, "cache-test"); err != nil {
@@ -412,7 +418,7 @@ func TestGet_RetriesOn503ThenSucceeds(t *testing.T) {
 		},
 	})
 
-	c := newMockedTestClient(t, rt, musicbrainz.WithRetryBaseDelay(time.Millisecond))
+	c := newMockedTestClient(t, rt, musicbrainz.WithRetryBaseDelay(time.Millisecond), musicbrainz.WithRateLimit(rate.Inf))
 	rg, err := c.LookupReleaseGroup(context.Background(), "x")
 	if err != nil {
 		t.Fatalf("LookupReleaseGroup returned error: %v", err)
@@ -439,7 +445,7 @@ func TestGet_GivesUpAfter503EveryAttempt(t *testing.T) {
 		},
 	})
 
-	c := newMockedTestClient(t, rt, musicbrainz.WithRetryBaseDelay(time.Millisecond))
+	c := newMockedTestClient(t, rt, musicbrainz.WithRetryBaseDelay(time.Millisecond), musicbrainz.WithRateLimit(rate.Inf))
 	if _, err := c.LookupReleaseGroup(context.Background(), "x"); err == nil {
 		t.Fatal("LookupReleaseGroup with a persistent 503 returned nil error")
 	}
@@ -463,7 +469,7 @@ func TestGet_DoesNotRetry404(t *testing.T) {
 		},
 	})
 
-	c := newMockedTestClient(t, rt, musicbrainz.WithRetryBaseDelay(time.Millisecond))
+	c := newMockedTestClient(t, rt, musicbrainz.WithRetryBaseDelay(time.Millisecond), musicbrainz.WithRateLimit(rate.Inf))
 	if _, err := c.LookupReleaseGroup(context.Background(), "x"); !errors.Is(err, ports.ErrNotFound) {
 		t.Fatalf("LookupReleaseGroup returned %v, want ports.ErrNotFound", err)
 	}
@@ -491,7 +497,7 @@ func TestGet_RetriesTransportTimeoutThenSucceeds(t *testing.T) {
 		},
 	})
 
-	c := newMockedTestClient(t, rt, musicbrainz.WithRetryBaseDelay(time.Millisecond))
+	c := newMockedTestClient(t, rt, musicbrainz.WithRetryBaseDelay(time.Millisecond), musicbrainz.WithRateLimit(rate.Inf))
 	rg, err := c.LookupReleaseGroup(context.Background(), "x")
 	if err != nil {
 		t.Fatalf("LookupReleaseGroup returned error: %v", err)

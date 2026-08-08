@@ -35,7 +35,15 @@ const (
 	defaultBaseURL = "https://musicbrainz.org/ws/2/"
 
 	// requestsPerSecond is MusicBrainz's own enforced rate limit — not
-	// configurable, since it's the provider's policy, not a tuning knob.
+	// operator-configurable (no config.MusicBrainz field), since it's the
+	// provider's policy, not a tuning knob. WithRateLimit exists as a
+	// package-level Option purely for tests: multi-request test scenarios
+	// (e.g. get's retry-on-503 tests) otherwise pay a real ~1s wait per
+	// request even though every one of them is fully mocked and never
+	// touches a real socket — the point of those tests is the retry
+	// *logic*, not actually re-proving the rate limiter's own pacing
+	// (TestClient_RateLimiterSerializesConcurrentRequests already does
+	// that, deliberately, against the real limit).
 	requestsPerSecond = 1
 
 	// maxAttempts bounds retries of a transient failure (HTTP 503, or a
@@ -175,7 +183,7 @@ func New(cfg Config, opts ...Option) (*Client, error) {
 		baseURL:        cfg.BaseURL,
 		http:           httpClient,
 		cache:          c,
-		limiter:        rate.NewLimiter(rate.Limit(requestsPerSecond), 1),
+		limiter:        rate.NewLimiter(o.rateLimit, 1),
 		retryBaseDelay: o.retryBaseDelay,
 		logger:         o.logger.With("component", "adapters.musicbrainz"),
 		tracer:         o.tracerProvider.Tracer(instrumentationName),
@@ -435,6 +443,7 @@ type options struct {
 	meterProvider  metric.MeterProvider
 	baseTransport  http.RoundTripper
 	retryBaseDelay time.Duration
+	rateLimit      rate.Limit
 }
 
 func defaultOptions() *options {
@@ -443,6 +452,7 @@ func defaultOptions() *options {
 		tracerProvider: otel.GetTracerProvider(),
 		meterProvider:  otel.GetMeterProvider(),
 		retryBaseDelay: 2 * time.Second,
+		rateLimit:      rate.Limit(requestsPerSecond),
 	}
 }
 
@@ -468,6 +478,15 @@ func WithMeterProvider(mp metric.MeterProvider) Option {
 // several real seconds.
 func WithRetryBaseDelay(d time.Duration) Option {
 	return func(o *options) { o.retryBaseDelay = d }
+}
+
+// WithRateLimit overrides the requests-per-second limit get's rate
+// limiter enforces — see requestsPerSecond's own doc comment for why this
+// exists (purely a test escape hatch, never operator-configurable in
+// production). rate.Inf disables limiting entirely, the common case for a
+// test that isn't itself about pacing.
+func WithRateLimit(limit rate.Limit) Option {
+	return func(o *options) { o.rateLimit = limit }
 }
 
 // WithBaseTransport overrides the transport pkg/httpclient.New builds from

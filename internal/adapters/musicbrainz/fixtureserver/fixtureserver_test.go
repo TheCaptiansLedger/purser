@@ -5,11 +5,20 @@ import (
 	"purser/internal/adapters/musicbrainz"
 	"purser/internal/adapters/musicbrainz/fixtureserver"
 	"testing"
+
+	"golang.org/x/time/rate"
 )
 
+// newFixtureClient's rate limit is disabled (rate.Inf) — every test in this
+// file makes multiple sequential canned-fixture calls against a client
+// that never touches a real socket, and none of them is testing pacing
+// itself (musicbrainz_test.go's
+// TestClient_RateLimiterSerializesConcurrentRequests already does,
+// deliberately, against the real limit), so there's no reason to actually
+// pay MusicBrainz's real 1 req/sec wait here.
 func newFixtureClient(t *testing.T) *musicbrainz.Client {
 	t.Helper()
-	c, err := musicbrainz.New(musicbrainz.DefaultConfig(), musicbrainz.WithBaseTransport(fixtureserver.Transport()))
+	c, err := musicbrainz.New(musicbrainz.DefaultConfig(), musicbrainz.WithBaseTransport(fixtureserver.Transport()), musicbrainz.WithRateLimit(rate.Inf))
 	if err != nil {
 		t.Fatalf("musicbrainz.New returned error: %v", err)
 	}
