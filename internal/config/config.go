@@ -24,6 +24,7 @@ type Config struct {
 	Pipeline    Pipeline    `mapstructure:"pipeline"`
 	MusicBrainz MusicBrainz `mapstructure:"musicbrainz"`
 	AcoustID    AcoustID    `mapstructure:"acoustid"`
+	Sources     Sources     `mapstructure:"sources"`
 }
 
 // DefaultConfig returns the defaults every component starts from.
@@ -37,6 +38,7 @@ func DefaultConfig() Config {
 		Pipeline:    DefaultPipeline(),
 		MusicBrainz: DefaultMusicBrainz(),
 		AcoustID:    DefaultAcoustID(),
+		Sources:     DefaultSources(),
 	}
 	deriveDataDirDefaults(&cfg)
 	return cfg
@@ -103,6 +105,8 @@ func Load(v *viper.Viper, configPath string) (Config, error) {
 	v.SetDefault("musicbrainz.response_header_timeout", defaults.MusicBrainz.ResponseHeaderTimeout)
 	v.SetDefault("acoustid.base_url", defaults.AcoustID.BaseURL)
 	v.SetDefault("acoustid.api_key", defaults.AcoustID.APIKey)
+	v.SetDefault("sources.stashdb.enabled", defaults.Sources.StashDB.Enabled)
+	v.SetDefault("sources.stashdb.api_key", defaults.Sources.StashDB.APIKey)
 
 	v.SetEnvPrefix("purser")
 	v.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))

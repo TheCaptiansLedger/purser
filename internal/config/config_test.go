@@ -476,3 +476,64 @@ func TestLoad_EnvOverridesAutoOrganize(t *testing.T) {
 		t.Fatal("Load returned AutoOrganize=false, want true from env override")
 	}
 }
+
+func TestLoad_UsesDefaultStashDBDisabledWithNoAPIKey(t *testing.T) {
+	// This repo's own .envrc (`dotenv`) exports PURSER_SOURCES_STASHDB_*
+	// from .env into every real dev shell, so a "no overrides" assertion
+	// on this exact key needs to force a clean environment — t.Setenv
+	// alone (as every other "uses default" test here gets away with)
+	// isn't enough, since it can only set a value, not remove one an
+	// ambient direnv session already exported.
+	unsetEnvForTest(t, "PURSER_SOURCES_STASHDB_ENABLED", "PURSER_SOURCES_STASHDB_API_KEY")
+
+	cfg, err := config.Load(viper.New(), "")
+	if err != nil {
+		t.Fatalf("Load returned error: %v", err)
+	}
+	if cfg.Sources.StashDB.Enabled {
+		t.Fatal("Load returned Sources.StashDB.Enabled=true by default, want false")
+	}
+	if cfg.Sources.StashDB.APIKey != "" {
+		t.Fatalf("Load returned Sources.StashDB.APIKey=%q by default, want empty", cfg.Sources.StashDB.APIKey)
+	}
+}
+
+// PURSER_SOURCES_STASHDB_* is not a made-up convention — it's the exact
+// example docs/adr/0010-configuration.md's own context section cites as
+// already established in .env.example, hence Config.Sources.StashDB
+// rather than a flat Config.StashDB.
+func TestLoad_EnvOverridesStashDBEnabledAndAPIKey(t *testing.T) {
+	t.Setenv("PURSER_SOURCES_STASHDB_ENABLED", "true")
+	t.Setenv("PURSER_SOURCES_STASHDB_API_KEY", "test-key")
+
+	cfg, err := config.Load(viper.New(), "")
+	if err != nil {
+		t.Fatalf("Load returned error: %v", err)
+	}
+	if !cfg.Sources.StashDB.Enabled {
+		t.Fatal("Load returned Sources.StashDB.Enabled=false, want true from env override")
+	}
+	if cfg.Sources.StashDB.APIKey != "test-key" {
+		t.Fatalf("Load returned Sources.StashDB.APIKey=%q, want %q", cfg.Sources.StashDB.APIKey, "test-key")
+	}
+}
+
+// unsetEnvForTest removes each of keys from the process environment for
+// the duration of t, restoring whatever value (set or unset) it found
+// beforehand once t completes. Unlike t.Setenv, this can actually remove a
+// value — needed here because an ambient direnv-loaded .env can export a
+// real value t.Setenv alone has no way to take back to "absent."
+func unsetEnvForTest(t *testing.T, keys ...string) {
+	t.Helper()
+	for _, k := range keys {
+		orig, wasSet := os.LookupEnv(k)
+		if err := os.Unsetenv(k); err != nil {
+			t.Fatalf("unsetting %s: %v", k, err)
+		}
+		t.Cleanup(func() {
+			if wasSet {
+				_ = os.Setenv(k, orig)
+			}
+		})
+	}
+}
