@@ -46,6 +46,7 @@ import (
 	jobv1connect "purser/gen/go/purser/job/v1/jobv1connect"
 	musicv1connect "purser/gen/go/purser/music/v1/musicv1connect"
 	pipelinev1connect "purser/gen/go/purser/pipeline/v1/pipelinev1connect"
+	settingsv1connect "purser/gen/go/purser/settings/v1/settingsv1connect"
 
 	dsbadger "purser/internal/adapters/datastore/badger"
 	dssql "purser/internal/adapters/datastore/sql"
@@ -67,6 +68,7 @@ import (
 	storemusicrelease "purser/internal/adapters/store/music"
 	storeperformerprofile "purser/internal/adapters/store/performerprofile"
 	storeperson "purser/internal/adapters/store/person"
+	storesetting "purser/internal/adapters/store/setting"
 	storetag "purser/internal/adapters/store/tag"
 	storetagassignment "purser/internal/adapters/store/tagassignment"
 	storeunmatchedfile "purser/internal/adapters/store/unmatchedfile"
@@ -141,6 +143,14 @@ func runServe(ctx context.Context, configPath string) error {
 	if err != nil {
 		return err
 	}
+
+	// SettingsService: wired here rather than inside newServeMux, which is
+	// already at its cyclomatic complexity budget — no behavior difference
+	// from being inlined there. See docs/adr/0028-layered-settings.md.
+	if err := wireSettingsService(sigCtx, mux, ds, configPath, logger, connect.WithInterceptors(apiconnect.NewLoggingInterceptor(logger))); err != nil {
+		return err
+	}
+
 	if watcherCloser != nil {
 		defer func() {
 			if closeErr := watcherCloser.Close(); closeErr != nil {
@@ -551,6 +561,7 @@ func newServeMux(ctx context.Context, logger *slog.Logger, ds datastore.Datastor
 		acquisitionv1connect.IndexerServiceName,
 		acquisitionv1connect.DownloadServiceName,
 		jobv1connect.JobServiceName,
+		settingsv1connect.SettingsServiceName,
 		pipelinev1connect.ScanServiceName,
 		pipelinev1connect.UnmatchedFileServiceName,
 		pipelinev1connect.OrganizerServiceName,
@@ -744,6 +755,57 @@ func wireScanPipeline(
 		return nil, err
 	}
 	return watcherCloser, nil
+}
+
+// wireSettingsService constructs the DB-overlay layer
+// docs/adr/0028-layered-settings.md defines and mounts SettingsService:
+// settingRepo persists DB-stored overrides, live re-runs config.Load +
+// config.ApplyOverrides against configPath/settingRepo on every
+// UpdateSettings/ResetSetting write, so GetSettings always reflects the
+// most recent successful write without a restart. Called from runServe
+// rather than from newServeMux, which is already at its cyclomatic
+// complexity budget — no behavior difference from being wired there.
+func wireSettingsService(ctx context.Context, mux *http.ServeMux, ds datastore.Datastore, configPath string, logger *slog.Logger, interceptors connect.HandlerOption) error {
+	settingRepo, err := storesetting.New("setting", ds, storesetting.WithLogger(logger))
+	if err != nil {
+		return fmt.Errorf("cmd/purser: constructing setting repository: %w", err)
+	}
+	live, err := config.NewLive(ctx, configPath, settingRepo)
+	if err != nil {
+		return fmt.Errorf("cmd/purser: constructing live config snapshot: %w", err)
+	}
+	settingsHandler := apiconnect.NewSettingsHandler(service.NewSettingsService(liveConfigAdapter{live}, settingRepo), logger)
+	settingsPath, settingsConnectHandler := settingsv1connect.NewSettingsServiceHandler(settingsHandler, interceptors)
+	mux.Handle(settingsPath, settingsConnectHandler)
+	return nil
+}
+
+// liveConfigAdapter adapts *config.Live to service.LiveConfig, converting
+// config.KeyStatus to service.KeyStatus field-by-field so internal/service
+// stays free of any internal/config dependency, consistent with every
+// other service (see internal/service/scan.go's RootContentType for the
+// same pattern) — only the composition root is allowed to know both
+// packages' shapes.
+type liveConfigAdapter struct{ live *config.Live }
+
+func (a liveConfigAdapter) Statuses() []service.KeyStatus {
+	statuses := a.live.Statuses()
+	out := make([]service.KeyStatus, 0, len(statuses))
+	for _, st := range statuses {
+		out = append(out, service.KeyStatus{
+			Key:        st.Key,
+			Value:      st.Value,
+			Source:     service.SettingSource(st.Source),
+			Secret:     st.Secret,
+			Locked:     st.Locked,
+			LockReason: service.SettingLockReason(st.LockReason),
+		})
+	}
+	return out
+}
+
+func (a liveConfigAdapter) Refresh(ctx context.Context) error {
+	return a.live.Refresh(ctx)
 }
 
 // newMusicIdentificationClients constructs the real MusicBrainz client

@@ -27,7 +27,7 @@ type SABnzbd struct {
 	// APIKey is sent as the "apikey" query parameter on every SABnzbd
 	// request. Required for Enabled to have any effect:
 	// internal/adapters/sabnzbd.New errors on an empty APIKey.
-	APIKey string `mapstructure:"api_key"`
+	APIKey string `mapstructure:"api_key" secret:"true"`
 }
 
 // DefaultSABnzbd returns SABnzbd's defaults: disabled, no base URL, no API

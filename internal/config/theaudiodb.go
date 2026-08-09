@@ -19,7 +19,7 @@ type TheAudioDB struct {
 	// request. Required for Enabled to have any effect:
 	// internal/adapters/theaudiodb.New errors on an empty APIKey. The
 	// free tier's key "123" works (confirmed live).
-	APIKey string `mapstructure:"api_key"`
+	APIKey string `mapstructure:"api_key" secret:"true"`
 }
 
 // DefaultTheAudioDB returns TheAudioDB's defaults: disabled, no API key.

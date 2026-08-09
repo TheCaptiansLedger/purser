@@ -36,7 +36,7 @@ type QBittorrent struct {
 	// Password authenticates against POST /api/v2/auth/login. Required
 	// for Enabled to have any effect: internal/adapters/qbittorrent.New
 	// errors on an empty Password.
-	Password string `mapstructure:"password"`
+	Password string `mapstructure:"password" secret:"true"`
 }
 
 // DefaultQBittorrent returns QBittorrent's defaults: disabled, no base URL,

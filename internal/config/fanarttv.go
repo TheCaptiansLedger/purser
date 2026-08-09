@@ -17,7 +17,7 @@ type FanartTV struct {
 	// APIKey is sent as the "api_key" query param on every fanart.tv
 	// request. Required for Enabled to have any effect:
 	// internal/adapters/fanarttv.New errors on an empty APIKey.
-	APIKey string `mapstructure:"api_key"`
+	APIKey string `mapstructure:"api_key" secret:"true"`
 }
 
 // DefaultFanartTV returns FanartTV's defaults: disabled, no API key.

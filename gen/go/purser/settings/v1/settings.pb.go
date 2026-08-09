@@ -9,7 +9,6 @@ package settingsv1
 import (
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
-	fieldmaskpb "google.golang.org/protobuf/types/known/fieldmaskpb"
 	reflect "reflect"
 	sync "sync"
 	unsafe "unsafe"
@@ -321,13 +320,18 @@ func (x *GetSettingsResponse) GetSettings() []*Setting {
 
 // UpdateSettingsRequest writes one or more DB-overlay-eligible keys.
 // Setting isn't a fixed-field entity like every other UpdateXxxRequest in
-// this API, so update_mask.paths lists dotted config keys instead of
-// struct field names — the same "caller states explicitly what it
-// intends to touch" guarantee docs/adr/0011-api-design.md's FieldMask
-// convention requires, adapted to a keyed bag. values holds the
-// JSON-encoded new value for every key named in update_mask; a key
-// present in update_mask.paths but absent from values (or vice versa) is
-// a validation error.
+// this API, so update_mask lists dotted config keys instead of struct
+// field names — the same "caller states explicitly what it intends to
+// touch" guarantee docs/adr/0011-api-design.md's FieldMask convention
+// requires, adapted to a keyed bag. This is a plain repeated string, not
+// google.protobuf.FieldMask: FieldMask's canonical JSON encoding requires
+// camelCase path segments with no underscores, which config keys (Viper's
+// underscore-joined mapstructure convention, e.g.
+// "pipeline.confidence_threshold") don't satisfy — confirmed live against
+// both the HTTP/JSON and native-gRPC transports, not a hypothetical.
+// values holds the JSON-encoded new value for every key named in
+// update_mask; a key present in update_mask but absent from values (or
+// vice versa) is a validation error.
 //
 // Rejected if any named key is locked (operator or bootstrap) or is a
 // bootstrap key at all — see docs/adr/0028-layered-settings.md. The
@@ -336,7 +340,7 @@ func (x *GetSettingsResponse) GetSettings() []*Setting {
 type UpdateSettingsRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Values        map[string]string      `protobuf:"bytes,1,rep,name=values,proto3" json:"values,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
-	UpdateMask    *fieldmaskpb.FieldMask `protobuf:"bytes,2,opt,name=update_mask,json=updateMask,proto3" json:"update_mask,omitempty"`
+	UpdateMask    []string               `protobuf:"bytes,2,rep,name=update_mask,json=updateMask,proto3" json:"update_mask,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -378,7 +382,7 @@ func (x *UpdateSettingsRequest) GetValues() map[string]string {
 	return nil
 }
 
-func (x *UpdateSettingsRequest) GetUpdateMask() *fieldmaskpb.FieldMask {
+func (x *UpdateSettingsRequest) GetUpdateMask() []string {
 	if x != nil {
 		return x.UpdateMask
 	}
@@ -528,7 +532,7 @@ var File_purser_settings_v1_settings_proto protoreflect.FileDescriptor
 
 const file_purser_settings_v1_settings_proto_rawDesc = "" +
 	"\n" +
-	"!purser/settings/v1/settings.proto\x12\x12purser.settings.v1\x1a google/protobuf/field_mask.proto\"\xe4\x01\n" +
+	"!purser/settings/v1/settings.proto\x12\x12purser.settings.v1\"\xe4\x01\n" +
 	"\aSetting\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\tR\x05value\x129\n" +
@@ -539,10 +543,10 @@ const file_purser_settings_v1_settings_proto_rawDesc = "" +
 	"\x06secret\x18\x06 \x01(\bR\x06secret\"\x14\n" +
 	"\x12GetSettingsRequest\"N\n" +
 	"\x13GetSettingsResponse\x127\n" +
-	"\bsettings\x18\x01 \x03(\v2\x1b.purser.settings.v1.SettingR\bsettings\"\xde\x01\n" +
+	"\bsettings\x18\x01 \x03(\v2\x1b.purser.settings.v1.SettingR\bsettings\"\xc2\x01\n" +
 	"\x15UpdateSettingsRequest\x12M\n" +
-	"\x06values\x18\x01 \x03(\v25.purser.settings.v1.UpdateSettingsRequest.ValuesEntryR\x06values\x12;\n" +
-	"\vupdate_mask\x18\x02 \x01(\v2\x1a.google.protobuf.FieldMaskR\n" +
+	"\x06values\x18\x01 \x03(\v25.purser.settings.v1.UpdateSettingsRequest.ValuesEntryR\x06values\x12\x1f\n" +
+	"\vupdate_mask\x18\x02 \x03(\tR\n" +
 	"updateMask\x1a9\n" +
 	"\vValuesEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
@@ -593,27 +597,25 @@ var file_purser_settings_v1_settings_proto_goTypes = []any{
 	(*ResetSettingRequest)(nil),    // 7: purser.settings.v1.ResetSettingRequest
 	(*ResetSettingResponse)(nil),   // 8: purser.settings.v1.ResetSettingResponse
 	nil,                            // 9: purser.settings.v1.UpdateSettingsRequest.ValuesEntry
-	(*fieldmaskpb.FieldMask)(nil),  // 10: google.protobuf.FieldMask
 }
 var file_purser_settings_v1_settings_proto_depIdxs = []int32{
-	0,  // 0: purser.settings.v1.Setting.source:type_name -> purser.settings.v1.SettingSource
-	1,  // 1: purser.settings.v1.Setting.lock_reason:type_name -> purser.settings.v1.SettingLockReason
-	2,  // 2: purser.settings.v1.GetSettingsResponse.settings:type_name -> purser.settings.v1.Setting
-	9,  // 3: purser.settings.v1.UpdateSettingsRequest.values:type_name -> purser.settings.v1.UpdateSettingsRequest.ValuesEntry
-	10, // 4: purser.settings.v1.UpdateSettingsRequest.update_mask:type_name -> google.protobuf.FieldMask
-	2,  // 5: purser.settings.v1.UpdateSettingsResponse.settings:type_name -> purser.settings.v1.Setting
-	2,  // 6: purser.settings.v1.ResetSettingResponse.setting:type_name -> purser.settings.v1.Setting
-	3,  // 7: purser.settings.v1.SettingsService.GetSettings:input_type -> purser.settings.v1.GetSettingsRequest
-	5,  // 8: purser.settings.v1.SettingsService.UpdateSettings:input_type -> purser.settings.v1.UpdateSettingsRequest
-	7,  // 9: purser.settings.v1.SettingsService.ResetSetting:input_type -> purser.settings.v1.ResetSettingRequest
-	4,  // 10: purser.settings.v1.SettingsService.GetSettings:output_type -> purser.settings.v1.GetSettingsResponse
-	6,  // 11: purser.settings.v1.SettingsService.UpdateSettings:output_type -> purser.settings.v1.UpdateSettingsResponse
-	8,  // 12: purser.settings.v1.SettingsService.ResetSetting:output_type -> purser.settings.v1.ResetSettingResponse
-	10, // [10:13] is the sub-list for method output_type
-	7,  // [7:10] is the sub-list for method input_type
-	7,  // [7:7] is the sub-list for extension type_name
-	7,  // [7:7] is the sub-list for extension extendee
-	0,  // [0:7] is the sub-list for field type_name
+	0, // 0: purser.settings.v1.Setting.source:type_name -> purser.settings.v1.SettingSource
+	1, // 1: purser.settings.v1.Setting.lock_reason:type_name -> purser.settings.v1.SettingLockReason
+	2, // 2: purser.settings.v1.GetSettingsResponse.settings:type_name -> purser.settings.v1.Setting
+	9, // 3: purser.settings.v1.UpdateSettingsRequest.values:type_name -> purser.settings.v1.UpdateSettingsRequest.ValuesEntry
+	2, // 4: purser.settings.v1.UpdateSettingsResponse.settings:type_name -> purser.settings.v1.Setting
+	2, // 5: purser.settings.v1.ResetSettingResponse.setting:type_name -> purser.settings.v1.Setting
+	3, // 6: purser.settings.v1.SettingsService.GetSettings:input_type -> purser.settings.v1.GetSettingsRequest
+	5, // 7: purser.settings.v1.SettingsService.UpdateSettings:input_type -> purser.settings.v1.UpdateSettingsRequest
+	7, // 8: purser.settings.v1.SettingsService.ResetSetting:input_type -> purser.settings.v1.ResetSettingRequest
+	4, // 9: purser.settings.v1.SettingsService.GetSettings:output_type -> purser.settings.v1.GetSettingsResponse
+	6, // 10: purser.settings.v1.SettingsService.UpdateSettings:output_type -> purser.settings.v1.UpdateSettingsResponse
+	8, // 11: purser.settings.v1.SettingsService.ResetSetting:output_type -> purser.settings.v1.ResetSettingResponse
+	9, // [9:12] is the sub-list for method output_type
+	6, // [6:9] is the sub-list for method input_type
+	6, // [6:6] is the sub-list for extension type_name
+	6, // [6:6] is the sub-list for extension extendee
+	0, // [0:6] is the sub-list for field type_name
 }
 
 func init() { file_purser_settings_v1_settings_proto_init() }

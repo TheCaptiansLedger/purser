@@ -17,7 +17,7 @@ type ThePornDB struct {
 	// APIKey is sent as "Authorization: Bearer {APIKey}" on every ThePornDB
 	// request. Required for Enabled to have any effect:
 	// internal/adapters/theporndb.New errors on an empty APIKey.
-	APIKey string `mapstructure:"api_key"`
+	APIKey string `mapstructure:"api_key" secret:"true"`
 }
 
 // DefaultThePornDB returns ThePornDB's defaults: disabled, no API key.

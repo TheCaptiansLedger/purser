@@ -37,7 +37,7 @@ type SQLConfig struct {
 	// empty here for the sqlite driver means "derive from
 	// Paths.DataDir" — see Config.Load. Postgres/MySQL have no sane
 	// default and must be set explicitly.
-	DSN string `mapstructure:"dsn"`
+	DSN string `mapstructure:"dsn" secret:"true"`
 }
 
 // DefaultDatabase returns Database's defaults: the badger driver, with

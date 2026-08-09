@@ -4,15 +4,13 @@
 
 import type { GenEnum, GenFile, GenMessage, GenService } from "@bufbuild/protobuf/codegenv2";
 import { enumDesc, fileDesc, messageDesc, serviceDesc } from "@bufbuild/protobuf/codegenv2";
-import type { FieldMask } from "@bufbuild/protobuf/wkt";
-import { file_google_protobuf_field_mask } from "@bufbuild/protobuf/wkt";
 import type { Message } from "@bufbuild/protobuf";
 
 /**
  * Describes the file purser/settings/v1/settings.proto.
  */
 export const file_purser_settings_v1_settings: GenFile = /*@__PURE__*/
-  fileDesc("CiFwdXJzZXIvc2V0dGluZ3MvdjEvc2V0dGluZ3MucHJvdG8SEnB1cnNlci5zZXR0aW5ncy52MSK0AQoHU2V0dGluZxILCgNrZXkYASABKAkSDQoFdmFsdWUYAiABKAkSMQoGc291cmNlGAMgASgOMiEucHVyc2VyLnNldHRpbmdzLnYxLlNldHRpbmdTb3VyY2USDgoGbG9ja2VkGAQgASgIEjoKC2xvY2tfcmVhc29uGAUgASgOMiUucHVyc2VyLnNldHRpbmdzLnYxLlNldHRpbmdMb2NrUmVhc29uEg4KBnNlY3JldBgGIAEoCCIUChJHZXRTZXR0aW5nc1JlcXVlc3QiRAoTR2V0U2V0dGluZ3NSZXNwb25zZRItCghzZXR0aW5ncxgBIAMoCzIbLnB1cnNlci5zZXR0aW5ncy52MS5TZXR0aW5nIr4BChVVcGRhdGVTZXR0aW5nc1JlcXVlc3QSRQoGdmFsdWVzGAEgAygLMjUucHVyc2VyLnNldHRpbmdzLnYxLlVwZGF0ZVNldHRpbmdzUmVxdWVzdC5WYWx1ZXNFbnRyeRIvCgt1cGRhdGVfbWFzaxgCIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5GaWVsZE1hc2saLQoLVmFsdWVzRW50cnkSCwoDa2V5GAEgASgJEg0KBXZhbHVlGAIgASgJOgI4ASJHChZVcGRhdGVTZXR0aW5nc1Jlc3BvbnNlEi0KCHNldHRpbmdzGAEgAygLMhsucHVyc2VyLnNldHRpbmdzLnYxLlNldHRpbmciIgoTUmVzZXRTZXR0aW5nUmVxdWVzdBILCgNrZXkYASABKAkiRAoUUmVzZXRTZXR0aW5nUmVzcG9uc2USLAoHc2V0dGluZxgBIAEoCzIbLnB1cnNlci5zZXR0aW5ncy52MS5TZXR0aW5nKpMBCg1TZXR0aW5nU291cmNlEh4KGlNFVFRJTkdfU09VUkNFX1VOU1BFQ0lGSUVEEAASGgoWU0VUVElOR19TT1VSQ0VfREVGQVVMVBABEhYKElNFVFRJTkdfU09VUkNFX0VOVhACEhcKE1NFVFRJTkdfU09VUkNFX1lBTUwQAxIVChFTRVRUSU5HX1NPVVJDRV9EQhAEKn0KEVNldHRpbmdMb2NrUmVhc29uEiMKH1NFVFRJTkdfTE9DS19SRUFTT05fVU5TUEVDSUZJRUQQABIhCh1TRVRUSU5HX0xPQ0tfUkVBU09OX0JPT1RTVFJBUBABEiAKHFNFVFRJTkdfTE9DS19SRUFTT05fT1BFUkFUT1IQAjK9AgoPU2V0dGluZ3NTZXJ2aWNlEl4KC0dldFNldHRpbmdzEiYucHVyc2VyLnNldHRpbmdzLnYxLkdldFNldHRpbmdzUmVxdWVzdBonLnB1cnNlci5zZXR0aW5ncy52MS5HZXRTZXR0aW5nc1Jlc3BvbnNlEmcKDlVwZGF0ZVNldHRpbmdzEikucHVyc2VyLnNldHRpbmdzLnYxLlVwZGF0ZVNldHRpbmdzUmVxdWVzdBoqLnB1cnNlci5zZXR0aW5ncy52MS5VcGRhdGVTZXR0aW5nc1Jlc3BvbnNlEmEKDFJlc2V0U2V0dGluZxInLnB1cnNlci5zZXR0aW5ncy52MS5SZXNldFNldHRpbmdSZXF1ZXN0GigucHVyc2VyLnNldHRpbmdzLnYxLlJlc2V0U2V0dGluZ1Jlc3BvbnNlQi1aK3B1cnNlci9nZW4vZ28vcHVyc2VyL3NldHRpbmdzL3YxO3NldHRpbmdzdjFiBnByb3RvMw", [file_google_protobuf_field_mask]);
+  fileDesc("CiFwdXJzZXIvc2V0dGluZ3MvdjEvc2V0dGluZ3MucHJvdG8SEnB1cnNlci5zZXR0aW5ncy52MSK0AQoHU2V0dGluZxILCgNrZXkYASABKAkSDQoFdmFsdWUYAiABKAkSMQoGc291cmNlGAMgASgOMiEucHVyc2VyLnNldHRpbmdzLnYxLlNldHRpbmdTb3VyY2USDgoGbG9ja2VkGAQgASgIEjoKC2xvY2tfcmVhc29uGAUgASgOMiUucHVyc2VyLnNldHRpbmdzLnYxLlNldHRpbmdMb2NrUmVhc29uEg4KBnNlY3JldBgGIAEoCCIUChJHZXRTZXR0aW5nc1JlcXVlc3QiRAoTR2V0U2V0dGluZ3NSZXNwb25zZRItCghzZXR0aW5ncxgBIAMoCzIbLnB1cnNlci5zZXR0aW5ncy52MS5TZXR0aW5nIqIBChVVcGRhdGVTZXR0aW5nc1JlcXVlc3QSRQoGdmFsdWVzGAEgAygLMjUucHVyc2VyLnNldHRpbmdzLnYxLlVwZGF0ZVNldHRpbmdzUmVxdWVzdC5WYWx1ZXNFbnRyeRITCgt1cGRhdGVfbWFzaxgCIAMoCRotCgtWYWx1ZXNFbnRyeRILCgNrZXkYASABKAkSDQoFdmFsdWUYAiABKAk6AjgBIkcKFlVwZGF0ZVNldHRpbmdzUmVzcG9uc2USLQoIc2V0dGluZ3MYASADKAsyGy5wdXJzZXIuc2V0dGluZ3MudjEuU2V0dGluZyIiChNSZXNldFNldHRpbmdSZXF1ZXN0EgsKA2tleRgBIAEoCSJEChRSZXNldFNldHRpbmdSZXNwb25zZRIsCgdzZXR0aW5nGAEgASgLMhsucHVyc2VyLnNldHRpbmdzLnYxLlNldHRpbmcqkwEKDVNldHRpbmdTb3VyY2USHgoaU0VUVElOR19TT1VSQ0VfVU5TUEVDSUZJRUQQABIaChZTRVRUSU5HX1NPVVJDRV9ERUZBVUxUEAESFgoSU0VUVElOR19TT1VSQ0VfRU5WEAISFwoTU0VUVElOR19TT1VSQ0VfWUFNTBADEhUKEVNFVFRJTkdfU09VUkNFX0RCEAQqfQoRU2V0dGluZ0xvY2tSZWFzb24SIwofU0VUVElOR19MT0NLX1JFQVNPTl9VTlNQRUNJRklFRBAAEiEKHVNFVFRJTkdfTE9DS19SRUFTT05fQk9PVFNUUkFQEAESIAocU0VUVElOR19MT0NLX1JFQVNPTl9PUEVSQVRPUhACMr0CCg9TZXR0aW5nc1NlcnZpY2USXgoLR2V0U2V0dGluZ3MSJi5wdXJzZXIuc2V0dGluZ3MudjEuR2V0U2V0dGluZ3NSZXF1ZXN0GicucHVyc2VyLnNldHRpbmdzLnYxLkdldFNldHRpbmdzUmVzcG9uc2USZwoOVXBkYXRlU2V0dGluZ3MSKS5wdXJzZXIuc2V0dGluZ3MudjEuVXBkYXRlU2V0dGluZ3NSZXF1ZXN0GioucHVyc2VyLnNldHRpbmdzLnYxLlVwZGF0ZVNldHRpbmdzUmVzcG9uc2USYQoMUmVzZXRTZXR0aW5nEicucHVyc2VyLnNldHRpbmdzLnYxLlJlc2V0U2V0dGluZ1JlcXVlc3QaKC5wdXJzZXIuc2V0dGluZ3MudjEuUmVzZXRTZXR0aW5nUmVzcG9uc2VCLVorcHVyc2VyL2dlbi9nby9wdXJzZXIvc2V0dGluZ3MvdjE7c2V0dGluZ3N2MWIGcHJvdG8z");
 
 /**
  * Setting is the wire shape of one config key's effective value plus its
@@ -116,13 +114,18 @@ export const GetSettingsResponseSchema: GenMessage<GetSettingsResponse> = /*@__P
 /**
  * UpdateSettingsRequest writes one or more DB-overlay-eligible keys.
  * Setting isn't a fixed-field entity like every other UpdateXxxRequest in
- * this API, so update_mask.paths lists dotted config keys instead of
- * struct field names — the same "caller states explicitly what it
- * intends to touch" guarantee docs/adr/0011-api-design.md's FieldMask
- * convention requires, adapted to a keyed bag. values holds the
- * JSON-encoded new value for every key named in update_mask; a key
- * present in update_mask.paths but absent from values (or vice versa) is
- * a validation error.
+ * this API, so update_mask lists dotted config keys instead of struct
+ * field names — the same "caller states explicitly what it intends to
+ * touch" guarantee docs/adr/0011-api-design.md's FieldMask convention
+ * requires, adapted to a keyed bag. This is a plain repeated string, not
+ * google.protobuf.FieldMask: FieldMask's canonical JSON encoding requires
+ * camelCase path segments with no underscores, which config keys (Viper's
+ * underscore-joined mapstructure convention, e.g.
+ * "pipeline.confidence_threshold") don't satisfy — confirmed live against
+ * both the HTTP/JSON and native-gRPC transports, not a hypothetical.
+ * values holds the JSON-encoded new value for every key named in
+ * update_mask; a key present in update_mask but absent from values (or
+ * vice versa) is a validation error.
  *
  * Rejected if any named key is locked (operator or bootstrap) or is a
  * bootstrap key at all — see docs/adr/0028-layered-settings.md. The
@@ -138,9 +141,9 @@ export type UpdateSettingsRequest = Message<"purser.settings.v1.UpdateSettingsRe
   values: { [key: string]: string };
 
   /**
-   * @generated from field: google.protobuf.FieldMask update_mask = 2;
+   * @generated from field: repeated string update_mask = 2;
    */
-  updateMask?: FieldMask | undefined;
+  updateMask: string[];
 };
 
 /**

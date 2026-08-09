@@ -29,7 +29,7 @@ type Prowlarr struct {
 	// APIKey is sent as the "X-Api-Key" header on every Prowlarr request.
 	// Required for Enabled to have any effect: internal/adapters/prowlarr.New
 	// errors on an empty APIKey.
-	APIKey string `mapstructure:"api_key"`
+	APIKey string `mapstructure:"api_key" secret:"true"`
 
 	// ResponseHeaderTimeout overrides how long a single Prowlarr search
 	// waits for response headers before failing. Zero means "use

@@ -2,8 +2,6 @@ syntax = "proto3";
 
 package purser.settings.v1;
 
-import "google/protobuf/field_mask.proto";
-
 option go_package = "purser/gen/go/purser/settings/v1;settingsv1";
 
 // SettingSource identifies which layer produced a config key's effective
@@ -66,13 +64,18 @@ message GetSettingsResponse {
 
 // UpdateSettingsRequest writes one or more DB-overlay-eligible keys.
 // Setting isn't a fixed-field entity like every other UpdateXxxRequest in
-// this API, so update_mask.paths lists dotted config keys instead of
-// struct field names — the same "caller states explicitly what it
-// intends to touch" guarantee docs/adr/0011-api-design.md's FieldMask
-// convention requires, adapted to a keyed bag. values holds the
-// JSON-encoded new value for every key named in update_mask; a key
-// present in update_mask.paths but absent from values (or vice versa) is
-// a validation error.
+// this API, so update_mask lists dotted config keys instead of struct
+// field names — the same "caller states explicitly what it intends to
+// touch" guarantee docs/adr/0011-api-design.md's FieldMask convention
+// requires, adapted to a keyed bag. This is a plain repeated string, not
+// google.protobuf.FieldMask: FieldMask's canonical JSON encoding requires
+// camelCase path segments with no underscores, which config keys (Viper's
+// underscore-joined mapstructure convention, e.g.
+// "pipeline.confidence_threshold") don't satisfy — confirmed live against
+// both the HTTP/JSON and native-gRPC transports, not a hypothetical.
+// values holds the JSON-encoded new value for every key named in
+// update_mask; a key present in update_mask but absent from values (or
+// vice versa) is a validation error.
 //
 // Rejected if any named key is locked (operator or bootstrap) or is a
 // bootstrap key at all — see docs/adr/0028-layered-settings.md. The
@@ -80,7 +83,7 @@ message GetSettingsResponse {
 // concern, not this proto's.
 message UpdateSettingsRequest {
   map<string, string> values = 1;
-  google.protobuf.FieldMask update_mask = 2;
+  repeated string update_mask = 2;
 }
 
 message UpdateSettingsResponse {

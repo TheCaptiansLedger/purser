@@ -35,12 +35,16 @@ const (
 	LockReasonOperator  LockReason = "operator"
 )
 
-// KeyStatus describes one config key's effective source and lock state
-// after ApplyOverrides runs — the metadata a future SettingsService's
-// GetSettings exposes to the UI for provenance display.
+// KeyStatus describes one config key's effective value, source, lock
+// state, and secret classification after ApplyOverrides runs — the
+// metadata SettingsService's GetSettings exposes to the UI for value
+// display and provenance.
 type KeyStatus struct {
-	Key        string
-	Source     Source
+	Key    string
+	Value  any
+	Source Source
+	Secret bool
+
 	Locked     bool
 	LockReason LockReason
 }
@@ -101,11 +105,15 @@ func ApplyOverrides(ctx context.Context, v *viper.Viper, configPath string, repo
 
 	statuses := make([]KeyStatus, 0, len(keys))
 	for _, key := range keys {
+		secret := isSecretKey(key)
+
 		switch {
 		case isBootstrapKey(key):
 			statuses = append(statuses, KeyStatus{
 				Key:        key,
+				Value:      v.Get(key),
 				Source:     sourceOrDefault(operatorSources, key),
+				Secret:     secret,
 				Locked:     true,
 				LockReason: LockReasonBootstrap,
 			})
@@ -113,7 +121,9 @@ func ApplyOverrides(ctx context.Context, v *viper.Viper, configPath string, repo
 		case operatorSources[key] != "":
 			statuses = append(statuses, KeyStatus{
 				Key:        key,
+				Value:      v.Get(key),
 				Source:     operatorSources[key],
+				Secret:     secret,
 				Locked:     true,
 				LockReason: LockReasonOperator,
 			})
@@ -121,7 +131,7 @@ func ApplyOverrides(ctx context.Context, v *viper.Viper, configPath string, repo
 		default:
 			raw, ok := dbValues[key]
 			if !ok {
-				statuses = append(statuses, KeyStatus{Key: key, Source: SourceDefault})
+				statuses = append(statuses, KeyStatus{Key: key, Value: v.Get(key), Source: SourceDefault, Secret: secret})
 				continue
 			}
 
@@ -130,7 +140,7 @@ func ApplyOverrides(ctx context.Context, v *viper.Viper, configPath string, repo
 				return Config{}, nil, fmt.Errorf("config: decoding stored setting %q: %w", key, err)
 			}
 			v.Set(key, decoded)
-			statuses = append(statuses, KeyStatus{Key: key, Source: SourceDB})
+			statuses = append(statuses, KeyStatus{Key: key, Value: v.Get(key), Source: SourceDB, Secret: secret})
 		}
 	}
 

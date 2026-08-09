@@ -95,6 +95,9 @@ func TestApplyOverrides_AppliesDBValueForUnlockedKey(t *testing.T) {
 	if st.Source != config.SourceDB || st.Locked {
 		t.Fatalf("status = %+v, want Source=db Locked=false", st)
 	}
+	if st.Value != 0.9 {
+		t.Fatalf("status.Value = %v, want 0.9", st.Value)
+	}
 }
 
 func TestApplyOverrides_EnvLockedKeyIgnoresDBValue(t *testing.T) {
@@ -267,6 +270,34 @@ func TestApplyOverrides_SettingsRepositoryListErrorPropagates(t *testing.T) {
 
 	if _, _, err := config.ApplyOverrides(context.Background(), v, "", repo); err == nil {
 		t.Fatal("ApplyOverrides with a failing SettingsRepository.List did not return an error")
+	}
+}
+
+func TestApplyOverrides_SecretKeyMarkedSecret(t *testing.T) {
+	v := viper.New()
+	if _, err := config.Load(v, ""); err != nil {
+		t.Fatalf("Load returned error: %v", err)
+	}
+
+	_, statuses, err := config.ApplyOverrides(context.Background(), v, "", newFakeSettingsRepository(map[string]string{}))
+	if err != nil {
+		t.Fatalf("ApplyOverrides returned error: %v", err)
+	}
+
+	st, ok := statusOf(statuses, "sources.stashdb.api_key")
+	if !ok {
+		t.Fatal("statuses missing sources.stashdb.api_key")
+	}
+	if !st.Secret {
+		t.Fatalf("status = %+v, want Secret=true for sources.stashdb.api_key", st)
+	}
+
+	nonSecret, ok := statusOf(statuses, "pipeline.confidence_threshold")
+	if !ok {
+		t.Fatal("statuses missing pipeline.confidence_threshold")
+	}
+	if nonSecret.Secret {
+		t.Fatalf("status = %+v, want Secret=false for pipeline.confidence_threshold", nonSecret)
 	}
 }
 

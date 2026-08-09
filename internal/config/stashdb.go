@@ -17,7 +17,7 @@ type StashDB struct {
 	// APIKey is sent as the "ApiKey" header on every StashDB request.
 	// Required for Enabled to have any effect: internal/adapters/stashdb.New
 	// errors on an empty APIKey.
-	APIKey string `mapstructure:"api_key"`
+	APIKey string `mapstructure:"api_key" secret:"true"`
 }
 
 // DefaultStashDB returns StashDB's defaults: disabled, no API key.

@@ -15,7 +15,7 @@ type AcoustID struct {
 	// gated on tag-derived signals not already resolving a group; the
 	// composition root wires a no-op AcoustIDClient when this is empty
 	// rather than failing startup.
-	APIKey string `mapstructure:"api_key"`
+	APIKey string `mapstructure:"api_key" secret:"true"`
 }
 
 // DefaultAcoustID returns AcoustID's defaults: both fields empty (no
