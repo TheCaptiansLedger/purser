@@ -174,6 +174,103 @@ func TestConfig_Validate_RejectsEmptyMediaPath(t *testing.T) {
 	}
 }
 
+func TestLoad_UsesDefaultModulesDisabledWithNoRoots(t *testing.T) {
+	cfg, err := config.Load(viper.New(), "")
+	if err != nil {
+		t.Fatalf("Load returned error: %v", err)
+	}
+	for name, m := range map[string]config.ModuleConfig{
+		"movies":    cfg.Modules.Movies,
+		"tv":        cfg.Modules.TV,
+		"music":     cfg.Modules.Music,
+		"books":     cfg.Modules.Books,
+		"afterdark": cfg.Modules.AfterDark,
+	} {
+		if m.Enabled {
+			t.Errorf("Load returned Modules.%s.Enabled=true by default, want false", name)
+		}
+		if len(m.Roots) != 0 {
+			t.Errorf("Load returned Modules.%s.Roots=%v by default, want empty", name, m.Roots)
+		}
+	}
+}
+
+func TestLoad_EnvOverridesModulesEnabledAndRoots(t *testing.T) {
+	t.Setenv("PURSER_MODULES_MOVIES_ENABLED", "true")
+	t.Setenv("PURSER_MODULES_MOVIES_ROOTS", "/mnt/disk1/movies,/mnt/disk2/movies")
+
+	cfg, err := config.Load(viper.New(), "")
+	if err != nil {
+		t.Fatalf("Load returned error: %v", err)
+	}
+	if !cfg.Modules.Movies.Enabled {
+		t.Fatal("Load returned Modules.Movies.Enabled=false, want true from env override")
+	}
+	want := []string{"/mnt/disk1/movies", "/mnt/disk2/movies"}
+	if len(cfg.Modules.Movies.Roots) != len(want) {
+		t.Fatalf("Load returned Modules.Movies.Roots=%v, want %v", cfg.Modules.Movies.Roots, want)
+	}
+	for i, r := range want {
+		if cfg.Modules.Movies.Roots[i] != r {
+			t.Errorf("Modules.Movies.Roots[%d] = %q, want %q", i, cfg.Modules.Movies.Roots[i], r)
+		}
+	}
+}
+
+func TestLoad_ConfigFileModulesUnmarshalsEnabledAndRoots(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "purser.yaml")
+	yaml := "modules:\n  afterdark:\n    enabled: true\n    roots:\n      - /media/content/afterdark\n      - /media/content/jav\n"
+	if err := os.WriteFile(path, []byte(yaml), 0o600); err != nil {
+		t.Fatalf("WriteFile returned error: %v", err)
+	}
+
+	cfg, err := config.Load(viper.New(), path)
+	if err != nil {
+		t.Fatalf("Load returned error: %v", err)
+	}
+	if !cfg.Modules.AfterDark.Enabled {
+		t.Fatal("Load returned Modules.AfterDark.Enabled=false, want true")
+	}
+	want := []string{"/media/content/afterdark", "/media/content/jav"}
+	if len(cfg.Modules.AfterDark.Roots) != len(want) {
+		t.Fatalf("Load returned Modules.AfterDark.Roots=%v, want %v", cfg.Modules.AfterDark.Roots, want)
+	}
+	for i, r := range want {
+		if cfg.Modules.AfterDark.Roots[i] != r {
+			t.Errorf("Modules.AfterDark.Roots[%d] = %q, want %q", i, cfg.Modules.AfterDark.Roots[i], r)
+		}
+	}
+}
+
+func TestLoad_UsesDefaultLogLevelAndFormat(t *testing.T) {
+	cfg, err := config.Load(viper.New(), "")
+	if err != nil {
+		t.Fatalf("Load returned error: %v", err)
+	}
+	if cfg.Log.Level != "info" {
+		t.Errorf("Load returned Log.Level=%q, want %q", cfg.Log.Level, "info")
+	}
+	if cfg.Log.Format != "json" {
+		t.Errorf("Load returned Log.Format=%q, want %q", cfg.Log.Format, "json")
+	}
+}
+
+func TestLoad_EnvOverridesLogLevelAndFormat(t *testing.T) {
+	t.Setenv("PURSER_LOG_LEVEL", "debug")
+	t.Setenv("PURSER_LOG_FORMAT", "text")
+
+	cfg, err := config.Load(viper.New(), "")
+	if err != nil {
+		t.Fatalf("Load returned error: %v", err)
+	}
+	if cfg.Log.Level != "debug" {
+		t.Errorf("Load returned Log.Level=%q, want %q", cfg.Log.Level, "debug")
+	}
+	if cfg.Log.Format != "text" {
+		t.Errorf("Load returned Log.Format=%q, want %q", cfg.Log.Format, "text")
+	}
+}
+
 func TestConfig_Validate_AcceptsDisabledTelemetryWithNoEndpoint(t *testing.T) {
 	cfg := config.DefaultConfig()
 	cfg.Telemetry.Enabled = false

@@ -20,6 +20,8 @@ type Config struct {
 	Paths       Paths       `mapstructure:"paths"`
 	Database    Database    `mapstructure:"database"`
 	Media       Media       `mapstructure:"media"`
+	Modules     Modules     `mapstructure:"modules"`
+	Log         Log         `mapstructure:"log"`
 	Telemetry   Telemetry   `mapstructure:"telemetry"`
 	Pipeline    Pipeline    `mapstructure:"pipeline"`
 	MusicBrainz MusicBrainz `mapstructure:"musicbrainz"`
@@ -38,6 +40,8 @@ func DefaultConfig() Config {
 		Paths:       DefaultPaths(),
 		Database:    DefaultDatabase(),
 		Media:       DefaultMedia(),
+		Modules:     DefaultModules(),
+		Log:         DefaultLog(),
 		Telemetry:   DefaultTelemetry(),
 		Pipeline:    DefaultPipeline(),
 		MusicBrainz: DefaultMusicBrainz(),
@@ -99,6 +103,18 @@ func Load(v *viper.Viper, configPath string) (Config, error) {
 	v.SetDefault("database.badger.sync_writes", false)
 	v.SetDefault("database.sql.dsn", "")
 	v.SetDefault("media.path", "")
+	v.SetDefault("modules.movies.enabled", defaults.Modules.Movies.Enabled)
+	v.SetDefault("modules.movies.roots", defaults.Modules.Movies.Roots)
+	v.SetDefault("modules.tv.enabled", defaults.Modules.TV.Enabled)
+	v.SetDefault("modules.tv.roots", defaults.Modules.TV.Roots)
+	v.SetDefault("modules.music.enabled", defaults.Modules.Music.Enabled)
+	v.SetDefault("modules.music.roots", defaults.Modules.Music.Roots)
+	v.SetDefault("modules.books.enabled", defaults.Modules.Books.Enabled)
+	v.SetDefault("modules.books.roots", defaults.Modules.Books.Roots)
+	v.SetDefault("modules.afterdark.enabled", defaults.Modules.AfterDark.Enabled)
+	v.SetDefault("modules.afterdark.roots", defaults.Modules.AfterDark.Roots)
+	v.SetDefault("log.level", defaults.Log.Level)
+	v.SetDefault("log.format", defaults.Log.Format)
 	v.SetDefault("telemetry.enabled", defaults.Telemetry.Enabled)
 	v.SetDefault("telemetry.otlp_endpoint", defaults.Telemetry.OTLPEndpoint)
 	v.SetDefault("telemetry.otlp_insecure", defaults.Telemetry.OTLPInsecure)
