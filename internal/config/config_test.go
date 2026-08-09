@@ -406,6 +406,27 @@ func TestLoad_ConfigFileOrganizeUnmarshalsRootTemplatePairs(t *testing.T) {
 	}
 }
 
+func TestLoad_ConfigFileOrganizeUnmarshalsAdultEntry(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "purser.yaml")
+	yaml := "pipeline:\n  organize:\n    adult:\n      root: /library/afterdark\n      template: \"{{.Studio}}/{{.SceneDate}} - {{.SceneTitle}}{{.Ext}}\"\n"
+	if err := os.WriteFile(path, []byte(yaml), 0o600); err != nil {
+		t.Fatalf("WriteFile returned error: %v", err)
+	}
+
+	cfg, err := config.Load(viper.New(), path)
+	if err != nil {
+		t.Fatalf("Load returned error: %v", err)
+	}
+	want := config.OrganizeConfig{Root: "/library/afterdark", Template: "{{.Studio}}/{{.SceneDate}} - {{.SceneTitle}}{{.Ext}}"}
+	got, ok := cfg.Pipeline.Organize[domain.ContentTypeAdult]
+	if !ok {
+		t.Fatalf("Load returned Organize %+v, missing adult entry", cfg.Pipeline.Organize)
+	}
+	if got != want {
+		t.Fatalf("Organize[adult] = %+v, want %+v", got, want)
+	}
+}
+
 func TestPipeline_Validate_RejectsOrganizeEntryMissingRoot(t *testing.T) {
 	cfg := config.DefaultConfig()
 	cfg.Pipeline.Organize = map[domain.ContentType]config.OrganizeConfig{

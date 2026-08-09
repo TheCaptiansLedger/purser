@@ -608,7 +608,8 @@ func wireScanPipeline(
 	// Content types with no registered ports.TemplateDataBuilder
 	// implementation fall back to service.NoopTemplateDataBuilder.
 	musicTemplateDataBuilder := pipelinemusic.NewTemplateDataBuilder(groupRepo, musicReleaseRepo, libraryEntryRepo, pipelinemusic.WithLogger(logger))
-	templateDataRegistry := service.NewTemplateDataBuilderRegistry(musicTemplateDataBuilder)
+	afterDarkTemplateDataBuilder := pipelineafterdark.NewTemplateDataBuilder(libraryEntryRepo, itemPersonRepo, personRepo, externalIDRepo, pipelineafterdark.WithLogger(logger))
+	templateDataRegistry := service.NewTemplateDataBuilderRegistry(musicTemplateDataBuilder, afterDarkTemplateDataBuilder)
 
 	organizeConfigs := make(map[domain.ContentType]service.OrganizeConfig, len(pipelineCfg.Organize))
 	for ct, oc := range pipelineCfg.Organize {

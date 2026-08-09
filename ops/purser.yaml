@@ -71,6 +71,15 @@ pipeline:
   scan_roots:
     - path: /media/incoming
       content_type: music
+  # Organizer naming templates, per content type — see
+  # docs/adr/0024-pipeline-core.md and
+  # docs/technical/pipeline-music-organizer.md. Auto-organize is off by
+  # default (auto_organize: true enables it); manual organizing is always
+  # available via the OrganizerService RPC regardless of this setting.
+  organize:
+    adult:
+      root: /media/library/afterdark
+      template: "{{.Studio}}/{{.SceneDate | default \"unknown-date\"}} - {{.SceneTitle}}{{if .SceneCode}} [{{.SceneCode}}]{{end}}{{.Ext}}"
 
 # MusicBrainz adapter (internal/adapters/musicbrainz) — see
 # docs/technical/music-musicbrainz-adapter.md. base_url is empty by default
