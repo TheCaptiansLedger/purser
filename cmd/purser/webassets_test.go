@@ -5,6 +5,8 @@ import (
 	"net/http/httptest"
 	"testing"
 	"testing/fstest"
+
+	webui "purser/web"
 )
 
 // fakeAssets mirrors the real embed.FS's shape (files rooted under
@@ -54,6 +56,25 @@ func TestNewWebUIHandler_FallsBackToIndexForUnknownPath(t *testing.T) {
 	}
 	if got := rec.Body.String(); got != "<html>spa shell</html>" {
 		t.Fatalf("body = %q, want the index.html fallback", got)
+	}
+}
+
+// TestNewWebUIHandler_RealEmbedHasIndexHTML exercises webui.Assets
+// itself, not fakeAssets() — every other test in this file proves
+// newWebUIHandler's routing logic against a synthetic FS that always has
+// an index.html, which can never catch the one failure mode that
+// actually matters here: web/dist/index.html is gitignored (only
+// dist/.gitkeep is committed — see web/embed.go and web/.gitignore), so
+// a checkout that never ran `npm run build` (or a CI job that forgot the
+// stub, as .github/workflows/pr.yml's k6 job once did) embeds a dist/
+// with no index.html at all. mountWebUI treats that as an unrecoverable
+// packaging bug and panics at serve startup — this test turns that into
+// a fast, local `go test` failure instead, catching it in the pre-commit
+// hook (make test-ci) before it ever reaches CI.
+func TestNewWebUIHandler_RealEmbedHasIndexHTML(t *testing.T) {
+	if _, err := newWebUIHandler(webui.Assets); err != nil {
+		t.Fatalf("newWebUIHandler(webui.Assets) = %v, want nil — web/dist/index.html is missing; "+
+			"run `make build web` (or `npm run build` in web/) before testing", err)
 	}
 }
 

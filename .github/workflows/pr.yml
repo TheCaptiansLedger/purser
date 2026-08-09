@@ -104,6 +104,16 @@ jobs:
           go-version-file: go.mod
           cache: true
 
+      # k6 flows exercise the API, never the rendered UI, so a stub is
+      # enough here — same reasoning the Lint job's identical step
+      # documents. Without this, _k6-app-start's `go build` embeds
+      # web/dist with only its committed dist/.gitkeep (no index.html),
+      # and the app panics on startup: cmd/purser/webassets.go's
+      # mountWebUI treats a missing index.html as an unrecoverable
+      # packaging bug, per that function's own doc comment.
+      - name: Stub web dist for compilation
+        run: mkdir -p web/dist && echo '<!DOCTYPE html><html><body>stub</body></html>' > web/dist/index.html
+
       - name: Run k6 suite against a standalone (Badger) app
         run: make k6-ci
 
