@@ -120,7 +120,14 @@ _k6-flow: $(GOBIN)/k6
 # adapter a k6 test exercises must run against fixture data, never a live
 # network call (same reasoning docs/technical/pipeline-music-persist.md's
 # Persister tests already apply at the Go level, extended to the k6/CI
-# harness here), and no second process/port is needed for it. test/k6/flow/
+# harness here), and no second process/port is needed for it.
+# PURSER_PROWLARR_MOCK=1 does the identical thing for
+# test/k6/{grpc,http}/indexer_test.js — the generated purser-ci.yaml's
+# prowlarr: block enables Prowlarr with placeholder base_url/api_key
+# (never dialed; RoundTrip intercepts first) so
+# cmd/purser/serve.go's newIndexerSearcher constructs a real
+# *prowlarr.Client wired to internal/adapters/prowlarr/fixtureserver's
+# canned route table instead of a live Prowlarr instance. test/k6/flow/
 # accept_candidate_test.js scans .cidata/scan-music (real, tagged audio
 # fixtures copied from test/k6/fixtures/musicbrainz-audio/ — see that
 # directory's own generation notes) against the fixture release
@@ -182,9 +189,9 @@ _k6-app-start: $(GOBIN)/k6
 	cp test/k6/fixtures/musicbrainz-audio/ambiguous/*.flac .cidata/scan-music/ambiguous/
 	mkdir -p .cidata/scan-music-organize
 	cp test/k6/fixtures/musicbrainz-audio/organize/*.flac .cidata/scan-music-organize/
-	printf 'pipeline:\n  scan_roots:\n    - path: %s/.cidata/scan-music\n      content_type: music\n    - path: %s/.cidata/scan-music-organize\n      content_type: music\n  organize:\n    adult:\n      root: %s/.cidata/organized\n      template: "{{.Metadata.k6_marker}}{{.Ext}}"\n    music:\n      root: %s/.cidata/organized-music\n      template: "{{.ArtistName}}/{{.AlbumTitle}}{{if .Year}} ({{.Year}}){{end}}/{{if gt .DiscCount 1}}{{.DiscNumber}}-{{end}}{{.TrackNumber}} - {{.TrackTitle}}{{.Ext}}"\n' "$(CURDIR)" "$(CURDIR)" "$(CURDIR)" "$(CURDIR)" > .cidata/purser-ci.yaml
+	printf 'pipeline:\n  scan_roots:\n    - path: %s/.cidata/scan-music\n      content_type: music\n    - path: %s/.cidata/scan-music-organize\n      content_type: music\n  organize:\n    adult:\n      root: %s/.cidata/organized\n      template: "{{.Metadata.k6_marker}}{{.Ext}}"\n    music:\n      root: %s/.cidata/organized-music\n      template: "{{.ArtistName}}/{{.AlbumTitle}}{{if .Year}} ({{.Year}}){{end}}/{{if gt .DiscCount 1}}{{.DiscNumber}}-{{end}}{{.TrackNumber}} - {{.TrackTitle}}{{.Ext}}"\nprowlarr:\n  enabled: true\n  base_url: http://prowlarr.invalid/api/v1\n  api_key: k6-fixture-key\n' "$(CURDIR)" "$(CURDIR)" "$(CURDIR)" "$(CURDIR)" > .cidata/purser-ci.yaml
 	go build -o .cidata/purser ./cmd/purser
-	PURSER_PATHS_DATA_DIR=$(CURDIR)/.cidata/data PURSER_MUSICBRAINZ_MOCK=1 .cidata/purser serve --config $(CURDIR)/.cidata/purser-ci.yaml & echo $$! > .cidata/purser.pid
+	PURSER_PATHS_DATA_DIR=$(CURDIR)/.cidata/data PURSER_MUSICBRAINZ_MOCK=1 PURSER_PROWLARR_MOCK=1 .cidata/purser serve --config $(CURDIR)/.cidata/purser-ci.yaml & echo $$! > .cidata/purser.pid
 	@for i in $$(seq 1 60); do nc -z localhost 7474 2>/dev/null && exit 0; sleep 0.5; done; \
 		echo "purser serve did not come up on :7474 within 30s" >&2; exit 1
 

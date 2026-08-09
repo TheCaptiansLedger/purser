@@ -16,6 +16,8 @@ import (
 	"purser/internal/adapters/imagefetcher"
 	"purser/internal/adapters/musicbrainz"
 	"purser/internal/adapters/musicbrainz/fixtureserver"
+	"purser/internal/adapters/prowlarr"
+	prowlarrfixtureserver "purser/internal/adapters/prowlarr/fixtureserver"
 	"purser/internal/adapters/stashdb"
 	"purser/internal/adapters/theaudiodb"
 	"purser/internal/adapters/theporndb"
@@ -34,6 +36,7 @@ import (
 	"github.com/spf13/viper"
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 
+	acquisitionv1connect "purser/gen/go/purser/acquisition/v1/acquisitionv1connect"
 	afterdarkv1connect "purser/gen/go/purser/afterdark/v1/afterdarkv1connect"
 	domainv1connect "purser/gen/go/purser/domain/v1/domainv1connect"
 	jobv1connect "purser/gen/go/purser/job/v1/jobv1connect"
@@ -130,7 +133,7 @@ func runServe(ctx context.Context, configPath string) error {
 		}
 	}()
 
-	mux, watcherCloser, err := newServeMux(sigCtx, logger, ds, cfg.Pipeline, cfg.MusicBrainz, cfg.AcoustID, cfg.Sources.StashDB, cfg.Sources.ThePornDB, cfg.Sources.TheAudioDB, cfg.Sources.FanartTV, cfg.Media, cfg.AfterDark)
+	mux, watcherCloser, err := newServeMux(sigCtx, logger, ds, cfg.Pipeline, cfg.MusicBrainz, cfg.AcoustID, cfg.Sources.StashDB, cfg.Sources.ThePornDB, cfg.Sources.TheAudioDB, cfg.Sources.FanartTV, cfg.Prowlarr, cfg.Media, cfg.AfterDark)
 	if err != nil {
 		return err
 	}
@@ -267,7 +270,7 @@ func openDatastore(cfg config.Database) (datastore.Datastore, io.Closer, error) 
 // Common Scan Pipeline's filesystem watcher/consumer goroutine, if one is
 // started (see wireScanPipeline); the returned io.Closer stops it during
 // shutdown and is nil when pipelineCfg.ScanRoots is empty.
-func newServeMux(ctx context.Context, logger *slog.Logger, ds datastore.Datastore, pipelineCfg config.Pipeline, mbCfg config.MusicBrainz, acoustIDCfg config.AcoustID, stashDBCfg config.StashDB, tpdbCfg config.ThePornDB, theAudioDBCfg config.TheAudioDB, fanartTVCfg config.FanartTV, mediaCfg config.Media, afterDarkCfg config.AfterDark) (*http.ServeMux, io.Closer, error) {
+func newServeMux(ctx context.Context, logger *slog.Logger, ds datastore.Datastore, pipelineCfg config.Pipeline, mbCfg config.MusicBrainz, acoustIDCfg config.AcoustID, stashDBCfg config.StashDB, tpdbCfg config.ThePornDB, theAudioDBCfg config.TheAudioDB, fanartTVCfg config.FanartTV, prowlarrCfg config.Prowlarr, mediaCfg config.Media, afterDarkCfg config.AfterDark) (*http.ServeMux, io.Closer, error) {
 	mux := http.NewServeMux()
 	interceptors := connect.WithInterceptors(apiconnect.NewLoggingInterceptor(logger))
 
@@ -476,6 +479,22 @@ func newServeMux(ctx context.Context, logger *slog.Logger, ds datastore.Datastor
 	fanartTVPath, fanartTVConnectHandler := musicv1connect.NewFanartTVServiceHandler(fanartTVHandler, interceptors)
 	mux.Handle(fanartTVPath, fanartTVConnectHandler)
 
+	// Acquisition: IndexerService, the read-only half of #579's acquisition
+	// pipeline (search only — DownloadService/submission is #585). See
+	// docs/technical/acquisition-indexer-search.md and
+	// docs/technical/acquisition-pipeline.md. A disabled Prowlarr still
+	// gets the RPC mounted — it just always answers with an empty result,
+	// same "Search-shaped noop returns nil, nil" posture
+	// noopStashDBClient/noopThePornDBClient's own Search* methods use,
+	// not noopTheAudioDBClient's ErrNotFound posture: a disabled indexer
+	// backend has nothing to search, which is exactly what a genuine
+	// zero-result search already looks like (ports.IndexerSearcher's own
+	// doc comment).
+	indexerSearcher := newIndexerSearcher(prowlarrCfg, logger)
+	indexerSearchHandler := apiconnect.NewIndexerSearchHandler(service.NewIndexerSearch(indexerSearcher), logger)
+	indexerSearchPath, indexerSearchConnectHandler := acquisitionv1connect.NewIndexerServiceHandler(indexerSearchHandler, interceptors)
+	mux.Handle(indexerSearchPath, indexerSearchConnectHandler)
+
 	// Job Queue: ephemeral, in-process — not backed by ds like every
 	// entity above. See docs/adr/0023-job-queue.md. jobAdapter satisfies
 	// both ports.JobPublisher and ports.JobReader.
@@ -511,6 +530,7 @@ func newServeMux(ctx context.Context, logger *slog.Logger, ds datastore.Datastor
 		musicv1connect.MusicBrainzServiceName,
 		musicv1connect.TheAudioDBServiceName,
 		musicv1connect.FanartTVServiceName,
+		acquisitionv1connect.IndexerServiceName,
 		jobv1connect.JobServiceName,
 		pipelinev1connect.ScanServiceName,
 		pipelinev1connect.UnmatchedFileServiceName,
@@ -922,6 +942,62 @@ type noopFanartTVClient struct{}
 
 func (noopFanartTVClient) LookupArtist(context.Context, string) (*ports.FanartArtist, error) {
 	return nil, ports.ErrNotFound
+}
+
+// newIndexerSearcher constructs the real ports.IndexerSearcher
+// (internal/adapters/prowlarr.Client) when prowlarrCfg.Enabled, else
+// noopIndexerSearcher — see newTheAudioDBClient's identical convention,
+// except the noop here returns an empty result rather than
+// ports.ErrNotFound (see the wiring comment where this is called).
+//
+// When PURSER_PROWLARR_MOCK is set (any non-empty value), the real Client
+// is still constructed (prowlarrCfg must still set Enabled/BaseURL/APIKey,
+// e.g. to placeholder values — see Make's _k6-app-start), but with
+// prowlarr.WithBaseTransport pointed at
+// internal/adapters/prowlarr/fixtureserver's canned route table instead of
+// a real transport — no real socket, not even loopback, ever opens. Same
+// CI-only convention newMusicIdentificationClients' PURSER_MUSICBRAINZ_MOCK
+// handling already establishes.
+func newIndexerSearcher(prowlarrCfg config.Prowlarr, logger *slog.Logger) ports.IndexerSearcher {
+	if !prowlarrCfg.Enabled {
+		return noopIndexerSearcher{}
+	}
+	cfg := prowlarr.DefaultConfig()
+	cfg.BaseURL = prowlarrCfg.BaseURL
+	cfg.APIKey = prowlarrCfg.APIKey
+	if prowlarrCfg.ResponseHeaderTimeout > 0 {
+		cfg.HTTPClient.ResponseHeaderTimeout = prowlarrCfg.ResponseHeaderTimeout
+	}
+	opts := []prowlarr.Option{prowlarr.WithLogger(logger)}
+	if os.Getenv("PURSER_PROWLARR_MOCK") != "" {
+		logger.Warn("PURSER_PROWLARR_MOCK is set: Prowlarr calls are answered from fixtureserver's canned data, never a live network call")
+		opts = append(opts, prowlarr.WithBaseTransport(prowlarrfixtureserver.Transport()))
+	}
+	client, err := prowlarr.New(cfg, opts...)
+	if err != nil {
+		// BaseURL/APIKey are validated non-empty by config.Prowlarr's own
+		// contract (Enabled implies both were configured); a construction
+		// error here would mean that contract broke, not something an
+		// operator can fix by retrying — fail loud via the noop client's
+		// own empty-result posture rather than crash startup, same as
+		// newTheAudioDBClient's identical fallback.
+		logger.Error("constructing prowlarr client, falling back to noop", "error", err)
+		return noopIndexerSearcher{}
+	}
+	return client
+}
+
+// noopIndexerSearcher is the ports.IndexerSearcher used when
+// config.Prowlarr.Enabled is false — Search always returns an empty,
+// non-error result, the same "Search-shaped noop returns nil, nil"
+// posture noopStashDBClient/noopThePornDBClient's own Search* methods
+// already use, not noopTheAudioDBClient's ErrNotFound posture: a disabled
+// indexer backend has nothing to search, indistinguishable from a genuine
+// zero-result search per ports.IndexerSearcher's own doc comment.
+type noopIndexerSearcher struct{}
+
+func (noopIndexerSearcher) Search(context.Context, ports.IndexerSearchParams) ([]ports.IndexerRelease, error) {
+	return nil, nil
 }
 
 // noopOrganizer is the ports.Organizer a content type's Persister is wired

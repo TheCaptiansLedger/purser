@@ -1,0 +1,74 @@
+syntax = "proto3";
+
+package purser.acquisition.v1;
+
+import "google/protobuf/timestamp.proto";
+
+option go_package = "purser/gen/go/purser/acquisition/v1;acquisitionv1";
+
+// Protocol mirrors internal/ports.Protocol — the transport a release moves
+// over. Shared, in principle, with the future DownloadService (#585):
+// SubmitDownloadRequest will carry the same protocol a search result
+// reported here.
+enum Protocol {
+  PROTOCOL_UNSPECIFIED = 0;
+  PROTOCOL_TORRENT = 1;
+  PROTOCOL_USENET = 2;
+}
+
+// Category mirrors internal/ports.Category — one release's indexer
+// category, as reported by the backend. id is the backend's own opaque
+// numeric category id (Newznab/Torznab convention); interpreting it is the
+// backend's job, not this API's.
+message Category {
+  int32 id = 1;
+  string name = 2;
+}
+
+// IndexerRelease mirrors internal/ports.IndexerRelease — a provider-neutral
+// search result, in the backend's own order (no server-side ranking or
+// filtering, per docs/adr/0027-provider-independence.md's convention,
+// applied here even though this isn't a 0027-shaped port — see
+// docs/technical/acquisition-indexer-search.md). Named IndexerRelease, not
+// Release, for the same collision-avoidance reason
+// purser.music.v1.MusicBrainzRelease exists distinctly from
+// purser.domain.v1's own Release-shaped messages.
+message IndexerRelease {
+  string guid = 1;
+  string title = 2;
+  string indexer_name = 3;
+  int64 size = 4;
+  Protocol protocol = 5;
+  google.protobuf.Timestamp publish_date = 6;
+  int32 seeders = 7;
+  int32 leechers = 8;
+  string download_url = 9;
+  string magnet_url = 10;
+  string info_url = 11;
+  string info_hash = 12;
+  repeated Category categories = 13;
+}
+
+// SearchIndexersRequest free-text searches every indexer the configured
+// backend has enabled. categories/indexer_ids are optional filters —
+// see internal/ports.IndexerSearchParams's own doc comment.
+message SearchIndexersRequest {
+  string query = 1;
+  repeated int32 categories = 2;
+  repeated int32 indexer_ids = 3;
+}
+
+message SearchIndexersResponse {
+  repeated IndexerRelease releases = 1;
+}
+
+// IndexerService exposes internal/ports.IndexerSearcher directly — a
+// caller (UI or CLI) picks a release from Search's results and, in a
+// separate call to the future DownloadService (#585), submits it for
+// download. See docs/technical/acquisition-pipeline.md's "Data flow"
+// section. Deliberately read-only, deliberately a single RPC: this port
+// has exactly one capability (docs/adr/0011-api-design.md's no-God-service
+// rule, applied at the port level too).
+service IndexerService {
+  rpc Search(SearchIndexersRequest) returns (SearchIndexersResponse);
+}
