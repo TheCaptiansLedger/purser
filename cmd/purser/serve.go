@@ -14,6 +14,8 @@ import (
 	"purser/internal/adapters/datastore"
 	"purser/internal/adapters/musicbrainz"
 	"purser/internal/adapters/musicbrainz/fixtureserver"
+	"purser/internal/adapters/stashdb"
+	"purser/internal/adapters/theporndb"
 	"purser/internal/config"
 	"purser/internal/domain"
 	"purser/internal/ports"
@@ -42,6 +44,7 @@ import (
 	adapterjobqueue "purser/internal/adapters/jobqueue"
 
 	adapterpipeline "purser/internal/adapters/pipeline"
+	pipelineafterdark "purser/internal/adapters/pipeline/afterdark"
 	pipelinemusic "purser/internal/adapters/pipeline/music"
 	storeentryperson "purser/internal/adapters/store/entryperson"
 	storeexternalid "purser/internal/adapters/store/externalid"
@@ -124,7 +127,7 @@ func runServe(ctx context.Context, configPath string) error {
 		}
 	}()
 
-	mux, watcherCloser, err := newServeMux(sigCtx, logger, ds, cfg.Pipeline, cfg.MusicBrainz, cfg.AcoustID, cfg.Media)
+	mux, watcherCloser, err := newServeMux(sigCtx, logger, ds, cfg.Pipeline, cfg.MusicBrainz, cfg.AcoustID, cfg.Sources.StashDB, cfg.Sources.ThePornDB, cfg.Media)
 	if err != nil {
 		return err
 	}
@@ -261,7 +264,7 @@ func openDatastore(cfg config.Database) (datastore.Datastore, io.Closer, error) 
 // Common Scan Pipeline's filesystem watcher/consumer goroutine, if one is
 // started (see wireScanPipeline); the returned io.Closer stops it during
 // shutdown and is nil when pipelineCfg.ScanRoots is empty.
-func newServeMux(ctx context.Context, logger *slog.Logger, ds datastore.Datastore, pipelineCfg config.Pipeline, mbCfg config.MusicBrainz, acoustIDCfg config.AcoustID, mediaCfg config.Media) (*http.ServeMux, io.Closer, error) {
+func newServeMux(ctx context.Context, logger *slog.Logger, ds datastore.Datastore, pipelineCfg config.Pipeline, mbCfg config.MusicBrainz, acoustIDCfg config.AcoustID, stashDBCfg config.StashDB, tpdbCfg config.ThePornDB, mediaCfg config.Media) (*http.ServeMux, io.Closer, error) {
 	mux := http.NewServeMux()
 	interceptors := connect.WithInterceptors(apiconnect.NewLoggingInterceptor(logger))
 
@@ -463,7 +466,7 @@ func newServeMux(ctx context.Context, logger *slog.Logger, ds datastore.Datastor
 	// Common Scan Pipeline: split into its own function purely to keep
 	// newServeMux's cyclomatic complexity under budget — no behavior
 	// difference from being inlined here. See docs/adr/0024-pipeline-core.md.
-	watcherCloser, err := wireScanPipeline(ctx, mux, ds, logger, interceptors, jobEngine, jobAdapter, itemRepo, mediaFileRepo, libraryEntryRepo, groupRepo, externalIDRepo, musicReleaseRepo, imageRepo, pipelineCfg, mbCfg, acoustIDCfg, mediaCfg)
+	watcherCloser, err := wireScanPipeline(ctx, mux, ds, logger, interceptors, jobEngine, jobAdapter, itemRepo, mediaFileRepo, libraryEntryRepo, groupRepo, externalIDRepo, musicReleaseRepo, imageRepo, pipelineCfg, mbCfg, acoustIDCfg, stashDBCfg, tpdbCfg, mediaCfg)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -531,6 +534,8 @@ func wireScanPipeline(
 	pipelineCfg config.Pipeline,
 	mbCfg config.MusicBrainz,
 	acoustIDCfg config.AcoustID,
+	stashDBCfg config.StashDB,
+	tpdbCfg config.ThePornDB,
 	mediaCfg config.Media,
 ) (io.Closer, error) {
 	unmatchedFileRepo, err := storeunmatchedfile.New("unmatched_file", ds, storeunmatchedfile.WithLogger(logger))
@@ -539,22 +544,34 @@ func wireScanPipeline(
 	}
 
 	// Content types with no registered ports.Grouping implementation fall
-	// back to service.IdentityGrouping.
+	// back to service.IdentityGrouping — AfterDark deliberately relies on
+	// that fallback (docs/adr/0024-pipeline-core.md: a group is always
+	// exactly one file), so only Music registers its own.
 	groupingRegistry := service.NewGroupingRegistry(pipelinemusic.Grouping{})
 	// Content types with no registered ports.SidecarClassifier
 	// implementation fall back to service.NoopClassifier.
 	sidecarClassifierRegistry := service.NewSidecarClassifierRegistry(pipelinemusic.SidecarClassifier{})
 	// Content types with no registered ports.FileFingerprinter
 	// implementation fall back to service.NoopFingerprinter.
-	fingerprinterRegistry := service.NewFileFingerprinterRegistry(pipelinemusic.New(pipelinemusic.WithLogger(logger)))
+	fingerprinterRegistry := service.NewFileFingerprinterRegistry(
+		pipelinemusic.New(pipelinemusic.WithLogger(logger)),
+		pipelineafterdark.New(pipelineafterdark.WithLogger(logger)),
+	)
 
 	mbClient, acoustIDClient, err := newMusicIdentificationClients(mbCfg, acoustIDCfg, logger)
 	if err != nil {
 		return nil, err
 	}
+	stashDBClient, tpdbClient, err := newAfterDarkIdentificationClients(stashDBCfg, tpdbCfg, logger)
+	if err != nil {
+		return nil, err
+	}
 	// Content types with no registered ports.Identifier/ports.ConfidenceScorer
 	// implementation fall back to service.NoopIdentifier/NoopConfidenceScore.
-	identifierRegistry := service.NewIdentifierRegistry(pipelinemusic.NewIdentifier(mbClient, acoustIDClient, pipelinemusic.FilenameParser{}, pipelinemusic.WithLogger(logger)))
+	identifierRegistry := service.NewIdentifierRegistry(
+		pipelinemusic.NewIdentifier(mbClient, acoustIDClient, pipelinemusic.FilenameParser{}, pipelinemusic.WithLogger(logger)),
+		pipelineafterdark.NewIdentifier(stashDBClient, tpdbClient, pipelineafterdark.FilenameParser{}, pipelineafterdark.WithLogger(logger)),
+	)
 	confidenceScoreRegistry := service.NewConfidenceScoreRegistry(pipelinemusic.NewConfidenceScorer(pipelinemusic.WithLogger(logger)))
 
 	// The local imagestore adapter — see docs/adr/0013-image-blob-storage.md.
@@ -690,6 +707,96 @@ func (noopAcoustIDClient) Fingerprint(context.Context, string) (string, float64,
 
 func (noopAcoustIDClient) Lookup(context.Context, string, float64) ([]ports.AcoustIDMatch, error) {
 	return nil, ports.ErrNotFound
+}
+
+// newAfterDarkIdentificationClients constructs the ports.StashDBClient and
+// ports.ThePornDBClient the AfterDark Identifier is wired with (AD5, issue
+// #559). Each is built independently: a provider with Enabled=false gets a
+// noop client (always ports.ErrNotFound/empty), never a construction
+// error, since neither provider is required for the other to work — see
+// docs/adr/0027-provider-independence.md.
+func newAfterDarkIdentificationClients(stashDBCfg config.StashDB, tpdbCfg config.ThePornDB, logger *slog.Logger) (ports.StashDBClient, ports.ThePornDBClient, error) {
+	var stashDBClient ports.StashDBClient = noopStashDBClient{}
+	if stashDBCfg.Enabled {
+		cfg := stashdb.DefaultConfig()
+		cfg.APIKey = stashDBCfg.APIKey
+		client, err := stashdb.New(cfg, stashdb.WithLogger(logger))
+		if err != nil {
+			return nil, nil, fmt.Errorf("cmd/purser: constructing stashdb client: %w", err)
+		}
+		stashDBClient = client
+	}
+
+	var tpdbClient ports.ThePornDBClient = noopThePornDBClient{}
+	if tpdbCfg.Enabled {
+		cfg := theporndb.DefaultConfig()
+		cfg.APIKey = tpdbCfg.APIKey
+		client, err := theporndb.New(cfg, theporndb.WithLogger(logger))
+		if err != nil {
+			return nil, nil, fmt.Errorf("cmd/purser: constructing theporndb client: %w", err)
+		}
+		tpdbClient = client
+	}
+
+	return stashDBClient, tpdbClient, nil
+}
+
+// noopStashDBClient is the ports.StashDBClient used when
+// config.StashDB.Enabled is false — every method returns ports.ErrNotFound
+// (or an empty slice for a search), which afterdark.Identifier already
+// treats as "this provider found nothing", never a fatal error.
+type noopStashDBClient struct{}
+
+func (noopStashDBClient) LookupPerformer(context.Context, string) (*ports.Performer, error) {
+	return nil, ports.ErrNotFound
+}
+
+func (noopStashDBClient) SearchPerformers(context.Context, string) ([]ports.Performer, error) {
+	return nil, nil
+}
+
+func (noopStashDBClient) LookupStudio(context.Context, string) (*ports.Studio, error) {
+	return nil, ports.ErrNotFound
+}
+
+func (noopStashDBClient) LookupScene(context.Context, string) (*ports.Scene, error) {
+	return nil, ports.ErrNotFound
+}
+
+func (noopStashDBClient) SearchScenes(context.Context, string) ([]ports.Scene, error) {
+	return nil, nil
+}
+
+func (noopStashDBClient) FindScenesByFingerprints(context.Context, []ports.SceneFingerprint) ([]ports.Scene, error) {
+	return nil, nil
+}
+
+// noopThePornDBClient is the ports.ThePornDBClient used when
+// config.ThePornDB.Enabled is false — see noopStashDBClient's doc comment.
+type noopThePornDBClient struct{}
+
+func (noopThePornDBClient) LookupPerformer(context.Context, string) (*ports.TPDBPerformer, error) {
+	return nil, ports.ErrNotFound
+}
+
+func (noopThePornDBClient) SearchPerformers(context.Context, string) ([]ports.TPDBPerformer, error) {
+	return nil, nil
+}
+
+func (noopThePornDBClient) LookupScene(context.Context, string) (*ports.TPDBScene, error) {
+	return nil, ports.ErrNotFound
+}
+
+func (noopThePornDBClient) SearchScenes(context.Context, string) ([]ports.TPDBScene, error) {
+	return nil, nil
+}
+
+func (noopThePornDBClient) LookupSceneByHash(context.Context, string) (*ports.TPDBScene, error) {
+	return nil, ports.ErrNotFound
+}
+
+func (noopThePornDBClient) ResolveJAVCode(context.Context, string) ([]ports.TPDBScene, error) {
+	return nil, nil
 }
 
 // noopOrganizer is the ports.Organizer a content type's Persister is wired

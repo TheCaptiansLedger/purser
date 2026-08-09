@@ -69,11 +69,9 @@ Once a plan is approved and before writing any code:
 3. **Post a short comment on the issue** noting work has started (e.g. "Starting to work on this issue.") — `gh issue comment <N> --body "..."`.
 4. **Create a topic branch off the current branch** and switch to it before making any edits — never accumulate work directly on `develop`/`main`. Name it `<type>/<issue#>-<short-slug>` (e.g. `feat/447-server-generated-kernel-entity-ids`), matching the `type` from [0006](docs/adr/0006-commit-conventions.md) and the issue number if one exists. If a branch already exists for the issue, switch to it instead of creating a new one.
 
-At the end of every task that produced a diff, whether or not it was asked for explicitly:
+5. **Do not produce a commit message until the user explicitly asks for one.** Finish the task (diff + self-audit) and stop there — no commit message text unless requested, even though a diff exists. When asked, follow [0006](docs/adr/0006-commit-conventions.md) exactly: type/scope/breaking-marker, imperative-present summary under 80 characters, a body of **1-2 paragraphs max** (prose only, explains why the change exists, never a restatement of which files/functions changed), and a `Closes:`/`Part-Of:` footer if a GitHub issue is being tracked. Never run `git commit` — that part of the hard ban above is unconditional regardless of when the message is produced.
 
-5. **Produce a commit message as text and stop** — per the hard ban above, never run `git commit`. Follow [0006](docs/adr/0006-commit-conventions.md) exactly: type/scope/breaking-marker, imperative-present summary under 80 characters, prose body explaining why, and a `Closes:`/`Part-Of:` footer if a GitHub issue is being tracked.
-
-Do not wait to be asked for any of these steps — they are part of finishing the task, not a separate follow-up request.
+Steps 1-4 still apply without being asked — they're part of starting the task, not a separate follow-up request. Step 5 is the one exception: it waits for an explicit request.
 
 ---
 
