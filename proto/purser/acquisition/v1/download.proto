@@ -1,0 +1,87 @@
+syntax = "proto3";
+
+package purser.acquisition.v1;
+
+import "google/protobuf/duration.proto";
+import "purser/acquisition/v1/indexer.proto";
+
+option go_package = "purser/gen/go/purser/acquisition/v1;acquisitionv1";
+
+// DownloadState mirrors internal/ports.DownloadState — a download client's
+// own state vocabulary, already normalized by the adapter before it ever
+// reaches this layer (see internal/ports.DownloadClient's own doc comment).
+enum DownloadState {
+  DOWNLOAD_STATE_UNSPECIFIED = 0;
+  DOWNLOAD_STATE_QUEUED = 1;
+  DOWNLOAD_STATE_DOWNLOADING = 2;
+  DOWNLOAD_STATE_PAUSED = 3;
+  DOWNLOAD_STATE_COMPLETED = 4;
+  DOWNLOAD_STATE_FAILED = 5;
+}
+
+// DownloadStatus mirrors internal/ports.DownloadStatus. eta is unset
+// (nil) when the client backend reports no meaningful estimate — a
+// message-typed field is nil-able for free in proto3, no `optional`
+// keyword needed.
+message DownloadStatus {
+  string external_id = 1;
+  DownloadState state = 2;
+  double progress = 3;
+  string save_path = 4;
+  google.protobuf.Duration eta = 5;
+}
+
+// SubmitDownloadRequest mirrors internal/ports.AddDownloadRequest.
+// protocol selects which registered ports.DownloadClient (qBittorrent for
+// torrent, SABnzbd for usenet) internal/service.Download's registry routes
+// this submission to — see that service's own doc comment.
+message SubmitDownloadRequest {
+  Protocol protocol = 1;
+  string download_url = 2;
+  string title = 3;
+  string category = 4;
+}
+
+message SubmitDownloadResponse {
+  string external_id = 1;
+}
+
+// GetDownloadStatusRequest carries protocol alongside external_id: a
+// submitted download's external_id is only unique within the client that
+// issued it, not globally, so the registry needs protocol to know which
+// client to ask — see internal/service.Download's own doc comment.
+message GetDownloadStatusRequest {
+  Protocol protocol = 1;
+  string external_id = 2;
+}
+
+message GetDownloadStatusResponse {
+  DownloadStatus status = 1;
+}
+
+// RemoveDownloadRequest — see GetDownloadStatusRequest's own doc comment
+// for why protocol travels alongside external_id here too.
+message RemoveDownloadRequest {
+  Protocol protocol = 1;
+  string external_id = 2;
+  bool delete_files = 3;
+}
+
+message RemoveDownloadResponse {}
+
+// DownloadService exposes internal/ports.DownloadClient's Add/Status/Remove
+// directly, routed by protocol to whichever client the composition root
+// registered for it — see docs/technical/acquisition-download-client.md
+// and internal/service.Download's own doc comment. All three RPCs ship now
+// even though nothing auto-polls a submitted download to completion yet,
+// mirroring docs/adr/0024-pipeline-core.md's Organizer
+// manual-trigger-always-available precedent. A caller picks a release from
+// IndexerService.Search's results (proto/purser/acquisition/v1/indexer.proto)
+// and submits it here in a separate call — deliberately two services, per
+// docs/adr/0011-api-design.md's no-God-service rule applied at the port
+// level too (see internal/ports.DownloadClient's own doc comment).
+service DownloadService {
+  rpc SubmitDownload(SubmitDownloadRequest) returns (SubmitDownloadResponse);
+  rpc GetDownloadStatus(GetDownloadStatusRequest) returns (GetDownloadStatusResponse);
+  rpc RemoveDownload(RemoveDownloadRequest) returns (RemoveDownloadResponse);
+}

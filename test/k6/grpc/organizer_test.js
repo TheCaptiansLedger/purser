@@ -7,17 +7,23 @@
 // already-imported MediaFile to organize — see that file for the
 // scan/polling shape this borrows.
 //
-// The target Item is created with content_type "adult", which has no
-// registered ports.TemplateDataBuilder — the rendered path therefore comes
-// entirely from the generic Organizer's own Ext injection and raw
-// Item/MediaFile metadata passthrough (docs/technical/pipeline-music-organizer.md's
-// ".Metadata"/"default" additions), proving both work end-to-end against a
-// live server independent of any content-type-specific builder. Make's
-// _k6-app-start configures organize.adult.template as
-// "{{.Metadata.k6_marker}}{{.Ext}}" specifically for this suite — a fresh,
-// unique k6_marker each run avoids destination collisions on a rerun
-// against a long-lived dev server (Make's own k6-ci wipes .cidata/ between
-// runs, so this only matters outside CI).
+// The target Item is created with content_type "adult", whose registered
+// ports.TemplateDataBuilder (internal/adapters/pipeline/afterdark) treats
+// item.LibraryEntryID as required referential integrity and hard-errors if
+// it doesn't resolve to a real Studio — see that builder's own doc
+// comment. This suite therefore seeds a real Studio LibraryEntry first
+// (the same shape afterdark_browse_test.js's own "studio" fixture uses,
+// minus the network parent this test doesn't need), even though Make's
+// _k6-app-start configured organize.adult.template
+// ("{{.Metadata.k6_marker}}{{.Ext}}") never renders any of that builder's
+// Studio/Performers/SceneTitle/SceneDate/SceneCode keys — proving the
+// generic Organizer's own Ext injection and raw Item/MediaFile metadata
+// passthrough (docs/technical/pipeline-music-organizer.md's
+// ".Metadata"/"default" additions) work end-to-end, independent of which
+// content-type-specific keys a template happens to use. A fresh, unique
+// k6_marker each run avoids destination collisions on a rerun against a
+// long-lived dev server (Make's own k6-ci wipes .cidata/ between runs, so
+// this only matters outside CI).
 //
 // FIXTURE_ROOT is its own single-file .cidata/scan-organize-grpc root, not
 // PURSER_SCAN_FIXTURE_ROOT's shared .cidata/scan — a real CI failure, not
@@ -46,7 +52,8 @@ client.load(
   'purser/pipeline/v1/organizer.proto',
   'purser/job/v1/job.proto',
   'purser/domain/v1/item.proto',
-  'purser/domain/v1/media_file.proto'
+  'purser/domain/v1/media_file.proto',
+  'purser/domain/v1/library_entry.proto'
 );
 
 function invoke(method, request) {
@@ -106,11 +113,19 @@ export default () => {
   const unmatchedFileId = unmatchedFileIdOf(job.tasks[0]);
   check({ unmatchedFileId: unmatchedFileId }, { 'scan produced a real unmatched_file.id': (v) => !!v.unmatchedFileId });
 
+  // A real Studio LibraryEntry — item.LibraryEntryID must resolve to one,
+  // per AfterDark's TemplateDataBuilder (see the header comment above).
+  res = invoke('purser.domain.v1.LibraryEntryService/CreateLibraryEntry', {
+    libraryEntry: { contentType: 'adult', kind: 'studio', name: 'K6 Organize Studio', monitorMode: 'MONITOR_MODE_NONE' },
+  });
+  check(res, { 'CreateLibraryEntry(studio) status is OK': (r) => r && r.status === grpc.StatusOK });
+  const studioId = res.message.libraryEntry.id;
+
   const marker = `k6-organize-grpc-${__VU}-${__ITER}-${Date.now()}`;
   res = invoke('purser.domain.v1.ItemService/CreateItem', {
     item: {
       contentType: 'adult',
-      libraryEntryId: 'k6-organize-entry',
+      libraryEntryId: studioId,
       title: 'K6 Organize Item',
       status: 'ITEM_STATUS_WANTED',
       metadata: { k6_marker: marker },
@@ -163,6 +178,8 @@ export default () => {
   check(res, { 'DeleteMediaFile (cleanup) status is OK': (r) => r && r.status === grpc.StatusOK });
   res = invoke('purser.domain.v1.ItemService/DeleteItem', { id: itemId });
   check(res, { 'DeleteItem (cleanup) status is OK': (r) => r && r.status === grpc.StatusOK });
+  res = invoke('purser.domain.v1.LibraryEntryService/DeleteLibraryEntry', { id: studioId });
+  check(res, { 'DeleteLibraryEntry(studio) (cleanup) status is OK': (r) => r && r.status === grpc.StatusOK });
 
   client.close();
 };

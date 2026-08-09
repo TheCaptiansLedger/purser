@@ -1,8 +1,9 @@
 // k6 HTTP/JSON suite for OrganizerService (M11b) — see
 // test/k6/grpc/organizer_test.js for the full rationale (organize.adult's
-// template, the "adult" content type's no-registered-TemplateDataBuilder
-// significance, the unique-per-run k6_marker, and why FIXTURE_ROOT is its
-// own single-file .cidata/scan-organize-http root rather than
+// template, why a real Studio LibraryEntry must be seeded for AfterDark's
+// TemplateDataBuilder even though this template never renders any of its
+// keys, the unique-per-run k6_marker, and why FIXTURE_ROOT is its own
+// single-file .cidata/scan-organize-http root rather than
 // PURSER_SCAN_FIXTURE_ROOT's shared .cidata/scan or the grpc variant's own
 // isolated root). Reuses the exact TriggerScan-then-ResolveUnmatchedFile
 // fixture pattern test/k6/http/unmatched_file_test.js already establishes.
@@ -19,6 +20,7 @@ const UNMATCHED_FILE_SERVICE = `${BASE_URL}/purser.pipeline.v1.UnmatchedFileServ
 const ORGANIZER_SERVICE = `${BASE_URL}/purser.pipeline.v1.OrganizerService`;
 const ITEM_SERVICE = `${BASE_URL}/purser.domain.v1.ItemService`;
 const MEDIA_FILE_SERVICE = `${BASE_URL}/purser.domain.v1.MediaFileService`;
+const LIBRARY_ENTRY_SERVICE = `${BASE_URL}/purser.domain.v1.LibraryEntryService`;
 const HEADERS = { headers: { 'Content-Type': 'application/json' } };
 
 function invoke(url, body, headers) {
@@ -66,13 +68,24 @@ export default () => {
   const unmatchedFileId = unmatchedFileIdOf(job.tasks[0]);
   check({ unmatchedFileId: unmatchedFileId }, { 'scan produced a real unmatched_file.id': (v) => !!v.unmatchedFileId });
 
+  // A real Studio LibraryEntry — item.LibraryEntryID must resolve to one,
+  // per AfterDark's TemplateDataBuilder (see test/k6/grpc/organizer_test.js's
+  // header comment).
+  res = invoke(
+    `${LIBRARY_ENTRY_SERVICE}/CreateLibraryEntry`,
+    JSON.stringify({ libraryEntry: { contentType: 'adult', kind: 'studio', name: 'K6 Organize Studio', monitorMode: 'MONITOR_MODE_NONE' } }),
+    HEADERS
+  );
+  check(res, { 'CreateLibraryEntry(studio) status is 200': (r) => r.status === 200 });
+  const studioId = res.json('libraryEntry.id');
+
   const marker = `k6-organize-http-${__VU}-${__ITER}-${Date.now()}`;
   res = invoke(
     `${ITEM_SERVICE}/CreateItem`,
     JSON.stringify({
       item: {
         contentType: 'adult',
-        libraryEntryId: 'k6-organize-entry',
+        libraryEntryId: studioId,
         title: 'K6 Organize Item',
         status: 'ITEM_STATUS_WANTED',
         metadata: { k6_marker: marker },
@@ -117,4 +130,6 @@ export default () => {
   check(res, { 'DeleteMediaFile (cleanup) status is 200': (r) => r.status === 200 });
   res = invoke(`${ITEM_SERVICE}/DeleteItem`, JSON.stringify({ id: itemId }), HEADERS);
   check(res, { 'DeleteItem (cleanup) status is 200': (r) => r.status === 200 });
+  res = invoke(`${LIBRARY_ENTRY_SERVICE}/DeleteLibraryEntry`, JSON.stringify({ id: studioId }), HEADERS);
+  check(res, { 'DeleteLibraryEntry(studio) (cleanup) status is 200': (r) => r.status === 200 });
 };

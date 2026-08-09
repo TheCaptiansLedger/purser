@@ -23,9 +23,9 @@ const (
 )
 
 // Protocol mirrors internal/ports.Protocol — the transport a release moves
-// over. Shared, in principle, with the future DownloadService (#585):
-// SubmitDownloadRequest will carry the same protocol a search result
-// reported here.
+// over. Shared with DownloadService
+// (proto/purser/acquisition/v1/download.proto): SubmitDownloadRequest
+// carries the same protocol a search result reported here.
 type Protocol int32
 
 const (

@@ -13,6 +13,7 @@ import (
 	"log/slog"
 	"purser/internal/domain"
 	"purser/internal/ports"
+	"purser/internal/service"
 	"purser/pkg/jobqueue"
 
 	"connectrpc.com/connect"
@@ -56,6 +57,8 @@ func mapError(ctx context.Context, logger *slog.Logger, err error) error {
 	case errors.Is(err, ports.ErrDestinationOutsideRoot):
 		return connect.NewError(connect.CodeFailedPrecondition, err)
 	case errors.Is(err, jobqueue.ErrUnknownKind):
+		return connect.NewError(connect.CodeInvalidArgument, err)
+	case errors.Is(err, service.ErrUnsupportedProtocol):
 		return connect.NewError(connect.CodeInvalidArgument, err)
 	default:
 		logUnmapped(ctx, logger, err)

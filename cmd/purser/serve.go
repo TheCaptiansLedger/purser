@@ -18,6 +18,10 @@ import (
 	"purser/internal/adapters/musicbrainz/fixtureserver"
 	"purser/internal/adapters/prowlarr"
 	prowlarrfixtureserver "purser/internal/adapters/prowlarr/fixtureserver"
+	"purser/internal/adapters/qbittorrent"
+	qbittorrentfixtureserver "purser/internal/adapters/qbittorrent/fixtureserver"
+	"purser/internal/adapters/sabnzbd"
+	sabnzbdfixtureserver "purser/internal/adapters/sabnzbd/fixtureserver"
 	"purser/internal/adapters/stashdb"
 	"purser/internal/adapters/theaudiodb"
 	"purser/internal/adapters/theporndb"
@@ -133,7 +137,7 @@ func runServe(ctx context.Context, configPath string) error {
 		}
 	}()
 
-	mux, watcherCloser, err := newServeMux(sigCtx, logger, ds, cfg.Pipeline, cfg.MusicBrainz, cfg.AcoustID, cfg.Sources.StashDB, cfg.Sources.ThePornDB, cfg.Sources.TheAudioDB, cfg.Sources.FanartTV, cfg.Prowlarr, cfg.Media, cfg.AfterDark)
+	mux, watcherCloser, err := newServeMux(sigCtx, logger, ds, cfg.Pipeline, cfg.MusicBrainz, cfg.AcoustID, cfg.Sources.StashDB, cfg.Sources.ThePornDB, cfg.Sources.TheAudioDB, cfg.Sources.FanartTV, cfg.Prowlarr, cfg.QBittorrent, cfg.SABnzbd, cfg.Media, cfg.AfterDark)
 	if err != nil {
 		return err
 	}
@@ -270,7 +274,7 @@ func openDatastore(cfg config.Database) (datastore.Datastore, io.Closer, error) 
 // Common Scan Pipeline's filesystem watcher/consumer goroutine, if one is
 // started (see wireScanPipeline); the returned io.Closer stops it during
 // shutdown and is nil when pipelineCfg.ScanRoots is empty.
-func newServeMux(ctx context.Context, logger *slog.Logger, ds datastore.Datastore, pipelineCfg config.Pipeline, mbCfg config.MusicBrainz, acoustIDCfg config.AcoustID, stashDBCfg config.StashDB, tpdbCfg config.ThePornDB, theAudioDBCfg config.TheAudioDB, fanartTVCfg config.FanartTV, prowlarrCfg config.Prowlarr, mediaCfg config.Media, afterDarkCfg config.AfterDark) (*http.ServeMux, io.Closer, error) {
+func newServeMux(ctx context.Context, logger *slog.Logger, ds datastore.Datastore, pipelineCfg config.Pipeline, mbCfg config.MusicBrainz, acoustIDCfg config.AcoustID, stashDBCfg config.StashDB, tpdbCfg config.ThePornDB, theAudioDBCfg config.TheAudioDB, fanartTVCfg config.FanartTV, prowlarrCfg config.Prowlarr, qbittorrentCfg config.QBittorrent, sabnzbdCfg config.SABnzbd, mediaCfg config.Media, afterDarkCfg config.AfterDark) (*http.ServeMux, io.Closer, error) {
 	mux := http.NewServeMux()
 	interceptors := connect.WithInterceptors(apiconnect.NewLoggingInterceptor(logger))
 
@@ -480,8 +484,8 @@ func newServeMux(ctx context.Context, logger *slog.Logger, ds datastore.Datastor
 	mux.Handle(fanartTVPath, fanartTVConnectHandler)
 
 	// Acquisition: IndexerService, the read-only half of #579's acquisition
-	// pipeline (search only — DownloadService/submission is #585). See
-	// docs/technical/acquisition-indexer-search.md and
+	// pipeline (search only — submission is DownloadService, wired below).
+	// See docs/technical/acquisition-indexer-search.md and
 	// docs/technical/acquisition-pipeline.md. A disabled Prowlarr still
 	// gets the RPC mounted — it just always answers with an empty result,
 	// same "Search-shaped noop returns nil, nil" posture
@@ -494,6 +498,20 @@ func newServeMux(ctx context.Context, logger *slog.Logger, ds datastore.Datastor
 	indexerSearchHandler := apiconnect.NewIndexerSearchHandler(service.NewIndexerSearch(indexerSearcher), logger)
 	indexerSearchPath, indexerSearchConnectHandler := acquisitionv1connect.NewIndexerServiceHandler(indexerSearchHandler, interceptors)
 	mux.Handle(indexerSearchPath, indexerSearchConnectHandler)
+
+	// DownloadService: the submission half of #579's acquisition pipeline
+	// (#585). Unlike IndexerService's always-mounted noop, a protocol with
+	// no configured client is simply absent from the registry —
+	// service.Download reports that as service.ErrUnsupportedProtocol
+	// (mapped to CodeInvalidArgument) rather than needing a noop
+	// DownloadClient implementation. See
+	// docs/technical/acquisition-download-client.md. newDownloadClients is
+	// its own function purely to keep newServeMux's cyclomatic complexity
+	// under budget — same reasoning wireScanPipeline's own extraction
+	// comment gives, no behavior difference from being inlined here.
+	downloadHandler := apiconnect.NewDownloadHandler(service.NewDownload(newDownloadClients(qbittorrentCfg, sabnzbdCfg, logger)), logger)
+	downloadPath, downloadConnectHandler := acquisitionv1connect.NewDownloadServiceHandler(downloadHandler, interceptors)
+	mux.Handle(downloadPath, downloadConnectHandler)
 
 	// Job Queue: ephemeral, in-process — not backed by ds like every
 	// entity above. See docs/adr/0023-job-queue.md. jobAdapter satisfies
@@ -531,6 +549,7 @@ func newServeMux(ctx context.Context, logger *slog.Logger, ds datastore.Datastor
 		musicv1connect.TheAudioDBServiceName,
 		musicv1connect.FanartTVServiceName,
 		acquisitionv1connect.IndexerServiceName,
+		acquisitionv1connect.DownloadServiceName,
 		jobv1connect.JobServiceName,
 		pipelinev1connect.ScanServiceName,
 		pipelinev1connect.UnmatchedFileServiceName,
@@ -998,6 +1017,88 @@ type noopIndexerSearcher struct{}
 
 func (noopIndexerSearcher) Search(context.Context, ports.IndexerSearchParams) ([]ports.IndexerRelease, error) {
 	return nil, nil
+}
+
+// newDownloadClients builds the map[ports.Protocol]ports.DownloadClient
+// registry service.Download is constructed with, from every configured
+// adapter's own Protocol() — no switch statement, adding a third client
+// later is additive only. A protocol with no configured/constructible
+// client is simply absent from the map.
+func newDownloadClients(qbittorrentCfg config.QBittorrent, sabnzbdCfg config.SABnzbd, logger *slog.Logger) map[ports.Protocol]ports.DownloadClient {
+	clients := map[ports.Protocol]ports.DownloadClient{}
+	if qbClient := newQBittorrentClient(qbittorrentCfg, logger); qbClient != nil {
+		clients[qbClient.Protocol()] = qbClient
+	}
+	if sabClient := newSABnzbdClient(sabnzbdCfg, logger); sabClient != nil {
+		clients[sabClient.Protocol()] = sabClient
+	}
+	return clients
+}
+
+// newQBittorrentClient constructs the real ports.DownloadClient
+// (internal/adapters/qbittorrent.Client) when qbittorrentCfg.Enabled, else
+// nil — see newIndexerSearcher's identical convention, except the "not
+// configured" case here is nil (absent from the caller's registry map)
+// rather than a noop implementation: service.Download already reports an
+// unregistered protocol as service.ErrUnsupportedProtocol, so no noop
+// DownloadClient is needed.
+//
+// When PURSER_QBITTORRENT_MOCK is set (any non-empty value), the real
+// Client is still constructed (qbittorrentCfg must still set
+// Enabled/BaseURL/Username/Password, e.g. to placeholder values — see
+// Make's _k6-app-start), but with qbittorrent.WithBaseTransport pointed at
+// internal/adapters/qbittorrent/fixtureserver's canned route table instead
+// of a live transport — no real socket, not even loopback, ever opens.
+// Same CI-only convention newIndexerSearcher's PURSER_PROWLARR_MOCK
+// handling already establishes.
+func newQBittorrentClient(qbittorrentCfg config.QBittorrent, logger *slog.Logger) ports.DownloadClient {
+	if !qbittorrentCfg.Enabled {
+		return nil
+	}
+	cfg := qbittorrent.DefaultConfig()
+	cfg.BaseURL = qbittorrentCfg.BaseURL
+	cfg.Username = qbittorrentCfg.Username
+	cfg.Password = qbittorrentCfg.Password
+	opts := []qbittorrent.Option{qbittorrent.WithLogger(logger)}
+	if os.Getenv("PURSER_QBITTORRENT_MOCK") != "" {
+		logger.Warn("PURSER_QBITTORRENT_MOCK is set: qBittorrent calls are answered from fixtureserver's canned data, never a live network call")
+		opts = append(opts, qbittorrent.WithBaseTransport(qbittorrentfixtureserver.Transport()))
+	}
+	client, err := qbittorrent.New(cfg, opts...)
+	if err != nil {
+		// BaseURL/Username/Password are validated non-empty by
+		// config.QBittorrent's own contract (Enabled implies all three
+		// were configured); a construction error here would mean that
+		// contract broke, not something an operator can fix by retrying —
+		// fail loud by leaving torrent submission unregistered rather than
+		// crash startup, same as newIndexerSearcher's identical fallback.
+		logger.Error("constructing qbittorrent client, torrent download submission disabled", "error", err)
+		return nil
+	}
+	return client
+}
+
+// newSABnzbdClient constructs the real ports.DownloadClient
+// (internal/adapters/sabnzbd.Client) when sabnzbdCfg.Enabled, else nil —
+// see newQBittorrentClient's identical convention.
+func newSABnzbdClient(sabnzbdCfg config.SABnzbd, logger *slog.Logger) ports.DownloadClient {
+	if !sabnzbdCfg.Enabled {
+		return nil
+	}
+	cfg := sabnzbd.DefaultConfig()
+	cfg.BaseURL = sabnzbdCfg.BaseURL
+	cfg.APIKey = sabnzbdCfg.APIKey
+	opts := []sabnzbd.Option{sabnzbd.WithLogger(logger)}
+	if os.Getenv("PURSER_SABNZBD_MOCK") != "" {
+		logger.Warn("PURSER_SABNZBD_MOCK is set: SABnzbd calls are answered from fixtureserver's canned data, never a live network call")
+		opts = append(opts, sabnzbd.WithBaseTransport(sabnzbdfixtureserver.Transport()))
+	}
+	client, err := sabnzbd.New(cfg, opts...)
+	if err != nil {
+		logger.Error("constructing sabnzbd client, usenet download submission disabled", "error", err)
+		return nil
+	}
+	return client
 }
 
 // noopOrganizer is the ports.Organizer a content type's Persister is wired

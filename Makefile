@@ -127,16 +127,27 @@ _k6-flow: $(GOBIN)/k6
 # (never dialed; RoundTrip intercepts first) so
 # cmd/purser/serve.go's newIndexerSearcher constructs a real
 # *prowlarr.Client wired to internal/adapters/prowlarr/fixtureserver's
-# canned route table instead of a live Prowlarr instance. test/k6/flow/
+# canned route table instead of a live Prowlarr instance.
+# PURSER_QBITTORRENT_MOCK=1/PURSER_SABNZBD_MOCK=1 do the identical thing for
+# test/k6/{grpc,http}/download_test.js — the generated purser-ci.yaml's
+# qbittorrent:/sabnzbd: blocks enable both with placeholder credentials
+# (never dialed; RoundTrip intercepts first) so cmd/purser/serve.go's
+# newQBittorrentClient/newSABnzbdClient construct real clients wired to
+# internal/adapters/qbittorrent/fixtureserver's and
+# internal/adapters/sabnzbd/fixtureserver's own canned route tables instead
+# of live instances. test/k6/flow/
 # accept_candidate_test.js scans .cidata/scan-music (real, tagged audio
 # fixtures copied from test/k6/fixtures/musicbrainz-audio/ — see that
 # directory's own generation notes) against the fixture release
 # internal/adapters/musicbrainz/fixtureserver defines. The organize.adult
 # entry gives test/k6/grpc/organizer_test.js and test/k6/http/organizer_test.js
-# (M11b) a real destination to render into for content_type "adult" (which
-# has no registered TemplateDataBuilder — the template only uses generic
-# keys: Metadata passthrough + Ext) without colliding across reruns against
-# a long-lived dev server, since the suite renders a fresh, unique k6_marker
+# (M11b) a real destination to render into for content_type "adult" — its
+# template only uses generic keys (Metadata passthrough + Ext), even though
+# AfterDark's own TemplateDataBuilder is registered for "adult" and both
+# scripts seed a real Studio LibraryEntry to satisfy it (see
+# test/k6/grpc/organizer_test.js's own header comment) — without colliding
+# across reruns against a long-lived dev server, since the suite renders a
+# fresh, unique k6_marker
 # each run. Each of those two scripts gets its own single-file
 # .cidata/scan-organize-{grpc,http} root (a real, confirmed CI failure, not
 # a hypothetical): both used to default PURSER_SCAN_FIXTURE_ROOT to the same
@@ -189,9 +200,9 @@ _k6-app-start: $(GOBIN)/k6
 	cp test/k6/fixtures/musicbrainz-audio/ambiguous/*.flac .cidata/scan-music/ambiguous/
 	mkdir -p .cidata/scan-music-organize
 	cp test/k6/fixtures/musicbrainz-audio/organize/*.flac .cidata/scan-music-organize/
-	printf 'pipeline:\n  scan_roots:\n    - path: %s/.cidata/scan-music\n      content_type: music\n    - path: %s/.cidata/scan-music-organize\n      content_type: music\n  organize:\n    adult:\n      root: %s/.cidata/organized\n      template: "{{.Metadata.k6_marker}}{{.Ext}}"\n    music:\n      root: %s/.cidata/organized-music\n      template: "{{.ArtistName}}/{{.AlbumTitle}}{{if .Year}} ({{.Year}}){{end}}/{{if gt .DiscCount 1}}{{.DiscNumber}}-{{end}}{{.TrackNumber}} - {{.TrackTitle}}{{.Ext}}"\nprowlarr:\n  enabled: true\n  base_url: http://prowlarr.invalid/api/v1\n  api_key: k6-fixture-key\n' "$(CURDIR)" "$(CURDIR)" "$(CURDIR)" "$(CURDIR)" > .cidata/purser-ci.yaml
+	printf 'pipeline:\n  scan_roots:\n    - path: %s/.cidata/scan-music\n      content_type: music\n    - path: %s/.cidata/scan-music-organize\n      content_type: music\n  organize:\n    adult:\n      root: %s/.cidata/organized\n      template: "{{.Metadata.k6_marker}}{{.Ext}}"\n    music:\n      root: %s/.cidata/organized-music\n      template: "{{.ArtistName}}/{{.AlbumTitle}}{{if .Year}} ({{.Year}}){{end}}/{{if gt .DiscCount 1}}{{.DiscNumber}}-{{end}}{{.TrackNumber}} - {{.TrackTitle}}{{.Ext}}"\nprowlarr:\n  enabled: true\n  base_url: http://prowlarr.invalid/api/v1\n  api_key: k6-fixture-key\nqbittorrent:\n  enabled: true\n  base_url: http://qbittorrent.invalid\n  username: k6-fixture-user\n  password: k6-fixture-pass\nsabnzbd:\n  enabled: true\n  base_url: http://sabnzbd.invalid\n  api_key: k6-fixture-key\n' "$(CURDIR)" "$(CURDIR)" "$(CURDIR)" "$(CURDIR)" > .cidata/purser-ci.yaml
 	go build -o .cidata/purser ./cmd/purser
-	PURSER_PATHS_DATA_DIR=$(CURDIR)/.cidata/data PURSER_MUSICBRAINZ_MOCK=1 PURSER_PROWLARR_MOCK=1 .cidata/purser serve --config $(CURDIR)/.cidata/purser-ci.yaml & echo $$! > .cidata/purser.pid
+	PURSER_PATHS_DATA_DIR=$(CURDIR)/.cidata/data PURSER_MUSICBRAINZ_MOCK=1 PURSER_PROWLARR_MOCK=1 PURSER_QBITTORRENT_MOCK=1 PURSER_SABNZBD_MOCK=1 .cidata/purser serve --config $(CURDIR)/.cidata/purser-ci.yaml & echo $$! > .cidata/purser.pid
 	@for i in $$(seq 1 60); do nc -z localhost 7474 2>/dev/null && exit 0; sleep 0.5; done; \
 		echo "purser serve did not come up on :7474 within 30s" >&2; exit 1
 
