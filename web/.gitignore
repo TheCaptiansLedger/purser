@@ -1,3 +1,6 @@
 node_modules/
-dist/
+# dist/.gitkeep is a deliberate exception — see the root .gitignore's
+# comment on the matching web/dist/ rule.
+dist/*
+!dist/.gitkeep
 *.tsbuildinfo

@@ -9,8 +9,13 @@
 # Locally-installed pinned dev tooling (buf, protoc-gen-*, goreleaser) — see Makefile `tools` target
 /.gobin/
 
-# Web build artifacts and dependencies
-web/dist/
+# Web build artifacts and dependencies. .gitkeep is a deliberate
+# exception (same convention as test-data/ below) — cmd/purser embeds
+# web/dist via web/embed.go, and go:embed fails the build with zero
+# matching files, so a placeholder has to survive a fresh checkout even
+# before `npm run build` has ever run. See docs/design/frontend-stack.md.
+web/dist/*
+!web/dist/.gitkeep
 web/node_modules/
 
 # All local dev-state: datastore files, downloaded media, and the compose

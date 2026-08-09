@@ -1,0 +1,100 @@
+@import "tailwindcss";
+@import "@fontsource-variable/inter";
+
+/*
+ * Design tokens — transcribed from docs/design/style-guide.md. This file
+ * is a transcription pass, not a design pass: every value here already
+ * has a verified source (WCAG contrast ratios, prior-art frequency
+ * analysis) documented there. Change the doc first, then this file.
+ *
+ * Spacing and radius are NOT overridden here — the style guide's named
+ * steps (Micro/Tight/Compact/Base/...) are documentation labels for
+ * Tailwind's own unmodified default scale, not a custom scale (see
+ * "Spacing & layout" — no custom scale invented).
+ */
+@theme {
+  --font-sans: 'Inter Variable', system-ui, -apple-system, sans-serif;
+
+  /* Neutral scale — docs/design/style-guide.md#neutral-scale */
+  --color-bg: #08080e;
+  --color-surface: #0f0f1a;
+  --color-surface-raised: #161628;
+  --color-border: rgba(255, 255, 255, 0.06);
+  --color-border-hover: rgba(255, 255, 255, 0.14);
+  --color-text: #f0f0f8;
+  --color-text-secondary: #8080a0;
+  --color-text-muted: #50506a;
+
+  /* Content-type accents + system/neutral — docs/design/style-guide.md#content-type-accents */
+  --color-accent-music: #10b981;
+  --color-accent-afterdark: #f43f5e;
+  --color-accent-system: #6366f1;
+
+  /* Status/semantic tokens — docs/design/style-guide.md#statussemantic-tokens */
+  --color-status-pending: #60a5fa;
+  --color-status-queued: #a78bfa;
+  --color-status-active: #818cf8;
+  --color-status-success: #34d399;
+  --color-status-warning: #fbbf24;
+  --color-status-failure: #f87171;
+  --color-status-neutral: #9ca3af;
+  --color-success: var(--color-status-success);
+  --color-warning: var(--color-status-warning);
+  --color-danger: var(--color-status-failure);
+
+  /* Typography scale — docs/design/style-guide.md#scale */
+  --text-display: 3rem;
+  --text-display--line-height: 1.25;
+  --text-headline: 2.25rem;
+  --text-headline--line-height: 1.25;
+  --text-title-lg: 1.5rem;
+  --text-title-lg--line-height: 1.375;
+  --text-title-md: 1.125rem;
+  --text-title-md--line-height: 1.375;
+  --text-body-lg: 1rem;
+  --text-body-lg--line-height: 1.625;
+  --text-body: 0.875rem;
+  --text-body--line-height: 1.625;
+  --text-label: 0.75rem;
+  --text-label--line-height: 1.5;
+  --text-label-eyebrow: 0.75rem;
+  --text-label-eyebrow--line-height: 1;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background-color: var(--color-bg);
+  color: var(--color-text);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Scrollbar styling — prior art, kept as-is */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.12);
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.22);
+}

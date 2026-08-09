@@ -31,6 +31,7 @@ services:
       - ./purser.yaml:/config/purser.yaml:ro
       - ../.local/data:/data
       - ../.local/media:/media/purser
+      - ../.local/incoming:/media/incoming
       - ../test-data:/media/content
     env_file:
       - path: ../.env

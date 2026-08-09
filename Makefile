@@ -87,8 +87,17 @@ $(GOBIN)/goreleaser:
 
 tools: $(GOBIN)/buf $(GOBIN)/protoc-gen-go $(GOBIN)/protoc-gen-connect-go $(GOBIN)/k6 $(GOBIN)/goreleaser ## Install pinned buf/protoc-gen-*/k6/goreleaser into .gobin
 
-proto-gen: $(GOBIN)/buf $(GOBIN)/protoc-gen-go $(GOBIN)/protoc-gen-connect-go ## Generate Go code from proto/ via buf
-	PATH="$(GOBIN):$$PATH" $(GOBIN)/buf generate
+# TS-side plugins (protoc-gen-es, protoc-gen-connect-query-es) are npm
+# devDependencies of web/, not Go-installed binaries — same "pinned,
+# outside go.mod" spirit as the .gobin tools above, just via npm's own
+# lockfile instead. web/node_modules/.bin/protoc-gen-es stands in for the
+# whole `npm install` as a single file-target, the same way each $(GOBIN)/*
+# rule above stands in for its own `go install`.
+web/node_modules/.bin/protoc-gen-es:
+	cd web && npm install
+
+proto-gen: $(GOBIN)/buf $(GOBIN)/protoc-gen-go $(GOBIN)/protoc-gen-connect-go web/node_modules/.bin/protoc-gen-es ## Generate Go + TS code from proto/ via buf
+	PATH="$(GOBIN):$(CURDIR)/web/node_modules/.bin:$$PATH" $(GOBIN)/buf generate
 
 k6: $(GOBIN)/k6 ## Run every k6 suite against a running server. Subcommands: endpoint, flow
 	@case "$(filter-out k6,$(MAKECMDGOALS))" in \

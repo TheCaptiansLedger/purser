@@ -558,6 +558,10 @@ func newServeMux(ctx context.Context, logger *slog.Logger, ds datastore.Datastor
 	mux.Handle(grpcreflect.NewHandlerV1(reflector))
 	mux.Handle(grpcreflect.NewHandlerV1Alpha(reflector))
 
+	// Web UI: see mountWebUI's own doc comment for why this doesn't need
+	// an error check here.
+	mountWebUI(mux)
+
 	return mux, watcherCloser, nil
 }
 

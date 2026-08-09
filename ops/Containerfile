@@ -3,14 +3,21 @@
 # Copy-only runtime image — see docs/adr/0017-build-and-release-goreleaser.md.
 # Goreleaser is the only thing that builds the `purser` binary; this
 # Dockerfile never runs `go build`. It expects, at the build context root:
-#   ./purser     — the prebuilt binary for the target platform
-#   ./web/dist   — the prebuilt React UI
+#   ./purser   — the prebuilt binary for the target platform
 #
-# Goreleaser's `dockers` config stages both automatically per platform.
-# For a local single-arch image outside goreleaser's release pipeline, use
-# `make compose build` — it runs `goreleaser build --single-target
-# --snapshot` first and stages the binary at the repo root before calling
-# `docker build`, so this Dockerfile never needs a separate "dev" variant.
+# The React UI is NOT copied in separately — cmd/purser serve embeds
+# web/dist into the binary itself at build time (web/embed.go), so
+# `./purser` already carries the UI. web/dist has to exist and be built
+# *before* `goreleaser build` runs (goreleaser never invokes `npm run
+# build`), which `make build image`/`make dev` already sequence
+# correctly — see docs/design/frontend-stack.md.
+#
+# Goreleaser's `dockers` config stages the binary automatically per
+# platform. For a local single-arch image outside goreleaser's release
+# pipeline, use `make dev` (or `make build image` directly) — it runs
+# `goreleaser build --single-target --snapshot` first and stages the
+# binary at the repo root before calling `docker build`, so this
+# Dockerfile never needs a separate "dev" variant.
 FROM debian:12-slim
 
 # ffmpeg provides ffprobe (Music's FileFingerprinter, M4); libchromaprint-tools
@@ -25,7 +32,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 COPY purser /usr/local/bin/purser
-COPY web/dist /web/dist
 
 VOLUME ["/data", "/media/purser", "/media/content"]
 
