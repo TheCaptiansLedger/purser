@@ -1,0 +1,18 @@
+# Auto-provisioned Grafana dashboards for the local dev observability
+# stack — see docs/adr/0018-local-development-environment.md. Grafana
+# polls this folder on disk (updateIntervalSeconds) and loads/updates any
+# dashboard JSON it finds, so editing purser-overview.json and restarting
+# (or waiting one interval) is enough to pick up changes — no UI import
+# step, no dashboard state to lose on `make reset`.
+apiVersion: 1
+
+providers:
+  - name: purser
+    folder: Purser
+    type: file
+    disableDeletion: false
+    updateIntervalSeconds: 30
+    allowUiUpdates: true
+    options:
+      path: /etc/grafana/provisioning/dashboards
+      foldersFromFilesStructure: false
