@@ -560,7 +560,10 @@ func wireScanPipeline(
 	groupingRegistry := service.NewGroupingRegistry(pipelinemusic.Grouping{})
 	// Content types with no registered ports.SidecarClassifier
 	// implementation fall back to service.NoopClassifier.
-	sidecarClassifierRegistry := service.NewSidecarClassifierRegistry(pipelinemusic.SidecarClassifier{})
+	sidecarClassifierRegistry := service.NewSidecarClassifierRegistry(
+		pipelinemusic.SidecarClassifier{},
+		pipelineafterdark.SidecarClassifier{},
+	)
 	// Content types with no registered ports.FileFingerprinter
 	// implementation fall back to service.NoopFingerprinter.
 	fingerprinterRegistry := service.NewFileFingerprinterRegistry(
