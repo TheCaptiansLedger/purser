@@ -1,0 +1,113 @@
+syntax = "proto3";
+
+package purser.settings.v1;
+
+import "google/protobuf/field_mask.proto";
+
+option go_package = "purser/gen/go/purser/settings/v1;settingsv1";
+
+// SettingSource identifies which layer produced a config key's effective
+// value. Mirrors internal/config.Source. See
+// docs/adr/0028-layered-settings.md.
+enum SettingSource {
+  SETTING_SOURCE_UNSPECIFIED = 0;
+  SETTING_SOURCE_DEFAULT = 1;
+  SETTING_SOURCE_ENV = 2;
+  SETTING_SOURCE_YAML = 3;
+  SETTING_SOURCE_DB = 4;
+}
+
+// SettingLockReason identifies why a key can never be written through
+// UpdateSettings/ResetSetting. Mirrors internal/config.LockReason.
+// UNSPECIFIED means the key isn't locked at all (Setting.locked is false).
+// See docs/adr/0028-layered-settings.md.
+enum SettingLockReason {
+  SETTING_LOCK_REASON_UNSPECIFIED = 0;
+  SETTING_LOCK_REASON_BOOTSTRAP = 1;
+  SETTING_LOCK_REASON_OPERATOR = 2;
+}
+
+// Setting is the wire shape of one config key's effective value plus its
+// provenance and lock state — see docs/adr/0028-layered-settings.md.
+// Unlike other kernel entities' messages, Setting is never created or
+// deleted through this API: every dotted key comes from
+// internal/config's own schema, not caller input.
+message Setting {
+  // key is the same dotted namespace docs/adr/0010-configuration.md uses
+  // for mapstructure/Viper (e.g. "pipeline.confidence_threshold"), just
+  // dot- instead of underscore-joined and without the PURSER_ prefix.
+  string key = 1;
+  // value is JSON-encoded, matching internal/domain.Setting.Value. If
+  // secret is true, value is a fixed masked placeholder when a value is
+  // set and empty when unset — never the real secret. See
+  // docs/adr/0028-layered-settings.md's "Secret masking" section.
+  string value = 2;
+  SettingSource source = 3;
+  bool locked = 4;
+  SettingLockReason lock_reason = 5;
+  // secret marks a key as sensitive (API keys, passwords, DSNs) by
+  // convention — present independently of value so the UI can render a
+  // password-style control even when value is empty (key unset).
+  bool secret = 6;
+}
+
+// GetSettingsRequest has no filter: every config key is returned in one
+// call, including bootstrap-locked keys (server.*, database.*,
+// telemetry.*, log.*, paths.*) so the UI can show them as
+// permanently-locked rather than omit them. The full key set is bounded
+// by internal/config's schema, not an unbounded collection — no
+// pagination per docs/adr/0011-api-design.md's pagination section, which
+// applies to genuinely unbounded lists.
+message GetSettingsRequest {}
+
+message GetSettingsResponse {
+  repeated Setting settings = 1;
+}
+
+// UpdateSettingsRequest writes one or more DB-overlay-eligible keys.
+// Setting isn't a fixed-field entity like every other UpdateXxxRequest in
+// this API, so update_mask.paths lists dotted config keys instead of
+// struct field names — the same "caller states explicitly what it
+// intends to touch" guarantee docs/adr/0011-api-design.md's FieldMask
+// convention requires, adapted to a keyed bag. values holds the
+// JSON-encoded new value for every key named in update_mask; a key
+// present in update_mask.paths but absent from values (or vice versa) is
+// a validation error.
+//
+// Rejected if any named key is locked (operator or bootstrap) or is a
+// bootstrap key at all — see docs/adr/0028-layered-settings.md. The
+// error mapping for a locked-key rejection is internal/api/connect's
+// concern, not this proto's.
+message UpdateSettingsRequest {
+  map<string, string> values = 1;
+  google.protobuf.FieldMask update_mask = 2;
+}
+
+message UpdateSettingsResponse {
+  // settings is the post-write Setting row for every key named in the
+  // request's update_mask, reflecting the refreshed source/value.
+  repeated Setting settings = 1;
+}
+
+// ResetSettingRequest clears key's DB-stored override, so it falls back
+// to yaml/env/default per the normal precedence chain. Rejected if key is
+// locked, the same as UpdateSettings.
+message ResetSettingRequest {
+  string key = 1;
+}
+
+message ResetSettingResponse {
+  // setting is key's row after the reset (its value now reflects
+  // whichever layer resolves it once the DB override is gone).
+  Setting setting = 1;
+}
+
+// SettingsService exposes the DB-overlay layer docs/adr/0028-layered-settings.md
+// defines for the web Settings UI's Config tab. It owns only Setting's
+// wire representation — no other entity's port or service is touched
+// here, per docs/adr/0011-api-design.md's SRP-per-entity rule.
+service SettingsService {
+  rpc GetSettings(GetSettingsRequest) returns (GetSettingsResponse);
+  rpc UpdateSettings(UpdateSettingsRequest) returns (UpdateSettingsResponse);
+  rpc ResetSetting(ResetSettingRequest) returns (ResetSettingResponse);
+}
