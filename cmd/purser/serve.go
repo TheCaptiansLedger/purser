@@ -12,6 +12,7 @@ import (
 	"os/signal"
 	"purser/internal/adapters/acoustid"
 	"purser/internal/adapters/datastore"
+	"purser/internal/adapters/imagefetcher"
 	"purser/internal/adapters/musicbrainz"
 	"purser/internal/adapters/musicbrainz/fixtureserver"
 	"purser/internal/adapters/stashdb"
@@ -591,11 +592,17 @@ func wireScanPipeline(
 	)
 
 	// The local imagestore adapter — see docs/adr/0013-image-blob-storage.md.
-	// The Music Persister's cover-art step (M10b) is its first real caller;
-	// no other code path writes image bytes yet.
 	imageStore, err := imagestorelocal.New("image", mediaCfg.Path, imagestorelocal.WithLogger(logger))
 	if err != nil {
 		return nil, fmt.Errorf("cmd/purser: constructing image store: %w", err)
+	}
+
+	// The remote-image fetcher adapter — see docs/adr/0013-image-blob-storage.md's
+	// Addendum. Provider-agnostic: shared by every module's Persister that
+	// attaches a provider-returned image URL, not AfterDark-specific.
+	imgFetcher, err := imagefetcher.New(imagefetcher.DefaultConfig(), imagefetcher.WithLogger(logger))
+	if err != nil {
+		return nil, fmt.Errorf("cmd/purser: constructing image fetcher: %w", err)
 	}
 
 	// Content types with no registered ports.TemplateDataBuilder
@@ -627,8 +634,8 @@ func wireScanPipeline(
 	}
 	afterDarkPersister := pipelineafterdark.NewPersister(
 		stashDBClient, tpdbClient, externalIDRepo, libraryEntryRepo, personRepo, performerProfileRepo, itemPersonRepo,
-		itemRepo, mediaFileRepo, tagRepo, tagAssignmentRepo, afterDarkAutoOrganizer, afterDarkCfg.ProviderPriority,
-		pipelineafterdark.WithLogger(logger),
+		itemRepo, mediaFileRepo, tagRepo, tagAssignmentRepo, imageRepo, imageStore, imgFetcher, afterDarkAutoOrganizer,
+		afterDarkCfg.ProviderPriority, pipelineafterdark.WithLogger(logger),
 	)
 
 	persisterRegistry := service.NewPersisterRegistry(musicPersister, afterDarkPersister)

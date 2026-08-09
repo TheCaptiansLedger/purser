@@ -119,16 +119,56 @@ anything. An empty `Path` derives `<Paths.DataDir>/media` in
 
 ### Not built in this pass
 
-- **Wiring into `cmd/purser`.** No RPC or service exists yet that would
-  call `ImageStore` — constructing the local adapter in the composition
-  root with nothing calling it would just be inert code. The upload/import
-  service is the natural trigger to wire it in.
 - **An S3 (or other object-store) adapter.** The port is designed to make
   one trivial (`io.Reader`/`io.ReadCloser`, no filesystem-specific types
   leak into the interface) but none is built yet.
-- **A remote-image fetcher** (HTTP GET → `ImageStore.Put`). This is the
-  actual answer to "cache a remote image locally," but it's a thin,
-  separate piece layered on `ImageStore`, not part of the store itself.
+- **A remote-image fetcher** (HTTP GET → `ImageStore.Put`) — see the
+  addendum below; built once a real caller needed it.
+
+### Addendum: `ImageFetcher` — the remote-image fetcher, built
+
+AD9 (issue #563) is the first real caller that needs it: StashDB/ThePornDB
+scene lookups return image *URLs*, not bytes, and `ImageStore.Put` only
+takes an `io.Reader` a caller already holds. `ports.ImageFetcher` fills
+exactly the blank named above:
+
+```go
+type ImageFetcher interface {
+    Fetch(ctx context.Context, url string) (io.ReadCloser, error)
+}
+```
+
+Deliberately its own narrow port, not a method added to `ImageStore` —
+same ISP reasoning that already keeps `ImageStore` separate from
+`ImageRepository`. A caller `Fetch`s the bytes, then writes them via
+`ImageStore.Put`, then persists the row via `ImageRepository.Create`, same
+order this ADR already requires.
+
+`internal/adapters/imagefetcher` is the one adapter, and it's deliberately
+*not* one-per-provider the way [0027](0027-provider-independence.md)
+requires for actual metadata lookups: fetching bytes from a URL a
+provider's own DTO already returned has no provider-specific request
+shape, auth, or response envelope to abstract, so it's shared
+infrastructure — today AfterDark's StashDB/ThePornDB scene images, later
+any other provider's images (fanart.tv, TheAudioDB, ...) reuse the same
+adapter rather than each growing their own.
+
+It's built the same way every other network adapter in this codebase is
+required to be, not a bespoke `http.Get`: `pkg/httpclient.New` for the
+instrumented client (tracing/metrics/logging per
+[0007](0007-telemetry.md)/[0008](0008-structured-logging.md)), wrapped in
+`pkg/httpclient.NewCachingTransport` over its own named
+`pkg/cache/memory` instance — exactly `theporndb`'s/`stashdb`'s own
+`New` shape. This does not contradict this ADR's earlier rejection of that
+cache for *permanent* storage ("saving them in a database is crazy" /
+64 MiB total bound / wiped on `Close()`): `ImageStore` still owns the
+permanent local copy. The caching transport here is only a short-lived
+dedup layer over repeated `Fetch` calls for the same URL within one
+process, the same role it already plays for `theporndb`/`stashdb`'s own
+JSON responses. Unlike those two adapters, `imagefetcher.Client` carries
+no rate limiter: `url` can point at any host (whichever CDN the calling
+provider's DTO happened to return), so there's no single shared
+per-adapter budget to pace against.
 
 ## Consequences
 

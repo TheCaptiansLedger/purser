@@ -10,8 +10,11 @@
 // unions tags/ExternalIDs/performer-credits across every candidate, and
 // resolves Title/Overview/Date/Studio conflicts via a user-configured
 // provider priority order (config.AfterDark.ProviderPriority) rather than
-// picking a winner itself. Scene image attachment is deliberately not
-// here — AD9 (issue #563) adds that against this same cascade.
+// picking a winner itself. Scene image attachment (AD9, issue #563) unions
+// every candidate's own poster/screenshot images the same way, writing
+// bytes via ports.ImageFetcher + ports.ImageStore
+// (docs/adr/0013-image-blob-storage.md) before the ports.ImageRepository
+// row that points at them.
 package afterdark
 
 import (
@@ -45,6 +48,15 @@ const performerRole = "performer"
 // adapter pass adds StashDB's category/group fields.
 const tagKey = "tag"
 
+// sceneOwnerType is the Image.OwnerType value every AfterDark scene image
+// (AD9, issue #563) is attached under. Unlike Music's own
+// musicReleaseOwnerType ("music_release", a module-specific type), a Scene
+// *is* the shared kernel domain.Item directly, so this is
+// domain.EntityTypeItem's own string value — same value
+// getOrCreateScene/persistTags already key ExternalID/TagAssignment rows
+// against for the same Item.
+const sceneOwnerType = string(domain.EntityTypeItem)
+
 // Persister implements ports.Persister for domain.ContentTypeAdult. See
 // this file's package comment.
 type Persister struct {
@@ -60,6 +72,9 @@ type Persister struct {
 	mediaFiles        ports.MediaFileRepository
 	tags              ports.TagRepository
 	tagAssignments    ports.TagAssignmentRepository
+	images            ports.ImageRepository
+	imageStore        ports.ImageStore
+	imageFetcher      ports.ImageFetcher
 	organizer         ports.Organizer
 
 	// providerPriority is config.AfterDark.ProviderPriority — see
@@ -75,11 +90,16 @@ var _ ports.Persister = (*Persister)(nil)
 // NewPersister constructs a Persister. organizer is called after every
 // MediaFile this Persister creates, same "inject a Noop, never nil-check an
 // optional port" convention pipelinemusic.NewPersister's doc comment
-// describes — always non-nil. providerPriority is
-// config.AfterDark.ProviderPriority, read once at construction (a config
-// reload requires a process restart, same as every other pipeline config
-// value). Reuses the same Option/WithLogger/WithTracerProvider declared in
-// fingerprinter.go.
+// describes — always non-nil. images/imageStore/imageFetcher are AD9's
+// (issue #563) scene-image attachment step, same three-port shape
+// pipelinemusic.NewPersister's own images/imageStore params use for cover
+// art, plus imageFetcher (docs/adr/0013-image-blob-storage.md's Addendum)
+// to turn a provider's image URL into bytes ImageStore.Put can write —
+// Music's local-sidecar cover art never needed that extra step.
+// providerPriority is config.AfterDark.ProviderPriority, read once at
+// construction (a config reload requires a process restart, same as every
+// other pipeline config value). Reuses the same
+// Option/WithLogger/WithTracerProvider declared in fingerprinter.go.
 func NewPersister(
 	stashDB ports.StashDBClient,
 	tpdb ports.ThePornDBClient,
@@ -92,6 +112,9 @@ func NewPersister(
 	mediaFiles ports.MediaFileRepository,
 	tags ports.TagRepository,
 	tagAssignments ports.TagAssignmentRepository,
+	images ports.ImageRepository,
+	imageStore ports.ImageStore,
+	imageFetcher ports.ImageFetcher,
 	organizer ports.Organizer,
 	providerPriority []string,
 	opts ...Option,
@@ -112,6 +135,9 @@ func NewPersister(
 		mediaFiles:        mediaFiles,
 		tags:              tags,
 		tagAssignments:    tagAssignments,
+		images:            images,
+		imageStore:        imageStore,
+		imageFetcher:      imageFetcher,
 		organizer:         organizer,
 		providerPriority:  providerPriority,
 		logger:            o.logger.With("component", "adapters.pipeline.afterdark.persister"),
@@ -168,6 +194,15 @@ type resolvedPerformer struct {
 	careerEndYear   int
 }
 
+// resolvedImage is one image URL a candidate's provider returned for the
+// scene — width/height are StashDB-only (its Image DTO carries them;
+// ThePornDB's plain URL strings don't), left zero when unknown.
+type resolvedImage struct {
+	url    string
+	width  int
+	height int
+}
+
 // resolvedCandidate is one candidate's full scene detail, normalized from
 // either provider's DTO shape — Identify only populated ExternalRef/Title/
 // Tier/Signals, so resolveCandidateScene calls back into the owning
@@ -186,6 +221,7 @@ type resolvedCandidate struct {
 	studio     *resolvedStudio
 	performers []resolvedPerformer
 	tags       []string
+	images     []resolvedImage
 }
 
 // Persist implements ports.Persister. candidates is never empty (per the
@@ -241,6 +277,10 @@ func (p *Persister) Persist(ctx context.Context, _ *domain.Fingerprint, candidat
 
 	if err := p.persistTags(ctx, item.ID, resolved); err != nil {
 		return fmt.Errorf("adapters/pipeline/afterdark: persisting tags for scene %s: %w", item.ID, err)
+	}
+
+	if err := p.persistSceneImages(ctx, item, resolved); err != nil {
+		return fmt.Errorf("adapters/pipeline/afterdark: persisting images for scene %s: %w", item.ID, err)
 	}
 
 	p.logger.InfoContext(ctx, "afterdark scene persisted",
@@ -757,6 +797,84 @@ func (p *Persister) attachTag(ctx context.Context, itemID, name string) error {
 	return p.tagAssignments.Create(ctx, ta)
 }
 
+// persistSceneImages implements AD9 (issue #563): unions every resolved
+// candidate's own poster/screenshot image URLs onto item, guarded by the
+// same coarse existence check music.Persister's persistCoverArt uses for
+// cover art — any image already attached to this scene means a prior
+// Persist got this far, so the whole step is skipped rather than
+// re-fetching and re-diffing individual URLs. Dedup is by exact URL across
+// candidates, order preserved (candidate order, then each candidate's own
+// image order) and recorded as Image.Priority, the same "lower is shown
+// first" convention persistCoverArt's rank encodes. A single image's fetch
+// or store failure is logged and skipped, not fatal to Persist — images
+// are an enhancement on top of a scene's core identity, same tolerance
+// this file already gives a per-candidate resolve failure or the
+// Organizer's own best-effort call.
+func (p *Persister) persistSceneImages(ctx context.Context, item *domain.Item, resolved []resolvedCandidate) error {
+	existing, _, err := p.images.List(ctx, sceneOwnerType, item.ID, 1, "")
+	if err != nil {
+		return fmt.Errorf("checking existing images for scene %s: %w", item.ID, err)
+	}
+	if len(existing) > 0 {
+		return nil
+	}
+
+	seen := map[string]bool{}
+	priority := 0
+	for _, rc := range resolved {
+		for _, img := range rc.images {
+			if img.url == "" || seen[img.url] {
+				continue
+			}
+			seen[img.url] = true
+			p.attachSceneImage(ctx, item.ID, rc.source, img, priority)
+			priority++
+		}
+	}
+	return nil
+}
+
+// attachSceneImage fetches img's bytes via ImageFetcher, writes them via
+// ImageStore (keyed on the Image's own generated ID, per
+// docs/adr/0013-image-blob-storage.md's sharding decision), then persists
+// the Image metadata row — bytes before the row that points at them, per
+// that ADR's ordering requirement. Errors are logged and swallowed, never
+// returned — see persistSceneImages' doc comment.
+func (p *Persister) attachSceneImage(ctx context.Context, itemID, source string, img resolvedImage, priority int) {
+	rc, err := p.imageFetcher.Fetch(ctx, img.url)
+	if err != nil {
+		p.logger.WarnContext(ctx, "fetching scene image failed, skipping", "item.id", itemID, "url", img.url, "error", err)
+		return
+	}
+	defer func() { _ = rc.Close() }()
+
+	domainImg := &domain.Image{
+		ID:        domain.NewID(),
+		OwnerType: sceneOwnerType,
+		OwnerID:   itemID,
+		ImageType: domain.ImageTypePoster,
+		Width:     img.width,
+		Height:    img.height,
+		Priority:  priority,
+		Source:    source,
+	}
+
+	key, err := p.imageStore.Put(ctx, sceneOwnerType, domainImg.ID, rc)
+	if err != nil {
+		p.logger.WarnContext(ctx, "writing scene image failed, skipping", "item.id", itemID, "url", img.url, "error", err)
+		return
+	}
+	domainImg.URL = key
+
+	if err := domainImg.Validate(); err != nil {
+		p.logger.WarnContext(ctx, "scene image failed validation, skipping", "item.id", itemID, "url", img.url, "error", err)
+		return
+	}
+	if err := p.images.Create(ctx, domainImg); err != nil {
+		p.logger.WarnContext(ctx, "creating scene image row failed", "item.id", itemID, "url", img.url, "error", err)
+	}
+}
+
 // parseSceneDate parses a provider scene date ("2006-01-02", the shape both
 // StashDB's release_date and ThePornDB's date use), returning nil for an
 // empty or unparseable string — a scene's Date is optional.
@@ -799,6 +917,9 @@ func resolveStashDBScene(scene ports.Scene, c domain.MatchCandidate) resolvedCan
 	}
 	for _, pa := range scene.Performers {
 		rc.performers = append(rc.performers, resolveStashDBPerformer(pa))
+	}
+	for _, img := range scene.Images {
+		rc.images = append(rc.images, resolvedImage{url: img.URL, width: img.Width, height: img.Height})
 	}
 	if code, ok := c.Metadata["jav_code"].(string); ok && code != "" {
 		rc.javCode = code
@@ -879,6 +1000,7 @@ func resolveTPDBScene(scene ports.TPDBScene, c domain.MatchCandidate) resolvedCa
 	for _, perf := range scene.Performers {
 		rc.performers = append(rc.performers, resolveTPDBPerformer(perf))
 	}
+	rc.images = tpdbSceneImages(scene)
 
 	if code, ok := c.Metadata["jav_code"].(string); ok && code != "" {
 		rc.javCode = code
@@ -886,6 +1008,29 @@ func resolveTPDBScene(scene ports.TPDBScene, c domain.MatchCandidate) resolvedCa
 		rc.javCode = scene.SKU
 	}
 	return rc
+}
+
+// tpdbSceneImages collects scene's own image URLs, deduplicated: Image
+// (the scene's still/screenshot) and Posters.Full (the largest of the four
+// pre-cropped poster sizes ports.TPDBPosters carries — Large/Medium/Small
+// are resized copies of that same picture, not distinct images, so only
+// the largest is fetched), falling back to the bare Poster field when
+// Posters.Full is empty. ThePornDB's plain URL strings carry no
+// width/height the way StashDB's Image DTO does.
+func tpdbSceneImages(scene ports.TPDBScene) []resolvedImage {
+	poster := scene.Posters.Full
+	if poster == "" {
+		poster = scene.Poster
+	}
+
+	var images []resolvedImage
+	if scene.Image != "" {
+		images = append(images, resolvedImage{url: scene.Image})
+	}
+	if poster != "" && poster != scene.Image {
+		images = append(images, resolvedImage{url: poster})
+	}
+	return images
 }
 
 // resolveTPDBPerformer normalizes one ThePornDB TPDBPerformer. When perf is

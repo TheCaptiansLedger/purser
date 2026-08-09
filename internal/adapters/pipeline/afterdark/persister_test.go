@@ -1,10 +1,15 @@
 package afterdark_test
 
 import (
+	"bytes"
 	"context"
+	"fmt"
+	"io"
 	dsbadger "purser/internal/adapters/datastore/badger"
+	imagestorelocal "purser/internal/adapters/imagestore/local"
 	"purser/internal/adapters/pipeline/afterdark"
 	"purser/internal/adapters/store/externalid"
+	storeimage "purser/internal/adapters/store/image"
 	"purser/internal/adapters/store/item"
 	"purser/internal/adapters/store/itemperson"
 	"purser/internal/adapters/store/libraryentry"
@@ -19,6 +24,43 @@ import (
 	"sync"
 	"testing"
 )
+
+// fakeImageFetcher is a ports.ImageFetcher test double serving canned bytes
+// for a fixed set of known URLs — no real network call, per
+// docs/adr/0003-go-testing-standards.md ("a port is faked, never really
+// called, outside the one adapter package that implements it").
+type fakeImageFetcher struct {
+	mu      sync.Mutex
+	bodies  map[string][]byte
+	fetched []string
+}
+
+func newFakeImageFetcher() *fakeImageFetcher {
+	return &fakeImageFetcher{bodies: map[string][]byte{}}
+}
+
+func (f *fakeImageFetcher) put(url string, body []byte) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.bodies[url] = body
+}
+
+func (f *fakeImageFetcher) Fetch(_ context.Context, url string) (io.ReadCloser, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.fetched = append(f.fetched, url)
+	body, ok := f.bodies[url]
+	if !ok {
+		return nil, fmt.Errorf("fakeImageFetcher: %w: %s", ports.ErrNotFound, url)
+	}
+	return io.NopCloser(bytes.NewReader(body)), nil
+}
+
+func (f *fakeImageFetcher) fetchCount() int {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return len(f.fetched)
+}
 
 // fakeAfterDarkOrganizer is a ports.Organizer test double recording every
 // mediaFileID it was called with — see music/persister_test.go's
@@ -59,6 +101,9 @@ type persisterDeps struct {
 	mediaFiles        ports.MediaFileRepository
 	tags              ports.TagRepository
 	tagAssignments    ports.TagAssignmentRepository
+	images            ports.ImageRepository
+	imageStore        ports.ImageStore
+	imageFetcher      *fakeImageFetcher
 	organizer         *fakeAfterDarkOrganizer
 }
 
@@ -114,12 +159,21 @@ func newPersisterDeps(t *testing.T) *persisterDeps {
 	if err != nil {
 		t.Fatalf("tagassignment.New returned error: %v", err)
 	}
+	images, err := storeimage.New("test", ds)
+	if err != nil {
+		t.Fatalf("storeimage.New returned error: %v", err)
+	}
+	imageStore, err := imagestorelocal.New("test", t.TempDir())
+	if err != nil {
+		t.Fatalf("imagestorelocal.New returned error: %v", err)
+	}
 
 	return &persisterDeps{
 		stashDB: newFakeStashDB(), tpdb: newFakeThePornDB(),
 		externalIDs: externalIDs, libraryEntries: libraryEntries, persons: persons,
 		performerProfiles: performerProfiles, itemPeople: itemPeople, items: items,
 		mediaFiles: mediaFiles, tags: tags, tagAssignments: tagAssignments,
+		images: images, imageStore: imageStore, imageFetcher: newFakeImageFetcher(),
 		organizer: &fakeAfterDarkOrganizer{},
 	}
 }
@@ -128,7 +182,8 @@ func newPersisterDeps(t *testing.T) *persisterDeps {
 func (d *persisterDeps) newPersister(providerPriority []string) *afterdark.Persister {
 	return afterdark.NewPersister(
 		d.stashDB, d.tpdb, d.externalIDs, d.libraryEntries, d.persons, d.performerProfiles,
-		d.itemPeople, d.items, d.mediaFiles, d.tags, d.tagAssignments, d.organizer, providerPriority,
+		d.itemPeople, d.items, d.mediaFiles, d.tags, d.tagAssignments, d.images, d.imageStore,
+		d.imageFetcher, d.organizer, providerPriority,
 	)
 }
 
@@ -537,5 +592,141 @@ func TestPersister_Persist_TPDBAliasPerformerLinksToCanonicalPerson(t *testing.T
 	}
 	if fromCanonical.EntityID != performer.ID {
 		t.Errorf("fromCanonical.EntityID = %s, want %s", fromCanonical.EntityID, performer.ID)
+	}
+}
+
+// stashImageJPEG/tpdbImageJPEG are the canned bytes fakeImageFetcher serves
+// for putStashSceneWithImages'/putTPDBSceneWithImages' own image URLs — AD9
+// (issue #563).
+var (
+	stashImageJPEG = []byte{0xFF, 0xD8, 0xFF, 'S', 't', 'a', 's', 'h'}
+	tpdbImageJPEG  = []byte{0xFF, 0xD8, 0xFF, 'T', 'p', 'd', 'b'}
+)
+
+// putStashSceneWithImages wires a StashDB scene carrying two Images,
+// registering matching bytes with d.imageFetcher so Persist's image-attach
+// step (persistSceneImages) can actually fetch them.
+func (d *persisterDeps) putStashSceneWithImages(id string) ports.Scene {
+	scene := d.putStashScene(id)
+	scene.Images = []ports.Image{
+		{ID: "img1", URL: "http://stash.example/" + id + "-a.jpg", Width: 800, Height: 600},
+		{ID: "img2", URL: "http://stash.example/" + id + "-b.jpg", Width: 400, Height: 300},
+	}
+	d.stashDB.scenesByID[id] = scene
+	d.imageFetcher.put(scene.Images[0].URL, stashImageJPEG)
+	d.imageFetcher.put(scene.Images[1].URL, stashImageJPEG)
+	return scene
+}
+
+// putTPDBSceneWithImages wires a ThePornDB scene carrying Image/Posters.Full
+// fields, registering matching bytes with d.imageFetcher.
+func (d *persisterDeps) putTPDBSceneWithImages(id string) ports.TPDBScene {
+	scene := d.putTPDBScene(id)
+	scene.Image = "http://tpdb.example/" + id + "-still.jpg"
+	scene.Posters = ports.TPDBPosters{Full: "http://tpdb.example/" + id + "-poster.jpg"}
+	d.tpdb.scenesByID[id] = scene
+	d.imageFetcher.put(scene.Image, tpdbImageJPEG)
+	d.imageFetcher.put(scene.Posters.Full, tpdbImageJPEG)
+	return scene
+}
+
+func TestPersister_Persist_ImagesFromBothProvidersAttach(t *testing.T) {
+	d := newPersisterDeps(t)
+	d.putStashSceneWithImages("stash-scene-1")
+	d.putTPDBSceneWithImages("tpdb-scene-1")
+	p := d.newPersister([]string{"stashdb", "tpdb"})
+
+	err := p.Persist(context.Background(), nil,
+		[]domain.MatchCandidate{stashCandidate("stash-scene-1"), tpdbCandidate("tpdb-scene-1")},
+		[]*domain.UnmatchedFile{sceneFile()})
+	if err != nil {
+		t.Fatalf("Persist returned error: %v", err)
+	}
+
+	fromStash, err := d.externalIDs.GetByValue(context.Background(), domain.EntityTypeItem, domain.ExternalIDSourceStashDB, "stash-scene-1")
+	if err != nil {
+		t.Fatalf("GetByValue returned error: %v", err)
+	}
+
+	images, _, err := d.images.List(context.Background(), "item", fromStash.EntityID, 100, "")
+	if err != nil {
+		t.Fatalf("images.List returned error: %v", err)
+	}
+	// 2 from StashDB (Images[]) + 2 from ThePornDB (Image, Posters.Full) —
+	// union across every merged candidate, not just one provider's.
+	if len(images) != 4 {
+		t.Fatalf("len(images) = %d, want 4 (2 stashdb + 2 tpdb)", len(images))
+	}
+
+	seenPriorities := map[int]bool{}
+	for _, img := range images {
+		if img.ImageType != domain.ImageTypePoster {
+			t.Errorf("image.ImageType = %q, want %q", img.ImageType, domain.ImageTypePoster)
+		}
+		if seenPriorities[img.Priority] {
+			t.Errorf("two images share Priority %d", img.Priority)
+		}
+		seenPriorities[img.Priority] = true
+
+		rc, err := d.imageStore.Get(context.Background(), img.URL)
+		if err != nil {
+			t.Fatalf("imageStore.Get(%q) returned error: %v", img.URL, err)
+		}
+		_ = rc.Close()
+	}
+}
+
+func TestPersister_Persist_ImageAttachmentRetryDoesNotDuplicate(t *testing.T) {
+	d := newPersisterDeps(t)
+	d.putStashSceneWithImages("stash-scene-1")
+	p := d.newPersister([]string{"stashdb", "tpdb"})
+	uf := sceneFile()
+
+	for i := 0; i < 2; i++ {
+		if err := p.Persist(context.Background(), nil, []domain.MatchCandidate{stashCandidate("stash-scene-1")}, []*domain.UnmatchedFile{uf}); err != nil {
+			t.Fatalf("Persist call %d returned error: %v", i+1, err)
+		}
+	}
+
+	fromStash, err := d.externalIDs.GetByValue(context.Background(), domain.EntityTypeItem, domain.ExternalIDSourceStashDB, "stash-scene-1")
+	if err != nil {
+		t.Fatalf("GetByValue returned error: %v", err)
+	}
+	images, _, err := d.images.List(context.Background(), "item", fromStash.EntityID, 100, "")
+	if err != nil {
+		t.Fatalf("images.List returned error: %v", err)
+	}
+	if len(images) != 2 {
+		t.Fatalf("len(images) = %d after retry, want 2 (no duplicate)", len(images))
+	}
+	if d.imageFetcher.fetchCount() != 2 {
+		t.Errorf("imageFetcher.fetchCount() = %d, want 2 (the re-scan's existence-check guard should skip fetching again)", d.imageFetcher.fetchCount())
+	}
+}
+
+func TestPersister_Persist_ImageFetchFailureIsLoggedAndSkippedNotFatal(t *testing.T) {
+	d := newPersisterDeps(t)
+	scene := d.putStashScene("stash-scene-1")
+	scene.Images = []ports.Image{{ID: "img1", URL: "http://stash.example/missing.jpg"}}
+	d.stashDB.scenesByID["stash-scene-1"] = scene
+	// Deliberately not registered with d.imageFetcher — Fetch returns
+	// ErrNotFound, same as a real dead CDN link.
+	p := d.newPersister([]string{"stashdb", "tpdb"})
+
+	err := p.Persist(context.Background(), nil, []domain.MatchCandidate{stashCandidate("stash-scene-1")}, []*domain.UnmatchedFile{sceneFile()})
+	if err != nil {
+		t.Fatalf("Persist returned error: %v, want nil (a failed image fetch must not fail the whole scene)", err)
+	}
+
+	fromStash, err := d.externalIDs.GetByValue(context.Background(), domain.EntityTypeItem, domain.ExternalIDSourceStashDB, "stash-scene-1")
+	if err != nil {
+		t.Fatalf("GetByValue returned error: %v", err)
+	}
+	images, _, err := d.images.List(context.Background(), "item", fromStash.EntityID, 100, "")
+	if err != nil {
+		t.Fatalf("images.List returned error: %v", err)
+	}
+	if len(images) != 0 {
+		t.Errorf("len(images) = %d, want 0 (the failed fetch attached nothing)", len(images))
 	}
 }
