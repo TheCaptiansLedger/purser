@@ -17,11 +17,20 @@ const (
 	ExternalIDSourceAudioDB      ExternalIDSource = "audiodb"
 	ExternalIDSourceStashDB      ExternalIDSource = "stashdb"
 	ExternalIDSourceTPDB         ExternalIDSource = "tpdb"
-	ExternalIDSourceTMDB         ExternalIDSource = "tmdb"
-	ExternalIDSourceTVDB         ExternalIDSource = "tvdb"
-	ExternalIDSourceOMDB         ExternalIDSource = "omdb"
-	ExternalIDSourceOpenLibrary  ExternalIDSource = "openlibrary"
-	ExternalIDSourceHardcover    ExternalIDSource = "hardcover"
+	// ExternalIDSourceJAVCode is a content-derived (not provider-issued)
+	// JAV product code — e.g. "SSIS-001" — extracted from a filename by
+	// internal/adapters/pipeline/afterdark.ExtractJAVCode. Unlike every
+	// other ExternalIDSource, its Value never comes from a provider
+	// response; it exists so the AfterDark Persister's get-or-create can
+	// recognize a previously-imported scene across a provider-ID change
+	// (a rescan that clears threshold via a different provider than the
+	// one that originally created the Item), see AD7 (issue #561).
+	ExternalIDSourceJAVCode     ExternalIDSource = "jav_code"
+	ExternalIDSourceTMDB        ExternalIDSource = "tmdb"
+	ExternalIDSourceTVDB        ExternalIDSource = "tvdb"
+	ExternalIDSourceOMDB        ExternalIDSource = "omdb"
+	ExternalIDSourceOpenLibrary ExternalIDSource = "openlibrary"
+	ExternalIDSourceHardcover   ExternalIDSource = "hardcover"
 )
 
 // ExternalID is a polymorphic reference: EntityType + EntityID identify

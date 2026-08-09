@@ -127,7 +127,7 @@ func runServe(ctx context.Context, configPath string) error {
 		}
 	}()
 
-	mux, watcherCloser, err := newServeMux(sigCtx, logger, ds, cfg.Pipeline, cfg.MusicBrainz, cfg.AcoustID, cfg.Sources.StashDB, cfg.Sources.ThePornDB, cfg.Media)
+	mux, watcherCloser, err := newServeMux(sigCtx, logger, ds, cfg.Pipeline, cfg.MusicBrainz, cfg.AcoustID, cfg.Sources.StashDB, cfg.Sources.ThePornDB, cfg.Media, cfg.AfterDark)
 	if err != nil {
 		return err
 	}
@@ -264,7 +264,7 @@ func openDatastore(cfg config.Database) (datastore.Datastore, io.Closer, error) 
 // Common Scan Pipeline's filesystem watcher/consumer goroutine, if one is
 // started (see wireScanPipeline); the returned io.Closer stops it during
 // shutdown and is nil when pipelineCfg.ScanRoots is empty.
-func newServeMux(ctx context.Context, logger *slog.Logger, ds datastore.Datastore, pipelineCfg config.Pipeline, mbCfg config.MusicBrainz, acoustIDCfg config.AcoustID, stashDBCfg config.StashDB, tpdbCfg config.ThePornDB, mediaCfg config.Media) (*http.ServeMux, io.Closer, error) {
+func newServeMux(ctx context.Context, logger *slog.Logger, ds datastore.Datastore, pipelineCfg config.Pipeline, mbCfg config.MusicBrainz, acoustIDCfg config.AcoustID, stashDBCfg config.StashDB, tpdbCfg config.ThePornDB, mediaCfg config.Media, afterDarkCfg config.AfterDark) (*http.ServeMux, io.Closer, error) {
 	mux := http.NewServeMux()
 	interceptors := connect.WithInterceptors(apiconnect.NewLoggingInterceptor(logger))
 
@@ -466,7 +466,7 @@ func newServeMux(ctx context.Context, logger *slog.Logger, ds datastore.Datastor
 	// Common Scan Pipeline: split into its own function purely to keep
 	// newServeMux's cyclomatic complexity under budget — no behavior
 	// difference from being inlined here. See docs/adr/0024-pipeline-core.md.
-	watcherCloser, err := wireScanPipeline(ctx, mux, ds, logger, interceptors, jobEngine, jobAdapter, itemRepo, mediaFileRepo, libraryEntryRepo, groupRepo, externalIDRepo, musicReleaseRepo, imageRepo, pipelineCfg, mbCfg, acoustIDCfg, stashDBCfg, tpdbCfg, mediaCfg)
+	watcherCloser, err := wireScanPipeline(ctx, mux, ds, logger, interceptors, jobEngine, jobAdapter, itemRepo, mediaFileRepo, libraryEntryRepo, groupRepo, externalIDRepo, musicReleaseRepo, imageRepo, personRepo, performerProfileRepo, itemPersonRepo, tagRepo, tagAssignmentRepo, pipelineCfg, mbCfg, acoustIDCfg, stashDBCfg, tpdbCfg, mediaCfg, afterDarkCfg)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -504,18 +504,22 @@ func newServeMux(ctx context.Context, logger *slog.Logger, ds datastore.Datastor
 // pkgjobqueue.NewEngine), and mounts ScanService and UnmatchedFileService
 // on mux. jobAdapter is reused as ScanService's ports.JobPublisher —
 // neither service imports pkg/jobqueue directly. itemRepo/mediaFileRepo/
-// libraryEntryRepo/groupRepo/externalIDRepo/musicReleaseRepo are the
+// libraryEntryRepo/groupRepo/externalIDRepo/musicReleaseRepo/personRepo/
+// performerProfileRepo/itemPersonRepo/tagRepo/tagAssignmentRepo are the
 // already-constructed repositories built alongside their own entity
 // services above — ScanExecutor needs mediaFileRepo for the "already
 // known" short-circuit's MediaFile-side lookup, UnmatchedFileService needs
 // itemRepo/mediaFileRepo for Resolve's match outcome (docs/adr/0015's
 // composing-service exception, see internal/service/unmatched_file.go),
-// and the Music Persister needs the rest for its Artist/Release Group/
-// MusicRelease/Item/MediaFile cascade (docs/technical/pipeline-music-persist.md).
-// See docs/adr/0023-job-queue.md, docs/adr/0024-pipeline-core.md. The
-// returned io.Closer stops the filesystem watcher started for
-// pipelineCfg.ScanRoots (see startScanWatcher); it is nil when no roots
-// are configured.
+// the Music Persister needs the rest of the music-specific set for its
+// Artist/Release Group/MusicRelease/Item/MediaFile cascade
+// (docs/technical/pipeline-music-persist.md), and the AfterDark Persister
+// (AD7, issue #561) needs personRepo/performerProfileRepo/itemPersonRepo/
+// tagRepo/tagAssignmentRepo in addition to the shared set for its own
+// Studio/Performer/Scene/MediaFile cascade. See docs/adr/0023-job-queue.md,
+// docs/adr/0024-pipeline-core.md. The returned io.Closer stops the
+// filesystem watcher started for pipelineCfg.ScanRoots (see
+// startScanWatcher); it is nil when no roots are configured.
 func wireScanPipeline(
 	ctx context.Context,
 	mux *http.ServeMux,
@@ -531,12 +535,18 @@ func wireScanPipeline(
 	externalIDRepo ports.ExternalIDRepository,
 	musicReleaseRepo ports.MusicReleaseRepository,
 	imageRepo ports.ImageRepository,
+	personRepo ports.PersonRepository,
+	performerProfileRepo ports.PerformerProfileRepository,
+	itemPersonRepo ports.ItemPersonRepository,
+	tagRepo ports.TagRepository,
+	tagAssignmentRepo ports.TagAssignmentRepository,
 	pipelineCfg config.Pipeline,
 	mbCfg config.MusicBrainz,
 	acoustIDCfg config.AcoustID,
 	stashDBCfg config.StashDB,
 	tpdbCfg config.ThePornDB,
 	mediaCfg config.Media,
+	afterDarkCfg config.AfterDark,
 ) (io.Closer, error) {
 	unmatchedFileRepo, err := storeunmatchedfile.New("unmatched_file", ds, storeunmatchedfile.WithLogger(logger))
 	if err != nil {
@@ -607,7 +617,18 @@ func wireScanPipeline(
 	}
 
 	musicPersister := pipelinemusic.NewPersister(mbClient, externalIDRepo, libraryEntryRepo, groupRepo, musicReleaseRepo, itemRepo, mediaFileRepo, imageRepo, imageStore, musicAutoOrganizer, pipelinemusic.WithLogger(logger))
-	persisterRegistry := service.NewPersisterRegistry(musicPersister)
+
+	var afterDarkAutoOrganizer ports.Organizer = noopOrganizer{}
+	if pipelineCfg.AutoOrganize {
+		afterDarkAutoOrganizer = organizerSvc
+	}
+	afterDarkPersister := pipelineafterdark.NewPersister(
+		stashDBClient, tpdbClient, externalIDRepo, libraryEntryRepo, personRepo, performerProfileRepo, itemPersonRepo,
+		itemRepo, mediaFileRepo, tagRepo, tagAssignmentRepo, afterDarkAutoOrganizer, afterDarkCfg.ProviderPriority,
+		pipelineafterdark.WithLogger(logger),
+	)
+
+	persisterRegistry := service.NewPersisterRegistry(musicPersister, afterDarkPersister)
 	decisionSvc := service.NewDecisionService(pipelineCfg.ConfidenceThreshold, persisterRegistry)
 
 	jobEngine.Register("scan", adapterpipeline.NewScanExecutor(unmatchedFileRepo, mediaFileRepo, groupingRegistry, fingerprinterRegistry, identifierRegistry, confidenceScoreRegistry, decisionSvc))

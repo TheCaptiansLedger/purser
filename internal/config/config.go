@@ -25,6 +25,7 @@ type Config struct {
 	MusicBrainz MusicBrainz `mapstructure:"musicbrainz"`
 	AcoustID    AcoustID    `mapstructure:"acoustid"`
 	Sources     Sources     `mapstructure:"sources"`
+	AfterDark   AfterDark   `mapstructure:"afterdark"`
 }
 
 // DefaultConfig returns the defaults every component starts from.
@@ -39,6 +40,7 @@ func DefaultConfig() Config {
 		MusicBrainz: DefaultMusicBrainz(),
 		AcoustID:    DefaultAcoustID(),
 		Sources:     DefaultSources(),
+		AfterDark:   DefaultAfterDark(),
 	}
 	deriveDataDirDefaults(&cfg)
 	return cfg
@@ -109,6 +111,7 @@ func Load(v *viper.Viper, configPath string) (Config, error) {
 	v.SetDefault("sources.stashdb.api_key", defaults.Sources.StashDB.APIKey)
 	v.SetDefault("sources.tpdb.enabled", defaults.Sources.ThePornDB.Enabled)
 	v.SetDefault("sources.tpdb.api_key", defaults.Sources.ThePornDB.APIKey)
+	v.SetDefault("afterdark.provider_priority", defaults.AfterDark.ProviderPriority)
 
 	v.SetEnvPrefix("purser")
 	v.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
