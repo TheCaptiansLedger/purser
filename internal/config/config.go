@@ -26,6 +26,7 @@ type Config struct {
 	AcoustID    AcoustID    `mapstructure:"acoustid"`
 	Sources     Sources     `mapstructure:"sources"`
 	AfterDark   AfterDark   `mapstructure:"afterdark"`
+	Prowlarr    Prowlarr    `mapstructure:"prowlarr"`
 }
 
 // DefaultConfig returns the defaults every component starts from.
@@ -41,6 +42,7 @@ func DefaultConfig() Config {
 		AcoustID:    DefaultAcoustID(),
 		Sources:     DefaultSources(),
 		AfterDark:   DefaultAfterDark(),
+		Prowlarr:    DefaultProwlarr(),
 	}
 	deriveDataDirDefaults(&cfg)
 	return cfg
@@ -116,6 +118,10 @@ func Load(v *viper.Viper, configPath string) (Config, error) {
 	v.SetDefault("sources.fanart.enabled", defaults.Sources.FanartTV.Enabled)
 	v.SetDefault("sources.fanart.api_key", defaults.Sources.FanartTV.APIKey)
 	v.SetDefault("afterdark.provider_priority", defaults.AfterDark.ProviderPriority)
+	v.SetDefault("prowlarr.enabled", defaults.Prowlarr.Enabled)
+	v.SetDefault("prowlarr.base_url", defaults.Prowlarr.BaseURL)
+	v.SetDefault("prowlarr.api_key", defaults.Prowlarr.APIKey)
+	v.SetDefault("prowlarr.response_header_timeout", defaults.Prowlarr.ResponseHeaderTimeout)
 
 	v.SetEnvPrefix("purser")
 	v.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))

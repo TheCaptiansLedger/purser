@@ -90,3 +90,16 @@ pipeline:
 # Raise it further here if your deployment sees it timing out anyway.
 # musicbrainz:
 #   response_header_timeout: 45s
+
+# Prowlarr adapter (internal/adapters/prowlarr) — see
+# docs/technical/acquisition-indexer-search.md. Disabled by default; no
+# public default instance exists, so base_url is required to enable it.
+# response_header_timeout is empty by default (the adapter's own 25s
+# default — a real search fans out to every enabled indexer and waits for
+# the slowest one). Raise it further here if your deployment sees it
+# timing out anyway.
+# prowlarr:
+#   enabled: true
+#   base_url: http://prowlarr.local:9696/api/v1
+#   api_key: ""
+#   response_header_timeout: 45s

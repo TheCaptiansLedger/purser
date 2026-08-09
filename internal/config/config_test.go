@@ -656,6 +656,70 @@ func TestLoad_EnvOverridesFanartTVEnabledAndAPIKey(t *testing.T) {
 	}
 }
 
+func TestLoad_UsesDefaultProwlarrDisabledWithNoBaseURLOrAPIKey(t *testing.T) {
+	unsetEnvForTest(t, "PURSER_PROWLARR_ENABLED", "PURSER_PROWLARR_BASE_URL", "PURSER_PROWLARR_API_KEY")
+
+	cfg, err := config.Load(viper.New(), "")
+	if err != nil {
+		t.Fatalf("Load returned error: %v", err)
+	}
+	if cfg.Prowlarr.Enabled {
+		t.Fatal("Load returned Prowlarr.Enabled=true by default, want false")
+	}
+	if cfg.Prowlarr.BaseURL != "" {
+		t.Fatalf("Load returned Prowlarr.BaseURL=%q by default, want empty", cfg.Prowlarr.BaseURL)
+	}
+	if cfg.Prowlarr.APIKey != "" {
+		t.Fatalf("Load returned Prowlarr.APIKey=%q by default, want empty", cfg.Prowlarr.APIKey)
+	}
+}
+
+// PURSER_PROWLARR_* is a flat top-level key (Config.Prowlarr), not nested
+// under Sources — see config.Prowlarr's own doc comment for why.
+func TestLoad_EnvOverridesProwlarrEnabledBaseURLAndAPIKey(t *testing.T) {
+	t.Setenv("PURSER_PROWLARR_ENABLED", "true")
+	t.Setenv("PURSER_PROWLARR_BASE_URL", "http://prowlarr.local:9696/api/v1")
+	t.Setenv("PURSER_PROWLARR_API_KEY", "test-key")
+
+	cfg, err := config.Load(viper.New(), "")
+	if err != nil {
+		t.Fatalf("Load returned error: %v", err)
+	}
+	if !cfg.Prowlarr.Enabled {
+		t.Fatal("Load returned Prowlarr.Enabled=false, want true from env override")
+	}
+	if cfg.Prowlarr.BaseURL != "http://prowlarr.local:9696/api/v1" {
+		t.Fatalf("Load returned Prowlarr.BaseURL=%q, want %q", cfg.Prowlarr.BaseURL, "http://prowlarr.local:9696/api/v1")
+	}
+	if cfg.Prowlarr.APIKey != "test-key" {
+		t.Fatalf("Load returned Prowlarr.APIKey=%q, want %q", cfg.Prowlarr.APIKey, "test-key")
+	}
+}
+
+func TestLoad_UsesDefaultProwlarrResponseHeaderTimeout(t *testing.T) {
+	unsetEnvForTest(t, "PURSER_PROWLARR_RESPONSE_HEADER_TIMEOUT")
+
+	cfg, err := config.Load(viper.New(), "")
+	if err != nil {
+		t.Fatalf("Load returned error: %v", err)
+	}
+	if cfg.Prowlarr.ResponseHeaderTimeout != 0 {
+		t.Fatalf("Load returned Prowlarr.ResponseHeaderTimeout=%v, want 0 (adapter default) by default", cfg.Prowlarr.ResponseHeaderTimeout)
+	}
+}
+
+func TestLoad_EnvOverridesProwlarrResponseHeaderTimeout(t *testing.T) {
+	t.Setenv("PURSER_PROWLARR_RESPONSE_HEADER_TIMEOUT", "45s")
+
+	cfg, err := config.Load(viper.New(), "")
+	if err != nil {
+		t.Fatalf("Load returned error: %v", err)
+	}
+	if cfg.Prowlarr.ResponseHeaderTimeout != 45*time.Second {
+		t.Fatalf("Load returned Prowlarr.ResponseHeaderTimeout=%v, want 45s", cfg.Prowlarr.ResponseHeaderTimeout)
+	}
+}
+
 // unsetEnvForTest removes each of keys from the process environment for
 // the duration of t, restoring whatever value (set or unset) it found
 // beforehand once t completes. Unlike t.Setenv, this can actually remove a
