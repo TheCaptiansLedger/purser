@@ -46,6 +46,7 @@ ADR wins.
 | [0025](0025-music-identification-confidence-scoring.md) | Music Identification: Grouping and Confidence Scoring | Proposed |
 | [0026](0026-external-id-get-or-create.md) | ExternalID Get-or-Create: Extending the Reservation-Document Pattern to (EntityType, Source, Value) | Proposed |
 | [0027](0027-provider-independence.md) | Provider Independence: One RPC per Provider, No Server-Side Merge | Proposed |
+| [0028](0028-layered-settings.md) | Layered Settings: DB-Backed Runtime Overrides Beneath YAML/Env | Accepted |
 
 ## Adding a new ADR
 

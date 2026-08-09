@@ -43,6 +43,7 @@ Do not read all project documentation. Determine what the task touches, then loa
 - [docs/adr/0025-music-identification-confidence-scoring.md](docs/adr/0025-music-identification-confidence-scoring.md) — Music's grouping/candidate-generation/confidence-scoring design on top of the pipeline core; required for any Music `FileFingerprinter`, grouping, identifier, or `ConfidenceScore` code, or any `UnmatchedFile` `GroupKey`/`Fingerprint`/`MatchCandidate` change
 - [docs/adr/0026-external-id-get-or-create.md](docs/adr/0026-external-id-get-or-create.md) — get-or-create on `ExternalIDRepository` via a reservation document, extending 0019's pattern to `(EntityType, Source, Value)`; required for any `internal/adapters/store/externalid` change, or any code that creates a kernel entity from a provider's external identifier (get-or-create-by-external-ID)
 - [docs/adr/0027-provider-independence.md](docs/adr/0027-provider-independence.md) — one port/adapter/Connect service per external provider, read-only passthrough, no server-side ranking or merging across providers; required for any new or changed metadata/image provider port, adapter, or lookup RPC (StashDB, ThePornDB, TheAudioDB, fanart.tv, MusicBrainz, or any future provider)
+- [docs/adr/0028-layered-settings.md](docs/adr/0028-layered-settings.md) — DB-backed runtime settings layered beneath YAML/env (extends 0010), locked/bootstrap key rules, secret masking; required for any `Setting`/`SettingsRepository`/`SettingsService` change, or any `internal/config` change touching the DB-overlay merge pass
 
 **After finishing any ask/task/session:** run the self-audit checklist in [0001](docs/adr/0001-hexagonal-architecture.md) and [0002](docs/adr/0002-solid-design-principles.md) (and [0003](docs/adr/0003-go-testing-standards.md)/[0004](docs/adr/0004-typescript-react-testing-standards.md) if tests were written) and state the result explicitly — do not skip this silently.
 
@@ -101,6 +102,7 @@ Documentation under `docs/` (architecture overview, development guides, technica
 
 ### Adding or changing configuration
 - [docs/adr/0010-configuration.md](docs/adr/0010-configuration.md)
+- [docs/adr/0028-layered-settings.md](docs/adr/0028-layered-settings.md) — if the change touches the DB-backed override layer, `Setting`/`SettingsRepository`, or locked/bootstrap key handling
 
 ### Writing TypeScript or React
 - [docs/adr/0002-solid-design-principles.md](docs/adr/0002-solid-design-principles.md)
@@ -180,6 +182,20 @@ Documentation under `docs/` (architecture overview, development guides, technica
 - [docs/adr/0001-hexagonal-architecture.md](docs/adr/0001-hexagonal-architecture.md)
 - [docs/adr/0002-solid-design-principles.md](docs/adr/0002-solid-design-principles.md)
 - [docs/adr/0003-go-testing-standards.md](docs/adr/0003-go-testing-standards.md) — `pkg/jobqueue` targets 80%, same as `pkg/**`
+- [docs/adr/0007-telemetry.md](docs/adr/0007-telemetry.md)
+- [docs/adr/0008-structured-logging.md](docs/adr/0008-structured-logging.md)
+
+### Building the Settings & Jobs administration UI (`Setting`/`SettingsRepository`, `SettingsService`, `/settings/*` web routes)
+- [docs/adr/0028-layered-settings.md](docs/adr/0028-layered-settings.md) — DB-backed override layer, locked/bootstrap keys, secret masking; required for any `Setting`/`SettingsRepository`/`SettingsService` code
+- [docs/adr/0010-configuration.md](docs/adr/0010-configuration.md) — the underlying flag/env/yaml/default mechanism 0028 extends
+- [docs/adr/0012-datastore-persistence.md](docs/adr/0012-datastore-persistence.md) — `Setting` reuses `store.Repository[T]`, zero new `Datastore` work
+- [docs/adr/0019-tag-identity-and-get-or-create.md](docs/adr/0019-tag-identity-and-get-or-create.md) — natural-key reasoning `Setting.Key` follows
+- [docs/adr/0023-job-queue.md](docs/adr/0023-job-queue.md) — the Job/Task/Step model and `WatchJob` stream the Jobs tab consumes; no backend changes expected, UI-only work
+- [docs/adr/0011-api-design.md](docs/adr/0011-api-design.md)
+- [docs/adr/0004-typescript-react-testing-standards.md](docs/adr/0004-typescript-react-testing-standards.md)
+- [docs/adr/0001-hexagonal-architecture.md](docs/adr/0001-hexagonal-architecture.md)
+- [docs/adr/0002-solid-design-principles.md](docs/adr/0002-solid-design-principles.md)
+- [docs/adr/0003-go-testing-standards.md](docs/adr/0003-go-testing-standards.md)
 - [docs/adr/0007-telemetry.md](docs/adr/0007-telemetry.md)
 - [docs/adr/0008-structured-logging.md](docs/adr/0008-structured-logging.md)
 
