@@ -37,7 +37,7 @@ func NewFilenameParserRegistry(parsers ...ports.FilenameParser) *FilenameParserR
 }
 
 // Parse implements ports.FilenameParserResolver.
-func (r *FilenameParserRegistry) Parse(ctx context.Context, contentType domain.ContentType, groupPath, scanRoot string) (artist, album string, ok bool) {
+func (r *FilenameParserRegistry) Parse(ctx context.Context, contentType domain.ContentType, groupPath, scanRoot string) (first, second string, ok bool) {
 	return r.resolve(contentType).Parse(ctx, groupPath, scanRoot)
 }
 
@@ -68,6 +68,6 @@ func (NoopFilenameParser) ContentTypes() []domain.ContentType { return nil }
 
 // Parse implements ports.FilenameParser: always ok = false, regardless of
 // input.
-func (NoopFilenameParser) Parse(_ context.Context, _, _ string) (artist, album string, ok bool) {
+func (NoopFilenameParser) Parse(_ context.Context, _, _ string) (first, second string, ok bool) {
 	return "", "", false
 }
