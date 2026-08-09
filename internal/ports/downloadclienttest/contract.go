@@ -4,10 +4,21 @@
 // canned fixtures and hands the adapter constructor that server's URL.
 // This suite only proves the port's contract — Add/Status/Remove
 // round-tripping and ErrNotFound mapping for an unknown external ID — not
-// any real client backend's actual request/response shape; richer
-// field-mapping assertions against a real qBittorrent/SABnzbd response
-// belong in the adapter's own package
+// any real client backend's full request/response shape; richer
+// field-mapping and error-path assertions against a real backend's
+// responses belong in the adapter's own package
 // (docs/adr/0003-go-testing-standards.md).
+//
+// The fixture server speaks qBittorrent's real endpoint shape
+// (/api/v2/auth/login, /api/v2/torrents/{add,info,delete}) rather than a
+// made-up generic one, the same way indexertest's fixture mirrors
+// Prowlarr's real /search endpoint — ADR 0003 requires every adapter for a
+// port to run that port's shared contract test against its real,
+// production request-building code, and qBittorrent's session-cookie login
+// step and nested /api/v2/torrents/* paths can't be reached by a
+// vendor-agnostic placeholder path set. When a second, differently-shaped
+// DownloadClient adapter (SABnzbd's static-API-key, no-login shape) is
+// built, this fixture is expected to need revisiting then, not now.
 package downloadclienttest
 
 import (
@@ -105,36 +116,62 @@ func testRemoveUnknown(t *testing.T, newClient NewClientFunc, baseURL string) {
 	}
 }
 
+// fixtureTorrent is qBittorrent's own /api/v2/torrents/info wire shape —
+// see internal/adapters/qbittorrent's qbTorrent for the real adapter's
+// identical decode target.
+type fixtureTorrent struct {
+	Hash     string  `json:"hash"`
+	State    string  `json:"state"`
+	Progress float64 `json:"progress"`
+	SavePath string  `json:"save_path"`
+	ETA      int64   `json:"eta"`
+}
+
+var knownTorrent = fixtureTorrent{
+	Hash:     KnownExternalID,
+	State:    "downloading",
+	Progress: 0.5,
+	SavePath: "/downloads/some-release",
+	ETA:      3600,
+}
+
 func fixtureHandler() http.Handler {
 	mux := http.NewServeMux()
 
-	mux.HandleFunc("/add", func(w http.ResponseWriter, _ *http.Request) {
-		writeJSON(w, struct {
-			ID string `json:"id"`
-		}{KnownExternalID})
+	mux.HandleFunc("/api/v2/auth/login", func(w http.ResponseWriter, _ *http.Request) {
+		// Set-Cookie written directly rather than http.Cookie+http.SetCookie
+		// — an http.Cookie literal missing Secure/HttpOnly/SameSite trips
+		// gosec's G124, and this plain-http httptest.Server fixture has no
+		// real session to protect.
+		w.Header().Set("Set-Cookie", "SID=contract-test-session; Path=/")
+		w.Header().Set("Content-Type", "text/plain")
+		_, _ = w.Write([]byte("Ok."))
 	})
 
-	mux.HandleFunc("/status", func(w http.ResponseWriter, r *http.Request) {
-		id := r.URL.Query().Get("id")
-		if id != KnownExternalID {
-			writeNotFound(w)
-			return
-		}
-		writeJSON(w, ports.DownloadStatus{
-			ExternalID: KnownExternalID,
-			State:      ports.DownloadStateDownloading,
-			Progress:   0.5,
-			SavePath:   "/downloads/some-release",
-		})
+	mux.HandleFunc("/api/v2/torrents/add", func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "text/plain")
+		_, _ = w.Write([]byte("Ok."))
 	})
 
-	mux.HandleFunc("/remove", func(w http.ResponseWriter, r *http.Request) {
-		id := r.URL.Query().Get("id")
-		if id != KnownExternalID {
-			writeNotFound(w)
+	mux.HandleFunc("/api/v2/torrents/info", func(w http.ResponseWriter, r *http.Request) {
+		q := r.URL.Query()
+		// A post-Add tag lookup always resolves to the one known torrent
+		// this fixture models — this suite doesn't track per-request tags,
+		// only the port's Add/Status/Remove contract.
+		if q.Get("tag") != "" {
+			writeJSON(w, []fixtureTorrent{knownTorrent})
 			return
 		}
-		w.WriteHeader(http.StatusOK)
+		if q.Get("hashes") != KnownExternalID {
+			writeJSON(w, []fixtureTorrent{})
+			return
+		}
+		writeJSON(w, []fixtureTorrent{knownTorrent})
+	})
+
+	mux.HandleFunc("/api/v2/torrents/delete", func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "text/plain")
+		_, _ = w.Write([]byte("Ok."))
 	})
 
 	return mux
@@ -143,10 +180,4 @@ func fixtureHandler() http.Handler {
 func writeJSON(w http.ResponseWriter, v any) {
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(v)
-}
-
-func writeNotFound(w http.ResponseWriter) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusNotFound)
-	_, _ = w.Write([]byte(`{"error":"Not Found"}`))
 }
