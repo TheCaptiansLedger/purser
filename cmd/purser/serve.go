@@ -572,7 +572,10 @@ func wireScanPipeline(
 		pipelinemusic.NewIdentifier(mbClient, acoustIDClient, pipelinemusic.FilenameParser{}, pipelinemusic.WithLogger(logger)),
 		pipelineafterdark.NewIdentifier(stashDBClient, tpdbClient, pipelineafterdark.FilenameParser{}, pipelineafterdark.WithLogger(logger)),
 	)
-	confidenceScoreRegistry := service.NewConfidenceScoreRegistry(pipelinemusic.NewConfidenceScorer(pipelinemusic.WithLogger(logger)))
+	confidenceScoreRegistry := service.NewConfidenceScoreRegistry(
+		pipelinemusic.NewConfidenceScorer(pipelinemusic.WithLogger(logger)),
+		pipelineafterdark.NewConfidenceScorer(pipelineafterdark.WithLogger(logger)),
+	)
 
 	// The local imagestore adapter — see docs/adr/0013-image-blob-storage.md.
 	// The Music Persister's cover-art step (M10b) is its first real caller;
