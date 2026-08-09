@@ -580,6 +580,82 @@ func TestLoad_EnvOverridesThePornDBEnabledAndAPIKey(t *testing.T) {
 	}
 }
 
+func TestLoad_UsesDefaultTheAudioDBDisabledWithNoAPIKey(t *testing.T) {
+	// Same ambient-.env risk StashDB's identical test documents — this
+	// repo's own .env does carry PURSER_SOURCES_THEAUDIODB_* today.
+	unsetEnvForTest(t, "PURSER_SOURCES_THEAUDIODB_ENABLED", "PURSER_SOURCES_THEAUDIODB_API_KEY")
+
+	cfg, err := config.Load(viper.New(), "")
+	if err != nil {
+		t.Fatalf("Load returned error: %v", err)
+	}
+	if cfg.Sources.TheAudioDB.Enabled {
+		t.Fatal("Load returned Sources.TheAudioDB.Enabled=true by default, want false")
+	}
+	if cfg.Sources.TheAudioDB.APIKey != "" {
+		t.Fatalf("Load returned Sources.TheAudioDB.APIKey=%q by default, want empty", cfg.Sources.TheAudioDB.APIKey)
+	}
+}
+
+// PURSER_SOURCES_THEAUDIODB_* is not a made-up convention — it's already
+// documented in .env.example (PURSER_SOURCES_THEAUDIODB_ENABLED/
+// PURSER_SOURCES_THEAUDIODB_API_KEY), hence Config.Sources.TheAudioDB with
+// mapstructure "theaudiodb" — see config.Sources' own doc comment.
+func TestLoad_EnvOverridesTheAudioDBEnabledAndAPIKey(t *testing.T) {
+	t.Setenv("PURSER_SOURCES_THEAUDIODB_ENABLED", "true")
+	t.Setenv("PURSER_SOURCES_THEAUDIODB_API_KEY", "test-key")
+
+	cfg, err := config.Load(viper.New(), "")
+	if err != nil {
+		t.Fatalf("Load returned error: %v", err)
+	}
+	if !cfg.Sources.TheAudioDB.Enabled {
+		t.Fatal("Load returned Sources.TheAudioDB.Enabled=false, want true from env override")
+	}
+	if cfg.Sources.TheAudioDB.APIKey != "test-key" {
+		t.Fatalf("Load returned Sources.TheAudioDB.APIKey=%q, want %q", cfg.Sources.TheAudioDB.APIKey, "test-key")
+	}
+}
+
+func TestLoad_UsesDefaultFanartTVDisabledWithNoAPIKey(t *testing.T) {
+	// Same ambient-.env risk StashDB's identical test documents — this
+	// repo's own .env does carry PURSER_SOURCES_FANART_* today.
+	unsetEnvForTest(t, "PURSER_SOURCES_FANART_ENABLED", "PURSER_SOURCES_FANART_API_KEY")
+
+	cfg, err := config.Load(viper.New(), "")
+	if err != nil {
+		t.Fatalf("Load returned error: %v", err)
+	}
+	if cfg.Sources.FanartTV.Enabled {
+		t.Fatal("Load returned Sources.FanartTV.Enabled=true by default, want false")
+	}
+	if cfg.Sources.FanartTV.APIKey != "" {
+		t.Fatalf("Load returned Sources.FanartTV.APIKey=%q by default, want empty", cfg.Sources.FanartTV.APIKey)
+	}
+}
+
+// PURSER_SOURCES_FANART_* is not a made-up convention — it's the key
+// .env.example now documents (PURSER_SOURCES_FANART_ENABLED/
+// PURSER_SOURCES_FANART_API_KEY, added alongside this adapter), hence
+// Config.Sources.FanartTV with mapstructure "fanart" rather than a flat
+// Config.FanartTV or a "fanarttv" key — see config.Sources' own doc
+// comment.
+func TestLoad_EnvOverridesFanartTVEnabledAndAPIKey(t *testing.T) {
+	t.Setenv("PURSER_SOURCES_FANART_ENABLED", "true")
+	t.Setenv("PURSER_SOURCES_FANART_API_KEY", "test-key")
+
+	cfg, err := config.Load(viper.New(), "")
+	if err != nil {
+		t.Fatalf("Load returned error: %v", err)
+	}
+	if !cfg.Sources.FanartTV.Enabled {
+		t.Fatal("Load returned Sources.FanartTV.Enabled=false, want true from env override")
+	}
+	if cfg.Sources.FanartTV.APIKey != "test-key" {
+		t.Fatalf("Load returned Sources.FanartTV.APIKey=%q, want %q", cfg.Sources.FanartTV.APIKey, "test-key")
+	}
+}
+
 // unsetEnvForTest removes each of keys from the process environment for
 // the duration of t, restoring whatever value (set or unset) it found
 // beforehand once t completes. Unlike t.Setenv, this can actually remove a

@@ -111,6 +111,10 @@ func Load(v *viper.Viper, configPath string) (Config, error) {
 	v.SetDefault("sources.stashdb.api_key", defaults.Sources.StashDB.APIKey)
 	v.SetDefault("sources.tpdb.enabled", defaults.Sources.ThePornDB.Enabled)
 	v.SetDefault("sources.tpdb.api_key", defaults.Sources.ThePornDB.APIKey)
+	v.SetDefault("sources.theaudiodb.enabled", defaults.Sources.TheAudioDB.Enabled)
+	v.SetDefault("sources.theaudiodb.api_key", defaults.Sources.TheAudioDB.APIKey)
+	v.SetDefault("sources.fanart.enabled", defaults.Sources.FanartTV.Enabled)
+	v.SetDefault("sources.fanart.api_key", defaults.Sources.FanartTV.APIKey)
 	v.SetDefault("afterdark.provider_priority", defaults.AfterDark.ProviderPriority)
 
 	v.SetEnvPrefix("purser")

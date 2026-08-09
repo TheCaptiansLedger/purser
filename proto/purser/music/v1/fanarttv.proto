@@ -1,0 +1,69 @@
+syntax = "proto3";
+
+package purser.music.v1;
+
+option go_package = "purser/gen/go/purser/music/v1;musicv1";
+
+// FanartTVImage is one image entry, translated field-for-field from
+// ports.FanartImage (internal/adapters/fanarttv). id/likes stay strings,
+// matching fanart.tv's own wire shape (confirmed live: quoted JSON
+// strings, not numbers). lang is only ever populated on an artist-level
+// image list (artist_thumb, artist_background, ...), always empty on an
+// album's album_cover.
+message FanartTVImage {
+  string id = 1;
+  string url = 2;
+  string likes = 3;
+  string lang = 4;
+}
+
+// FanartTVCDArt is one CD-art image entry, translated field-for-field from
+// ports.FanartCDArt — like FanartTVImage plus disc/size, present only on
+// albums fanart.tv has CD-art recorded for.
+message FanartTVCDArt {
+  string id = 1;
+  string url = 2;
+  string likes = 3;
+  string disc = 4;
+  string size = 5;
+}
+
+// FanartTVAlbumImages is one release group's art, keyed by release-group
+// MBID in FanartTVArtist.albums.
+message FanartTVAlbumImages {
+  repeated FanartTVImage album_cover = 1;
+  repeated FanartTVCDArt cd_art = 2;
+}
+
+// FanartTVArtist is fanart.tv's music/{mbid} response, translated
+// field-for-field from ports.FanartArtist — one call answers both the
+// artist's own art and every one of their release groups' album art.
+message FanartTVArtist {
+  string name = 1;
+  string mbid = 2;
+  repeated FanartTVImage artist_thumb = 3;
+  repeated FanartTVImage artist_background = 4;
+  repeated FanartTVImage artist_4k_background = 5;
+  repeated FanartTVImage hd_music_logo = 6;
+  repeated FanartTVImage music_logo = 7;
+  repeated FanartTVImage music_banner = 8;
+  map<string, FanartTVAlbumImages> albums = 9;
+}
+
+message LookupFanartTVArtistRequest {
+  string mbid = 1;
+}
+
+message LookupFanartTVArtistResponse {
+  FanartTVArtist artist = 1;
+}
+
+// FanartTVService exposes internal/adapters/fanarttv's read-only artist/
+// album image lookup directly to a caller (web UI, CLI), the same shape as
+// MusicBrainzService (musicbrainz_search.proto) — a thin, read-only
+// passthrough per docs/adr/0027-provider-independence.md. Never writes
+// anything, never calls another provider, never ranks or merges — picking
+// between this and TheAudioDBService's results is the caller's job.
+service FanartTVService {
+  rpc LookupArtist(LookupFanartTVArtistRequest) returns (LookupFanartTVArtistResponse);
+}

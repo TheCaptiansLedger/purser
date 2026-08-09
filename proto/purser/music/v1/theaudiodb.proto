@@ -1,0 +1,106 @@
+syntax = "proto3";
+
+package purser.music.v1;
+
+option go_package = "purser/gen/go/purser/music/v1;musicv1";
+
+// TheAudioDBArtist is TheAudioDB's own artist DTO, translated field-for-field
+// from ports.TADBArtist (internal/adapters/theaudiodb) — raw external
+// provider data, not a persisted Purser entity, per
+// docs/adr/0027-provider-independence.md's read-only-passthrough rule. Every
+// numeric-looking field (members, followers, popularity, the year fields,
+// ...) stays a string, matching TheAudioDB's own wire shape (confirmed
+// live: these are quoted JSON strings, not numbers) rather than coercing.
+// TheAudioDB's own internal numeric ID (idArtist) is deliberately not
+// exposed — mbid is this codebase's join key, never TheAudioDB's own ID.
+message TheAudioDBArtist {
+  string mbid = 1;
+  string name = 2;
+  string alternate_name = 3;
+  string label = 4;
+  string formed_year = 5;
+  string born_year = 6;
+  string died_year = 7;
+  string disbanded = 8;
+  string style = 9;
+  string genre = 10;
+  string mood = 11;
+  string gender = 12;
+  string country = 13;
+  string country_code = 14;
+  string isni_code = 15;
+  string members = 16;
+  string followers = 17;
+  string popularity = 18;
+  string charted = 19;
+  string website = 20;
+  string facebook = 21;
+  string twitter = 22;
+  string biography = 23;
+  string locked = 24;
+  string thumb = 25;
+  string logo = 26;
+  string cutout = 27;
+  string clearart = 28;
+  string wide_thumb = 29;
+  string fanart = 30;
+  string fanart2 = 31;
+  string fanart3 = 32;
+  string fanart4 = 33;
+  string banner = 34;
+}
+
+// TheAudioDBAlbum is TheAudioDB's own album DTO, translated field-for-field
+// from ports.TADBAlbum. artist_mbid cross-links back to the owning
+// TheAudioDBArtist; TheAudioDB's own internal numeric IDs (idAlbum, idArtist)
+// are deliberately not exposed, same rationale as TheAudioDBArtist.
+message TheAudioDBAlbum {
+  string mbid = 1;
+  string artist_mbid = 2;
+  string title = 3;
+  string artist_name = 4;
+  string year_released = 5;
+  string style = 6;
+  string genre = 7;
+  string label = 8;
+  string release_format = 9;
+  string description = 10;
+  string mood = 11;
+  string locked = 12;
+  string thumb = 13;
+  string thumb_hq = 14;
+  string back = 15;
+  string cd_art = 16;
+  string spine = 17;
+  string three_d_case = 18;
+  string three_d_flat = 19;
+  string three_d_face = 20;
+  string three_d_thumb = 21;
+}
+
+message LookupTheAudioDBArtistRequest {
+  string mbid = 1;
+}
+
+message LookupTheAudioDBArtistResponse {
+  TheAudioDBArtist artist = 1;
+}
+
+message LookupTheAudioDBAlbumRequest {
+  string release_group_mbid = 1;
+}
+
+message LookupTheAudioDBAlbumResponse {
+  TheAudioDBAlbum album = 1;
+}
+
+// TheAudioDBService exposes internal/adapters/theaudiodb's read-only
+// artist/album image lookup directly to a caller (web UI, CLI), the same
+// shape as MusicBrainzService (musicbrainz_search.proto) — a thin,
+// read-only passthrough per docs/adr/0027-provider-independence.md. Never
+// writes anything, never calls another provider, never ranks or merges —
+// picking between this and FanartTVService's results is the caller's job.
+service TheAudioDBService {
+  rpc LookupArtist(LookupTheAudioDBArtistRequest) returns (LookupTheAudioDBArtistResponse);
+  rpc LookupAlbum(LookupTheAudioDBAlbumRequest) returns (LookupTheAudioDBAlbumResponse);
+}

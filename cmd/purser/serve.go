@@ -12,10 +12,12 @@ import (
 	"os/signal"
 	"purser/internal/adapters/acoustid"
 	"purser/internal/adapters/datastore"
+	"purser/internal/adapters/fanarttv"
 	"purser/internal/adapters/imagefetcher"
 	"purser/internal/adapters/musicbrainz"
 	"purser/internal/adapters/musicbrainz/fixtureserver"
 	"purser/internal/adapters/stashdb"
+	"purser/internal/adapters/theaudiodb"
 	"purser/internal/adapters/theporndb"
 	"purser/internal/config"
 	"purser/internal/domain"
@@ -128,7 +130,7 @@ func runServe(ctx context.Context, configPath string) error {
 		}
 	}()
 
-	mux, watcherCloser, err := newServeMux(sigCtx, logger, ds, cfg.Pipeline, cfg.MusicBrainz, cfg.AcoustID, cfg.Sources.StashDB, cfg.Sources.ThePornDB, cfg.Media, cfg.AfterDark)
+	mux, watcherCloser, err := newServeMux(sigCtx, logger, ds, cfg.Pipeline, cfg.MusicBrainz, cfg.AcoustID, cfg.Sources.StashDB, cfg.Sources.ThePornDB, cfg.Sources.TheAudioDB, cfg.Sources.FanartTV, cfg.Media, cfg.AfterDark)
 	if err != nil {
 		return err
 	}
@@ -265,7 +267,7 @@ func openDatastore(cfg config.Database) (datastore.Datastore, io.Closer, error) 
 // Common Scan Pipeline's filesystem watcher/consumer goroutine, if one is
 // started (see wireScanPipeline); the returned io.Closer stops it during
 // shutdown and is nil when pipelineCfg.ScanRoots is empty.
-func newServeMux(ctx context.Context, logger *slog.Logger, ds datastore.Datastore, pipelineCfg config.Pipeline, mbCfg config.MusicBrainz, acoustIDCfg config.AcoustID, stashDBCfg config.StashDB, tpdbCfg config.ThePornDB, mediaCfg config.Media, afterDarkCfg config.AfterDark) (*http.ServeMux, io.Closer, error) {
+func newServeMux(ctx context.Context, logger *slog.Logger, ds datastore.Datastore, pipelineCfg config.Pipeline, mbCfg config.MusicBrainz, acoustIDCfg config.AcoustID, stashDBCfg config.StashDB, tpdbCfg config.ThePornDB, theAudioDBCfg config.TheAudioDB, fanartTVCfg config.FanartTV, mediaCfg config.Media, afterDarkCfg config.AfterDark) (*http.ServeMux, io.Closer, error) {
 	mux := http.NewServeMux()
 	interceptors := connect.WithInterceptors(apiconnect.NewLoggingInterceptor(logger))
 
@@ -455,6 +457,25 @@ func newServeMux(ctx context.Context, logger *slog.Logger, ds datastore.Datastor
 	musicReleasePath, musicReleaseConnectHandler := musicv1connect.NewMusicReleaseServiceHandler(musicReleaseHandler, interceptors)
 	mux.Handle(musicReleasePath, musicReleaseConnectHandler)
 
+	// TheAudioDB/fanart.tv: read-only image/enrichment lookup RPCs per
+	// docs/adr/0027-provider-independence.md — independent of each other
+	// and of Music's scan-time identification (neither provider feeds
+	// docs/adr/0025-music-identification-confidence-scoring.md; both are
+	// pure enrichment, confirmed against that ADR before adding this),
+	// so unlike StashDB/ThePornDB neither client is threaded into
+	// wireScanPipeline. A disabled provider still gets its RPC mounted —
+	// it just always answers CodeNotFound via the noop client below,
+	// same pattern as noopStashDBClient/noopThePornDBClient.
+	theAudioDBClient := newTheAudioDBClient(theAudioDBCfg, logger)
+	theAudioDBHandler := apiconnect.NewTheAudioDBHandler(service.NewTheAudioDBLookup(theAudioDBClient), logger)
+	theAudioDBPath, theAudioDBConnectHandler := musicv1connect.NewTheAudioDBServiceHandler(theAudioDBHandler, interceptors)
+	mux.Handle(theAudioDBPath, theAudioDBConnectHandler)
+
+	fanartTVClient := newFanartTVClient(fanartTVCfg, logger)
+	fanartTVHandler := apiconnect.NewFanartTVHandler(service.NewFanartTVLookup(fanartTVClient), logger)
+	fanartTVPath, fanartTVConnectHandler := musicv1connect.NewFanartTVServiceHandler(fanartTVHandler, interceptors)
+	mux.Handle(fanartTVPath, fanartTVConnectHandler)
+
 	// Job Queue: ephemeral, in-process — not backed by ds like every
 	// entity above. See docs/adr/0023-job-queue.md. jobAdapter satisfies
 	// both ports.JobPublisher and ports.JobReader.
@@ -488,6 +509,8 @@ func newServeMux(ctx context.Context, logger *slog.Logger, ds datastore.Datastor
 		afterdarkv1connect.BrowseServiceName,
 		musicv1connect.MusicReleaseServiceName,
 		musicv1connect.MusicBrainzServiceName,
+		musicv1connect.TheAudioDBServiceName,
+		musicv1connect.FanartTVServiceName,
 		jobv1connect.JobServiceName,
 		pipelinev1connect.ScanServiceName,
 		pipelinev1connect.UnmatchedFileServiceName,
@@ -832,6 +855,73 @@ func (noopThePornDBClient) LookupSceneByHash(context.Context, string) (*ports.TP
 
 func (noopThePornDBClient) ResolveJAVCode(context.Context, string) ([]ports.TPDBScene, error) {
 	return nil, nil
+}
+
+// newTheAudioDBClient constructs the real ports.TheAudioDBClient when
+// theAudioDBCfg.Enabled, else noopTheAudioDBClient — see
+// newAfterDarkIdentificationClients' identical convention. Unlike
+// StashDB/ThePornDB there's nothing else to fail startup over (TheAudioDB
+// has no adapter-level required construction beyond the API key
+// theAudioDBCfg already carries), so this never returns an error.
+func newTheAudioDBClient(theAudioDBCfg config.TheAudioDB, logger *slog.Logger) ports.TheAudioDBClient {
+	if !theAudioDBCfg.Enabled {
+		return noopTheAudioDBClient{}
+	}
+	cfg := theaudiodb.DefaultConfig()
+	cfg.APIKey = theAudioDBCfg.APIKey
+	client, err := theaudiodb.New(cfg, theaudiodb.WithLogger(logger))
+	if err != nil {
+		// APIKey is validated non-empty by config.TheAudioDB's own
+		// contract (Enabled implies a real key was configured); a
+		// construction error here would mean that contract broke, not
+		// something an operator can fix by retrying — fail loud via the
+		// noop client's own ErrNotFound rather than crash startup, same
+		// posture StashDB/ThePornDB don't need since their adapters can't
+		// fail construction with a non-empty key either.
+		logger.Error("constructing theaudiodb client, falling back to noop", "error", err)
+		return noopTheAudioDBClient{}
+	}
+	return client
+}
+
+// noopTheAudioDBClient is the ports.TheAudioDBClient used when
+// config.TheAudioDB.Enabled is false — every method returns
+// ports.ErrNotFound, mapped by TheAudioDBHandler to CodeNotFound, same
+// posture as noopStashDBClient/noopThePornDBClient.
+type noopTheAudioDBClient struct{}
+
+func (noopTheAudioDBClient) LookupArtist(context.Context, string) (*ports.TADBArtist, error) {
+	return nil, ports.ErrNotFound
+}
+
+func (noopTheAudioDBClient) LookupAlbum(context.Context, string) (*ports.TADBAlbum, error) {
+	return nil, ports.ErrNotFound
+}
+
+// newFanartTVClient constructs the real ports.FanartTVClient when
+// fanartTVCfg.Enabled, else noopFanartTVClient — see newTheAudioDBClient's
+// identical convention.
+func newFanartTVClient(fanartTVCfg config.FanartTV, logger *slog.Logger) ports.FanartTVClient {
+	if !fanartTVCfg.Enabled {
+		return noopFanartTVClient{}
+	}
+	cfg := fanarttv.DefaultConfig()
+	cfg.APIKey = fanartTVCfg.APIKey
+	client, err := fanarttv.New(cfg, fanarttv.WithLogger(logger))
+	if err != nil {
+		logger.Error("constructing fanarttv client, falling back to noop", "error", err)
+		return noopFanartTVClient{}
+	}
+	return client
+}
+
+// noopFanartTVClient is the ports.FanartTVClient used when
+// config.FanartTV.Enabled is false — see noopTheAudioDBClient's doc
+// comment.
+type noopFanartTVClient struct{}
+
+func (noopFanartTVClient) LookupArtist(context.Context, string) (*ports.FanartArtist, error) {
+	return nil, ports.ErrNotFound
 }
 
 // noopOrganizer is the ports.Organizer a content type's Persister is wired
