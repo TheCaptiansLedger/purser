@@ -28,6 +28,7 @@ type Config struct {
 	AfterDark   AfterDark   `mapstructure:"afterdark"`
 	Prowlarr    Prowlarr    `mapstructure:"prowlarr"`
 	QBittorrent QBittorrent `mapstructure:"qbittorrent"`
+	SABnzbd     SABnzbd     `mapstructure:"sabnzbd"`
 }
 
 // DefaultConfig returns the defaults every component starts from.
@@ -45,6 +46,7 @@ func DefaultConfig() Config {
 		AfterDark:   DefaultAfterDark(),
 		Prowlarr:    DefaultProwlarr(),
 		QBittorrent: DefaultQBittorrent(),
+		SABnzbd:     DefaultSABnzbd(),
 	}
 	deriveDataDirDefaults(&cfg)
 	return cfg
@@ -128,6 +130,9 @@ func Load(v *viper.Viper, configPath string) (Config, error) {
 	v.SetDefault("qbittorrent.base_url", defaults.QBittorrent.BaseURL)
 	v.SetDefault("qbittorrent.username", defaults.QBittorrent.Username)
 	v.SetDefault("qbittorrent.password", defaults.QBittorrent.Password)
+	v.SetDefault("sabnzbd.enabled", defaults.SABnzbd.Enabled)
+	v.SetDefault("sabnzbd.base_url", defaults.SABnzbd.BaseURL)
+	v.SetDefault("sabnzbd.api_key", defaults.SABnzbd.APIKey)
 
 	v.SetEnvPrefix("purser")
 	v.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))

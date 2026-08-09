@@ -767,6 +767,46 @@ func TestLoad_EnvOverridesQBittorrentEnabledBaseURLAndCredentials(t *testing.T) 
 	}
 }
 
+func TestLoad_UsesDefaultSABnzbdDisabledWithNoBaseURLOrAPIKey(t *testing.T) {
+	unsetEnvForTest(t, "PURSER_SABNZBD_ENABLED", "PURSER_SABNZBD_BASE_URL", "PURSER_SABNZBD_API_KEY")
+
+	cfg, err := config.Load(viper.New(), "")
+	if err != nil {
+		t.Fatalf("Load returned error: %v", err)
+	}
+	if cfg.SABnzbd.Enabled {
+		t.Fatal("Load returned SABnzbd.Enabled=true by default, want false")
+	}
+	if cfg.SABnzbd.BaseURL != "" {
+		t.Fatalf("Load returned SABnzbd.BaseURL=%q by default, want empty", cfg.SABnzbd.BaseURL)
+	}
+	if cfg.SABnzbd.APIKey != "" {
+		t.Fatalf("Load returned SABnzbd.APIKey=%q by default, want empty", cfg.SABnzbd.APIKey)
+	}
+}
+
+// PURSER_SABNZBD_* is a flat top-level key (Config.SABnzbd), not nested
+// under Sources — see config.SABnzbd's own doc comment for why.
+func TestLoad_EnvOverridesSABnzbdEnabledBaseURLAndAPIKey(t *testing.T) {
+	t.Setenv("PURSER_SABNZBD_ENABLED", "true")
+	t.Setenv("PURSER_SABNZBD_BASE_URL", "http://sabnzbd.local:8080/sabnzbd")
+	t.Setenv("PURSER_SABNZBD_API_KEY", "test-key")
+
+	cfg, err := config.Load(viper.New(), "")
+	if err != nil {
+		t.Fatalf("Load returned error: %v", err)
+	}
+	if !cfg.SABnzbd.Enabled {
+		t.Fatal("Load returned SABnzbd.Enabled=false, want true from env override")
+	}
+	if cfg.SABnzbd.BaseURL != "http://sabnzbd.local:8080/sabnzbd" {
+		t.Fatalf("Load returned SABnzbd.BaseURL=%q, want %q", cfg.SABnzbd.BaseURL, "http://sabnzbd.local:8080/sabnzbd")
+	}
+	if cfg.SABnzbd.APIKey != "test-key" {
+		t.Fatalf("Load returned SABnzbd.APIKey=%q, want %q", cfg.SABnzbd.APIKey, "test-key")
+	}
+}
+
 // unsetEnvForTest removes each of keys from the process environment for
 // the duration of t, restoring whatever value (set or unset) it found
 // beforehand once t completes. Unlike t.Setenv, this can actually remove a

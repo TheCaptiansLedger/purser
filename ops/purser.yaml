@@ -103,3 +103,12 @@ pipeline:
 #   base_url: http://prowlarr.local:9696/api/v1
 #   api_key: ""
 #   response_header_timeout: 45s
+
+# SABnzbd adapter (internal/adapters/sabnzbd) — see
+# docs/technical/acquisition-download-client.md. Disabled by default; no
+# public default instance exists, so base_url is required to enable it.
+# Authenticates via a static api_key query parameter, no login step.
+# sabnzbd:
+#   enabled: true
+#   base_url: http://sabnzbd.local:8080/sabnzbd
+#   api_key: ""

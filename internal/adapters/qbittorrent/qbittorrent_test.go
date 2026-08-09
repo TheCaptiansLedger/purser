@@ -94,7 +94,7 @@ func plainText(status int, body string) httpmock.Responder {
 }
 
 func TestClient_DownloadClientContract(t *testing.T) {
-	downloadclienttest.TestDownloadClient(t, func(t *testing.T, baseURL string) ports.DownloadClient {
+	downloadclienttest.TestDownloadClient(t, ports.ProtocolTorrent, func(t *testing.T, baseURL string) ports.DownloadClient {
 		return newTestClient(t, baseURL)
 	})
 }
