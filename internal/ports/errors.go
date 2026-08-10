@@ -26,7 +26,7 @@ var ErrDeletionBlocked = errors.New("deletion blocked: dependent records exist")
 
 // ErrLocked is returned by SettingsService's UpdateSettings/ResetSetting
 // when the caller names a key that is operator-locked (set via env var or
-// ops/purser.yaml) or bootstrap-locked (server.*, database.*, telemetry.*,
-// log.*, paths.*) — either way, the DB-overlay layer can never write it.
-// See docs/adr/0028-layered-settings.md.
+// ops/purser.yaml) or bootstrap-locked (database.*) — either way, the
+// DB-overlay layer can never write it. See
+// docs/adr/0028-layered-settings.md.
 var ErrLocked = errors.New("setting is locked")

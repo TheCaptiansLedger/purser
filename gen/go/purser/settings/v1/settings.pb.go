@@ -232,12 +232,11 @@ func (x *Setting) GetSecret() bool {
 }
 
 // GetSettingsRequest has no filter: every config key is returned in one
-// call, including bootstrap-locked keys (server.*, database.*,
-// telemetry.*, log.*, paths.*) so the UI can show them as
-// permanently-locked rather than omit them. The full key set is bounded
-// by internal/config's schema, not an unbounded collection — no
-// pagination per docs/adr/0011-api-design.md's pagination section, which
-// applies to genuinely unbounded lists.
+// call, including the bootstrap-locked database.* keys, so the UI can
+// show them as permanently-locked rather than omit them. The full key set
+// is bounded by internal/config's schema, not an unbounded collection —
+// no pagination per docs/adr/0011-api-design.md's pagination section,
+// which applies to genuinely unbounded lists.
 type GetSettingsRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	unknownFields protoimpl.UnknownFields

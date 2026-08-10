@@ -60,11 +60,21 @@ rejects writes to an operator-locked key.
 
 A key is **bootstrap-locked**, unconditionally, regardless of whether an
 operator set it, if it's needed to open the datastore in the first place:
-`server.*`, `database.*`, `telemetry.*`, `log.*`, `paths.*`. These can never
-appear in the DB-stored override layer — there is no chicken-and-egg
-workaround for "the DB connection settings live in the DB." Bootstrap keys
-are excluded from the DB-overlay key set entirely, not merely rejected at
-write time, so they never round-trip through `Setting` at all.
+`database.*` only. There is no chicken-and-egg workaround for "the DB
+connection settings live in the DB." Bootstrap keys are excluded from the
+DB-overlay key set entirely, not merely rejected at write time, so they
+never round-trip through `Setting` at all.
+
+`server.*`, `telemetry.*`, `log.*`, and `paths.*` do **not** need this
+treatment: `internal/config.Load()`'s bootstrap pass already resolves all
+four from flag/env/yaml/default before the datastore (and therefore
+`ApplyOverrides`) is ever reachable, so there's no ordering dependency to
+protect — they're ordinary DB-overlay-eligible keys, locked only if an
+operator explicitly set them via env/yaml, otherwise DB-editable and
+reflected live the next time the process reads them (some, like
+`log.level`, still take effect only after whatever consumer cached them
+re-reads — see the "Runtime effect without restart" section — but that's
+the same as any other DB-overlay key, not a bootstrap exemption).
 
 `GetSettings` reports both the boolean `locked` flag and which reason
 applies (`operator` vs. `bootstrap`), since the UI's messaging differs: an
@@ -192,9 +202,11 @@ matching today's [0010](0010-configuration.md) behavior exactly.
 
 ## Self-Audit Checklist
 
-1. Does any bootstrap key (`server.*`, `database.*`, `telemetry.*`,
-   `log.*`, `paths.*`) ever get written to or read from the `Setting`
-   store? If yes — fix it; these stay env/yaml/default only, permanently.
+1. Does `database.*` ever get written to or read from the `Setting`
+   store? If yes — fix it; it stays env/yaml/default only, permanently.
+   (`server.*`/`telemetry.*`/`log.*`/`paths.*` are ordinary
+   DB-overlay-eligible keys — see the bootstrap-locked section above for
+   why only `database.*` needs the structural exclusion.)
 2. Does `UpdateSettings`/`ResetSetting` ever write before checking both
    lock reasons (operator-locked *and* bootstrap-locked)? If yes — fix it.
 3. Does `GetSettings` return a secret field's real value instead of a

@@ -26,11 +26,11 @@ type snapshot struct {
 // reference observes the result of the most recent successful Refresh
 // without a restart, and never a partially applied merge pass.
 //
-// Live never touches the bootstrap-locked subset (server.*, database.*,
-// telemetry.*, log.*, paths.*) — ApplyOverrides itself excludes those keys
-// from the DB-overlay entirely. Callers needing bootstrap config keep
-// using the one-shot Config Load returns directly, exactly as before;
-// Live only matters for the fields ADR 0028 calls "DB-overlay-eligible."
+// Live never touches the bootstrap-locked subset (database.*) —
+// ApplyOverrides itself excludes those keys from the DB-overlay entirely.
+// Callers needing bootstrap config keep using the one-shot Config Load
+// returns directly, exactly as before; Live only matters for the fields
+// ADR 0028 calls "DB-overlay-eligible."
 type Live struct {
 	configPath string
 	repo       ports.SettingsRepository

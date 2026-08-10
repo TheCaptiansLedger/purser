@@ -50,10 +50,16 @@ type KeyStatus struct {
 }
 
 // bootstrapKeyPrefixes are the dotted key prefixes ApplyOverrides never
-// reads from or writes to the DB-overlay layer — the datastore itself
-// isn't reachable until these are already resolved (the chicken-and-egg
-// problem docs/adr/0028-layered-settings.md names explicitly).
-var bootstrapKeyPrefixes = []string{"server.", "database.", "telemetry.", "log.", "paths."}
+// reads from or writes to the DB-overlay layer. database. is the only
+// entry: resolving it requires opening the datastore that ApplyOverrides'
+// own SettingsRepository lives in — the chicken-and-egg problem
+// docs/adr/0028-layered-settings.md names explicitly. server./telemetry./
+// log./paths. don't have that problem — Load's bootstrap pass already
+// resolves them from flag/env/yaml/default before the datastore (and
+// therefore ApplyOverrides) is ever reachable — so they're ordinary
+// DB-overlay-eligible keys, locked only when an operator explicitly sets
+// them via env/yaml.
+var bootstrapKeyPrefixes = []string{"database."}
 
 func isBootstrapKey(key string) bool {
 	for _, p := range bootstrapKeyPrefixes {
