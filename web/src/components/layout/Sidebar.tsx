@@ -1,19 +1,27 @@
-import { ChevronLeft, ChevronRight, Home } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Home, Settings } from 'lucide-react'
 import { NavLink } from 'react-router-dom'
 import type { LucideIcon } from 'lucide-react'
 
 // NAV_ITEMS is a registry, not a hardcoded single link — module pages
 // (Music, AfterDark, Acquisition, Pipeline/Jobs) each add an entry here
 // later, per docs/design/ux-principles.md's "persistent primary
-// navigation across modules" rule. Only one entry exists today because
-// no module screens are built yet.
+// navigation across modules" rule.
+//
+// end controls NavLink's exact-match behavior: '/' must use exact
+// matching (every path starts with '/'), but a sectioned entry like
+// '/settings' should stay highlighted on its sub-routes
+// (/settings/config, /settings/jobs, ...), so it's computed per item
+// below rather than hardcoded.
 interface NavItem {
   to: string
   label: string
   icon: LucideIcon
 }
 
-const NAV_ITEMS: NavItem[] = [{ to: '/', label: 'Welcome', icon: Home }]
+const NAV_ITEMS: NavItem[] = [
+  { to: '/', label: 'Welcome', icon: Home },
+  { to: '/settings', label: 'Settings', icon: Settings },
+]
 
 interface SidebarProps {
   collapsed: boolean
@@ -49,7 +57,7 @@ export function Sidebar({ collapsed, onCollapsedChange, mobileOpen }: SidebarPro
             <NavLink
               key={item.to}
               to={item.to}
-              end
+              end={item.to === '/'}
               className={({ isActive }) =>
                 [
                   'flex items-center gap-3 h-10 px-3 rounded-lg text-body',
