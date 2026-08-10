@@ -131,5 +131,6 @@ func jobToProto(j *jobqueue.Job) *jobv1.Job {
 		FinishedAt: timestampToProto(j.FinishedAt),
 		Tasks:      tasks,
 		Progress:   j.Progress(),
+		Params:     j.Params,
 	}
 }

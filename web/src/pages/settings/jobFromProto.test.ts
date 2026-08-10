@@ -25,6 +25,8 @@ describe('jobFromProto', () => {
       startedAt,
       finishedAt: undefined,
       progress: 0.4,
+      tasks: [],
+      params: {},
     })
   })
 
@@ -50,6 +52,64 @@ describe('jobFromProto', () => {
       startedAt,
       finishedAt,
       progress: 1,
+      tasks: [],
+      params: {},
     })
+  })
+
+  it('carries the full Task/Step tree and params through, for the job detail modal (#608)', () => {
+    const stepStartedAt = new Date('2026-08-09T12:00:05Z')
+    const stepFinishedAt = new Date('2026-08-09T12:00:10Z')
+    const proto = create(JobSchema, {
+      id: 'job-3',
+      kind: 'diagnostic',
+      status: JobStatus.SUCCEEDED,
+      progress: 1,
+      params: { 'fail_at_step:a': '1' },
+      tasks: [
+        {
+          id: 'task-1',
+          label: '03 - Bella Donna.flac',
+          status: JobStatus.SUCCEEDED,
+          progress: 1,
+          steps: [
+            {
+              id: 'step-1',
+              name: 'compute hashes',
+              status: JobStatus.SUCCEEDED,
+              startedAt: timestampFromDate(stepStartedAt),
+              finishedAt: timestampFromDate(stepFinishedAt),
+              message: 'done',
+              detail: { sha256: 'abc123' },
+            },
+          ],
+        },
+      ],
+    })
+
+    const got = jobFromProto(proto)
+
+    expect(got.params).toEqual({ 'fail_at_step:a': '1' })
+    expect(got.tasks).toEqual([
+      {
+        id: 'task-1',
+        label: '03 - Bella Donna.flac',
+        status: 'succeeded',
+        startedAt: undefined,
+        finishedAt: undefined,
+        progress: 1,
+        steps: [
+          {
+            id: 'step-1',
+            name: 'compute hashes',
+            status: 'succeeded',
+            startedAt: stepStartedAt,
+            finishedAt: stepFinishedAt,
+            message: 'done',
+            detail: { sha256: 'abc123' },
+          },
+        ],
+      },
+    ])
   })
 })

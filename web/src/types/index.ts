@@ -50,12 +50,40 @@ export type SettingCategory =
 // Task or Step.
 export type JobStatus = 'unspecified' | 'pending' | 'running' | 'succeeded' | 'failed' | 'partial'
 
-// Job mirrors purser.job.v1.Job, limited to the fields the Jobs tab (#606)
-// reads — Task/Step trees are out of scope until the detail modal (#608).
-// created/started/finishedAt are undefined when the wire Timestamp is
-// unset (a pending Job has no startedAt; a running Job has no
-// finishedAt), converted via @bufbuild/protobuf/wkt's timestampDate.
-// progress is server-computed from the Job's Tasks, not derived here.
+// Step mirrors purser.job.v1.Step — one discrete action taken on a Task
+// (e.g. "compute hashes"). detail carries structured, step-specific
+// results (a matched MBID, a computed confidence score) the job detail
+// modal (#608) renders as a key/value list. See docs/adr/0023-job-queue.md.
+export interface Step {
+  id: string
+  name: string
+  status: JobStatus
+  startedAt: Date | undefined
+  finishedAt: Date | undefined
+  message: string
+  detail: Record<string, string>
+}
+
+// Task mirrors purser.job.v1.Task — one unit of work within a Job (one
+// file, one track). progress is server-computed from its Steps, not
+// derived here.
+export interface Task {
+  id: string
+  label: string
+  status: JobStatus
+  startedAt: Date | undefined
+  finishedAt: Date | undefined
+  steps: Step[]
+  progress: number
+}
+
+// Job mirrors purser.job.v1.Job. created/started/finishedAt are undefined
+// when the wire Timestamp is unset (a pending Job has no startedAt; a
+// running Job has no finishedAt), converted via @bufbuild/protobuf/wkt's
+// timestampDate. progress is server-computed from the Job's Tasks, not
+// derived here. tasks/params are the full Task/Step tree and the Job's
+// trigger params, both unused by the Jobs tab (#606) table and read only
+// by the job detail modal (#608).
 export interface Job {
   id: string
   kind: string
@@ -64,4 +92,6 @@ export interface Job {
   startedAt: Date | undefined
   finishedAt: Date | undefined
   progress: number
+  tasks: Task[]
+  params: Record<string, string>
 }

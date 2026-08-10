@@ -1,14 +1,17 @@
+import { useState } from 'react'
 import { JobStatusBadge } from '../../components/JobStatusBadge'
 import { useJobsList } from '../../hooks/useJobsList'
 import { jobFromProto } from './jobFromProto'
 import { formatJobProgress, formatJobTimestamp } from './jobFormat'
+import { JobDetailModal } from './JobDetailModal'
 
 // JobsTab is #606's Jobs tab: a cursor-paginated (ListJobs, page_size/
 // page_token — see docs/adr/0023-job-queue.md), scrollable table of every
-// job the server has tracked. Row click / live detail (WatchJob) is
-// #607/#608, not this pass — see docs/adr/0011-api-design.md.
+// job the server has tracked. Each row's Details button opens the live,
+// streamed (WatchJob) detail modal (#608) — see docs/adr/0011-api-design.md.
 export function JobsTab() {
   const jobsQuery = useJobsList()
+  const [selectedJobId, setSelectedJobId] = useState<string | undefined>()
 
   // Doherty threshold — see docs/design/ux-principles.md#feedback--system-status.
   // A local Connect round trip resolves well under 400ms; a loading
@@ -43,6 +46,9 @@ export function JobsTab() {
               <th className="px-3 py-2 font-medium">Started</th>
               <th className="px-3 py-2 font-medium">Finished</th>
               <th className="px-3 py-2 font-medium">Progress</th>
+              <th className="px-3 py-2 font-medium">
+                <span className="sr-only">Details</span>
+              </th>
             </tr>
           </thead>
           <tbody>
@@ -56,6 +62,15 @@ export function JobsTab() {
                 <td className="px-3 py-2 text-text-secondary">{formatJobTimestamp(job.startedAt)}</td>
                 <td className="px-3 py-2 text-text-secondary">{formatJobTimestamp(job.finishedAt)}</td>
                 <td className="px-3 py-2 text-text-secondary">{formatJobProgress(job.progress)}</td>
+                <td className="px-3 py-2">
+                  <button
+                    type="button"
+                    onClick={() => setSelectedJobId(job.id)}
+                    className="text-label font-medium text-text-secondary hover:text-text"
+                  >
+                    Details
+                  </button>
+                </td>
               </tr>
             ))}
           </tbody>
@@ -73,6 +88,7 @@ export function JobsTab() {
           </button>
         </div>
       )}
+      {selectedJobId && <JobDetailModal jobId={selectedJobId} onClose={() => setSelectedJobId(undefined)} />}
     </div>
   )
 }

@@ -4,16 +4,22 @@ import { create } from '@bufbuild/protobuf'
 import { timestampFromDate } from '@bufbuild/protobuf/wkt'
 import type { MessageInitShape } from '@bufbuild/protobuf'
 import { useJobsList } from '../../hooks/useJobsList'
+import { useWatchJob } from '../../hooks/useWatchJob'
 import { JobSchema, JobStatus } from '../../gen/purser/job/v1/job_pb'
 import { JobsTab } from './JobsTab'
 
 // Page-level test: composition only, per ADR 0004 — jobFromProto's own
 // conversion is tested in jobFromProto.test.ts, JobStatusBadge's own
-// color/label mapping in JobStatusBadge.test.tsx, and useJobsList's wire
-// behavior in useJobsList.test.tsx. Here the hook is mocked directly so
-// every state is reachable deterministically.
+// color/label mapping in JobStatusBadge.test.tsx, useJobsList's wire
+// behavior in useJobsList.test.tsx, and JobDetailModal's own rendering in
+// JobDetailModal.test.tsx. Here both hooks are mocked directly so every
+// state is reachable deterministically.
 vi.mock('../../hooks/useJobsList')
 const mockUseJobsList = vi.mocked(useJobsList)
+
+vi.mock('../../hooks/useWatchJob')
+const mockUseWatchJob = vi.mocked(useWatchJob)
+mockUseWatchJob.mockReturnValue({ job: undefined, event: undefined, error: undefined, done: false })
 
 function proto(overrides: MessageInitShape<typeof JobSchema>) {
   return create(JobSchema, {
@@ -126,5 +132,27 @@ describe('JobsTab', () => {
 
     rerender(<JobsTab />)
     expect(screen.queryByRole('button', { name: 'Load more' })).not.toBeInTheDocument()
+  })
+
+  it('opens the job detail modal for the clicked row, and closes it', () => {
+    mockUseJobsList.mockReturnValue({
+      isPending: false,
+      isError: false,
+      data: { pages: [{ jobs: [proto({ id: 'job-1' }), proto({ id: 'job-2' })], nextPageToken: '' }] },
+      error: null,
+      hasNextPage: false,
+      isFetchingNextPage: false,
+      fetchNextPage: vi.fn(),
+    } as unknown as ReturnType<typeof useJobsList>)
+
+    render(<JobsTab />)
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getAllByRole('button', { name: 'Details' })[0])
+    expect(mockUseWatchJob).toHaveBeenLastCalledWith('job-1')
+    expect(screen.getByRole('dialog')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Close' }))
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
   })
 })

@@ -247,6 +247,7 @@ func TestJobHandler_GetJob(t *testing.T) {
 		Kind:      "diagnostic",
 		Status:    jobqueue.StatusSucceeded,
 		CreatedAt: now,
+		Params:    map[string]string{"fail_at_step:a": "1"},
 		Tasks: []*jobqueue.Task{
 			{ID: "task-1", Label: "one", Status: jobqueue.StatusSucceeded, Steps: []*jobqueue.Step{
 				{ID: "step-1", Name: "initialize", Status: jobqueue.StatusSucceeded, Detail: map[string]string{"elapsed_ms": "50"}},
@@ -275,6 +276,9 @@ func TestJobHandler_GetJob(t *testing.T) {
 	}
 	if got.GetTasks()[0].GetSteps()[0].GetDetail()["elapsed_ms"] != "50" {
 		t.Fatalf("GetJob did not round-trip step detail: %+v", got.GetTasks()[0].GetSteps()[0])
+	}
+	if got.GetParams()["fail_at_step:a"] != "1" {
+		t.Fatalf("GetJob did not round-trip job params: %+v", got.GetParams())
 	}
 }
 

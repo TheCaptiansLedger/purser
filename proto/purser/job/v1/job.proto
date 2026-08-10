@@ -57,6 +57,10 @@ message Job {
   google.protobuf.Timestamp finished_at = 6;
   repeated Task tasks = 7;
   double progress = 8;
+  // params echoes the opaque, kind-specific configuration the Job was
+  // triggered with (TriggerJobRequest.params) — read-only here, surfaced
+  // for the job detail view. See docs/adr/0023-job-queue.md.
+  map<string, string> params = 9;
 }
 
 message TriggerJobRequest {
