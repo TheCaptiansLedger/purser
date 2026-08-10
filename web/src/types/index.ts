@@ -43,3 +43,25 @@ export type SettingCategory =
   | 'afterdark'
   | 'downloadClients'
   | 'modules'
+
+// JobStatus mirrors purser.job.v1.JobStatus (web/src/gen/purser/job/v1/job_pb.ts)
+// as plain string literals — see docs/adr/0023-job-queue.md. 'partial'
+// applies only to a Job (some Tasks succeeded, some failed), never to a
+// Task or Step.
+export type JobStatus = 'unspecified' | 'pending' | 'running' | 'succeeded' | 'failed' | 'partial'
+
+// Job mirrors purser.job.v1.Job, limited to the fields the Jobs tab (#606)
+// reads — Task/Step trees are out of scope until the detail modal (#608).
+// created/started/finishedAt are undefined when the wire Timestamp is
+// unset (a pending Job has no startedAt; a running Job has no
+// finishedAt), converted via @bufbuild/protobuf/wkt's timestampDate.
+// progress is server-computed from the Job's Tasks, not derived here.
+export interface Job {
+  id: string
+  kind: string
+  status: JobStatus
+  createdAt: Date | undefined
+  startedAt: Date | undefined
+  finishedAt: Date | undefined
+  progress: number
+}
