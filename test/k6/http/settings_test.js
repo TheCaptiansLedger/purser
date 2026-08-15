@@ -42,7 +42,10 @@ export default () => {
   const stashDBAPIKey = settings.find((s) => s.key === 'sources.stashdb.api_key');
   check(stashDBAPIKey, {
     'sources.stashdb.api_key is marked secret': (s) => !!s && s.secret === true,
-    'sources.stashdb.api_key value is never plaintext': (s) => s.value === '' || s.value === '********',
+    // An unset secret's value is the empty string (docs/adr/0028-layered-settings.md),
+    // which protojson omits from the response entirely rather than emitting
+    // `"value": ""` — so the unset case shows up here as undefined, not ''.
+    'sources.stashdb.api_key value is never plaintext': (s) => !s.value || s.value === '********',
   });
 
   // UpdateSettings writes a new value for an unlocked key and reflects the

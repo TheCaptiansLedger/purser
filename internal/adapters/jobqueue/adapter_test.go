@@ -114,17 +114,12 @@ func TestAdapter_Watch(t *testing.T) {
 
 	var last *pkgjobqueue.Event
 	deadline := time.After(2 * time.Second)
+loop:
 	for {
 		select {
 		case evt, ok := <-events:
 			if !ok {
-				if last == nil {
-					t.Fatal("Watch channel closed with no events delivered")
-				}
-				if last.Job.Status != pkgjobqueue.StatusSucceeded {
-					t.Fatalf("last event's job status = %q, want %q", last.Job.Status, pkgjobqueue.StatusSucceeded)
-				}
-				return
+				break loop
 			}
 			if evt.Job.ID != id {
 				t.Fatalf("event job id = %q, want %q", evt.Job.ID, id)
@@ -133,6 +128,21 @@ func TestAdapter_Watch(t *testing.T) {
 		case <-deadline:
 			t.Fatal("Watch did not close within the deadline")
 		}
+	}
+
+	// Checked outside the select/for above (rather than in the channel-close
+	// branch itself) so staticcheck's terminating-call analysis for t.Fatal
+	// can actually follow the nil guard — nested inside a select case, SA5011
+	// loses track of it and flags last.Job.Status below as a possible nil
+	// dereference even though t.Fatal never returns. The explicit return
+	// (redundant with t.Fatal's own runtime.Goexit) is what SA5011's
+	// pattern-matching actually keys off, not just the terminating call.
+	if last == nil {
+		t.Fatal("Watch channel closed with no events delivered")
+		return
+	}
+	if last.Job.Status != pkgjobqueue.StatusSucceeded {
+		t.Fatalf("last event's job status = %q, want %q", last.Job.Status, pkgjobqueue.StatusSucceeded)
 	}
 }
 
