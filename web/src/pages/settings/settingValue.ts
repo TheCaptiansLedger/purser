@@ -1,6 +1,7 @@
 import type { Setting } from '../../types'
+import type { ScanRootValue } from '../../components/ScanRootsInput'
 
-export type ParsedSettingValue = string | number | boolean | string[]
+export type ParsedSettingValue = string | number | boolean | string[] | ScanRootValue[]
 
 // parseSettingValue reads setting.value into its real JS shape.
 // Non-secret values are JSON-encoded (per web/src/types/index.ts's

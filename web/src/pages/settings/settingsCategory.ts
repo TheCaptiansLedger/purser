@@ -1,4 +1,5 @@
 import type { Setting, SettingCategory } from '../../types'
+import { fieldCategory } from './settingFields'
 
 interface CategoryDef {
   category: SettingCategory
@@ -10,9 +11,14 @@ interface CategoryDef {
 // NAV_ITEMS/TAB_ITEMS pattern used elsewhere in this app. Order here is
 // the Config tab's card display order.
 //
-// This is a UI-only grouping by dotted-key prefix; neither the proto nor
-// SettingsService models "category" — GetSettings returns one flat list
-// (see web/src/types/index.ts's SettingCategory doc comment).
+// This is a UI-only grouping by owning *module*, not by the config file's
+// top-level YAML section — neither the proto nor SettingsService models
+// "category" — GetSettings returns one flat list (see
+// web/src/types/index.ts's SettingCategory doc comment). The prefixes
+// below are only the fallback for a key settingFields.ts's per-key
+// registry doesn't explicitly override (see categoryOf) — module
+// enabled/roots keys and any future, not-yet-registered key still resolve
+// correctly from their dotted prefix alone.
 //
 // database. is the only prefix internal/config/overlay.go structurally
 // excludes from the DB-overlay layer (bootstrap-locked, unconditionally —
@@ -26,24 +32,38 @@ const CATEGORY_DEFS: CategoryDef[] = [
   { category: 'database', label: 'Database', prefixes: ['database.'] },
   { category: 'media', label: 'Media', prefixes: ['media.'] },
   { category: 'pipeline', label: 'Pipeline', prefixes: ['pipeline.'] },
-  { category: 'sources', label: 'Sources', prefixes: ['sources.', 'musicbrainz.', 'acoustid.'] },
-  { category: 'afterdark', label: 'AfterDark', prefixes: ['afterdark.'] },
+  {
+    category: 'music',
+    label: 'Music',
+    prefixes: ['modules.music.', 'musicbrainz.', 'acoustid.', 'sources.theaudiodb.', 'sources.fanart.'],
+  },
+  {
+    category: 'afterdark',
+    label: 'AfterDark',
+    prefixes: ['modules.afterdark.', 'afterdark.', 'sources.stashdb.', 'sources.tpdb.'],
+  },
+  { category: 'movies', label: 'Movies', prefixes: ['modules.movies.'] },
+  { category: 'tv', label: 'TV', prefixes: ['modules.tv.'] },
+  { category: 'books', label: 'Books', prefixes: ['modules.books.'] },
   {
     category: 'downloadClients',
     label: 'Prowlarr / QBittorrent / SABnzbd',
     prefixes: ['prowlarr.', 'qbittorrent.', 'sabnzbd.'],
   },
-  { category: 'modules', label: 'Modules', prefixes: ['modules.'] },
 ]
 
 export const CATEGORY_ORDER: SettingCategory[] = CATEGORY_DEFS.map(d => d.category)
 
-// categoryOf returns key's card category, or undefined for a key with no
-// registered prefix — a future internal/config key added without a
-// matching entry above, which groupSettingsByCategory below drops rather
-// than crashing on.
+// categoryOf returns key's card category: settingFields.ts's per-key
+// registry wins first (that's what lets pipeline.organize.adult.template
+// and sources.stashdb.* land on the same AfterDark card despite sharing
+// no dotted prefix with each other or with afterdark.*), falling back to
+// the longest-match-first prefix table above, or undefined for a key with
+// no registered prefix at all — a future internal/config key added
+// without a matching entry, which groupSettingsByCategory below drops
+// rather than crashing on.
 export function categoryOf(key: string): SettingCategory | undefined {
-  return CATEGORY_DEFS.find(def => def.prefixes.some(prefix => key.startsWith(prefix)))?.category
+  return fieldCategory(key) ?? CATEGORY_DEFS.find(def => def.prefixes.some(prefix => key.startsWith(prefix)))?.category
 }
 
 export function categoryLabel(category: SettingCategory): string {

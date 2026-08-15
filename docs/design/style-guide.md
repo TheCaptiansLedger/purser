@@ -19,7 +19,7 @@ Two token layers (Material 3's reference/system layering, adapted — see
 [Reference stack](ux-principles.md#reference-stack)):
 
 1. **Palette tokens** — raw values, never referenced directly by
-   components: `--palette-ink-950: #08080e`, `--palette-violet-500: ...`,
+   components: `--palette-ink-950: #1d2021`, `--palette-aqua-500: ...`,
    etc.
 2. **Semantic tokens** — what components actually use:
    `--color-bg`, `--color-surface`, `--color-surface-raised`,
@@ -39,42 +39,51 @@ and raw CSS resolve the same tokens.
 
 Every value below is verified, not assumed — contrast ratios are
 computed with the WCAG relative-luminance formula against the actual
-neutral tokens they're paired with, not eyeballed from the pre-reset
-hexes they mostly (but not entirely) carry forward.
+neutral tokens they're paired with.
+
+**Palette: Gruvbox Dark**, adapted rather than copied verbatim — the
+prior neutral-indigo palette is replaced token-for-token, every pairing
+re-verified against this app's own actual usages (body text, status
+badges, a button/toggle's solid-fill-with-text-on-top pattern), not
+assumed compatible just because Gruvbox itself is a known-good scheme.
+Since every component already reads colors through the semantic tokens
+below rather than a hardcoded hex, this is a one-file swap
+(`web/src/index.css`) with app-wide effect, not a component-by-component
+rewrite — exactly the point of the token architecture above.
 
 ### Neutral scale
 
-Starting point is this project's own prior art (`web/src/index.css`,
-pre-reset):
-
 | Token | Value | Use |
 |---|---|---|
-| `--color-bg` | `#08080e` | App background |
-| `--color-surface` | `#0f0f1a` | Cards, panels |
-| `--color-surface-raised` | `#161628` | Modals, popovers, hover state |
-| `--color-border` | `rgba(255,255,255,0.06)` | Default dividers |
-| `--color-border-hover` | `rgba(255,255,255,0.14)` | Interactive-element border on hover/focus |
-| `--color-text` | `#f0f0f8` | Primary text |
-| `--color-text-secondary` | `#8080a0` | Secondary text, metadata |
-| `--color-text-muted` | `#50506a` | Disabled/placeholder only — see restriction below |
+| `--color-bg` | `#1d2021` | App background (Gruvbox `bg0_h`) |
+| `--color-surface` | `#282828` | Cards, panels (Gruvbox `bg0`) |
+| `--color-surface-raised` | `#3c3836` | Modals, popovers, hover state (Gruvbox `bg1`) |
+| `--color-border` | `rgba(235,219,178,0.08)` | Default dividers (Gruvbox `fg1` tint) |
+| `--color-border-hover` | `rgba(235,219,178,0.18)` | Interactive-element border on hover/focus |
+| `--color-text` | `#ebdbb2` | Primary text (Gruvbox `fg1`) |
+| `--color-text-secondary` | `#bdae93` | Secondary text, metadata (Gruvbox `fg3`) |
+| `--color-text-muted` | `#665c54` | Disabled/placeholder only — see restriction below (Gruvbox `bg3`) |
 
 Computed body-text contrast (WCAG 1.4.3, AA needs ≥4.5:1):
 
 | Pair | Ratio | Passes AA? |
 |---|---|---|
-| `--color-text` on `--color-bg` | 17.62:1 | Yes |
-| `--color-text` on `--color-surface` | 16.79:1 | Yes |
-| `--color-text` on `--color-surface-raised` | 15.71:1 | Yes |
-| `--color-text-secondary` on `--color-bg` | 5.24:1 | Yes |
-| `--color-text-secondary` on `--color-surface` | 5.00:1 | Yes |
-| `--color-text-secondary` on `--color-surface-raised` | 4.67:1 | Yes |
-| `--color-text-muted` on any surface | 2.29–2.56:1 | **No** |
+| `--color-text` on `--color-bg` | 11.95:1 | Yes |
+| `--color-text` on `--color-surface` | 10.75:1 | Yes |
+| `--color-text` on `--color-surface-raised` | 8.45:1 | Yes |
+| `--color-text-secondary` on `--color-bg` | 7.53:1 | Yes |
+| `--color-text-secondary` on `--color-surface` | 6.77:1 | Yes |
+| `--color-text-secondary` on `--color-surface-raised` | 5.32:1 | Yes |
+| `--color-text-muted` on any surface | 1.78–2.52:1 | **No** |
 
 **`--color-text-muted` fails AA outright and must stay restricted to
 disabled/placeholder UI, never used for text that conveys real
 information.** WCAG's contrast criteria don't apply to inactive controls,
 which is the only reason this token is usable at all — treat that as a
 hard boundary on where it appears, not an oversight to eventually fix.
+(Concretely: a settings field's unit hint — "e.g. 45s" — is real
+information and must render at `--color-text-secondary`, not
+`--color-text-muted`, even though a hint reads as secondary/minor.)
 
 ### Content-type accents
 
@@ -86,13 +95,16 @@ the 4.5:1 text floor.
 
 | Content type | Token | Hex | vs. surface | vs. bg |
 |---|---|---|---|---|
-| `music` | `--color-accent-music` | `#10b981` | 7.50:1 | 7.87:1 |
-| `afterdark` | `--color-accent-afterdark` | `#f43f5e` | 5.18:1 | 5.44:1 |
+| `music` | `--color-accent-music` | `#b8bb26` | 7.14:1 | 7.94:1 |
+| `afterdark` | `--color-accent-afterdark` | `#fb4934` | 4.29:1 | 4.77:1 |
 
-Both are the exact pre-reset values (`web/src/config/modules.ts`) — kept
-as-is since they already clear WCAG by a wide margin and are real,
-previously-shipped prior art, not invented fresh. Adding a third content
-type later: pick the next unused Tailwind 500-level hue, verify it here
+Gruvbox's bright green and bright red — chosen to land on the same hue
+family (green/red) the prior indigo-era palette used for these two
+content types, so the association carries over even though the exact
+hexes don't. Adding a third content type later: pick the next unused
+Gruvbox "bright" hue (`yellow` `#fabd2f`, `purple` `#d3869b`, and `blue`
+`#83a598`/`aqua` `#8ec07c` are already spoken for by the system accent and
+status buckets below — prefer `orange` `#fe8019` next), verify it here
 before use, extend this table — never hardcode a switch over a fixed set
 of content types (that's exactly what
 [ux-principles.md](ux-principles.md#state-vocabulary) already forbids for
@@ -106,33 +118,53 @@ whichever content type's items happen to be passing through them:
 
 | Surface | Token | Hex | vs. surface |
 |---|---|---|---|
-| System/neutral (Library umbrella, Acquisition, Pipeline/Jobs, People, Tags, Settings) | `--color-accent-system` | `#6366f1` | 4.26:1 |
+| System/neutral (Library umbrella, Acquisition, Pipeline/Jobs, People, Tags, Settings) | `--color-accent-system` | `#83a598` | 5.48:1 |
+
+**`--color-accent-system` as a solid button/toggle fill needs dark text on
+top, not light.** The token itself (Gruvbox bright blue) is light enough
+that `--color-text` on top of it is only 1.96:1 — badly fails AA. Where a
+component paints text directly on a solid `bg-accent-system` fill (the
+Config tab's Save button; a checked `Toggle`'s thumb; nothing else does
+today), pair it with `--color-bg` instead: `6.09:1`, comfortably passes.
+Every other `accent-system` use (nav icons, borders, tints) is a non-text
+UI element and stays at the 3:1 floor verified above.
 
 ### Status/semantic tokens
 
 A single shared 7-bucket palette that **every** state-bearing entity
 maps onto, instead of four independent color systems. Rendered the same
 way the pre-reset `ItemStatusBadge` shipped it: badge text is the full
-color, badge background is that same color at ~13% alpha over
-`--color-surface`.
+color, badge background is that same color at **8% alpha** over
+`--color-surface` (down from the pre-Gruvbox 13% — Gruvbox's `bg0` is
+lighter than the prior near-black surface, so the same 13% tint left less
+room between tint and text; 8% restores the same comfortable margin).
 
 | Bucket | Token | Hex | Text-on-own-tint contrast |
 |---|---|---|---|
-| Pending / not started | `--color-status-pending` | `#60a5fa` | 6.16:1 |
-| Queued / next-up | `--color-status-queued` | `#a78bfa` | 5.78:1 |
-| Active / in progress | `--color-status-active` | `#818cf8` | 5.34:1 |
-| Success | `--color-status-success` (= `--color-success`) | `#34d399` | 7.91:1 |
-| Warning / partial / paused | `--color-status-warning` (= `--color-warning`) | `#fbbf24` | 8.93:1 |
-| Failure | `--color-status-failure` (= `--color-danger`) | `#f87171` | 5.79:1 |
-| Neutral / skipped / dismissed | `--color-status-neutral` | `#9ca3af` | 6.14:1 |
+| Pending / not started | `--color-status-pending` | `#83a598` | 4.81:1 |
+| Queued / next-up | `--color-status-queued` | `#d3869b` | 4.71:1 |
+| Active / in progress | `--color-status-active` | `#fabd2f` | 7.30:1 |
+| Success | `--color-status-success` (= `--color-success`) | `#b8bb26` | 6.10:1 |
+| Warning / partial / paused | `--color-status-warning` (= `--color-warning`) | `#fe8019` | 5.17:1 |
+| Failure | `--color-status-failure` (= `--color-danger`) | `#fb6b51` | 4.62:1 |
+| Neutral / skipped / dismissed | `--color-status-neutral` | `#a89984` | 4.67:1 |
 
-Every bucket clears 4.5:1 as badge text by a comfortable margin. Six of
-these seven hexes are the pre-reset `ItemStatusBadge`'s exact values;
-`queued` is the one addition, needed because `Item.Status` already has a
-third "in-between" step (`Grabbed`, between not-yet-started and actively
-transferring) that a 2-bucket pending/active split can't express — and
-reusing it lets `Download`'s `Paused` land on `warning` rather than
-inventing an eighth bucket.
+Every bucket clears 4.5:1 as badge text. `--color-status-failure` is a
+**lightened** variant of Gruvbox's canonical bright red (`#fb4934`,
+mixed ~20% toward Gruvbox's `fg0` white) rather than that hex directly —
+saturated red's low WCAG luminance weight means the canonical value
+plateaus at 3.7–3.9:1 against any tint dark enough to still read as "a
+red badge," no matter how the tint alpha is tuned; every other bucket
+reaches 4.5:1 at 8% alpha without adjustment. `--color-accent-afterdark`
+(the content-type accent, a purely non-text 3:1 use) keeps the canonical,
+unlightened red — the two tokens are independent even though they're
+both "red."
+
+`--color-danger`/`--color-success`/`--color-warning` (referenced earlier
+in this doc under Iconography/Motion) are aliases of the `failure`/
+`success`/`warning` buckets — a form-validation error and a `Job`'s
+"Failed" badge are deliberately the same visual signal, not two
+unrelated reds.
 
 `--color-danger`/`--color-success`/`--color-warning` (referenced earlier
 in this doc under Iconography/Motion) are aliases of the `failure`/

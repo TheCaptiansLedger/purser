@@ -8,6 +8,11 @@ describe('parseSettingValue', () => {
     expect(parseSettingValue({ value: '["/roots/a","/roots/b"]', secret: false })).toEqual(['/roots/a', '/roots/b'])
   })
 
+  it('JSON-parses a struct-array value (pipeline.scan_roots) into real objects, not strings', () => {
+    const value = '[{"path":"/media/incoming","content_type":"music"}]'
+    expect(parseSettingValue({ value, secret: false })).toEqual([{ path: '/media/incoming', content_type: 'music' }])
+  })
+
   it('treats an unset secret as an empty string, never JSON.parse-ing it', () => {
     expect(parseSettingValue({ value: '', secret: true })).toBe('')
   })

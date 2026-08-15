@@ -20,4 +20,9 @@ describe('TextInput', () => {
     fireEvent.change(input, { target: { value: '0.9' } })
     expect(onChange).toHaveBeenCalledWith(0.9)
   })
+
+  it('appends an optional unit hint to the label text', () => {
+    render(<TextInput label="Response timeout" value="45s" onChange={vi.fn()} hint="Go duration, e.g. 45s" />)
+    expect(screen.getByLabelText('Response timeout (Go duration, e.g. 45s)')).toBeInTheDocument()
+  })
 })

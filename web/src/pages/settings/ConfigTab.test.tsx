@@ -83,7 +83,7 @@ describe('ConfigTab', () => {
     render(<ConfigTab />)
 
     const headings = screen.getAllByRole('heading', { level: 2 }).map(h => h.textContent)
-    expect(headings).toEqual(['Database', 'Modules'])
+    expect(headings).toEqual(['Database', 'Movies'])
   })
 
   it('saves a dirty field via updateSettings and refetches on success', async () => {
@@ -105,7 +105,7 @@ describe('ConfigTab', () => {
 
     render(<ConfigTab />)
 
-    fireEvent.click(screen.getByRole('switch', { name: 'modules.movies.enabled' }))
+    fireEvent.click(screen.getByRole('switch', { name: 'Enabled' }))
     fireEvent.click(screen.getByRole('button', { name: 'Save changes' }))
 
     await waitFor(() =>

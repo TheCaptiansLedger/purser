@@ -16,24 +16,25 @@ function baseSetting(overrides: Partial<Setting>): Setting {
 }
 
 describe('SettingsCard', () => {
-  it('renders a locked key read-only with its lock reason, no input', () => {
+  it('renders a locked key read-only, by its human label, with its lock reason and no input', () => {
     const settings = [
       baseSetting({ key: 'database.driver', value: '"badger"', locked: true, lockReason: 'bootstrap' }),
     ]
     render(<SettingsCard category="database" settings={settings} onSave={vi.fn()} onReset={vi.fn()} saving={false} resettingKey={null} />)
 
-    expect(screen.getByText('database.driver')).toBeInTheDocument()
+    expect(screen.getByText('Driver')).toBeInTheDocument()
     expect(screen.getByText('badger')).toBeInTheDocument()
     expect(screen.getByText('Requires restart')).toBeInTheDocument()
-    expect(screen.queryByLabelText('database.driver')).not.toBeInTheDocument()
+    expect(screen.queryByText('database.driver')).not.toBeInTheDocument()
+    expect(screen.queryByLabelText('Driver')).not.toBeInTheDocument()
   })
 
-  it('edits an unlocked toggle and batches only the dirty key on Save', async () => {
+  it('edits an unlocked toggle by its human label and batches only the dirty key on Save', async () => {
     const onSave = vi.fn().mockResolvedValue(undefined)
     const settings = [baseSetting({ key: 'modules.movies.enabled', value: 'false' })]
-    render(<SettingsCard category="modules" settings={settings} onSave={onSave} onReset={vi.fn()} saving={false} resettingKey={null} />)
+    render(<SettingsCard category="movies" settings={settings} onSave={onSave} onReset={vi.fn()} saving={false} resettingKey={null} />)
 
-    fireEvent.click(screen.getByRole('switch', { name: 'modules.movies.enabled' }))
+    fireEvent.click(screen.getByRole('switch', { name: 'Enabled' }))
     fireEvent.click(screen.getByRole('button', { name: 'Save changes' }))
 
     expect(onSave).toHaveBeenCalledWith({ 'modules.movies.enabled': 'true' })
@@ -54,12 +55,30 @@ describe('SettingsCard', () => {
     expect(onReset).toHaveBeenCalledWith('media.path')
   })
 
-  it('never pre-fills a set secret with its masked placeholder', () => {
-    const settings = [baseSetting({ key: 'sources.stashdb.api_key', value: '********', secret: true })]
-    render(<SettingsCard category="sources" settings={settings} onSave={vi.fn()} onReset={vi.fn()} saving={false} resettingKey={null} />)
+  it('shows a unit hint alongside a numeric field with one registered', () => {
+    const settings = [baseSetting({ key: 'pipeline.confidence_threshold', value: '0.8' })]
+    render(<SettingsCard category="pipeline" settings={settings} onSave={vi.fn()} onReset={vi.fn()} saving={false} resettingKey={null} />)
 
-    const input = screen.getByLabelText<HTMLInputElement>('sources.stashdb.api_key')
+    expect(screen.getByLabelText('Match Confidence Threshold (0.0–1.0)')).toBeInTheDocument()
+  })
+
+  it('never pre-fills a set secret with its masked placeholder, and labels it by product name', () => {
+    const settings = [baseSetting({ key: 'sources.stashdb.api_key', value: '********', secret: true })]
+    render(<SettingsCard category="afterdark" settings={settings} onSave={vi.fn()} onReset={vi.fn()} saving={false} resettingKey={null} />)
+
+    const input = screen.getByLabelText<HTMLInputElement>('StashDB API Key')
     expect(input.value).toBe('')
     expect(input.placeholder).toBe('Set — enter a new value to replace')
+  })
+
+  it('renders an info popover trigger next to a rename-template field, none for an ordinary field', () => {
+    const settings = [
+      baseSetting({ key: 'pipeline.organize.adult.template', value: '"{{.SceneTitle}}"' }),
+      baseSetting({ key: 'media.path' }),
+    ]
+    render(<SettingsCard category="afterdark" settings={settings} onSave={vi.fn()} onReset={vi.fn()} saving={false} resettingKey={null} />)
+
+    expect(screen.getByRole('button', { name: 'Show available fields for Rename Template' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Show available fields for Media Path/ })).not.toBeInTheDocument()
   })
 })

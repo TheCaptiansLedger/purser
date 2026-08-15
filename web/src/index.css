@@ -7,6 +7,12 @@
  * has a verified source (WCAG contrast ratios, prior-art frequency
  * analysis) documented there. Change the doc first, then this file.
  *
+ * Palette: Gruvbox Dark (retro-warm, medium-contrast) — adapted, not
+ * copied verbatim; every value below is re-verified against this app's
+ * own semantic pairings (body text, status badges, button fills) rather
+ * than assumed compatible just because it's a "dark theme." See
+ * docs/design/style-guide.md#color for the full contrast-ratio tables.
+ *
  * Spacing and radius are NOT overridden here — the style guide's named
  * steps (Micro/Tight/Compact/Base/...) are documentation labels for
  * Tailwind's own unmodified default scale, not a custom scale (see
@@ -16,28 +22,28 @@
   --font-sans: 'Inter Variable', system-ui, -apple-system, sans-serif;
 
   /* Neutral scale — docs/design/style-guide.md#neutral-scale */
-  --color-bg: #08080e;
-  --color-surface: #0f0f1a;
-  --color-surface-raised: #161628;
-  --color-border: rgba(255, 255, 255, 0.06);
-  --color-border-hover: rgba(255, 255, 255, 0.14);
-  --color-text: #f0f0f8;
-  --color-text-secondary: #8080a0;
-  --color-text-muted: #50506a;
+  --color-bg: #1d2021;
+  --color-surface: #282828;
+  --color-surface-raised: #3c3836;
+  --color-border: rgba(235, 219, 178, 0.08);
+  --color-border-hover: rgba(235, 219, 178, 0.18);
+  --color-text: #ebdbb2;
+  --color-text-secondary: #bdae93;
+  --color-text-muted: #665c54;
 
   /* Content-type accents + system/neutral — docs/design/style-guide.md#content-type-accents */
-  --color-accent-music: #10b981;
-  --color-accent-afterdark: #f43f5e;
-  --color-accent-system: #6366f1;
+  --color-accent-music: #b8bb26;
+  --color-accent-afterdark: #fb4934;
+  --color-accent-system: #83a598;
 
   /* Status/semantic tokens — docs/design/style-guide.md#statussemantic-tokens */
-  --color-status-pending: #60a5fa;
-  --color-status-queued: #a78bfa;
-  --color-status-active: #818cf8;
-  --color-status-success: #34d399;
-  --color-status-warning: #fbbf24;
-  --color-status-failure: #f87171;
-  --color-status-neutral: #9ca3af;
+  --color-status-pending: #83a598;
+  --color-status-queued: #d3869b;
+  --color-status-active: #fabd2f;
+  --color-status-success: #b8bb26;
+  --color-status-warning: #fe8019;
+  --color-status-failure: #fb6b51;
+  --color-status-neutral: #a89984;
   --color-success: var(--color-status-success);
   --color-warning: var(--color-status-warning);
   --color-danger: var(--color-status-failure);
@@ -83,7 +89,8 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
-/* Scrollbar styling — prior art, kept as-is */
+/* Scrollbar styling — tinted warm (fg1 #ebdbb2) to match the Gruvbox
+   neutral scale instead of the prior neutral-white overlay. */
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
@@ -92,9 +99,9 @@ body {
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.12);
+  background: rgba(235, 219, 178, 0.14);
   border-radius: 3px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.22);
+  background: rgba(235, 219, 178, 0.26);
 }

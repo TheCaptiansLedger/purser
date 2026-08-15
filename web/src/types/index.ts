@@ -31,18 +31,25 @@ export interface Setting {
 }
 
 // SettingCategory groups Settings for the Config tab's card layout (#604)
-// — a UI-only grouping by dotted-key prefix, not modeled in the proto or
-// SettingsService itself (GetSettings returns one flat list). See
-// web/src/pages/settings/settingsCategory.ts for the key->category mapping.
+// — a UI-only grouping by owning module, not modeled in the proto or
+// SettingsService itself (GetSettings returns one flat list). Grouped by
+// *product module*, not by the config file's top-level YAML section: e.g.
+// sources.stashdb.* and pipeline.organize.adult.* both land under
+// 'afterdark' despite neither sharing that dotted prefix. See
+// web/src/pages/settings/settingFields.ts (per-key overrides) and
+// web/src/pages/settings/settingsCategory.ts (prefix fallback + card
+// labels/order).
 export type SettingCategory =
   | 'server'
   | 'database'
   | 'media'
   | 'pipeline'
-  | 'sources'
+  | 'music'
   | 'afterdark'
+  | 'movies'
+  | 'tv'
+  | 'books'
   | 'downloadClients'
-  | 'modules'
 
 // JobStatus mirrors purser.job.v1.JobStatus (web/src/gen/purser/job/v1/job_pb.ts)
 // as plain string literals — see docs/adr/0023-job-queue.md. 'partial'
