@@ -11,6 +11,7 @@ import (
 	"os/exec"
 	"os/signal"
 	"purser/internal/adapters/acoustid"
+	"purser/internal/adapters/cacheregistry"
 	"purser/internal/adapters/datastore"
 	"purser/internal/adapters/fanarttv"
 	"purser/internal/adapters/imagefetcher"
@@ -29,6 +30,7 @@ import (
 	"purser/internal/domain"
 	"purser/internal/ports"
 	"purser/internal/service"
+	"purser/pkg/cache"
 	"purser/pkg/fswatch"
 	"purser/pkg/fswatch/fsnotify"
 	"syscall"
@@ -292,6 +294,27 @@ func openDatastore(cfg config.Database) (datastore.Datastore, ports.DatabaseAdmi
 	}
 }
 
+// cacheHolder is satisfied by any provider client that owns a named
+// pkg/cache.Cache instance (see each internal/adapters/<provider>'s Cache()
+// getter) — checked via type assertion rather than adding Cache() to any
+// ports.XxxClient port itself, since a disabled provider's noop client
+// legitimately has no cache to report (docs/adr/0002-solid-design-principles.md's
+// ISP note: a port method every implementer but one has to stub out doesn't
+// belong on the port).
+type cacheHolder interface {
+	Cache() cache.Cache
+}
+
+// registerCache adds client's named cache to caches, if client is a real
+// adapter that owns one — a disabled provider's noop client is silently
+// skipped, so the cache instance registry only ever reports caches that
+// actually exist.
+func registerCache(caches map[string]cache.Cache, name string, client any) {
+	if ch, ok := client.(cacheHolder); ok {
+		caches[name] = ch.Cache()
+	}
+}
+
 // newServeMux wires every entity's adapter -> service -> Connect handler
 // and mounts it, plus gRPC reflection for grpcurl/buf curl debugging (see
 // ADR-0011). Every shared-kernel entity in this pass follows the exact
@@ -512,6 +535,15 @@ func newServeMux(ctx context.Context, logger *slog.Logger, ds datastore.Datastor
 	fanartTVPath, fanartTVConnectHandler := musicv1connect.NewFanartTVServiceHandler(fanartTVHandler, interceptors)
 	mux.Handle(fanartTVPath, fanartTVConnectHandler)
 
+	// providerCaches collects every enabled provider's own named cache.Cache
+	// instance (see cacheHolder/registerCache above) as each client is
+	// constructed — here and inside wireScanPipeline, which adds its own
+	// five below. Built into a CacheRegistry once wireScanPipeline returns,
+	// for the future CacheService (#616) to report on.
+	providerCaches := map[string]cache.Cache{}
+	registerCache(providerCaches, "theaudiodb", theAudioDBClient)
+	registerCache(providerCaches, "fanarttv", fanartTVClient)
+
 	// Acquisition: IndexerService, the read-only half of #579's acquisition
 	// pipeline (search only — submission is DownloadService, wired below).
 	// See docs/technical/acquisition-indexer-search.md and
@@ -554,10 +586,13 @@ func newServeMux(ctx context.Context, logger *slog.Logger, ds datastore.Datastor
 	// Common Scan Pipeline: split into its own function purely to keep
 	// newServeMux's cyclomatic complexity under budget — no behavior
 	// difference from being inlined here. See docs/adr/0024-pipeline-core.md.
-	watcherCloser, err := wireScanPipeline(ctx, mux, ds, logger, interceptors, jobEngine, jobAdapter, itemRepo, mediaFileRepo, libraryEntryRepo, groupRepo, externalIDRepo, musicReleaseRepo, imageRepo, personRepo, performerProfileRepo, itemPersonRepo, tagRepo, tagAssignmentRepo, pipelineCfg, mbCfg, acoustIDCfg, stashDBCfg, tpdbCfg, mediaCfg, afterDarkCfg)
+	watcherCloser, err := wireScanPipeline(ctx, mux, ds, logger, interceptors, jobEngine, jobAdapter, itemRepo, mediaFileRepo, libraryEntryRepo, groupRepo, externalIDRepo, musicReleaseRepo, imageRepo, personRepo, performerProfileRepo, itemPersonRepo, tagRepo, tagAssignmentRepo, pipelineCfg, mbCfg, acoustIDCfg, stashDBCfg, tpdbCfg, mediaCfg, afterDarkCfg, providerCaches)
 	if err != nil {
 		return nil, nil, err
 	}
+
+	cacheRegistry := cacheregistry.New(providerCaches)
+	logger.Info("cache registry initialized", "caches", cacheRegistry.Names())
 
 	reflector := grpcreflect.NewStaticReflector(
 		domainv1connect.PersonServiceName,
@@ -644,6 +679,7 @@ func wireScanPipeline(
 	tpdbCfg config.ThePornDB,
 	mediaCfg config.Media,
 	afterDarkCfg config.AfterDark,
+	providerCaches map[string]cache.Cache,
 ) (io.Closer, error) {
 	unmatchedFileRepo, err := storeunmatchedfile.New("unmatched_file", ds, storeunmatchedfile.WithLogger(logger))
 	if err != nil {
@@ -676,6 +712,10 @@ func wireScanPipeline(
 	if err != nil {
 		return nil, err
 	}
+	registerCache(providerCaches, "musicbrainz", mbClient)
+	registerCache(providerCaches, "acoustid", acoustIDClient)
+	registerCache(providerCaches, "stashdb", stashDBClient)
+	registerCache(providerCaches, "theporndb", tpdbClient)
 	// Content types with no registered ports.Identifier/ports.ConfidenceScorer
 	// implementation fall back to service.NoopIdentifier/NoopConfidenceScore.
 	identifierRegistry := service.NewIdentifierRegistry(
@@ -700,6 +740,7 @@ func wireScanPipeline(
 	if err != nil {
 		return nil, fmt.Errorf("cmd/purser: constructing image fetcher: %w", err)
 	}
+	registerCache(providerCaches, "imagefetcher", imgFetcher)
 
 	// Content types with no registered ports.TemplateDataBuilder
 	// implementation fall back to service.NoopTemplateDataBuilder.

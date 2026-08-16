@@ -184,6 +184,13 @@ func New(cfg Config, opts ...Option) (*Client, error) {
 	}, nil
 }
 
+// Cache returns the Client's own named cache.Cache instance, so the
+// composition root can register it in a cache instance registry (see
+// internal/ports.CacheRegistry) for the administration UI to report on.
+func (c *Client) Cache() cache.Cache {
+	return c.cache
+}
+
 // Close releases the Client's own cache instance.
 func (c *Client) Close() error {
 	return c.cache.Close()
