@@ -102,3 +102,17 @@ export interface Job {
   tasks: Task[]
   params: Record<string, string>
 }
+
+// DatabaseInfo mirrors purser.database.v1.GetDatabaseInfoResponse (#613) —
+// see docs/technical/database-backup-restore.md. storageSizeBytes and
+// collectionCounts' values are wire int64 (bigint in the generated
+// Message type); converted to number here since a real Purser install's
+// storage size and per-collection counts stay comfortably inside
+// Number.MAX_SAFE_INTEGER, and keeping components off bigint arithmetic
+// is worth that ceiling.
+export interface DatabaseInfo {
+  driver: string
+  version: string
+  storageSizeBytes: number
+  collectionCounts: Record<string, number>
+}
