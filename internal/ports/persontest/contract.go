@@ -35,6 +35,10 @@ func TestPersonRepository(t *testing.T, newRepo NewRepositoryFunc) {
 	t.Run("delete removes a person", func(t *testing.T) { testDelete(t, newRepo) })
 	t.Run("delete on a missing person returns ErrNotFound", func(t *testing.T) { testDeleteMissing(t, newRepo) })
 	t.Run("list returns every created person across pages", func(t *testing.T) { testListPaginates(t, newRepo) })
+	t.Run("list with a name filter returns only matches", func(t *testing.T) { testListNameFilterMatches(t, newRepo) })
+	t.Run("list with a name filter that matches nothing returns no results", func(t *testing.T) { testListNameFilterNoMatch(t, newRepo) })
+	t.Run("list with an empty name filter is unfiltered", func(t *testing.T) { testListNameFilterEmptyIsUnfiltered(t, newRepo) })
+	t.Run("list with a name filter is case-insensitive", func(t *testing.T) { testListNameFilterCaseInsensitive(t, newRepo) })
 }
 
 func mustCreate(t *testing.T, r ports.PersonRepository, p *domain.Person) {
@@ -139,7 +143,7 @@ func testListPaginates(t *testing.T, newRepo NewRepositoryFunc) {
 	got := map[string]bool{}
 	pageToken := ""
 	for {
-		people, next, err := r.List(ctx, 2, pageToken)
+		people, next, err := r.List(ctx, "", 2, pageToken)
 		if err != nil {
 			t.Fatalf("List returned error: %v", err)
 		}
@@ -159,6 +163,75 @@ func testListPaginates(t *testing.T, newRepo NewRepositoryFunc) {
 		if !got[id] {
 			t.Errorf("List across pages missing person %q", id)
 		}
+	}
+}
+
+func testListNameFilterMatches(t *testing.T, newRepo NewRepositoryFunc) {
+	r := newRepo(t)
+	ctx := context.Background()
+
+	stevie := samplePerson("p1")
+	stevie.Name = "Stevie Nicks"
+	mustCreate(t, r, stevie)
+
+	other := samplePerson("p2")
+	other.Name = "Lindsey Buckingham"
+	mustCreate(t, r, other)
+
+	people, _, err := r.List(ctx, "Nicks", 10, "")
+	if err != nil {
+		t.Fatalf("List returned error: %v", err)
+	}
+	if len(people) != 1 || people[0].ID != "p1" {
+		t.Fatalf("List with name filter %q returned %v, want only p1", "Nicks", people)
+	}
+}
+
+func testListNameFilterNoMatch(t *testing.T, newRepo NewRepositoryFunc) {
+	r := newRepo(t)
+	ctx := context.Background()
+
+	mustCreate(t, r, samplePerson("p1"))
+
+	people, _, err := r.List(ctx, "no such person", 10, "")
+	if err != nil {
+		t.Fatalf("List returned error: %v", err)
+	}
+	if len(people) != 0 {
+		t.Fatalf("List with a non-matching name filter returned %d people, want 0", len(people))
+	}
+}
+
+func testListNameFilterEmptyIsUnfiltered(t *testing.T, newRepo NewRepositoryFunc) {
+	r := newRepo(t)
+	ctx := context.Background()
+
+	mustCreate(t, r, samplePerson("p1"))
+	mustCreate(t, r, samplePerson("p2"))
+
+	people, _, err := r.List(ctx, "", 10, "")
+	if err != nil {
+		t.Fatalf("List returned error: %v", err)
+	}
+	if len(people) != 2 {
+		t.Fatalf("List with an empty name filter returned %d people, want 2", len(people))
+	}
+}
+
+func testListNameFilterCaseInsensitive(t *testing.T, newRepo NewRepositoryFunc) {
+	r := newRepo(t)
+	ctx := context.Background()
+
+	stevie := samplePerson("p1")
+	stevie.Name = "Stevie Nicks"
+	mustCreate(t, r, stevie)
+
+	people, _, err := r.List(ctx, "nicks", 10, "")
+	if err != nil {
+		t.Fatalf("List returned error: %v", err)
+	}
+	if len(people) != 1 || people[0].ID != "p1" {
+		t.Fatalf("List with name filter %q returned %v, want only p1", "nicks", people)
 	}
 }
 

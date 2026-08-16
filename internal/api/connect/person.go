@@ -20,7 +20,7 @@ type personService interface {
 	Create(ctx context.Context, p *domain.Person) (*domain.Person, error)
 	Get(ctx context.Context, id string) (*domain.Person, error)
 	Update(ctx context.Context, p *domain.Person) (*domain.Person, error)
-	List(ctx context.Context, pageSize int, pageToken string) ([]*domain.Person, string, error)
+	List(ctx context.Context, name string, pageSize int, pageToken string) ([]*domain.Person, string, error)
 }
 
 // PersonHandler implements domainv1connect.PersonServiceHandler — the
@@ -105,7 +105,7 @@ func (h *PersonHandler) GetPersonDeletionImpact(ctx context.Context, req *connec
 
 // ListPeople implements domainv1connect.PersonServiceHandler.
 func (h *PersonHandler) ListPeople(ctx context.Context, req *connect.Request[v1.ListPeopleRequest]) (*connect.Response[v1.ListPeopleResponse], error) {
-	people, next, err := h.svc.List(ctx, int(req.Msg.GetPageSize()), req.Msg.GetPageToken())
+	people, next, err := h.svc.List(ctx, req.Msg.GetName(), int(req.Msg.GetPageSize()), req.Msg.GetPageToken())
 	if err != nil {
 		return nil, mapError(ctx, h.logger, err)
 	}

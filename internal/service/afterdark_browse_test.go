@@ -163,7 +163,7 @@ func (f *browseFakePersonRepository) Get(_ context.Context, id string) (*domain.
 }
 func (f *browseFakePersonRepository) Update(context.Context, *domain.Person) error { return nil }
 func (f *browseFakePersonRepository) Delete(context.Context, string) error         { return nil }
-func (f *browseFakePersonRepository) List(context.Context, int, string) ([]*domain.Person, string, error) {
+func (f *browseFakePersonRepository) List(context.Context, string, int, string) ([]*domain.Person, string, error) {
 	return nil, "", nil
 }
 

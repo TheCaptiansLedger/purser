@@ -94,6 +94,9 @@ message GetPersonDeletionImpactResponse {
 message ListPeopleRequest {
   int32 page_size = 1;
   string page_token = 2;
+  // name is an optional, case-insensitive substring filter over
+  // Person.Name — leave unset (empty string) for no filter.
+  string name = 3;
 }
 
 message ListPeopleResponse {

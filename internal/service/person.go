@@ -68,8 +68,9 @@ func (s *PersonService) Delete(ctx context.Context, id string) error {
 	return s.repo.Delete(ctx, id)
 }
 
-// List returns a page of Person records. See ports.PersonRepository for
-// the pagination contract.
-func (s *PersonService) List(ctx context.Context, pageSize int, pageToken string) ([]*domain.Person, string, error) {
-	return s.repo.List(ctx, pageSize, pageToken)
+// List returns a page of Person records, optionally filtered by a
+// case-insensitive substring match against Name. See ports.PersonRepository
+// for the pagination and filter contract.
+func (s *PersonService) List(ctx context.Context, name string, pageSize int, pageToken string) ([]*domain.Person, string, error) {
+	return s.repo.List(ctx, name, pageSize, pageToken)
 }

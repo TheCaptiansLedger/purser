@@ -24,6 +24,7 @@ type fakePersonService struct {
 	getErr    error
 	updateErr error
 	listErr   error
+	gotName   string
 }
 
 func newFakePersonService() *fakePersonService {
@@ -57,7 +58,8 @@ func (f *fakePersonService) Update(_ context.Context, p *domain.Person) (*domain
 	return p, nil
 }
 
-func (f *fakePersonService) List(_ context.Context, _ int, _ string) ([]*domain.Person, string, error) {
+func (f *fakePersonService) List(_ context.Context, name string, _ int, _ string) ([]*domain.Person, string, error) {
+	f.gotName = name
 	if f.listErr != nil {
 		return nil, "", f.listErr
 	}
@@ -223,6 +225,18 @@ func TestPersonHandler_ListPeople(t *testing.T) {
 		}
 		if len(res.Msg.GetPeople()) != 2 {
 			t.Fatalf("ListPeople returned %d people, want 2", len(res.Msg.GetPeople()))
+		}
+	})
+
+	t.Run("name filter threads through to the service", func(t *testing.T) {
+		svc := newFakePersonService()
+		h := apiconnect.NewPersonHandler(svc, newFakeEntityDeletionService(), nil)
+
+		if _, err := h.ListPeople(context.Background(), connect.NewRequest(&v1.ListPeopleRequest{Name: "nicks", PageSize: 10})); err != nil {
+			t.Fatalf("ListPeople returned error: %v", err)
+		}
+		if svc.gotName != "nicks" {
+			t.Fatalf("ListPeople called service with name %q, want %q", svc.gotName, "nicks")
 		}
 	})
 

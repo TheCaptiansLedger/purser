@@ -699,9 +699,12 @@ func (x *GetPersonDeletionImpactResponse) GetImpacts() []*DeletionImpactRow {
 }
 
 type ListPeopleRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	PageSize      int32                  `protobuf:"varint,1,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
-	PageToken     string                 `protobuf:"bytes,2,opt,name=page_token,json=pageToken,proto3" json:"page_token,omitempty"`
+	state     protoimpl.MessageState `protogen:"open.v1"`
+	PageSize  int32                  `protobuf:"varint,1,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
+	PageToken string                 `protobuf:"bytes,2,opt,name=page_token,json=pageToken,proto3" json:"page_token,omitempty"`
+	// name is an optional, case-insensitive substring filter over
+	// Person.Name — leave unset (empty string) for no filter.
+	Name          string `protobuf:"bytes,3,opt,name=name,proto3" json:"name,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -746,6 +749,13 @@ func (x *ListPeopleRequest) GetPageSize() int32 {
 func (x *ListPeopleRequest) GetPageToken() string {
 	if x != nil {
 		return x.PageToken
+	}
+	return ""
+}
+
+func (x *ListPeopleRequest) GetName() string {
+	if x != nil {
+		return x.Name
 	}
 	return ""
 }
@@ -847,11 +857,12 @@ const file_purser_domain_v1_person_proto_rawDesc = "" +
 	"\x1eGetPersonDeletionImpactRequest\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\"`\n" +
 	"\x1fGetPersonDeletionImpactResponse\x12=\n" +
-	"\aimpacts\x18\x01 \x03(\v2#.purser.domain.v1.DeletionImpactRowR\aimpacts\"O\n" +
+	"\aimpacts\x18\x01 \x03(\v2#.purser.domain.v1.DeletionImpactRowR\aimpacts\"c\n" +
 	"\x11ListPeopleRequest\x12\x1b\n" +
 	"\tpage_size\x18\x01 \x01(\x05R\bpageSize\x12\x1d\n" +
 	"\n" +
-	"page_token\x18\x02 \x01(\tR\tpageToken\"n\n" +
+	"page_token\x18\x02 \x01(\tR\tpageToken\x12\x12\n" +
+	"\x04name\x18\x03 \x01(\tR\x04name\"n\n" +
 	"\x12ListPeopleResponse\x120\n" +
 	"\x06people\x18\x01 \x03(\v2\x18.purser.domain.v1.PersonR\x06people\x12&\n" +
 	"\x0fnext_page_token\x18\x02 \x01(\tR\rnextPageToken*\xc0\x01\n" +

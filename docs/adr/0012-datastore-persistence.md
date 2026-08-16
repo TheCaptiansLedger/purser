@@ -233,6 +233,39 @@ other shape is an implementation detail left to whoever builds it — the
 architectural commitment here is only "the generic supports it," not the
 literal encoding.
 
+### Addendum: `Person.List`'s name filter is a scan, not a `Document.Index` lookup
+
+`PersonRepository.List` gained an optional `name` filter (issue #653): a
+case-insensitive **substring** match against `Person.Name`, not an exact
+match. `Document.Index` only ever supports exact key/value equality lookups
+— it has no mechanism for substring matching, so this filter cannot be
+indexed the way `Item.ContentType` or `Image.OwnerType` are.
+[0014](0014-search-embedded-full-text-index.md)'s self-audit already warns
+against scan-and-filter as a stand-in for real search — but 0014's
+`SearchIndex` (Bleve) is designed for fuzzy/ranked full-text queries across
+free-text fields, doesn't exist in this codebase yet, and would be a
+disproportionate amount of new infrastructure for one small, deterministic
+substring filter on one entity.
+
+**Decision:** `internal/adapters/store/person` is hand-rolled (not the
+`Repository[T]` alias every other unfiltered single-ID entity uses) so it
+can implement `List`'s `name` filter as an in-adapter scan: fetch the
+underlying collection one record at a time via
+`store.FilteredRepository[T].List` (with a nil `Document.Index` filter),
+substring-match each record's `Name` in application code, and accumulate
+until the requested page size is reached or the collection is exhausted.
+One-record-at-a-time fetching is what keeps the returned cursor landing
+exactly after the last record examined — batching would risk either
+overshooting the requested page size or silently skipping matches past a
+batch boundary once results are truncated back down to it. This is
+correctness over throughput, an accepted, narrow exception scoped to this
+one filter on this one entity — not a precedent for scan-based filtering
+elsewhere in `internal/adapters/store`. If `Person`'s collection ever grows
+past what this app's self-hosted, single/small-household scale assumes (see
+[0014](0014-search-embedded-full-text-index.md)'s context) such that this
+scan becomes a real cost, that is the trigger to move name search onto
+`SearchIndex` instead of optimizing this scan further.
+
 ## Consequences
 
 - Adding a new shared-kernel or module entity to either persistent backend

@@ -20,6 +20,7 @@ type fakePersonRepository struct {
 	// docs/adr/0020-server-generated-kernel-entity-ids.md), two Creates
 	// can no longer be forced to collide by reusing a literal ID.
 	forceConflict bool
+	gotName       string
 }
 
 func newFakePersonRepository() *fakePersonRepository {
@@ -64,7 +65,8 @@ func (f *fakePersonRepository) Delete(_ context.Context, id string) error {
 	return nil
 }
 
-func (f *fakePersonRepository) List(_ context.Context, _ int, _ string) ([]*domain.Person, string, error) {
+func (f *fakePersonRepository) List(_ context.Context, name string, _ int, _ string) ([]*domain.Person, string, error) {
+	f.gotName = name
 	people := make([]*domain.Person, 0, len(f.byID))
 	for _, p := range f.byID {
 		stored := *p
@@ -233,11 +235,23 @@ func TestPersonService_List(t *testing.T) {
 		}
 	}
 
-	people, _, err := svc.List(context.Background(), 10, "")
+	people, _, err := svc.List(context.Background(), "", 10, "")
 	if err != nil {
 		t.Fatalf("List returned error: %v", err)
 	}
 	if len(people) != 2 {
 		t.Fatalf("List returned %d people, want 2", len(people))
+	}
+}
+
+func TestPersonService_List_NameFilterPassesThrough(t *testing.T) {
+	repo := newFakePersonRepository()
+	svc := service.NewPersonService(repo)
+
+	if _, _, err := svc.List(context.Background(), "nicks", 10, ""); err != nil {
+		t.Fatalf("List returned error: %v", err)
+	}
+	if repo.gotName != "nicks" {
+		t.Fatalf("List called repository with name %q, want %q", repo.gotName, "nicks")
 	}
 }
