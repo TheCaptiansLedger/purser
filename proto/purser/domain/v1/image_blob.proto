@@ -1,0 +1,46 @@
+syntax = "proto3";
+
+package purser.domain.v1;
+
+option go_package = "purser/gen/go/purser/domain/v1;domainv1";
+
+// ImageBlobResponse is the shape both ImageBlobService RPCs return, wrapped
+// in their own per-RPC response message per docs/adr/0011-api-design.md's
+// convention. key is opaque — see ports.ImageStore.Put's own contract, not
+// something a caller constructs or interprets. width/height/content_type
+// are sniffed server-side from the decoded image bytes, never trusted from
+// a caller-supplied hint — see docs/technical/image-caching-and-serving.md.
+message ImageBlobResponse {
+  string key = 1;
+  int32 width = 2;
+  int32 height = 3;
+  string content_type = 4;
+  int64 size_bytes = 5;
+}
+
+message CacheRemoteImageRequest {
+  string url = 1;
+}
+
+message CacheRemoteImageResponse {
+  ImageBlobResponse blob = 1;
+}
+
+message UploadImageRequest {
+  bytes data = 1;
+}
+
+message UploadImageResponse {
+  ImageBlobResponse blob = 1;
+}
+
+// ImageBlobService wraps exactly ports.ImageFetcher and ports.ImageStore —
+// never ports.ImageRepository. Composing "bytes on disk" with "the Image
+// metadata row that points at them" (ImageService.CreateImage) is the
+// caller's job, not this service's — see
+// docs/adr/0013-image-blob-storage.md and
+// docs/technical/image-caching-and-serving.md.
+service ImageBlobService {
+  rpc CacheRemoteImage(CacheRemoteImageRequest) returns (CacheRemoteImageResponse);
+  rpc UploadImage(UploadImageRequest) returns (UploadImageResponse);
+}

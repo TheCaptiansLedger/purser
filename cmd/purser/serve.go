@@ -616,6 +616,7 @@ func newServeMux(ctx context.Context, logger *slog.Logger, ds datastore.Datastor
 		domainv1connect.TagAssignmentServiceName,
 		domainv1connect.ExternalIDServiceName,
 		domainv1connect.ImageServiceName,
+		domainv1connect.ImageBlobServiceName,
 		domainv1connect.MediaFileServiceName,
 		afterdarkv1connect.PerformerProfileServiceName,
 		afterdarkv1connect.BrowseServiceName,
@@ -753,6 +754,13 @@ func wireScanPipeline(
 		return nil, fmt.Errorf("cmd/purser: constructing image fetcher: %w", err)
 	}
 	registerCache(providerCaches, "imagefetcher", imgFetcher)
+
+	// ImageBlobService wraps exactly imgFetcher/imageStore — never
+	// imageRepo — per docs/adr/0013-image-blob-storage.md and
+	// docs/technical/image-caching-and-serving.md.
+	imageBlobHandler := apiconnect.NewImageBlobHandler(service.NewImageBlobService(imgFetcher, imageStore), logger)
+	imageBlobPath, imageBlobConnectHandler := domainv1connect.NewImageBlobServiceHandler(imageBlobHandler, interceptors)
+	mux.Handle(imageBlobPath, imageBlobConnectHandler)
 
 	// Content types with no registered ports.TemplateDataBuilder
 	// implementation fall back to service.NoopTemplateDataBuilder.
