@@ -44,6 +44,7 @@ import (
 
 	acquisitionv1connect "purser/gen/go/purser/acquisition/v1/acquisitionv1connect"
 	afterdarkv1connect "purser/gen/go/purser/afterdark/v1/afterdarkv1connect"
+	cachev1connect "purser/gen/go/purser/cache/v1/cachev1connect"
 	databasev1connect "purser/gen/go/purser/database/v1/databasev1connect"
 	domainv1connect "purser/gen/go/purser/domain/v1/domainv1connect"
 	jobv1connect "purser/gen/go/purser/job/v1/jobv1connect"
@@ -539,7 +540,7 @@ func newServeMux(ctx context.Context, logger *slog.Logger, ds datastore.Datastor
 	// instance (see cacheHolder/registerCache above) as each client is
 	// constructed — here and inside wireScanPipeline, which adds its own
 	// five below. Built into a CacheRegistry once wireScanPipeline returns,
-	// for the future CacheService (#616) to report on.
+	// which CacheService (below) reports on and flushes.
 	providerCaches := map[string]cache.Cache{}
 	registerCache(providerCaches, "theaudiodb", theAudioDBClient)
 	registerCache(providerCaches, "fanarttv", fanartTVClient)
@@ -594,6 +595,16 @@ func newServeMux(ctx context.Context, logger *slog.Logger, ds datastore.Datastor
 	cacheRegistry := cacheregistry.New(providerCaches)
 	logger.Info("cache registry initialized", "caches", cacheRegistry.Names())
 
+	// CacheService: reports live stats for and flushes the caches
+	// cacheRegistry just enumerated. Unlike DatabaseService/SettingsService
+	// (wired from runServe, after this function returns — see
+	// wireDatabaseService's own doc comment for why), CacheService needs
+	// nothing beyond what's already local to newServeMux, so it's wired
+	// here directly.
+	cacheHandler := apiconnect.NewCacheHandler(service.NewCacheService(cacheRegistry), logger)
+	cachePath, cacheConnectHandler := cachev1connect.NewCacheServiceHandler(cacheHandler, interceptors)
+	mux.Handle(cachePath, cacheConnectHandler)
+
 	reflector := grpcreflect.NewStaticReflector(
 		domainv1connect.PersonServiceName,
 		domainv1connect.LibraryEntryServiceName,
@@ -616,6 +627,7 @@ func newServeMux(ctx context.Context, logger *slog.Logger, ds datastore.Datastor
 		acquisitionv1connect.DownloadServiceName,
 		jobv1connect.JobServiceName,
 		settingsv1connect.SettingsServiceName,
+		cachev1connect.CacheServiceName,
 		pipelinev1connect.ScanServiceName,
 		pipelinev1connect.UnmatchedFileServiceName,
 		pipelinev1connect.OrganizerServiceName,

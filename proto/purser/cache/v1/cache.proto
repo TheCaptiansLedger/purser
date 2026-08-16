@@ -1,0 +1,69 @@
+syntax = "proto3";
+
+package purser.cache.v1;
+
+option go_package = "purser/gen/go/purser/cache/v1;cachev1";
+
+// ListCacheStatsRequest takes no arguments — every registered cache is
+// returned in one call, the same "small, bounded set, no pagination"
+// reasoning docs/adr/0011-api-design.md's pagination section carves out
+// for GetSettingsRequest: the set of caches is fixed at process startup
+// by internal/ports.CacheRegistry, not an unbounded collection.
+message ListCacheStatsRequest {}
+
+// CacheStats is the wire shape of one registered cache's live snapshot —
+// mirrors pkg/cache.Stats plus the name it was registered under.
+message CacheStats {
+  // name is the identifier internal/ports.CacheRegistry registered this
+  // cache under (e.g. "musicbrainz", "stashdb", "imagefetcher").
+  string name = 1;
+  // items is the current number of entries.
+  int32 items = 2;
+  // bytes is the current approximate total size, in bytes, of all cached
+  // keys and values.
+  int64 bytes = 3;
+  // hits is the cumulative number of Get calls that found a live entry.
+  int64 hits = 4;
+  // misses is the cumulative number of Get calls that found no entry, or
+  // found one that had expired.
+  int64 misses = 5;
+  // sets is the cumulative number of Set calls.
+  int64 sets = 6;
+  // deletes is the cumulative number of explicit Delete calls.
+  int64 deletes = 7;
+  // evictions is the cumulative number of entries removed due to
+  // capacity or TTL pressure, not explicit Delete.
+  int64 evictions = 8;
+}
+
+message ListCacheStatsResponse {
+  // caches holds one CacheStats per registered cache, ordered by name
+  // (internal/ports.CacheRegistry.Names' own sorted, deterministic order).
+  repeated CacheStats caches = 1;
+}
+
+// FlushCacheRequest names which registered cache to flush. An empty name
+// flushes every registered cache in one call, rather than requiring the
+// caller to loop ListCacheStats' own names back through one FlushCache
+// call each.
+message FlushCacheRequest {
+  string name = 1;
+}
+
+message FlushCacheResponse {
+  // flushed lists the name of every cache this call actually flushed —
+  // exactly [name] for a single-cache request, or every registered cache
+  // (in ListCacheStats' same sorted order) when name was empty.
+  repeated string flushed = 1;
+}
+
+// CacheService reports on and flushes the named pkg/cache.Cache instances
+// internal/ports.CacheRegistry exposes — one per external provider
+// adapter (StashDB, MusicBrainz, etc.). See docs/adr/0011-api-design.md.
+// Not a shared-kernel entity service: modeled on DatabaseService/
+// SettingsService's admin-RPC shape instead of the Create/Get/Update/
+// Delete/List convention those follow.
+service CacheService {
+  rpc ListCacheStats(ListCacheStatsRequest) returns (ListCacheStatsResponse);
+  rpc FlushCache(FlushCacheRequest) returns (FlushCacheResponse);
+}
