@@ -117,6 +117,23 @@ export interface DatabaseInfo {
   collectionCounts: Record<string, number>
 }
 
+// PersonRef is the minimal identity shape PersonCard (#657) needs — not
+// the full purser.domain.v1.Person message. Every current call site
+// (People index, Artist Detail Members tab) actually has a full Person in
+// hand (ListPeople/GetPerson), but PersonCard only ever reads
+// id/name/imageId, so it only asks for that much. Requiring the full
+// Person here is the exact bug pre-reset issue #225 named and fixed once
+// already: callers faking sentinel values for fields the card never uses.
+// imageId is a resolved purser.domain.v1.Image.id (owner_type="person",
+// per docs/technical/music-web-ui.md) for GET /media/images/{id} —
+// resolving which image to show (ListImages) is the caller's job, not
+// PersonCard's.
+export interface PersonRef {
+  id: string
+  name: string
+  imageId?: string
+}
+
 // CacheStats mirrors the subset of purser.cache.v1.CacheStats the Cache
 // tab (#617) actually renders (name/items/bytes/hits/misses). The wire
 // message also carries sets/deletes/evictions — left off this type per
