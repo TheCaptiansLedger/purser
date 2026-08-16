@@ -42,12 +42,15 @@ import (
 
 	acquisitionv1connect "purser/gen/go/purser/acquisition/v1/acquisitionv1connect"
 	afterdarkv1connect "purser/gen/go/purser/afterdark/v1/afterdarkv1connect"
+	databasev1connect "purser/gen/go/purser/database/v1/databasev1connect"
 	domainv1connect "purser/gen/go/purser/domain/v1/domainv1connect"
 	jobv1connect "purser/gen/go/purser/job/v1/jobv1connect"
 	musicv1connect "purser/gen/go/purser/music/v1/musicv1connect"
 	pipelinev1connect "purser/gen/go/purser/pipeline/v1/pipelinev1connect"
 	settingsv1connect "purser/gen/go/purser/settings/v1/settingsv1connect"
 
+	dbbadgeradmin "purser/internal/adapters/database/badger"
+	dbsqladmin "purser/internal/adapters/database/sql"
 	dsbadger "purser/internal/adapters/datastore/badger"
 	dssql "purser/internal/adapters/datastore/sql"
 	filewalkerlocal "purser/internal/adapters/filewalker/local"
@@ -129,7 +132,7 @@ func runServe(ctx context.Context, configPath string) error {
 	sigCtx, stop := signal.NotifyContext(ctx, os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	ds, dsCloser, err := openDatastore(cfg.Database)
+	ds, dbAdmin, dsCloser, err := openDatastore(cfg.Database)
 	if err != nil {
 		return err
 	}
@@ -150,6 +153,13 @@ func runServe(ctx context.Context, configPath string) error {
 	if err := wireSettingsService(sigCtx, mux, ds, configPath, logger, connect.WithInterceptors(apiconnect.NewLoggingInterceptor(logger))); err != nil {
 		return err
 	}
+
+	// DatabaseService: same "wired outside newServeMux" reasoning as
+	// SettingsService above. stop is passed through so a successful
+	// Restore can trigger the same graceful shutdown path this func's own
+	// signal handling already uses — see wireDatabaseService and
+	// docs/technical/database-backup-restore.md.
+	wireDatabaseService(mux, dbAdmin, stop, logger, connect.WithInterceptors(apiconnect.NewLoggingInterceptor(logger)))
 
 	if watcherCloser != nil {
 		defer func() {
@@ -232,12 +242,13 @@ func checkRequiredBinaries(logger *slog.Logger, binaries []string) {
 }
 
 // openDatastore opens the datastore.Datastore backend selected by
-// cfg.Driver and returns it alongside the underlying *badger.DB/*sql.DB so
-// the caller can close it on shutdown — see
+// cfg.Driver and returns it alongside a matching ports.DatabaseAdmin (see
+// docs/technical/database-backup-restore.md) and the underlying
+// *badger.DB/*sql.DB so the caller can close it on shutdown — see
 // docs/adr/0012-datastore-persistence.md. This is the only place in the
 // codebase that knows both backends exist; everything above the returned
-// datastore.Datastore is backend-agnostic.
-func openDatastore(cfg config.Database) (datastore.Datastore, io.Closer, error) {
+// datastore.Datastore/ports.DatabaseAdmin is backend-agnostic.
+func openDatastore(cfg config.Database) (datastore.Datastore, ports.DatabaseAdmin, io.Closer, error) {
 	switch cfg.Driver {
 	case "badger":
 		db, err := dsbadger.Open(dsbadger.Options{
@@ -246,30 +257,38 @@ func openDatastore(cfg config.Database) (datastore.Datastore, io.Closer, error) 
 			SyncWrites:  cfg.Badger.SyncWrites,
 		})
 		if err != nil {
-			return nil, nil, fmt.Errorf("cmd/purser: opening badger datastore: %w", err)
+			return nil, nil, nil, fmt.Errorf("cmd/purser: opening badger datastore: %w", err)
 		}
 		store, err := dsbadger.New("kernel", db)
 		if err != nil {
-			return nil, nil, fmt.Errorf("cmd/purser: constructing badger datastore: %w", err)
+			return nil, nil, nil, fmt.Errorf("cmd/purser: constructing badger datastore: %w", err)
 		}
-		return store, db, nil
+		admin, err := dbbadgeradmin.New(db, store)
+		if err != nil {
+			return nil, nil, nil, fmt.Errorf("cmd/purser: constructing badger database admin: %w", err)
+		}
+		return store, admin, db, nil
 	case "postgres", "mysql", "sqlite":
 		dialect := dssql.Dialect(cfg.Driver)
 		db, err := dssql.Open(dssql.Options{Dialect: dialect, DSN: cfg.SQL.DSN})
 		if err != nil {
-			return nil, nil, fmt.Errorf("cmd/purser: opening sql datastore (%s): %w", cfg.Driver, err)
+			return nil, nil, nil, fmt.Errorf("cmd/purser: opening sql datastore (%s): %w", cfg.Driver, err)
 		}
 		store, err := dssql.New("kernel", db, dialect)
 		if err != nil {
-			return nil, nil, fmt.Errorf("cmd/purser: constructing sql datastore: %w", err)
+			return nil, nil, nil, fmt.Errorf("cmd/purser: constructing sql datastore: %w", err)
 		}
-		return store, db, nil
+		admin, err := dbsqladmin.New(db, dialect, store)
+		if err != nil {
+			return nil, nil, nil, fmt.Errorf("cmd/purser: constructing sql database admin: %w", err)
+		}
+		return store, admin, db, nil
 	default:
 		// config.Database.Validate already rejects this at Load time —
 		// reachable only if a caller constructs a Database bypassing
 		// Validate, so this is a defensive fallback, not the primary
 		// error path.
-		return nil, nil, fmt.Errorf("cmd/purser: unknown database driver %q", cfg.Driver)
+		return nil, nil, nil, fmt.Errorf("cmd/purser: unknown database driver %q", cfg.Driver)
 	}
 }
 
@@ -778,6 +797,31 @@ func wireSettingsService(ctx context.Context, mux *http.ServeMux, ds datastore.D
 	settingsPath, settingsConnectHandler := settingsv1connect.NewSettingsServiceHandler(settingsHandler, interceptors)
 	mux.Handle(settingsPath, settingsConnectHandler)
 	return nil
+}
+
+// restoreShutdownDelay is how long wireDatabaseService's onRestore
+// callback waits before triggering shutdown, giving the Restore RPC's own
+// success response time to finish flushing to the client before the
+// listener starts closing connections. See
+// docs/technical/database-backup-restore.md.
+const restoreShutdownDelay = 500 * time.Millisecond
+
+// wireDatabaseService wires DatabaseService — see wireSettingsService for
+// why this lives outside newServeMux rather than inlined there. A
+// successful Restore's onRestore callback schedules a delayed call to
+// stop (the same func signal.NotifyContext gave runServe): calling it
+// cancels sigCtx, which runServe's own select already turns into a
+// graceful srv.Shutdown — no new shutdown machinery, and no raw os.Exit.
+func wireDatabaseService(mux *http.ServeMux, admin ports.DatabaseAdmin, stop func(), logger *slog.Logger, interceptors connect.HandlerOption) {
+	onRestore := func() {
+		go func() {
+			time.Sleep(restoreShutdownDelay)
+			stop()
+		}()
+	}
+	databaseHandler := apiconnect.NewDatabaseHandler(service.NewDatabaseService(admin, onRestore), logger)
+	databasePath, databaseConnectHandler := databasev1connect.NewDatabaseServiceHandler(databaseHandler, interceptors)
+	mux.Handle(databasePath, databaseConnectHandler)
 }
 
 // liveConfigAdapter adapts *config.Live to service.LiveConfig, converting

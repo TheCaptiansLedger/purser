@@ -438,6 +438,20 @@ func deleteIndexEntries(txn *badgerdb.Txn, collection, id string, index map[stri
 	return nil
 }
 
+// DecodeEnvelope decodes raw, a document's stored value bytes exactly as
+// written by writeDoc, into its Data/Index parts — exported for
+// internal/adapters/database/badger's raw keyspace walk (see
+// docs/technical/database-backup-restore.md), which reads values
+// directly off the *badger.DB handle and needs this package's on-disk
+// envelope shape to make sense of them.
+func DecodeEnvelope(raw []byte) (data json.RawMessage, index map[string]string, err error) {
+	var env envelope
+	if err := json.Unmarshal(raw, &env); err != nil {
+		return nil, nil, fmt.Errorf("datastore/badger: decode envelope: %w", err)
+	}
+	return env.Data, env.Index, nil
+}
+
 func loadEnvelope(txn *badgerdb.Txn, collection, id string) (envelope, error) {
 	item, err := txn.Get(kPrimary(collection, id))
 	if errors.Is(err, badgerdb.ErrKeyNotFound) {

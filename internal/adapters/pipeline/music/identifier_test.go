@@ -571,11 +571,11 @@ func TestIdentifier_WorkedExample2_StevieNicksBoxSet(t *testing.T) {
 			fake = &got[i]
 		}
 	}
-	if real == nil || fake == nil {
+	if real == nil || fake == nil { //nolint:staticcheck // SA5011 false positive: t.Fatalf below halts the test via runtime.Goexit, real/fake are never nil past this point
 		t.Fatalf("Identify() = %+v, want both rel-real and rel-fake as candidates", got)
 	}
 
-	if real.Signals["track_count_match"] != 1.0 {
+	if real.Signals["track_count_match"] != 1.0 { //nolint:staticcheck // SA5011 false positive: t.Fatalf above halts the test via runtime.Goexit, real/fake are never nil here
 		t.Errorf("real candidate track_count_match = %v, want 1.0 (32/32)", real.Signals["track_count_match"])
 	}
 	if fake.Signals["track_count_match"] >= 0.5 {

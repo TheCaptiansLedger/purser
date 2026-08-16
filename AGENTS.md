@@ -47,6 +47,16 @@ Do not read all project documentation. Determine what the task touches, then loa
 
 **After finishing any ask/task/session:** run the self-audit checklist in [0001](docs/adr/0001-hexagonal-architecture.md) and [0002](docs/adr/0002-solid-design-principles.md) (and [0003](docs/adr/0003-go-testing-standards.md)/[0004](docs/adr/0004-typescript-react-testing-standards.md) if tests were written) and state the result explicitly — do not skip this silently.
 
+**Before declaring any task done, run the exact local pre-commit hook chain from `.pre-commit-config.yaml`, full repo, with zero path scoping:**
+
+```
+golangci-lint run ./...
+make test-ci
+npm --prefix web run test -- --run
+```
+
+All three must be 100% clean. A scoped run (`golangci-lint run ./internal/foo/...`) is fine as a mid-task sanity check but is never the final gate — it hides pre-existing issues elsewhere in the tree that `git commit`'s hook will still catch. If the full run surfaces an issue in a file the current task never touched, that is still a blocker: fix it (or get the user's explicit sign-off to leave it) before calling the task finished. "Not introduced by me" is not a reason to hand off a broken commit gate — the user runs `git commit` expecting it to pass, not to discover a pre-existing failure themselves.
+
 ---
 
 ## Plan before you act

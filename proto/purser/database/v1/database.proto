@@ -1,0 +1,74 @@
+syntax = "proto3";
+
+package purser.database.v1;
+
+option go_package = "purser/gen/go/purser/database/v1;databasev1";
+
+// GetDatabaseInfoRequest takes no arguments — there is exactly one active
+// Datastore backend per running process.
+message GetDatabaseInfoRequest {}
+
+// GetDatabaseInfoResponse mirrors internal/ports.DatabaseInfo. See
+// docs/technical/database-backup-restore.md.
+message GetDatabaseInfoResponse {
+  // driver names the active backend: "badger", "postgres", "mysql", or
+  // "sqlite" — mirrors internal/config.Database.Driver.
+  string driver = 1;
+  // version is the backend's own version string. "unknown" if it can't
+  // be determined.
+  string version = 2;
+  // storage_size_bytes is the backend's total on-disk footprint.
+  int64 storage_size_bytes = 3;
+  // collection_counts maps each collection name to its document count.
+  map<string, int64> collection_counts = 4;
+}
+
+// BackupRequest takes no arguments.
+message BackupRequest {}
+
+// BackupChunk is one piece of the backup artifact stream — a
+// version-stamped JSONL stream of every document in the database. See
+// docs/technical/database-backup-restore.md.
+message BackupChunk {
+  bytes data = 1;
+}
+
+// RestoreRequest is one piece of an uploaded backup artifact.
+message RestoreRequest {
+  bytes data = 1;
+}
+
+// RestoreResponse confirms a successful, fully-applied restore.
+message RestoreResponse {
+  // restart_required is always true on a successful response: applying a
+  // restore always makes the server process exit shortly after replying,
+  // so an external supervisor (systemd, a container restart policy,
+  // etc.) restarts it against the freshly-reopened, just-restored
+  // datastore. Kept as an explicit field rather than an implicit
+  // contract so a caller/UI has something concrete to render.
+  bool restart_required = 1;
+}
+
+// DatabaseService exposes read-only info plus the portable backup/restore
+// mechanism for the active Datastore backend — see
+// docs/technical/database-backup-restore.md and
+// docs/adr/0012-datastore-persistence.md.
+//
+// Backup is server-streaming: the backup artifact is streamed down chunk
+// by chunk rather than buffered whole in memory, mirroring the JSONL
+// design's own streaming rationale.
+//
+// Restore is this codebase's first client-streaming RPC (see
+// docs/adr/0023-job-queue.md's WatchJob for the first *server*-streaming
+// one, and the same care its own comment documents around stream
+// lifecycle). The caller uploads the backup as a sequence of
+// RestoreRequest chunks; the server stages the full upload to disk,
+// validates it completely, and only then applies it destructively —
+// never clearing the live datastore against a stream that might still
+// turn out truncated or malformed partway through. A successful Restore
+// means the server process is about to exit; see RestoreResponse.
+service DatabaseService {
+  rpc GetDatabaseInfo(GetDatabaseInfoRequest) returns (GetDatabaseInfoResponse);
+  rpc Backup(BackupRequest) returns (stream BackupChunk);
+  rpc Restore(stream RestoreRequest) returns (RestoreResponse);
+}
