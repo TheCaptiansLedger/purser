@@ -430,6 +430,11 @@ content-type configurations to prove genericity):
   `components/edit/editors/` naming; the only surface where raw/technical
   fields are exposed, per
   [ux-principles.md](ux-principles.md#progressive-disclosure).
+- **ImageLightbox** — clicking any rendered image expands it full-screen,
+  reusing the same served bytes the thumbnail already loaded (pre-reset
+  precedent: issue #288). Content-type agnostic — a Person's photo, a
+  Music release's cover, an AfterDark scene image all open the same way.
+  See [docs/technical/image-caching-and-serving.md](../technical/image-caching-and-serving.md).
 
 This list is a starting vocabulary, not exhaustive — extend it here as
 real screens get built, per [ADR 0004](../adr/0004-typescript-react-testing-standards.md)'s
