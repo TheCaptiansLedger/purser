@@ -1,4 +1,4 @@
-import { ChevronLeft, ChevronRight, Home, Settings } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Home, Settings, Users } from 'lucide-react'
 import { NavLink } from 'react-router-dom'
 import type { LucideIcon } from 'lucide-react'
 
@@ -20,6 +20,7 @@ interface NavItem {
 
 const NAV_ITEMS: NavItem[] = [
   { to: '/', label: 'Welcome', icon: Home },
+  { to: '/people', label: 'People', icon: Users },
   { to: '/settings', label: 'Settings', icon: Settings },
 ]
 
