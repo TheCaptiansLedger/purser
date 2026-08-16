@@ -57,6 +57,20 @@ export type SettingCategory =
 // Task or Step.
 export type JobStatus = 'unspecified' | 'pending' | 'running' | 'succeeded' | 'failed' | 'partial'
 
+// ItemStatus mirrors purser.domain.v1.ItemStatus
+// (web/src/gen/purser/domain/v1/common_pb.ts) as plain string literals.
+// Omits the wire enum's ITEM_STATUS_UNSPECIFIED=0 — Item.Status is a
+// validated oneof in the domain (see item_pb.ts's own comment), so an
+// Item is never actually unspecified in practice, unlike Job.
+export type ItemStatus = 'wanted' | 'grabbed' | 'downloading' | 'imported' | 'missing' | 'skipped'
+
+// ReleaseStatus mirrors purser.music.v1.ReleaseStatus
+// (web/src/gen/purser/music/v1/release_pb.ts) as plain string literals.
+// Omits RELEASE_STATUS_UNSPECIFIED=0 for the same reason as ItemStatus
+// above — Release.Status is a required, validated oneof in
+// internal/domain/music (`oneof=stub partial imported`).
+export type ReleaseStatus = 'stub' | 'partial' | 'imported'
+
 // Step mirrors purser.job.v1.Step — one discrete action taken on a Task
 // (e.g. "compute hashes"). detail carries structured, step-specific
 // results (a matched MBID, a computed confidence score) the job detail

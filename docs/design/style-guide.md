@@ -181,6 +181,7 @@ unrelated reds.
 | `Job` | Pending | — | Running | Succeeded | Partial | Failed | — |
 | `Download` | — | Queued | Downloading | Completed | Paused | Failed | — |
 | `UnmatchedFile` | Pending | — | — | Matched | — | — | Dismissed |
+| `MusicRelease` | Stub | — | — | Imported | Partial | — | — |
 
 ## Typography
 
@@ -417,9 +418,12 @@ content-type configurations to prove genericity):
   title, primary actions, key metadata) — Netflix/Apple TV's visual
   pattern, purely for polish, per the
   [Reference stack](ux-principles.md#reference-stack) table.
-- **StatusBadge** — renders any of the state-vocabulary enums (Job, Item,
-  Download, UnmatchedFile) with paired color+icon, no per-content-type
-  variant.
+- **`*StatusBadge`** — one small badge component per entity's own closed
+  status enum (`JobStatusBadge`, `ItemStatusBadge`,
+  `MusicReleaseStatusBadge`, ...), not a single generic cross-entity
+  `StatusBadge`. Each maps its enum's values to a label + status-token
+  color via the "Entity → bucket mapping" table above; color is never the
+  only signal, always paired with distinct label text.
 - **ActivityRow / JobPanel** — the Plex/Jellyfin dashboard-activity
   precedent named in ux-principles.md; shows Task/Step progress for a
   running Job.
