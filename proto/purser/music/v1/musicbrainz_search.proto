@@ -101,6 +101,17 @@ message SearchMusicBrainzReleaseGroupsResponse {
   repeated MusicBrainzReleaseGroup release_groups = 1;
 }
 
+// GetMusicBrainzArtistRequest looks up one artist by MBID — used when a
+// caller already knows the exact artist (e.g. "refresh this artist's
+// metadata from MusicBrainz"), unlike SearchArtists' free-text browse.
+message GetMusicBrainzArtistRequest {
+  string mbid = 1;
+}
+
+message GetMusicBrainzArtistResponse {
+  MusicBrainzArtist artist = 1;
+}
+
 // ListMusicBrainzReleasesRequest lists every known pressing/edition of one
 // release group — the step after SearchReleaseGroups narrows to a single
 // album: "which of these N editions is the one on disk."
@@ -126,13 +137,17 @@ message ListMusicBrainzReleasesResponse {
 // — arriving here: SearchArtists/ListReleaseGroupsForArtist are Add
 // Artist/Add Album's entry points, browsing a known artist's full
 // discography rather than only ever free-text searching one album at a
-// time. Deliberately no GetArtist/lookup-by-MBID RPC yet — no caller
-// needs it until a later issue. Deliberately read-only: no RPC here
-// writes anything; AcceptCandidate (purser.pipeline.v1.UnmatchedFileService)
-// is still the only write path, unchanged.
+// time. GetArtist looks up a single already-known MBID directly — built
+// for "refresh artist metadata from MusicBrainz" rather than
+// speculatively; it's the same LookupArtist ports.MusicBrainzClient
+// already exposes, simply not wired to a caller until now. Deliberately
+// read-only: no RPC here writes anything; AcceptCandidate
+// (purser.pipeline.v1.UnmatchedFileService) is still the only write
+// path, unchanged.
 service MusicBrainzService {
   rpc SearchReleaseGroups(SearchMusicBrainzReleaseGroupsRequest) returns (SearchMusicBrainzReleaseGroupsResponse);
   rpc ListReleasesForReleaseGroup(ListMusicBrainzReleasesRequest) returns (ListMusicBrainzReleasesResponse);
   rpc SearchArtists(SearchMusicBrainzArtistsRequest) returns (SearchMusicBrainzArtistsResponse);
   rpc ListReleaseGroupsForArtist(ListMusicBrainzArtistReleaseGroupsRequest) returns (ListMusicBrainzArtistReleaseGroupsResponse);
+  rpc GetArtist(GetMusicBrainzArtistRequest) returns (GetMusicBrainzArtistResponse);
 }

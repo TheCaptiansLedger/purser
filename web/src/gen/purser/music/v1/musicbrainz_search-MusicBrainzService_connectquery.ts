@@ -23,3 +23,8 @@ export const searchArtists = MusicBrainzService.method.searchArtists;
  * @generated from rpc purser.music.v1.MusicBrainzService.ListReleaseGroupsForArtist
  */
 export const listReleaseGroupsForArtist = MusicBrainzService.method.listReleaseGroupsForArtist;
+
+/**
+ * @generated from rpc purser.music.v1.MusicBrainzService.GetArtist
+ */
+export const getArtist = MusicBrainzService.method.getArtist;

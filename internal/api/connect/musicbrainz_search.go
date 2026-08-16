@@ -18,6 +18,7 @@ type musicBrainzSearchService interface {
 	ListReleasesForReleaseGroup(ctx context.Context, releaseGroupMBID string) ([]ports.Release, error)
 	SearchArtists(ctx context.Context, query string) ([]ports.Artist, error)
 	ListReleaseGroupsForArtist(ctx context.Context, artistMBID string) ([]ports.ReleaseGroup, error)
+	GetArtist(ctx context.Context, mbid string) (*ports.Artist, error)
 }
 
 // MusicBrainzSearchHandler implements musicv1connect.MusicBrainzServiceHandler
@@ -90,6 +91,15 @@ func (h *MusicBrainzSearchHandler) ListReleaseGroupsForArtist(ctx context.Contex
 		out[i] = releaseGroupToProto(rg)
 	}
 	return connect.NewResponse(&musicv1.ListMusicBrainzArtistReleaseGroupsResponse{ReleaseGroups: out}), nil
+}
+
+// GetArtist implements musicv1connect.MusicBrainzServiceHandler.
+func (h *MusicBrainzSearchHandler) GetArtist(ctx context.Context, req *connect.Request[musicv1.GetMusicBrainzArtistRequest]) (*connect.Response[musicv1.GetMusicBrainzArtistResponse], error) {
+	a, err := h.svc.GetArtist(ctx, req.Msg.GetMbid())
+	if err != nil {
+		return nil, mapError(ctx, h.logger, err)
+	}
+	return connect.NewResponse(&musicv1.GetMusicBrainzArtistResponse{Artist: artistToProto(*a)}), nil
 }
 
 // artistToProto maps ports.Artist (internal/adapters/musicbrainz's own DTO)

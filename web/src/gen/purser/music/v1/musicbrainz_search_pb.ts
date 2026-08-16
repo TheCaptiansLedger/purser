@@ -10,7 +10,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file purser/music/v1/musicbrainz_search.proto.
  */
 export const file_purser_music_v1_musicbrainz_search: GenFile = /*@__PURE__*/
-  fileDesc("CihwdXJzZXIvbXVzaWMvdjEvbXVzaWNicmFpbnpfc2VhcmNoLnByb3RvEg9wdXJzZXIubXVzaWMudjEimQEKF011c2ljQnJhaW56UmVsZWFzZUdyb3VwEgwKBG1iaWQYASABKAkSDQoFdGl0bGUYAiABKAkSFgoOZGlzYW1iaWd1YXRpb24YAyABKAkSFAoMcHJpbWFyeV90eXBlGAQgASgJEhcKD3NlY29uZGFyeV90eXBlcxgFIAMoCRIaChJmaXJzdF9yZWxlYXNlX2RhdGUYBiABKAki8AEKEk11c2ljQnJhaW56UmVsZWFzZRIMCgRtYmlkGAEgASgJEg0KBXRpdGxlGAIgASgJEhYKDmRpc2FtYmlndWF0aW9uGAMgASgJEg8KB2NvdW50cnkYBCABKAkSDAoEZGF0ZRgFIAEoCRIPCgdiYXJjb2RlGAYgASgJEg4KBnN0YXR1cxgHIAEoCRIOCgZmb3JtYXQYCCABKAkSFAoMbWVkaXVtX2NvdW50GAkgASgFEhMKC3RyYWNrX2NvdW50GAogASgFEhsKE2FydGlzdF9jcmVkaXRfbmFtZXMYCyADKAkSDQoFbGFiZWwYDCABKAkiugEKEU11c2ljQnJhaW56QXJ0aXN0EgwKBG1iaWQYASABKAkSDAoEbmFtZRgCIAEoCRIRCglzb3J0X25hbWUYAyABKAkSFgoOZGlzYW1iaWd1YXRpb24YBCABKAkSDAoEdHlwZRgFIAEoCRIPCgdjb3VudHJ5GAYgASgJEhcKD2xpZmVfc3Bhbl9iZWdpbhgHIAEoCRIVCg1saWZlX3NwYW5fZW5kGAggASgJEg8KB2FsaWFzZXMYCSADKAkiMAofU2VhcmNoTXVzaWNCcmFpbnpBcnRpc3RzUmVxdWVzdBINCgVxdWVyeRgBIAEoCSJXCiBTZWFyY2hNdXNpY0JyYWluekFydGlzdHNSZXNwb25zZRIzCgdhcnRpc3RzGAEgAygLMiIucHVyc2VyLm11c2ljLnYxLk11c2ljQnJhaW56QXJ0aXN0IkAKKUxpc3RNdXNpY0JyYWluekFydGlzdFJlbGVhc2VHcm91cHNSZXF1ZXN0EhMKC2FydGlzdF9tYmlkGAEgASgJIm4KKkxpc3RNdXNpY0JyYWluekFydGlzdFJlbGVhc2VHcm91cHNSZXNwb25zZRJACg5yZWxlYXNlX2dyb3VwcxgBIAMoCzIoLnB1cnNlci5tdXNpYy52MS5NdXNpY0JyYWluelJlbGVhc2VHcm91cCJQCiVTZWFyY2hNdXNpY0JyYWluelJlbGVhc2VHcm91cHNSZXF1ZXN0EhMKC2FydGlzdF9uYW1lGAEgASgJEhIKCmFsYnVtX25hbWUYAiABKAkiagomU2VhcmNoTXVzaWNCcmFpbnpSZWxlYXNlR3JvdXBzUmVzcG9uc2USQAoOcmVsZWFzZV9ncm91cHMYASADKAsyKC5wdXJzZXIubXVzaWMudjEuTXVzaWNCcmFpbnpSZWxlYXNlR3JvdXAiPAoeTGlzdE11c2ljQnJhaW56UmVsZWFzZXNSZXF1ZXN0EhoKEnJlbGVhc2VfZ3JvdXBfbWJpZBgBIAEoCSJYCh9MaXN0TXVzaWNCcmFpbnpSZWxlYXNlc1Jlc3BvbnNlEjUKCHJlbGVhc2VzGAEgAygLMiMucHVyc2VyLm11c2ljLnYxLk11c2ljQnJhaW56UmVsZWFzZTKuBAoSTXVzaWNCcmFpbnpTZXJ2aWNlEoYBChNTZWFyY2hSZWxlYXNlR3JvdXBzEjYucHVyc2VyLm11c2ljLnYxLlNlYXJjaE11c2ljQnJhaW56UmVsZWFzZUdyb3Vwc1JlcXVlc3QaNy5wdXJzZXIubXVzaWMudjEuU2VhcmNoTXVzaWNCcmFpbnpSZWxlYXNlR3JvdXBzUmVzcG9uc2USgAEKG0xpc3RSZWxlYXNlc0ZvclJlbGVhc2VHcm91cBIvLnB1cnNlci5tdXNpYy52MS5MaXN0TXVzaWNCcmFpbnpSZWxlYXNlc1JlcXVlc3QaMC5wdXJzZXIubXVzaWMudjEuTGlzdE11c2ljQnJhaW56UmVsZWFzZXNSZXNwb25zZRJ0Cg1TZWFyY2hBcnRpc3RzEjAucHVyc2VyLm11c2ljLnYxLlNlYXJjaE11c2ljQnJhaW56QXJ0aXN0c1JlcXVlc3QaMS5wdXJzZXIubXVzaWMudjEuU2VhcmNoTXVzaWNCcmFpbnpBcnRpc3RzUmVzcG9uc2USlQEKGkxpc3RSZWxlYXNlR3JvdXBzRm9yQXJ0aXN0EjoucHVyc2VyLm11c2ljLnYxLkxpc3RNdXNpY0JyYWluekFydGlzdFJlbGVhc2VHcm91cHNSZXF1ZXN0GjsucHVyc2VyLm11c2ljLnYxLkxpc3RNdXNpY0JyYWluekFydGlzdFJlbGVhc2VHcm91cHNSZXNwb25zZUInWiVwdXJzZXIvZ2VuL2dvL3B1cnNlci9tdXNpYy92MTttdXNpY3YxYgZwcm90bzM");
+  fileDesc("CihwdXJzZXIvbXVzaWMvdjEvbXVzaWNicmFpbnpfc2VhcmNoLnByb3RvEg9wdXJzZXIubXVzaWMudjEimQEKF011c2ljQnJhaW56UmVsZWFzZUdyb3VwEgwKBG1iaWQYASABKAkSDQoFdGl0bGUYAiABKAkSFgoOZGlzYW1iaWd1YXRpb24YAyABKAkSFAoMcHJpbWFyeV90eXBlGAQgASgJEhcKD3NlY29uZGFyeV90eXBlcxgFIAMoCRIaChJmaXJzdF9yZWxlYXNlX2RhdGUYBiABKAki8AEKEk11c2ljQnJhaW56UmVsZWFzZRIMCgRtYmlkGAEgASgJEg0KBXRpdGxlGAIgASgJEhYKDmRpc2FtYmlndWF0aW9uGAMgASgJEg8KB2NvdW50cnkYBCABKAkSDAoEZGF0ZRgFIAEoCRIPCgdiYXJjb2RlGAYgASgJEg4KBnN0YXR1cxgHIAEoCRIOCgZmb3JtYXQYCCABKAkSFAoMbWVkaXVtX2NvdW50GAkgASgFEhMKC3RyYWNrX2NvdW50GAogASgFEhsKE2FydGlzdF9jcmVkaXRfbmFtZXMYCyADKAkSDQoFbGFiZWwYDCABKAkiugEKEU11c2ljQnJhaW56QXJ0aXN0EgwKBG1iaWQYASABKAkSDAoEbmFtZRgCIAEoCRIRCglzb3J0X25hbWUYAyABKAkSFgoOZGlzYW1iaWd1YXRpb24YBCABKAkSDAoEdHlwZRgFIAEoCRIPCgdjb3VudHJ5GAYgASgJEhcKD2xpZmVfc3Bhbl9iZWdpbhgHIAEoCRIVCg1saWZlX3NwYW5fZW5kGAggASgJEg8KB2FsaWFzZXMYCSADKAkiMAofU2VhcmNoTXVzaWNCcmFpbnpBcnRpc3RzUmVxdWVzdBINCgVxdWVyeRgBIAEoCSJXCiBTZWFyY2hNdXNpY0JyYWluekFydGlzdHNSZXNwb25zZRIzCgdhcnRpc3RzGAEgAygLMiIucHVyc2VyLm11c2ljLnYxLk11c2ljQnJhaW56QXJ0aXN0IkAKKUxpc3RNdXNpY0JyYWluekFydGlzdFJlbGVhc2VHcm91cHNSZXF1ZXN0EhMKC2FydGlzdF9tYmlkGAEgASgJIm4KKkxpc3RNdXNpY0JyYWluekFydGlzdFJlbGVhc2VHcm91cHNSZXNwb25zZRJACg5yZWxlYXNlX2dyb3VwcxgBIAMoCzIoLnB1cnNlci5tdXNpYy52MS5NdXNpY0JyYWluelJlbGVhc2VHcm91cCJQCiVTZWFyY2hNdXNpY0JyYWluelJlbGVhc2VHcm91cHNSZXF1ZXN0EhMKC2FydGlzdF9uYW1lGAEgASgJEhIKCmFsYnVtX25hbWUYAiABKAkiagomU2VhcmNoTXVzaWNCcmFpbnpSZWxlYXNlR3JvdXBzUmVzcG9uc2USQAoOcmVsZWFzZV9ncm91cHMYASADKAsyKC5wdXJzZXIubXVzaWMudjEuTXVzaWNCcmFpbnpSZWxlYXNlR3JvdXAiKwobR2V0TXVzaWNCcmFpbnpBcnRpc3RSZXF1ZXN0EgwKBG1iaWQYASABKAkiUgocR2V0TXVzaWNCcmFpbnpBcnRpc3RSZXNwb25zZRIyCgZhcnRpc3QYASABKAsyIi5wdXJzZXIubXVzaWMudjEuTXVzaWNCcmFpbnpBcnRpc3QiPAoeTGlzdE11c2ljQnJhaW56UmVsZWFzZXNSZXF1ZXN0EhoKEnJlbGVhc2VfZ3JvdXBfbWJpZBgBIAEoCSJYCh9MaXN0TXVzaWNCcmFpbnpSZWxlYXNlc1Jlc3BvbnNlEjUKCHJlbGVhc2VzGAEgAygLMiMucHVyc2VyLm11c2ljLnYxLk11c2ljQnJhaW56UmVsZWFzZTKYBQoSTXVzaWNCcmFpbnpTZXJ2aWNlEoYBChNTZWFyY2hSZWxlYXNlR3JvdXBzEjYucHVyc2VyLm11c2ljLnYxLlNlYXJjaE11c2ljQnJhaW56UmVsZWFzZUdyb3Vwc1JlcXVlc3QaNy5wdXJzZXIubXVzaWMudjEuU2VhcmNoTXVzaWNCcmFpbnpSZWxlYXNlR3JvdXBzUmVzcG9uc2USgAEKG0xpc3RSZWxlYXNlc0ZvclJlbGVhc2VHcm91cBIvLnB1cnNlci5tdXNpYy52MS5MaXN0TXVzaWNCcmFpbnpSZWxlYXNlc1JlcXVlc3QaMC5wdXJzZXIubXVzaWMudjEuTGlzdE11c2ljQnJhaW56UmVsZWFzZXNSZXNwb25zZRJ0Cg1TZWFyY2hBcnRpc3RzEjAucHVyc2VyLm11c2ljLnYxLlNlYXJjaE11c2ljQnJhaW56QXJ0aXN0c1JlcXVlc3QaMS5wdXJzZXIubXVzaWMudjEuU2VhcmNoTXVzaWNCcmFpbnpBcnRpc3RzUmVzcG9uc2USlQEKGkxpc3RSZWxlYXNlR3JvdXBzRm9yQXJ0aXN0EjoucHVyc2VyLm11c2ljLnYxLkxpc3RNdXNpY0JyYWluekFydGlzdFJlbGVhc2VHcm91cHNSZXF1ZXN0GjsucHVyc2VyLm11c2ljLnYxLkxpc3RNdXNpY0JyYWluekFydGlzdFJlbGVhc2VHcm91cHNSZXNwb25zZRJoCglHZXRBcnRpc3QSLC5wdXJzZXIubXVzaWMudjEuR2V0TXVzaWNCcmFpbnpBcnRpc3RSZXF1ZXN0Gi0ucHVyc2VyLm11c2ljLnYxLkdldE11c2ljQnJhaW56QXJ0aXN0UmVzcG9uc2VCJ1olcHVyc2VyL2dlbi9nby9wdXJzZXIvbXVzaWMvdjE7bXVzaWN2MWIGcHJvdG8z");
 
 /**
  * MusicBrainzReleaseGroup is one candidate album MusicBrainz's own free-text
@@ -335,6 +335,44 @@ export const SearchMusicBrainzReleaseGroupsResponseSchema: GenMessage<SearchMusi
   messageDesc(file_purser_music_v1_musicbrainz_search, 8);
 
 /**
+ * GetMusicBrainzArtistRequest looks up one artist by MBID — used when a
+ * caller already knows the exact artist (e.g. "refresh this artist's
+ * metadata from MusicBrainz"), unlike SearchArtists' free-text browse.
+ *
+ * @generated from message purser.music.v1.GetMusicBrainzArtistRequest
+ */
+export type GetMusicBrainzArtistRequest = Message<"purser.music.v1.GetMusicBrainzArtistRequest"> & {
+  /**
+   * @generated from field: string mbid = 1;
+   */
+  mbid: string;
+};
+
+/**
+ * Describes the message purser.music.v1.GetMusicBrainzArtistRequest.
+ * Use `create(GetMusicBrainzArtistRequestSchema)` to create a new message.
+ */
+export const GetMusicBrainzArtistRequestSchema: GenMessage<GetMusicBrainzArtistRequest> = /*@__PURE__*/
+  messageDesc(file_purser_music_v1_musicbrainz_search, 9);
+
+/**
+ * @generated from message purser.music.v1.GetMusicBrainzArtistResponse
+ */
+export type GetMusicBrainzArtistResponse = Message<"purser.music.v1.GetMusicBrainzArtistResponse"> & {
+  /**
+   * @generated from field: purser.music.v1.MusicBrainzArtist artist = 1;
+   */
+  artist?: MusicBrainzArtist | undefined;
+};
+
+/**
+ * Describes the message purser.music.v1.GetMusicBrainzArtistResponse.
+ * Use `create(GetMusicBrainzArtistResponseSchema)` to create a new message.
+ */
+export const GetMusicBrainzArtistResponseSchema: GenMessage<GetMusicBrainzArtistResponse> = /*@__PURE__*/
+  messageDesc(file_purser_music_v1_musicbrainz_search, 10);
+
+/**
  * ListMusicBrainzReleasesRequest lists every known pressing/edition of one
  * release group — the step after SearchReleaseGroups narrows to a single
  * album: "which of these N editions is the one on disk."
@@ -353,7 +391,7 @@ export type ListMusicBrainzReleasesRequest = Message<"purser.music.v1.ListMusicB
  * Use `create(ListMusicBrainzReleasesRequestSchema)` to create a new message.
  */
 export const ListMusicBrainzReleasesRequestSchema: GenMessage<ListMusicBrainzReleasesRequest> = /*@__PURE__*/
-  messageDesc(file_purser_music_v1_musicbrainz_search, 9);
+  messageDesc(file_purser_music_v1_musicbrainz_search, 11);
 
 /**
  * @generated from message purser.music.v1.ListMusicBrainzReleasesResponse
@@ -370,7 +408,7 @@ export type ListMusicBrainzReleasesResponse = Message<"purser.music.v1.ListMusic
  * Use `create(ListMusicBrainzReleasesResponseSchema)` to create a new message.
  */
 export const ListMusicBrainzReleasesResponseSchema: GenMessage<ListMusicBrainzReleasesResponse> = /*@__PURE__*/
-  messageDesc(file_purser_music_v1_musicbrainz_search, 10);
+  messageDesc(file_purser_music_v1_musicbrainz_search, 12);
 
 /**
  * MusicBrainzService exposes internal/adapters/musicbrainz's read-only
@@ -387,10 +425,13 @@ export const ListMusicBrainzReleasesResponseSchema: GenMessage<ListMusicBrainzRe
  * — arriving here: SearchArtists/ListReleaseGroupsForArtist are Add
  * Artist/Add Album's entry points, browsing a known artist's full
  * discography rather than only ever free-text searching one album at a
- * time. Deliberately no GetArtist/lookup-by-MBID RPC yet — no caller
- * needs it until a later issue. Deliberately read-only: no RPC here
- * writes anything; AcceptCandidate (purser.pipeline.v1.UnmatchedFileService)
- * is still the only write path, unchanged.
+ * time. GetArtist looks up a single already-known MBID directly — built
+ * for "refresh artist metadata from MusicBrainz" rather than
+ * speculatively; it's the same LookupArtist ports.MusicBrainzClient
+ * already exposes, simply not wired to a caller until now. Deliberately
+ * read-only: no RPC here writes anything; AcceptCandidate
+ * (purser.pipeline.v1.UnmatchedFileService) is still the only write
+ * path, unchanged.
  *
  * @generated from service purser.music.v1.MusicBrainzService
  */
@@ -426,6 +467,14 @@ export const MusicBrainzService: GenService<{
     methodKind: "unary";
     input: typeof ListMusicBrainzArtistReleaseGroupsRequestSchema;
     output: typeof ListMusicBrainzArtistReleaseGroupsResponseSchema;
+  },
+  /**
+   * @generated from rpc purser.music.v1.MusicBrainzService.GetArtist
+   */
+  getArtist: {
+    methodKind: "unary";
+    input: typeof GetMusicBrainzArtistRequestSchema;
+    output: typeof GetMusicBrainzArtistResponseSchema;
   },
 }> = /*@__PURE__*/
   serviceDesc(file_purser_music_v1_musicbrainz_search, 0);

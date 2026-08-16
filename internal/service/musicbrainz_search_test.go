@@ -22,17 +22,24 @@ type fakeMusicBrainzClient struct {
 	artistsErr             error
 	artistReleaseGroups    []ports.ReleaseGroup
 	artistReleaseGroupsErr error
+	artist                 *ports.Artist
+	artistErr              error
 
 	gotArtistName, gotAlbumName string
 	gotReleaseGroupMBID         string
 	gotQuery                    string
 	gotArtistMBID               string
+	gotMBID                     string
 }
 
 var _ ports.MusicBrainzClient = (*fakeMusicBrainzClient)(nil)
 
-func (f *fakeMusicBrainzClient) LookupArtist(context.Context, string) (*ports.Artist, error) {
-	return nil, ports.ErrNotFound
+func (f *fakeMusicBrainzClient) LookupArtist(_ context.Context, mbid string) (*ports.Artist, error) {
+	f.gotMBID = mbid
+	if f.artistErr != nil {
+		return nil, f.artistErr
+	}
+	return f.artist, nil
 }
 
 func (f *fakeMusicBrainzClient) SearchArtists(_ context.Context, query string) ([]ports.Artist, error) {
@@ -214,5 +221,31 @@ func TestMusicBrainzSearch_ListReleaseGroupsForArtist_PropagatesError(t *testing
 
 	if _, err := s.ListReleaseGroupsForArtist(context.Background(), "artist-1"); !errors.Is(err, wantErr) {
 		t.Fatalf("ListReleaseGroupsForArtist returned %v, want %v", err, wantErr)
+	}
+}
+
+func TestMusicBrainzSearch_GetArtist_PassesMBIDThrough(t *testing.T) {
+	want := &ports.Artist{ID: "artist-1", Name: "REO Speedwagon"}
+	mb := &fakeMusicBrainzClient{artist: want}
+	s := service.NewMusicBrainzSearch(mb)
+
+	got, err := s.GetArtist(context.Background(), "artist-1")
+	if err != nil {
+		t.Fatalf("GetArtist returned error: %v", err)
+	}
+	if got.ID != "artist-1" {
+		t.Errorf("GetArtist = %+v, want %+v", got, want)
+	}
+	if mb.gotMBID != "artist-1" {
+		t.Errorf("GetArtist called with %q, want artist-1", mb.gotMBID)
+	}
+}
+
+func TestMusicBrainzSearch_GetArtist_PropagatesNotFound(t *testing.T) {
+	mb := &fakeMusicBrainzClient{artistErr: ports.ErrNotFound}
+	s := service.NewMusicBrainzSearch(mb)
+
+	if _, err := s.GetArtist(context.Background(), "unknown-mbid"); !errors.Is(err, ports.ErrNotFound) {
+		t.Fatalf("GetArtist returned %v, want ports.ErrNotFound", err)
 	}
 }

@@ -653,6 +653,97 @@ func (x *SearchMusicBrainzReleaseGroupsResponse) GetReleaseGroups() []*MusicBrai
 	return nil
 }
 
+// GetMusicBrainzArtistRequest looks up one artist by MBID — used when a
+// caller already knows the exact artist (e.g. "refresh this artist's
+// metadata from MusicBrainz"), unlike SearchArtists' free-text browse.
+type GetMusicBrainzArtistRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Mbid          string                 `protobuf:"bytes,1,opt,name=mbid,proto3" json:"mbid,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetMusicBrainzArtistRequest) Reset() {
+	*x = GetMusicBrainzArtistRequest{}
+	mi := &file_purser_music_v1_musicbrainz_search_proto_msgTypes[9]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetMusicBrainzArtistRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetMusicBrainzArtistRequest) ProtoMessage() {}
+
+func (x *GetMusicBrainzArtistRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_purser_music_v1_musicbrainz_search_proto_msgTypes[9]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetMusicBrainzArtistRequest.ProtoReflect.Descriptor instead.
+func (*GetMusicBrainzArtistRequest) Descriptor() ([]byte, []int) {
+	return file_purser_music_v1_musicbrainz_search_proto_rawDescGZIP(), []int{9}
+}
+
+func (x *GetMusicBrainzArtistRequest) GetMbid() string {
+	if x != nil {
+		return x.Mbid
+	}
+	return ""
+}
+
+type GetMusicBrainzArtistResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Artist        *MusicBrainzArtist     `protobuf:"bytes,1,opt,name=artist,proto3" json:"artist,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetMusicBrainzArtistResponse) Reset() {
+	*x = GetMusicBrainzArtistResponse{}
+	mi := &file_purser_music_v1_musicbrainz_search_proto_msgTypes[10]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetMusicBrainzArtistResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetMusicBrainzArtistResponse) ProtoMessage() {}
+
+func (x *GetMusicBrainzArtistResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_purser_music_v1_musicbrainz_search_proto_msgTypes[10]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetMusicBrainzArtistResponse.ProtoReflect.Descriptor instead.
+func (*GetMusicBrainzArtistResponse) Descriptor() ([]byte, []int) {
+	return file_purser_music_v1_musicbrainz_search_proto_rawDescGZIP(), []int{10}
+}
+
+func (x *GetMusicBrainzArtistResponse) GetArtist() *MusicBrainzArtist {
+	if x != nil {
+		return x.Artist
+	}
+	return nil
+}
+
 // ListMusicBrainzReleasesRequest lists every known pressing/edition of one
 // release group — the step after SearchReleaseGroups narrows to a single
 // album: "which of these N editions is the one on disk."
@@ -665,7 +756,7 @@ type ListMusicBrainzReleasesRequest struct {
 
 func (x *ListMusicBrainzReleasesRequest) Reset() {
 	*x = ListMusicBrainzReleasesRequest{}
-	mi := &file_purser_music_v1_musicbrainz_search_proto_msgTypes[9]
+	mi := &file_purser_music_v1_musicbrainz_search_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -677,7 +768,7 @@ func (x *ListMusicBrainzReleasesRequest) String() string {
 func (*ListMusicBrainzReleasesRequest) ProtoMessage() {}
 
 func (x *ListMusicBrainzReleasesRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_purser_music_v1_musicbrainz_search_proto_msgTypes[9]
+	mi := &file_purser_music_v1_musicbrainz_search_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -690,7 +781,7 @@ func (x *ListMusicBrainzReleasesRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListMusicBrainzReleasesRequest.ProtoReflect.Descriptor instead.
 func (*ListMusicBrainzReleasesRequest) Descriptor() ([]byte, []int) {
-	return file_purser_music_v1_musicbrainz_search_proto_rawDescGZIP(), []int{9}
+	return file_purser_music_v1_musicbrainz_search_proto_rawDescGZIP(), []int{11}
 }
 
 func (x *ListMusicBrainzReleasesRequest) GetReleaseGroupMbid() string {
@@ -709,7 +800,7 @@ type ListMusicBrainzReleasesResponse struct {
 
 func (x *ListMusicBrainzReleasesResponse) Reset() {
 	*x = ListMusicBrainzReleasesResponse{}
-	mi := &file_purser_music_v1_musicbrainz_search_proto_msgTypes[10]
+	mi := &file_purser_music_v1_musicbrainz_search_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -721,7 +812,7 @@ func (x *ListMusicBrainzReleasesResponse) String() string {
 func (*ListMusicBrainzReleasesResponse) ProtoMessage() {}
 
 func (x *ListMusicBrainzReleasesResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_purser_music_v1_musicbrainz_search_proto_msgTypes[10]
+	mi := &file_purser_music_v1_musicbrainz_search_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -734,7 +825,7 @@ func (x *ListMusicBrainzReleasesResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListMusicBrainzReleasesResponse.ProtoReflect.Descriptor instead.
 func (*ListMusicBrainzReleasesResponse) Descriptor() ([]byte, []int) {
-	return file_purser_music_v1_musicbrainz_search_proto_rawDescGZIP(), []int{10}
+	return file_purser_music_v1_musicbrainz_search_proto_rawDescGZIP(), []int{12}
 }
 
 func (x *ListMusicBrainzReleasesResponse) GetReleases() []*MusicBrainzRelease {
@@ -796,16 +887,21 @@ const file_purser_music_v1_musicbrainz_search_proto_rawDesc = "" +
 	"\n" +
 	"album_name\x18\x02 \x01(\tR\talbumName\"y\n" +
 	"&SearchMusicBrainzReleaseGroupsResponse\x12O\n" +
-	"\x0erelease_groups\x18\x01 \x03(\v2(.purser.music.v1.MusicBrainzReleaseGroupR\rreleaseGroups\"N\n" +
+	"\x0erelease_groups\x18\x01 \x03(\v2(.purser.music.v1.MusicBrainzReleaseGroupR\rreleaseGroups\"1\n" +
+	"\x1bGetMusicBrainzArtistRequest\x12\x12\n" +
+	"\x04mbid\x18\x01 \x01(\tR\x04mbid\"Z\n" +
+	"\x1cGetMusicBrainzArtistResponse\x12:\n" +
+	"\x06artist\x18\x01 \x01(\v2\".purser.music.v1.MusicBrainzArtistR\x06artist\"N\n" +
 	"\x1eListMusicBrainzReleasesRequest\x12,\n" +
 	"\x12release_group_mbid\x18\x01 \x01(\tR\x10releaseGroupMbid\"b\n" +
 	"\x1fListMusicBrainzReleasesResponse\x12?\n" +
-	"\breleases\x18\x01 \x03(\v2#.purser.music.v1.MusicBrainzReleaseR\breleases2\xae\x04\n" +
+	"\breleases\x18\x01 \x03(\v2#.purser.music.v1.MusicBrainzReleaseR\breleases2\x98\x05\n" +
 	"\x12MusicBrainzService\x12\x86\x01\n" +
 	"\x13SearchReleaseGroups\x126.purser.music.v1.SearchMusicBrainzReleaseGroupsRequest\x1a7.purser.music.v1.SearchMusicBrainzReleaseGroupsResponse\x12\x80\x01\n" +
 	"\x1bListReleasesForReleaseGroup\x12/.purser.music.v1.ListMusicBrainzReleasesRequest\x1a0.purser.music.v1.ListMusicBrainzReleasesResponse\x12t\n" +
 	"\rSearchArtists\x120.purser.music.v1.SearchMusicBrainzArtistsRequest\x1a1.purser.music.v1.SearchMusicBrainzArtistsResponse\x12\x95\x01\n" +
-	"\x1aListReleaseGroupsForArtist\x12:.purser.music.v1.ListMusicBrainzArtistReleaseGroupsRequest\x1a;.purser.music.v1.ListMusicBrainzArtistReleaseGroupsResponseB'Z%purser/gen/go/purser/music/v1;musicv1b\x06proto3"
+	"\x1aListReleaseGroupsForArtist\x12:.purser.music.v1.ListMusicBrainzArtistReleaseGroupsRequest\x1a;.purser.music.v1.ListMusicBrainzArtistReleaseGroupsResponse\x12h\n" +
+	"\tGetArtist\x12,.purser.music.v1.GetMusicBrainzArtistRequest\x1a-.purser.music.v1.GetMusicBrainzArtistResponseB'Z%purser/gen/go/purser/music/v1;musicv1b\x06proto3"
 
 var (
 	file_purser_music_v1_musicbrainz_search_proto_rawDescOnce sync.Once
@@ -819,7 +915,7 @@ func file_purser_music_v1_musicbrainz_search_proto_rawDescGZIP() []byte {
 	return file_purser_music_v1_musicbrainz_search_proto_rawDescData
 }
 
-var file_purser_music_v1_musicbrainz_search_proto_msgTypes = make([]protoimpl.MessageInfo, 11)
+var file_purser_music_v1_musicbrainz_search_proto_msgTypes = make([]protoimpl.MessageInfo, 13)
 var file_purser_music_v1_musicbrainz_search_proto_goTypes = []any{
 	(*MusicBrainzReleaseGroup)(nil),                    // 0: purser.music.v1.MusicBrainzReleaseGroup
 	(*MusicBrainzRelease)(nil),                         // 1: purser.music.v1.MusicBrainzRelease
@@ -830,27 +926,32 @@ var file_purser_music_v1_musicbrainz_search_proto_goTypes = []any{
 	(*ListMusicBrainzArtistReleaseGroupsResponse)(nil), // 6: purser.music.v1.ListMusicBrainzArtistReleaseGroupsResponse
 	(*SearchMusicBrainzReleaseGroupsRequest)(nil),      // 7: purser.music.v1.SearchMusicBrainzReleaseGroupsRequest
 	(*SearchMusicBrainzReleaseGroupsResponse)(nil),     // 8: purser.music.v1.SearchMusicBrainzReleaseGroupsResponse
-	(*ListMusicBrainzReleasesRequest)(nil),             // 9: purser.music.v1.ListMusicBrainzReleasesRequest
-	(*ListMusicBrainzReleasesResponse)(nil),            // 10: purser.music.v1.ListMusicBrainzReleasesResponse
+	(*GetMusicBrainzArtistRequest)(nil),                // 9: purser.music.v1.GetMusicBrainzArtistRequest
+	(*GetMusicBrainzArtistResponse)(nil),               // 10: purser.music.v1.GetMusicBrainzArtistResponse
+	(*ListMusicBrainzReleasesRequest)(nil),             // 11: purser.music.v1.ListMusicBrainzReleasesRequest
+	(*ListMusicBrainzReleasesResponse)(nil),            // 12: purser.music.v1.ListMusicBrainzReleasesResponse
 }
 var file_purser_music_v1_musicbrainz_search_proto_depIdxs = []int32{
 	2,  // 0: purser.music.v1.SearchMusicBrainzArtistsResponse.artists:type_name -> purser.music.v1.MusicBrainzArtist
 	0,  // 1: purser.music.v1.ListMusicBrainzArtistReleaseGroupsResponse.release_groups:type_name -> purser.music.v1.MusicBrainzReleaseGroup
 	0,  // 2: purser.music.v1.SearchMusicBrainzReleaseGroupsResponse.release_groups:type_name -> purser.music.v1.MusicBrainzReleaseGroup
-	1,  // 3: purser.music.v1.ListMusicBrainzReleasesResponse.releases:type_name -> purser.music.v1.MusicBrainzRelease
-	7,  // 4: purser.music.v1.MusicBrainzService.SearchReleaseGroups:input_type -> purser.music.v1.SearchMusicBrainzReleaseGroupsRequest
-	9,  // 5: purser.music.v1.MusicBrainzService.ListReleasesForReleaseGroup:input_type -> purser.music.v1.ListMusicBrainzReleasesRequest
-	3,  // 6: purser.music.v1.MusicBrainzService.SearchArtists:input_type -> purser.music.v1.SearchMusicBrainzArtistsRequest
-	5,  // 7: purser.music.v1.MusicBrainzService.ListReleaseGroupsForArtist:input_type -> purser.music.v1.ListMusicBrainzArtistReleaseGroupsRequest
-	8,  // 8: purser.music.v1.MusicBrainzService.SearchReleaseGroups:output_type -> purser.music.v1.SearchMusicBrainzReleaseGroupsResponse
-	10, // 9: purser.music.v1.MusicBrainzService.ListReleasesForReleaseGroup:output_type -> purser.music.v1.ListMusicBrainzReleasesResponse
-	4,  // 10: purser.music.v1.MusicBrainzService.SearchArtists:output_type -> purser.music.v1.SearchMusicBrainzArtistsResponse
-	6,  // 11: purser.music.v1.MusicBrainzService.ListReleaseGroupsForArtist:output_type -> purser.music.v1.ListMusicBrainzArtistReleaseGroupsResponse
-	8,  // [8:12] is the sub-list for method output_type
-	4,  // [4:8] is the sub-list for method input_type
-	4,  // [4:4] is the sub-list for extension type_name
-	4,  // [4:4] is the sub-list for extension extendee
-	0,  // [0:4] is the sub-list for field type_name
+	2,  // 3: purser.music.v1.GetMusicBrainzArtistResponse.artist:type_name -> purser.music.v1.MusicBrainzArtist
+	1,  // 4: purser.music.v1.ListMusicBrainzReleasesResponse.releases:type_name -> purser.music.v1.MusicBrainzRelease
+	7,  // 5: purser.music.v1.MusicBrainzService.SearchReleaseGroups:input_type -> purser.music.v1.SearchMusicBrainzReleaseGroupsRequest
+	11, // 6: purser.music.v1.MusicBrainzService.ListReleasesForReleaseGroup:input_type -> purser.music.v1.ListMusicBrainzReleasesRequest
+	3,  // 7: purser.music.v1.MusicBrainzService.SearchArtists:input_type -> purser.music.v1.SearchMusicBrainzArtistsRequest
+	5,  // 8: purser.music.v1.MusicBrainzService.ListReleaseGroupsForArtist:input_type -> purser.music.v1.ListMusicBrainzArtistReleaseGroupsRequest
+	9,  // 9: purser.music.v1.MusicBrainzService.GetArtist:input_type -> purser.music.v1.GetMusicBrainzArtistRequest
+	8,  // 10: purser.music.v1.MusicBrainzService.SearchReleaseGroups:output_type -> purser.music.v1.SearchMusicBrainzReleaseGroupsResponse
+	12, // 11: purser.music.v1.MusicBrainzService.ListReleasesForReleaseGroup:output_type -> purser.music.v1.ListMusicBrainzReleasesResponse
+	4,  // 12: purser.music.v1.MusicBrainzService.SearchArtists:output_type -> purser.music.v1.SearchMusicBrainzArtistsResponse
+	6,  // 13: purser.music.v1.MusicBrainzService.ListReleaseGroupsForArtist:output_type -> purser.music.v1.ListMusicBrainzArtistReleaseGroupsResponse
+	10, // 14: purser.music.v1.MusicBrainzService.GetArtist:output_type -> purser.music.v1.GetMusicBrainzArtistResponse
+	10, // [10:15] is the sub-list for method output_type
+	5,  // [5:10] is the sub-list for method input_type
+	5,  // [5:5] is the sub-list for extension type_name
+	5,  // [5:5] is the sub-list for extension extendee
+	0,  // [0:5] is the sub-list for field type_name
 }
 
 func init() { file_purser_music_v1_musicbrainz_search_proto_init() }
@@ -864,7 +965,7 @@ func file_purser_music_v1_musicbrainz_search_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_purser_music_v1_musicbrainz_search_proto_rawDesc), len(file_purser_music_v1_musicbrainz_search_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   11,
+			NumMessages:   13,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
