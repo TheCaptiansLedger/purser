@@ -229,7 +229,7 @@ func (s *GroupDeletionService) drainItems(ctx context.Context, groupID string) (
 	var out []*domain.Item
 	pageToken := ""
 	for {
-		rows, next, err := s.items.List(ctx, "", "", groupID, 100, pageToken)
+		rows, next, err := s.items.List(ctx, "", "", groupID, "", 100, pageToken)
 		if err != nil {
 			return nil, err
 		}

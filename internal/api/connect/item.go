@@ -17,7 +17,7 @@ type itemService interface {
 	Create(ctx context.Context, i *domain.Item) (*domain.Item, error)
 	Get(ctx context.Context, id string) (*domain.Item, error)
 	Update(ctx context.Context, i *domain.Item) (*domain.Item, error)
-	List(ctx context.Context, libraryEntryID, contentType, groupID string, pageSize int, pageToken string) ([]*domain.Item, string, error)
+	List(ctx context.Context, libraryEntryID, contentType, groupID string, status domain.ItemStatus, pageSize int, pageToken string) ([]*domain.Item, string, error)
 }
 
 // ItemHandler implements domainv1connect.ItemServiceHandler.
@@ -98,7 +98,8 @@ func (h *ItemHandler) BulkDeleteItems(ctx context.Context, req *connect.Request[
 
 // ListItems implements domainv1connect.ItemServiceHandler.
 func (h *ItemHandler) ListItems(ctx context.Context, req *connect.Request[v1.ListItemsRequest]) (*connect.Response[v1.ListItemsResponse], error) {
-	items, next, err := h.svc.List(ctx, req.Msg.GetLibraryEntryId(), req.Msg.GetContentType(), req.Msg.GetGroupId(), int(req.Msg.GetPageSize()), req.Msg.GetPageToken())
+	status := itemStatusFromProto(req.Msg.GetStatus())
+	items, next, err := h.svc.List(ctx, req.Msg.GetLibraryEntryId(), req.Msg.GetContentType(), req.Msg.GetGroupId(), status, int(req.Msg.GetPageSize()), req.Msg.GetPageToken())
 	if err != nil {
 		return nil, mapError(ctx, h.logger, err)
 	}

@@ -60,7 +60,7 @@ func (f *fakeItemRepository) Delete(_ context.Context, id string) error {
 	return nil
 }
 
-func (f *fakeItemRepository) List(_ context.Context, _, _, _ string, _ int, _ string) ([]*domain.Item, string, error) {
+func (f *fakeItemRepository) List(_ context.Context, _, _, _ string, _ domain.ItemStatus, _ int, _ string) ([]*domain.Item, string, error) {
 	items := make([]*domain.Item, 0, len(f.byID))
 	for _, i := range f.byID {
 		stored := *i
@@ -222,7 +222,7 @@ func TestItemService_List(t *testing.T) {
 		}
 	}
 
-	items, _, err := svc.List(context.Background(), "", "", "", 10, "")
+	items, _, err := svc.List(context.Background(), "", "", "", "", 10, "")
 	if err != nil {
 		t.Fatalf("List returned error: %v", err)
 	}

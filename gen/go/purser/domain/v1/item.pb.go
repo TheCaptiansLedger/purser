@@ -711,10 +711,13 @@ type ListItemsRequest struct {
 	PageSize  int32                  `protobuf:"varint,1,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
 	PageToken string                 `protobuf:"bytes,2,opt,name=page_token,json=pageToken,proto3" json:"page_token,omitempty"`
 	// library_entry_id, content_type, and group_id are independent,
-	// optional filters — leave unset for no filter on that field.
-	LibraryEntryId string `protobuf:"bytes,3,opt,name=library_entry_id,json=libraryEntryId,proto3" json:"library_entry_id,omitempty"`
-	ContentType    string `protobuf:"bytes,4,opt,name=content_type,json=contentType,proto3" json:"content_type,omitempty"`
-	GroupId        string `protobuf:"bytes,5,opt,name=group_id,json=groupId,proto3" json:"group_id,omitempty"`
+	// optional filters — leave unset for no filter on that field. status
+	// follows the same convention with ITEM_STATUS_UNSPECIFIED meaning
+	// unfiltered, matching the string filters' empty-string convention.
+	LibraryEntryId string     `protobuf:"bytes,3,opt,name=library_entry_id,json=libraryEntryId,proto3" json:"library_entry_id,omitempty"`
+	ContentType    string     `protobuf:"bytes,4,opt,name=content_type,json=contentType,proto3" json:"content_type,omitempty"`
+	GroupId        string     `protobuf:"bytes,5,opt,name=group_id,json=groupId,proto3" json:"group_id,omitempty"`
+	Status         ItemStatus `protobuf:"varint,6,opt,name=status,proto3,enum=purser.domain.v1.ItemStatus" json:"status,omitempty"`
 	unknownFields  protoimpl.UnknownFields
 	sizeCache      protoimpl.SizeCache
 }
@@ -782,6 +785,13 @@ func (x *ListItemsRequest) GetGroupId() string {
 		return x.GroupId
 	}
 	return ""
+}
+
+func (x *ListItemsRequest) GetStatus() ItemStatus {
+	if x != nil {
+		return x.Status
+	}
+	return ItemStatus_ITEM_STATUS_UNSPECIFIED
 }
 
 type ListItemsResponse struct {
@@ -880,14 +890,15 @@ const file_purser_domain_v1_item_proto_rawDesc = "" +
 	"\x16BulkDeleteItemsRequest\x12\x10\n" +
 	"\x03ids\x18\x01 \x03(\tR\x03ids\x12\x18\n" +
 	"\acascade\x18\x02 \x01(\bR\acascade\"\x19\n" +
-	"\x17BulkDeleteItemsResponse\"\xb6\x01\n" +
+	"\x17BulkDeleteItemsResponse\"\xec\x01\n" +
 	"\x10ListItemsRequest\x12\x1b\n" +
 	"\tpage_size\x18\x01 \x01(\x05R\bpageSize\x12\x1d\n" +
 	"\n" +
 	"page_token\x18\x02 \x01(\tR\tpageToken\x12(\n" +
 	"\x10library_entry_id\x18\x03 \x01(\tR\x0elibraryEntryId\x12!\n" +
 	"\fcontent_type\x18\x04 \x01(\tR\vcontentType\x12\x19\n" +
-	"\bgroup_id\x18\x05 \x01(\tR\agroupId\"i\n" +
+	"\bgroup_id\x18\x05 \x01(\tR\agroupId\x124\n" +
+	"\x06status\x18\x06 \x01(\x0e2\x1c.purser.domain.v1.ItemStatusR\x06status\"i\n" +
 	"\x11ListItemsResponse\x12,\n" +
 	"\x05items\x18\x01 \x03(\v2\x16.purser.domain.v1.ItemR\x05items\x12&\n" +
 	"\x0fnext_page_token\x18\x02 \x01(\tR\rnextPageToken2\xa0\x05\n" +
@@ -949,26 +960,27 @@ var file_purser_domain_v1_item_proto_depIdxs = []int32{
 	18, // 7: purser.domain.v1.UpdateItemRequest.update_mask:type_name -> google.protobuf.FieldMask
 	0,  // 8: purser.domain.v1.UpdateItemResponse.item:type_name -> purser.domain.v1.Item
 	19, // 9: purser.domain.v1.GetItemDeletionImpactResponse.impacts:type_name -> purser.domain.v1.DeletionImpactRow
-	0,  // 10: purser.domain.v1.ListItemsResponse.items:type_name -> purser.domain.v1.Item
-	1,  // 11: purser.domain.v1.ItemService.CreateItem:input_type -> purser.domain.v1.CreateItemRequest
-	3,  // 12: purser.domain.v1.ItemService.GetItem:input_type -> purser.domain.v1.GetItemRequest
-	5,  // 13: purser.domain.v1.ItemService.UpdateItem:input_type -> purser.domain.v1.UpdateItemRequest
-	7,  // 14: purser.domain.v1.ItemService.DeleteItem:input_type -> purser.domain.v1.DeleteItemRequest
-	13, // 15: purser.domain.v1.ItemService.ListItems:input_type -> purser.domain.v1.ListItemsRequest
-	9,  // 16: purser.domain.v1.ItemService.GetItemDeletionImpact:input_type -> purser.domain.v1.GetItemDeletionImpactRequest
-	11, // 17: purser.domain.v1.ItemService.BulkDeleteItems:input_type -> purser.domain.v1.BulkDeleteItemsRequest
-	2,  // 18: purser.domain.v1.ItemService.CreateItem:output_type -> purser.domain.v1.CreateItemResponse
-	4,  // 19: purser.domain.v1.ItemService.GetItem:output_type -> purser.domain.v1.GetItemResponse
-	6,  // 20: purser.domain.v1.ItemService.UpdateItem:output_type -> purser.domain.v1.UpdateItemResponse
-	8,  // 21: purser.domain.v1.ItemService.DeleteItem:output_type -> purser.domain.v1.DeleteItemResponse
-	14, // 22: purser.domain.v1.ItemService.ListItems:output_type -> purser.domain.v1.ListItemsResponse
-	10, // 23: purser.domain.v1.ItemService.GetItemDeletionImpact:output_type -> purser.domain.v1.GetItemDeletionImpactResponse
-	12, // 24: purser.domain.v1.ItemService.BulkDeleteItems:output_type -> purser.domain.v1.BulkDeleteItemsResponse
-	18, // [18:25] is the sub-list for method output_type
-	11, // [11:18] is the sub-list for method input_type
-	11, // [11:11] is the sub-list for extension type_name
-	11, // [11:11] is the sub-list for extension extendee
-	0,  // [0:11] is the sub-list for field type_name
+	16, // 10: purser.domain.v1.ListItemsRequest.status:type_name -> purser.domain.v1.ItemStatus
+	0,  // 11: purser.domain.v1.ListItemsResponse.items:type_name -> purser.domain.v1.Item
+	1,  // 12: purser.domain.v1.ItemService.CreateItem:input_type -> purser.domain.v1.CreateItemRequest
+	3,  // 13: purser.domain.v1.ItemService.GetItem:input_type -> purser.domain.v1.GetItemRequest
+	5,  // 14: purser.domain.v1.ItemService.UpdateItem:input_type -> purser.domain.v1.UpdateItemRequest
+	7,  // 15: purser.domain.v1.ItemService.DeleteItem:input_type -> purser.domain.v1.DeleteItemRequest
+	13, // 16: purser.domain.v1.ItemService.ListItems:input_type -> purser.domain.v1.ListItemsRequest
+	9,  // 17: purser.domain.v1.ItemService.GetItemDeletionImpact:input_type -> purser.domain.v1.GetItemDeletionImpactRequest
+	11, // 18: purser.domain.v1.ItemService.BulkDeleteItems:input_type -> purser.domain.v1.BulkDeleteItemsRequest
+	2,  // 19: purser.domain.v1.ItemService.CreateItem:output_type -> purser.domain.v1.CreateItemResponse
+	4,  // 20: purser.domain.v1.ItemService.GetItem:output_type -> purser.domain.v1.GetItemResponse
+	6,  // 21: purser.domain.v1.ItemService.UpdateItem:output_type -> purser.domain.v1.UpdateItemResponse
+	8,  // 22: purser.domain.v1.ItemService.DeleteItem:output_type -> purser.domain.v1.DeleteItemResponse
+	14, // 23: purser.domain.v1.ItemService.ListItems:output_type -> purser.domain.v1.ListItemsResponse
+	10, // 24: purser.domain.v1.ItemService.GetItemDeletionImpact:output_type -> purser.domain.v1.GetItemDeletionImpactResponse
+	12, // 25: purser.domain.v1.ItemService.BulkDeleteItems:output_type -> purser.domain.v1.BulkDeleteItemsResponse
+	19, // [19:26] is the sub-list for method output_type
+	12, // [12:19] is the sub-list for method input_type
+	12, // [12:12] is the sub-list for extension type_name
+	12, // [12:12] is the sub-list for extension extendee
+	0,  // [0:12] is the sub-list for field type_name
 }
 
 func init() { file_purser_domain_v1_item_proto_init() }

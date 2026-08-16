@@ -239,7 +239,7 @@ func (s *AfterDarkBrowseService) allScenesForLibraryEntry(ctx context.Context, l
 	var out []*domain.Item
 	pageToken := ""
 	for {
-		items, next, err := s.items.List(ctx, libraryEntryID, string(domain.ContentTypeAdult), "", innerListPageSize, pageToken)
+		items, next, err := s.items.List(ctx, libraryEntryID, string(domain.ContentTypeAdult), "", "", innerListPageSize, pageToken)
 		if err != nil {
 			return nil, err
 		}

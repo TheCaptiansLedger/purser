@@ -44,7 +44,7 @@ func (f *deletionFakeItemRepository) Delete(_ context.Context, id string) error 
 	return nil
 }
 
-func (f *deletionFakeItemRepository) List(context.Context, string, string, string, int, string) ([]*domain.Item, string, error) {
+func (f *deletionFakeItemRepository) List(context.Context, string, string, string, domain.ItemStatus, int, string) ([]*domain.Item, string, error) {
 	return nil, "", nil
 }
 

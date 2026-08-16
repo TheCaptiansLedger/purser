@@ -118,7 +118,7 @@ func (f *deletionFakeItemRepositoryFiltered) DeleteBatch(_ context.Context, ids 
 	return nil
 }
 
-func (f *deletionFakeItemRepositoryFiltered) List(_ context.Context, libraryEntryID, contentType, groupID string, _ int, _ string) ([]*domain.Item, string, error) {
+func (f *deletionFakeItemRepositoryFiltered) List(_ context.Context, libraryEntryID, contentType, groupID string, status domain.ItemStatus, _ int, _ string) ([]*domain.Item, string, error) {
 	if f.listErr != nil {
 		return nil, "", f.listErr
 	}
@@ -131,6 +131,9 @@ func (f *deletionFakeItemRepositoryFiltered) List(_ context.Context, libraryEntr
 			continue
 		}
 		if groupID != "" && i.GroupID != groupID {
+			continue
+		}
+		if status != "" && i.Status != status {
 			continue
 		}
 		matched = append(matched, i)

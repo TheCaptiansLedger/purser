@@ -336,7 +336,7 @@ func (s *LibraryEntryDeletionService) drainItems(ctx context.Context, libraryEnt
 	var out []*domain.Item
 	pageToken := ""
 	for {
-		rows, next, err := s.items.List(ctx, libraryEntryID, "", "", 100, pageToken)
+		rows, next, err := s.items.List(ctx, libraryEntryID, "", "", "", 100, pageToken)
 		if err != nil {
 			return nil, err
 		}

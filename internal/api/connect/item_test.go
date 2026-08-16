@@ -24,6 +24,7 @@ type fakeItemService struct {
 	gotLibraryEntryID string
 	gotContentType    string
 	gotGroupID        string
+	gotStatus         domain.ItemStatus
 }
 
 func newFakeItemService() *fakeItemService {
@@ -57,8 +58,8 @@ func (f *fakeItemService) Update(_ context.Context, i *domain.Item) (*domain.Ite
 	return i, nil
 }
 
-func (f *fakeItemService) List(_ context.Context, libraryEntryID, contentType, groupID string, _ int, _ string) ([]*domain.Item, string, error) {
-	f.gotLibraryEntryID, f.gotContentType, f.gotGroupID = libraryEntryID, contentType, groupID
+func (f *fakeItemService) List(_ context.Context, libraryEntryID, contentType, groupID string, status domain.ItemStatus, _ int, _ string) ([]*domain.Item, string, error) {
+	f.gotLibraryEntryID, f.gotContentType, f.gotGroupID, f.gotStatus = libraryEntryID, contentType, groupID, status
 	if f.listErr != nil {
 		return nil, "", f.listErr
 	}
@@ -240,14 +241,14 @@ func TestItemHandler_ListItems(t *testing.T) {
 		h := apiconnect.NewItemHandler(svc, newFakeBulkDeletionService(), nil)
 
 		_, err := h.ListItems(context.Background(), connect.NewRequest(&v1.ListItemsRequest{
-			LibraryEntryId: "studio1", ContentType: "adult", GroupId: "group1", PageSize: 10,
+			LibraryEntryId: "studio1", ContentType: "adult", GroupId: "group1", Status: v1.ItemStatus_ITEM_STATUS_WANTED, PageSize: 10,
 		}))
 		if err != nil {
 			t.Fatalf("ListItems returned error: %v", err)
 		}
-		if svc.gotLibraryEntryID != "studio1" || svc.gotContentType != "adult" || svc.gotGroupID != "group1" {
-			t.Fatalf("ListItems passed filters (%q, %q, %q), want (%q, %q, %q)",
-				svc.gotLibraryEntryID, svc.gotContentType, svc.gotGroupID, "studio1", "adult", "group1")
+		if svc.gotLibraryEntryID != "studio1" || svc.gotContentType != "adult" || svc.gotGroupID != "group1" || svc.gotStatus != domain.ItemStatusWanted {
+			t.Fatalf("ListItems passed filters (%q, %q, %q, %q), want (%q, %q, %q, %q)",
+				svc.gotLibraryEntryID, svc.gotContentType, svc.gotGroupID, svc.gotStatus, "studio1", "adult", "group1", domain.ItemStatusWanted)
 		}
 	})
 

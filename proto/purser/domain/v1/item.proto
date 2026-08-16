@@ -89,10 +89,13 @@ message ListItemsRequest {
   int32 page_size = 1;
   string page_token = 2;
   // library_entry_id, content_type, and group_id are independent,
-  // optional filters — leave unset for no filter on that field.
+  // optional filters — leave unset for no filter on that field. status
+  // follows the same convention with ITEM_STATUS_UNSPECIFIED meaning
+  // unfiltered, matching the string filters' empty-string convention.
   string library_entry_id = 3;
   string content_type = 4;
   string group_id = 5;
+  ItemStatus status = 6;
 }
 
 message ListItemsResponse {

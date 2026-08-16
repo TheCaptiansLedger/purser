@@ -50,6 +50,7 @@ func indexOf(i *domain.Item) map[string]string {
 		"library_entry_id": i.LibraryEntryID,
 		"content_type":     string(i.ContentType),
 		"group_id":         i.GroupID,
+		"status":           string(i.Status),
 	}
 }
 
@@ -78,10 +79,10 @@ func (r *Repository) DeleteBatch(ctx context.Context, ids []string) error {
 	return r.inner.DeleteBatch(ctx, ids)
 }
 
-// List implements ports.ItemRepository. libraryEntryID, contentType, and
-// groupID are independent, optional filters — an empty string means "no
-// filter on this field."
-func (r *Repository) List(ctx context.Context, libraryEntryID, contentType, groupID string, pageSize int, pageToken string) ([]*domain.Item, string, error) {
+// List implements ports.ItemRepository. libraryEntryID, contentType,
+// groupID, and status are independent, optional filters — an empty string
+// (or domain.ItemStatus("") for status) means "no filter on this field."
+func (r *Repository) List(ctx context.Context, libraryEntryID, contentType, groupID string, status domain.ItemStatus, pageSize int, pageToken string) ([]*domain.Item, string, error) {
 	filter := map[string]string{}
 	if libraryEntryID != "" {
 		filter["library_entry_id"] = libraryEntryID
@@ -91,6 +92,9 @@ func (r *Repository) List(ctx context.Context, libraryEntryID, contentType, grou
 	}
 	if groupID != "" {
 		filter["group_id"] = groupID
+	}
+	if status != "" {
+		filter["status"] = string(status)
 	}
 	if len(filter) == 0 {
 		filter = nil

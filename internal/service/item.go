@@ -52,8 +52,8 @@ func (s *ItemService) Delete(ctx context.Context, id string) error {
 	return s.repo.Delete(ctx, id)
 }
 
-// List returns a page of Item records. libraryEntryID, contentType, and
-// groupID are independent, optional filters.
-func (s *ItemService) List(ctx context.Context, libraryEntryID, contentType, groupID string, pageSize int, pageToken string) ([]*domain.Item, string, error) {
-	return s.repo.List(ctx, libraryEntryID, contentType, groupID, pageSize, pageToken)
+// List returns a page of Item records. libraryEntryID, contentType,
+// groupID, and status are independent, optional filters.
+func (s *ItemService) List(ctx context.Context, libraryEntryID, contentType, groupID string, status domain.ItemStatus, pageSize int, pageToken string) ([]*domain.Item, string, error) {
+	return s.repo.List(ctx, libraryEntryID, contentType, groupID, status, pageSize, pageToken)
 }
