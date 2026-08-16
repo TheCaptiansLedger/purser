@@ -36,6 +36,16 @@ message GetExternalIDResponse {
   ExternalID external_id = 1;
 }
 
+message GetExternalIDByValueRequest {
+  EntityType entity_type = 1;
+  string source = 2;
+  string value = 3;
+}
+
+message GetExternalIDByValueResponse {
+  ExternalID external_id = 1;
+}
+
 message UpdateExternalIDRequest {
   // entity_type, entity_id, and source identify the row; only value is
   // mutable.
@@ -74,6 +84,7 @@ message ListExternalIDsResponse {
 service ExternalIDService {
   rpc CreateExternalID(CreateExternalIDRequest) returns (CreateExternalIDResponse);
   rpc GetExternalID(GetExternalIDRequest) returns (GetExternalIDResponse);
+  rpc GetExternalIDByValue(GetExternalIDByValueRequest) returns (GetExternalIDByValueResponse);
   rpc UpdateExternalID(UpdateExternalIDRequest) returns (UpdateExternalIDResponse);
   rpc DeleteExternalID(DeleteExternalIDRequest) returns (DeleteExternalIDResponse);
   rpc ListExternalIDs(ListExternalIDsRequest) returns (ListExternalIDsResponse);

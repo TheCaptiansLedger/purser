@@ -39,6 +39,9 @@ const (
 	// ExternalIDServiceGetExternalIDProcedure is the fully-qualified name of the ExternalIDService's
 	// GetExternalID RPC.
 	ExternalIDServiceGetExternalIDProcedure = "/purser.domain.v1.ExternalIDService/GetExternalID"
+	// ExternalIDServiceGetExternalIDByValueProcedure is the fully-qualified name of the
+	// ExternalIDService's GetExternalIDByValue RPC.
+	ExternalIDServiceGetExternalIDByValueProcedure = "/purser.domain.v1.ExternalIDService/GetExternalIDByValue"
 	// ExternalIDServiceUpdateExternalIDProcedure is the fully-qualified name of the ExternalIDService's
 	// UpdateExternalID RPC.
 	ExternalIDServiceUpdateExternalIDProcedure = "/purser.domain.v1.ExternalIDService/UpdateExternalID"
@@ -54,6 +57,7 @@ const (
 type ExternalIDServiceClient interface {
 	CreateExternalID(context.Context, *connect.Request[v1.CreateExternalIDRequest]) (*connect.Response[v1.CreateExternalIDResponse], error)
 	GetExternalID(context.Context, *connect.Request[v1.GetExternalIDRequest]) (*connect.Response[v1.GetExternalIDResponse], error)
+	GetExternalIDByValue(context.Context, *connect.Request[v1.GetExternalIDByValueRequest]) (*connect.Response[v1.GetExternalIDByValueResponse], error)
 	UpdateExternalID(context.Context, *connect.Request[v1.UpdateExternalIDRequest]) (*connect.Response[v1.UpdateExternalIDResponse], error)
 	DeleteExternalID(context.Context, *connect.Request[v1.DeleteExternalIDRequest]) (*connect.Response[v1.DeleteExternalIDResponse], error)
 	ListExternalIDs(context.Context, *connect.Request[v1.ListExternalIDsRequest]) (*connect.Response[v1.ListExternalIDsResponse], error)
@@ -82,6 +86,12 @@ func NewExternalIDServiceClient(httpClient connect.HTTPClient, baseURL string, o
 			connect.WithSchema(externalIDServiceMethods.ByName("GetExternalID")),
 			connect.WithClientOptions(opts...),
 		),
+		getExternalIDByValue: connect.NewClient[v1.GetExternalIDByValueRequest, v1.GetExternalIDByValueResponse](
+			httpClient,
+			baseURL+ExternalIDServiceGetExternalIDByValueProcedure,
+			connect.WithSchema(externalIDServiceMethods.ByName("GetExternalIDByValue")),
+			connect.WithClientOptions(opts...),
+		),
 		updateExternalID: connect.NewClient[v1.UpdateExternalIDRequest, v1.UpdateExternalIDResponse](
 			httpClient,
 			baseURL+ExternalIDServiceUpdateExternalIDProcedure,
@@ -105,11 +115,12 @@ func NewExternalIDServiceClient(httpClient connect.HTTPClient, baseURL string, o
 
 // externalIDServiceClient implements ExternalIDServiceClient.
 type externalIDServiceClient struct {
-	createExternalID *connect.Client[v1.CreateExternalIDRequest, v1.CreateExternalIDResponse]
-	getExternalID    *connect.Client[v1.GetExternalIDRequest, v1.GetExternalIDResponse]
-	updateExternalID *connect.Client[v1.UpdateExternalIDRequest, v1.UpdateExternalIDResponse]
-	deleteExternalID *connect.Client[v1.DeleteExternalIDRequest, v1.DeleteExternalIDResponse]
-	listExternalIDs  *connect.Client[v1.ListExternalIDsRequest, v1.ListExternalIDsResponse]
+	createExternalID     *connect.Client[v1.CreateExternalIDRequest, v1.CreateExternalIDResponse]
+	getExternalID        *connect.Client[v1.GetExternalIDRequest, v1.GetExternalIDResponse]
+	getExternalIDByValue *connect.Client[v1.GetExternalIDByValueRequest, v1.GetExternalIDByValueResponse]
+	updateExternalID     *connect.Client[v1.UpdateExternalIDRequest, v1.UpdateExternalIDResponse]
+	deleteExternalID     *connect.Client[v1.DeleteExternalIDRequest, v1.DeleteExternalIDResponse]
+	listExternalIDs      *connect.Client[v1.ListExternalIDsRequest, v1.ListExternalIDsResponse]
 }
 
 // CreateExternalID calls purser.domain.v1.ExternalIDService.CreateExternalID.
@@ -120,6 +131,11 @@ func (c *externalIDServiceClient) CreateExternalID(ctx context.Context, req *con
 // GetExternalID calls purser.domain.v1.ExternalIDService.GetExternalID.
 func (c *externalIDServiceClient) GetExternalID(ctx context.Context, req *connect.Request[v1.GetExternalIDRequest]) (*connect.Response[v1.GetExternalIDResponse], error) {
 	return c.getExternalID.CallUnary(ctx, req)
+}
+
+// GetExternalIDByValue calls purser.domain.v1.ExternalIDService.GetExternalIDByValue.
+func (c *externalIDServiceClient) GetExternalIDByValue(ctx context.Context, req *connect.Request[v1.GetExternalIDByValueRequest]) (*connect.Response[v1.GetExternalIDByValueResponse], error) {
+	return c.getExternalIDByValue.CallUnary(ctx, req)
 }
 
 // UpdateExternalID calls purser.domain.v1.ExternalIDService.UpdateExternalID.
@@ -141,6 +157,7 @@ func (c *externalIDServiceClient) ListExternalIDs(ctx context.Context, req *conn
 type ExternalIDServiceHandler interface {
 	CreateExternalID(context.Context, *connect.Request[v1.CreateExternalIDRequest]) (*connect.Response[v1.CreateExternalIDResponse], error)
 	GetExternalID(context.Context, *connect.Request[v1.GetExternalIDRequest]) (*connect.Response[v1.GetExternalIDResponse], error)
+	GetExternalIDByValue(context.Context, *connect.Request[v1.GetExternalIDByValueRequest]) (*connect.Response[v1.GetExternalIDByValueResponse], error)
 	UpdateExternalID(context.Context, *connect.Request[v1.UpdateExternalIDRequest]) (*connect.Response[v1.UpdateExternalIDResponse], error)
 	DeleteExternalID(context.Context, *connect.Request[v1.DeleteExternalIDRequest]) (*connect.Response[v1.DeleteExternalIDResponse], error)
 	ListExternalIDs(context.Context, *connect.Request[v1.ListExternalIDsRequest]) (*connect.Response[v1.ListExternalIDsResponse], error)
@@ -163,6 +180,12 @@ func NewExternalIDServiceHandler(svc ExternalIDServiceHandler, opts ...connect.H
 		ExternalIDServiceGetExternalIDProcedure,
 		svc.GetExternalID,
 		connect.WithSchema(externalIDServiceMethods.ByName("GetExternalID")),
+		connect.WithHandlerOptions(opts...),
+	)
+	externalIDServiceGetExternalIDByValueHandler := connect.NewUnaryHandler(
+		ExternalIDServiceGetExternalIDByValueProcedure,
+		svc.GetExternalIDByValue,
+		connect.WithSchema(externalIDServiceMethods.ByName("GetExternalIDByValue")),
 		connect.WithHandlerOptions(opts...),
 	)
 	externalIDServiceUpdateExternalIDHandler := connect.NewUnaryHandler(
@@ -189,6 +212,8 @@ func NewExternalIDServiceHandler(svc ExternalIDServiceHandler, opts ...connect.H
 			externalIDServiceCreateExternalIDHandler.ServeHTTP(w, r)
 		case ExternalIDServiceGetExternalIDProcedure:
 			externalIDServiceGetExternalIDHandler.ServeHTTP(w, r)
+		case ExternalIDServiceGetExternalIDByValueProcedure:
+			externalIDServiceGetExternalIDByValueHandler.ServeHTTP(w, r)
 		case ExternalIDServiceUpdateExternalIDProcedure:
 			externalIDServiceUpdateExternalIDHandler.ServeHTTP(w, r)
 		case ExternalIDServiceDeleteExternalIDProcedure:
@@ -210,6 +235,10 @@ func (UnimplementedExternalIDServiceHandler) CreateExternalID(context.Context, *
 
 func (UnimplementedExternalIDServiceHandler) GetExternalID(context.Context, *connect.Request[v1.GetExternalIDRequest]) (*connect.Response[v1.GetExternalIDResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("purser.domain.v1.ExternalIDService.GetExternalID is not implemented"))
+}
+
+func (UnimplementedExternalIDServiceHandler) GetExternalIDByValue(context.Context, *connect.Request[v1.GetExternalIDByValueRequest]) (*connect.Response[v1.GetExternalIDByValueResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("purser.domain.v1.ExternalIDService.GetExternalIDByValue is not implemented"))
 }
 
 func (UnimplementedExternalIDServiceHandler) UpdateExternalID(context.Context, *connect.Request[v1.UpdateExternalIDRequest]) (*connect.Response[v1.UpdateExternalIDResponse], error) {

@@ -38,6 +38,12 @@ export default () => {
     'GetExternalID returns the created value': (r) => r && r.message && r.message.externalId && r.message.externalId.value === 'abc123',
   });
 
+  res = invoke('purser.domain.v1.ExternalIDService/GetExternalIDByValue', { entityType: 'ENTITY_TYPE_PERSON', source: source, value: 'abc123' });
+  check(res, {
+    'GetExternalIDByValue status is OK': (r) => r && r.status === grpc.StatusOK,
+    'GetExternalIDByValue returns the created entity': (r) => r && r.message && r.message.externalId && r.message.externalId.entityId === entityId,
+  });
+
   res = invoke('purser.domain.v1.ExternalIDService/UpdateExternalID', {
     externalId: { entityType: 'ENTITY_TYPE_PERSON', entityId: entityId, source: source, value: 'xyz789' },
   });
@@ -58,6 +64,9 @@ export default () => {
 
   res = invoke('purser.domain.v1.ExternalIDService/GetExternalID', { entityType: 'ENTITY_TYPE_PERSON', entityId: entityId, source: source });
   check(res, { 'GetExternalID after Delete is NotFound': (r) => r && r.status === grpc.StatusNotFound });
+
+  res = invoke('purser.domain.v1.ExternalIDService/GetExternalIDByValue', { entityType: 'ENTITY_TYPE_PERSON', source: source, value: 'xyz789' });
+  check(res, { 'GetExternalIDByValue after Delete is NotFound': (r) => r && r.status === grpc.StatusNotFound });
 
   client.close();
 };

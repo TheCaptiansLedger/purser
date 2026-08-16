@@ -16,6 +16,7 @@ import (
 type externalIDService interface {
 	Create(ctx context.Context, e *domain.ExternalID) (*domain.ExternalID, error)
 	Get(ctx context.Context, entityType domain.EntityType, entityID, source string) (*domain.ExternalID, error)
+	GetByValue(ctx context.Context, entityType domain.EntityType, source domain.ExternalIDSource, value string) (*domain.ExternalID, error)
 	Update(ctx context.Context, e *domain.ExternalID) (*domain.ExternalID, error)
 	Delete(ctx context.Context, entityType domain.EntityType, entityID, source string) error
 	List(ctx context.Context, entityType domain.EntityType, entityID string, pageSize int, pageToken string) ([]*domain.ExternalID, string, error)
@@ -53,6 +54,15 @@ func (h *ExternalIDHandler) GetExternalID(ctx context.Context, req *connect.Requ
 		return nil, mapError(ctx, h.logger, err)
 	}
 	return connect.NewResponse(&v1.GetExternalIDResponse{ExternalId: externalIDToProto(e)}), nil
+}
+
+// GetExternalIDByValue implements domainv1connect.ExternalIDServiceHandler.
+func (h *ExternalIDHandler) GetExternalIDByValue(ctx context.Context, req *connect.Request[v1.GetExternalIDByValueRequest]) (*connect.Response[v1.GetExternalIDByValueResponse], error) {
+	e, err := h.svc.GetByValue(ctx, entityTypeFromProto(req.Msg.GetEntityType()), domain.ExternalIDSource(req.Msg.GetSource()), req.Msg.GetValue())
+	if err != nil {
+		return nil, mapError(ctx, h.logger, err)
+	}
+	return connect.NewResponse(&v1.GetExternalIDByValueResponse{ExternalId: externalIDToProto(e)}), nil
 }
 
 // UpdateExternalID implements domainv1connect.ExternalIDServiceHandler.

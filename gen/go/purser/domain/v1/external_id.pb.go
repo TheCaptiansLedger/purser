@@ -286,6 +286,110 @@ func (x *GetExternalIDResponse) GetExternalId() *ExternalID {
 	return nil
 }
 
+type GetExternalIDByValueRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	EntityType    EntityType             `protobuf:"varint,1,opt,name=entity_type,json=entityType,proto3,enum=purser.domain.v1.EntityType" json:"entity_type,omitempty"`
+	Source        string                 `protobuf:"bytes,2,opt,name=source,proto3" json:"source,omitempty"`
+	Value         string                 `protobuf:"bytes,3,opt,name=value,proto3" json:"value,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetExternalIDByValueRequest) Reset() {
+	*x = GetExternalIDByValueRequest{}
+	mi := &file_purser_domain_v1_external_id_proto_msgTypes[5]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetExternalIDByValueRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetExternalIDByValueRequest) ProtoMessage() {}
+
+func (x *GetExternalIDByValueRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_purser_domain_v1_external_id_proto_msgTypes[5]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetExternalIDByValueRequest.ProtoReflect.Descriptor instead.
+func (*GetExternalIDByValueRequest) Descriptor() ([]byte, []int) {
+	return file_purser_domain_v1_external_id_proto_rawDescGZIP(), []int{5}
+}
+
+func (x *GetExternalIDByValueRequest) GetEntityType() EntityType {
+	if x != nil {
+		return x.EntityType
+	}
+	return EntityType_ENTITY_TYPE_UNSPECIFIED
+}
+
+func (x *GetExternalIDByValueRequest) GetSource() string {
+	if x != nil {
+		return x.Source
+	}
+	return ""
+}
+
+func (x *GetExternalIDByValueRequest) GetValue() string {
+	if x != nil {
+		return x.Value
+	}
+	return ""
+}
+
+type GetExternalIDByValueResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	ExternalId    *ExternalID            `protobuf:"bytes,1,opt,name=external_id,json=externalId,proto3" json:"external_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetExternalIDByValueResponse) Reset() {
+	*x = GetExternalIDByValueResponse{}
+	mi := &file_purser_domain_v1_external_id_proto_msgTypes[6]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetExternalIDByValueResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetExternalIDByValueResponse) ProtoMessage() {}
+
+func (x *GetExternalIDByValueResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_purser_domain_v1_external_id_proto_msgTypes[6]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetExternalIDByValueResponse.ProtoReflect.Descriptor instead.
+func (*GetExternalIDByValueResponse) Descriptor() ([]byte, []int) {
+	return file_purser_domain_v1_external_id_proto_rawDescGZIP(), []int{6}
+}
+
+func (x *GetExternalIDByValueResponse) GetExternalId() *ExternalID {
+	if x != nil {
+		return x.ExternalId
+	}
+	return nil
+}
+
 type UpdateExternalIDRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// entity_type, entity_id, and source identify the row; only value is
@@ -297,7 +401,7 @@ type UpdateExternalIDRequest struct {
 
 func (x *UpdateExternalIDRequest) Reset() {
 	*x = UpdateExternalIDRequest{}
-	mi := &file_purser_domain_v1_external_id_proto_msgTypes[5]
+	mi := &file_purser_domain_v1_external_id_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -309,7 +413,7 @@ func (x *UpdateExternalIDRequest) String() string {
 func (*UpdateExternalIDRequest) ProtoMessage() {}
 
 func (x *UpdateExternalIDRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_purser_domain_v1_external_id_proto_msgTypes[5]
+	mi := &file_purser_domain_v1_external_id_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -322,7 +426,7 @@ func (x *UpdateExternalIDRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpdateExternalIDRequest.ProtoReflect.Descriptor instead.
 func (*UpdateExternalIDRequest) Descriptor() ([]byte, []int) {
-	return file_purser_domain_v1_external_id_proto_rawDescGZIP(), []int{5}
+	return file_purser_domain_v1_external_id_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *UpdateExternalIDRequest) GetExternalId() *ExternalID {
@@ -341,7 +445,7 @@ type UpdateExternalIDResponse struct {
 
 func (x *UpdateExternalIDResponse) Reset() {
 	*x = UpdateExternalIDResponse{}
-	mi := &file_purser_domain_v1_external_id_proto_msgTypes[6]
+	mi := &file_purser_domain_v1_external_id_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -353,7 +457,7 @@ func (x *UpdateExternalIDResponse) String() string {
 func (*UpdateExternalIDResponse) ProtoMessage() {}
 
 func (x *UpdateExternalIDResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_purser_domain_v1_external_id_proto_msgTypes[6]
+	mi := &file_purser_domain_v1_external_id_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -366,7 +470,7 @@ func (x *UpdateExternalIDResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpdateExternalIDResponse.ProtoReflect.Descriptor instead.
 func (*UpdateExternalIDResponse) Descriptor() ([]byte, []int) {
-	return file_purser_domain_v1_external_id_proto_rawDescGZIP(), []int{6}
+	return file_purser_domain_v1_external_id_proto_rawDescGZIP(), []int{8}
 }
 
 func (x *UpdateExternalIDResponse) GetExternalId() *ExternalID {
@@ -387,7 +491,7 @@ type DeleteExternalIDRequest struct {
 
 func (x *DeleteExternalIDRequest) Reset() {
 	*x = DeleteExternalIDRequest{}
-	mi := &file_purser_domain_v1_external_id_proto_msgTypes[7]
+	mi := &file_purser_domain_v1_external_id_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -399,7 +503,7 @@ func (x *DeleteExternalIDRequest) String() string {
 func (*DeleteExternalIDRequest) ProtoMessage() {}
 
 func (x *DeleteExternalIDRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_purser_domain_v1_external_id_proto_msgTypes[7]
+	mi := &file_purser_domain_v1_external_id_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -412,7 +516,7 @@ func (x *DeleteExternalIDRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteExternalIDRequest.ProtoReflect.Descriptor instead.
 func (*DeleteExternalIDRequest) Descriptor() ([]byte, []int) {
-	return file_purser_domain_v1_external_id_proto_rawDescGZIP(), []int{7}
+	return file_purser_domain_v1_external_id_proto_rawDescGZIP(), []int{9}
 }
 
 func (x *DeleteExternalIDRequest) GetEntityType() EntityType {
@@ -444,7 +548,7 @@ type DeleteExternalIDResponse struct {
 
 func (x *DeleteExternalIDResponse) Reset() {
 	*x = DeleteExternalIDResponse{}
-	mi := &file_purser_domain_v1_external_id_proto_msgTypes[8]
+	mi := &file_purser_domain_v1_external_id_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -456,7 +560,7 @@ func (x *DeleteExternalIDResponse) String() string {
 func (*DeleteExternalIDResponse) ProtoMessage() {}
 
 func (x *DeleteExternalIDResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_purser_domain_v1_external_id_proto_msgTypes[8]
+	mi := &file_purser_domain_v1_external_id_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -469,7 +573,7 @@ func (x *DeleteExternalIDResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteExternalIDResponse.ProtoReflect.Descriptor instead.
 func (*DeleteExternalIDResponse) Descriptor() ([]byte, []int) {
-	return file_purser_domain_v1_external_id_proto_rawDescGZIP(), []int{8}
+	return file_purser_domain_v1_external_id_proto_rawDescGZIP(), []int{10}
 }
 
 type ListExternalIDsRequest struct {
@@ -487,7 +591,7 @@ type ListExternalIDsRequest struct {
 
 func (x *ListExternalIDsRequest) Reset() {
 	*x = ListExternalIDsRequest{}
-	mi := &file_purser_domain_v1_external_id_proto_msgTypes[9]
+	mi := &file_purser_domain_v1_external_id_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -499,7 +603,7 @@ func (x *ListExternalIDsRequest) String() string {
 func (*ListExternalIDsRequest) ProtoMessage() {}
 
 func (x *ListExternalIDsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_purser_domain_v1_external_id_proto_msgTypes[9]
+	mi := &file_purser_domain_v1_external_id_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -512,7 +616,7 @@ func (x *ListExternalIDsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListExternalIDsRequest.ProtoReflect.Descriptor instead.
 func (*ListExternalIDsRequest) Descriptor() ([]byte, []int) {
-	return file_purser_domain_v1_external_id_proto_rawDescGZIP(), []int{9}
+	return file_purser_domain_v1_external_id_proto_rawDescGZIP(), []int{11}
 }
 
 func (x *ListExternalIDsRequest) GetEntityType() EntityType {
@@ -553,7 +657,7 @@ type ListExternalIDsResponse struct {
 
 func (x *ListExternalIDsResponse) Reset() {
 	*x = ListExternalIDsResponse{}
-	mi := &file_purser_domain_v1_external_id_proto_msgTypes[10]
+	mi := &file_purser_domain_v1_external_id_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -565,7 +669,7 @@ func (x *ListExternalIDsResponse) String() string {
 func (*ListExternalIDsResponse) ProtoMessage() {}
 
 func (x *ListExternalIDsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_purser_domain_v1_external_id_proto_msgTypes[10]
+	mi := &file_purser_domain_v1_external_id_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -578,7 +682,7 @@ func (x *ListExternalIDsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListExternalIDsResponse.ProtoReflect.Descriptor instead.
 func (*ListExternalIDsResponse) Descriptor() ([]byte, []int) {
-	return file_purser_domain_v1_external_id_proto_rawDescGZIP(), []int{10}
+	return file_purser_domain_v1_external_id_proto_rawDescGZIP(), []int{12}
 }
 
 func (x *ListExternalIDsResponse) GetExternalIds() []*ExternalID {
@@ -620,6 +724,14 @@ const file_purser_domain_v1_external_id_proto_rawDesc = "" +
 	"\x06source\x18\x03 \x01(\tR\x06source\"V\n" +
 	"\x15GetExternalIDResponse\x12=\n" +
 	"\vexternal_id\x18\x01 \x01(\v2\x1c.purser.domain.v1.ExternalIDR\n" +
+	"externalId\"\x8a\x01\n" +
+	"\x1bGetExternalIDByValueRequest\x12=\n" +
+	"\ventity_type\x18\x01 \x01(\x0e2\x1c.purser.domain.v1.EntityTypeR\n" +
+	"entityType\x12\x16\n" +
+	"\x06source\x18\x02 \x01(\tR\x06source\x12\x14\n" +
+	"\x05value\x18\x03 \x01(\tR\x05value\"]\n" +
+	"\x1cGetExternalIDByValueResponse\x12=\n" +
+	"\vexternal_id\x18\x01 \x01(\v2\x1c.purser.domain.v1.ExternalIDR\n" +
 	"externalId\"X\n" +
 	"\x17UpdateExternalIDRequest\x12=\n" +
 	"\vexternal_id\x18\x01 \x01(\v2\x1c.purser.domain.v1.ExternalIDR\n" +
@@ -642,10 +754,11 @@ const file_purser_domain_v1_external_id_proto_rawDesc = "" +
 	"page_token\x18\x04 \x01(\tR\tpageToken\"\x82\x01\n" +
 	"\x17ListExternalIDsResponse\x12?\n" +
 	"\fexternal_ids\x18\x01 \x03(\v2\x1c.purser.domain.v1.ExternalIDR\vexternalIds\x12&\n" +
-	"\x0fnext_page_token\x18\x02 \x01(\tR\rnextPageToken2\x9e\x04\n" +
+	"\x0fnext_page_token\x18\x02 \x01(\tR\rnextPageToken2\x95\x05\n" +
 	"\x11ExternalIDService\x12i\n" +
 	"\x10CreateExternalID\x12).purser.domain.v1.CreateExternalIDRequest\x1a*.purser.domain.v1.CreateExternalIDResponse\x12`\n" +
-	"\rGetExternalID\x12&.purser.domain.v1.GetExternalIDRequest\x1a'.purser.domain.v1.GetExternalIDResponse\x12i\n" +
+	"\rGetExternalID\x12&.purser.domain.v1.GetExternalIDRequest\x1a'.purser.domain.v1.GetExternalIDResponse\x12u\n" +
+	"\x14GetExternalIDByValue\x12-.purser.domain.v1.GetExternalIDByValueRequest\x1a..purser.domain.v1.GetExternalIDByValueResponse\x12i\n" +
 	"\x10UpdateExternalID\x12).purser.domain.v1.UpdateExternalIDRequest\x1a*.purser.domain.v1.UpdateExternalIDResponse\x12i\n" +
 	"\x10DeleteExternalID\x12).purser.domain.v1.DeleteExternalIDRequest\x1a*.purser.domain.v1.DeleteExternalIDResponse\x12f\n" +
 	"\x0fListExternalIDs\x12(.purser.domain.v1.ListExternalIDsRequest\x1a).purser.domain.v1.ListExternalIDsResponseB)Z'purser/gen/go/purser/domain/v1;domainv1b\x06proto3"
@@ -662,47 +775,53 @@ func file_purser_domain_v1_external_id_proto_rawDescGZIP() []byte {
 	return file_purser_domain_v1_external_id_proto_rawDescData
 }
 
-var file_purser_domain_v1_external_id_proto_msgTypes = make([]protoimpl.MessageInfo, 11)
+var file_purser_domain_v1_external_id_proto_msgTypes = make([]protoimpl.MessageInfo, 13)
 var file_purser_domain_v1_external_id_proto_goTypes = []any{
-	(*ExternalID)(nil),               // 0: purser.domain.v1.ExternalID
-	(*CreateExternalIDRequest)(nil),  // 1: purser.domain.v1.CreateExternalIDRequest
-	(*CreateExternalIDResponse)(nil), // 2: purser.domain.v1.CreateExternalIDResponse
-	(*GetExternalIDRequest)(nil),     // 3: purser.domain.v1.GetExternalIDRequest
-	(*GetExternalIDResponse)(nil),    // 4: purser.domain.v1.GetExternalIDResponse
-	(*UpdateExternalIDRequest)(nil),  // 5: purser.domain.v1.UpdateExternalIDRequest
-	(*UpdateExternalIDResponse)(nil), // 6: purser.domain.v1.UpdateExternalIDResponse
-	(*DeleteExternalIDRequest)(nil),  // 7: purser.domain.v1.DeleteExternalIDRequest
-	(*DeleteExternalIDResponse)(nil), // 8: purser.domain.v1.DeleteExternalIDResponse
-	(*ListExternalIDsRequest)(nil),   // 9: purser.domain.v1.ListExternalIDsRequest
-	(*ListExternalIDsResponse)(nil),  // 10: purser.domain.v1.ListExternalIDsResponse
-	(EntityType)(0),                  // 11: purser.domain.v1.EntityType
+	(*ExternalID)(nil),                   // 0: purser.domain.v1.ExternalID
+	(*CreateExternalIDRequest)(nil),      // 1: purser.domain.v1.CreateExternalIDRequest
+	(*CreateExternalIDResponse)(nil),     // 2: purser.domain.v1.CreateExternalIDResponse
+	(*GetExternalIDRequest)(nil),         // 3: purser.domain.v1.GetExternalIDRequest
+	(*GetExternalIDResponse)(nil),        // 4: purser.domain.v1.GetExternalIDResponse
+	(*GetExternalIDByValueRequest)(nil),  // 5: purser.domain.v1.GetExternalIDByValueRequest
+	(*GetExternalIDByValueResponse)(nil), // 6: purser.domain.v1.GetExternalIDByValueResponse
+	(*UpdateExternalIDRequest)(nil),      // 7: purser.domain.v1.UpdateExternalIDRequest
+	(*UpdateExternalIDResponse)(nil),     // 8: purser.domain.v1.UpdateExternalIDResponse
+	(*DeleteExternalIDRequest)(nil),      // 9: purser.domain.v1.DeleteExternalIDRequest
+	(*DeleteExternalIDResponse)(nil),     // 10: purser.domain.v1.DeleteExternalIDResponse
+	(*ListExternalIDsRequest)(nil),       // 11: purser.domain.v1.ListExternalIDsRequest
+	(*ListExternalIDsResponse)(nil),      // 12: purser.domain.v1.ListExternalIDsResponse
+	(EntityType)(0),                      // 13: purser.domain.v1.EntityType
 }
 var file_purser_domain_v1_external_id_proto_depIdxs = []int32{
-	11, // 0: purser.domain.v1.ExternalID.entity_type:type_name -> purser.domain.v1.EntityType
+	13, // 0: purser.domain.v1.ExternalID.entity_type:type_name -> purser.domain.v1.EntityType
 	0,  // 1: purser.domain.v1.CreateExternalIDRequest.external_id:type_name -> purser.domain.v1.ExternalID
 	0,  // 2: purser.domain.v1.CreateExternalIDResponse.external_id:type_name -> purser.domain.v1.ExternalID
-	11, // 3: purser.domain.v1.GetExternalIDRequest.entity_type:type_name -> purser.domain.v1.EntityType
+	13, // 3: purser.domain.v1.GetExternalIDRequest.entity_type:type_name -> purser.domain.v1.EntityType
 	0,  // 4: purser.domain.v1.GetExternalIDResponse.external_id:type_name -> purser.domain.v1.ExternalID
-	0,  // 5: purser.domain.v1.UpdateExternalIDRequest.external_id:type_name -> purser.domain.v1.ExternalID
-	0,  // 6: purser.domain.v1.UpdateExternalIDResponse.external_id:type_name -> purser.domain.v1.ExternalID
-	11, // 7: purser.domain.v1.DeleteExternalIDRequest.entity_type:type_name -> purser.domain.v1.EntityType
-	11, // 8: purser.domain.v1.ListExternalIDsRequest.entity_type:type_name -> purser.domain.v1.EntityType
-	0,  // 9: purser.domain.v1.ListExternalIDsResponse.external_ids:type_name -> purser.domain.v1.ExternalID
-	1,  // 10: purser.domain.v1.ExternalIDService.CreateExternalID:input_type -> purser.domain.v1.CreateExternalIDRequest
-	3,  // 11: purser.domain.v1.ExternalIDService.GetExternalID:input_type -> purser.domain.v1.GetExternalIDRequest
-	5,  // 12: purser.domain.v1.ExternalIDService.UpdateExternalID:input_type -> purser.domain.v1.UpdateExternalIDRequest
-	7,  // 13: purser.domain.v1.ExternalIDService.DeleteExternalID:input_type -> purser.domain.v1.DeleteExternalIDRequest
-	9,  // 14: purser.domain.v1.ExternalIDService.ListExternalIDs:input_type -> purser.domain.v1.ListExternalIDsRequest
-	2,  // 15: purser.domain.v1.ExternalIDService.CreateExternalID:output_type -> purser.domain.v1.CreateExternalIDResponse
-	4,  // 16: purser.domain.v1.ExternalIDService.GetExternalID:output_type -> purser.domain.v1.GetExternalIDResponse
-	6,  // 17: purser.domain.v1.ExternalIDService.UpdateExternalID:output_type -> purser.domain.v1.UpdateExternalIDResponse
-	8,  // 18: purser.domain.v1.ExternalIDService.DeleteExternalID:output_type -> purser.domain.v1.DeleteExternalIDResponse
-	10, // 19: purser.domain.v1.ExternalIDService.ListExternalIDs:output_type -> purser.domain.v1.ListExternalIDsResponse
-	15, // [15:20] is the sub-list for method output_type
-	10, // [10:15] is the sub-list for method input_type
-	10, // [10:10] is the sub-list for extension type_name
-	10, // [10:10] is the sub-list for extension extendee
-	0,  // [0:10] is the sub-list for field type_name
+	13, // 5: purser.domain.v1.GetExternalIDByValueRequest.entity_type:type_name -> purser.domain.v1.EntityType
+	0,  // 6: purser.domain.v1.GetExternalIDByValueResponse.external_id:type_name -> purser.domain.v1.ExternalID
+	0,  // 7: purser.domain.v1.UpdateExternalIDRequest.external_id:type_name -> purser.domain.v1.ExternalID
+	0,  // 8: purser.domain.v1.UpdateExternalIDResponse.external_id:type_name -> purser.domain.v1.ExternalID
+	13, // 9: purser.domain.v1.DeleteExternalIDRequest.entity_type:type_name -> purser.domain.v1.EntityType
+	13, // 10: purser.domain.v1.ListExternalIDsRequest.entity_type:type_name -> purser.domain.v1.EntityType
+	0,  // 11: purser.domain.v1.ListExternalIDsResponse.external_ids:type_name -> purser.domain.v1.ExternalID
+	1,  // 12: purser.domain.v1.ExternalIDService.CreateExternalID:input_type -> purser.domain.v1.CreateExternalIDRequest
+	3,  // 13: purser.domain.v1.ExternalIDService.GetExternalID:input_type -> purser.domain.v1.GetExternalIDRequest
+	5,  // 14: purser.domain.v1.ExternalIDService.GetExternalIDByValue:input_type -> purser.domain.v1.GetExternalIDByValueRequest
+	7,  // 15: purser.domain.v1.ExternalIDService.UpdateExternalID:input_type -> purser.domain.v1.UpdateExternalIDRequest
+	9,  // 16: purser.domain.v1.ExternalIDService.DeleteExternalID:input_type -> purser.domain.v1.DeleteExternalIDRequest
+	11, // 17: purser.domain.v1.ExternalIDService.ListExternalIDs:input_type -> purser.domain.v1.ListExternalIDsRequest
+	2,  // 18: purser.domain.v1.ExternalIDService.CreateExternalID:output_type -> purser.domain.v1.CreateExternalIDResponse
+	4,  // 19: purser.domain.v1.ExternalIDService.GetExternalID:output_type -> purser.domain.v1.GetExternalIDResponse
+	6,  // 20: purser.domain.v1.ExternalIDService.GetExternalIDByValue:output_type -> purser.domain.v1.GetExternalIDByValueResponse
+	8,  // 21: purser.domain.v1.ExternalIDService.UpdateExternalID:output_type -> purser.domain.v1.UpdateExternalIDResponse
+	10, // 22: purser.domain.v1.ExternalIDService.DeleteExternalID:output_type -> purser.domain.v1.DeleteExternalIDResponse
+	12, // 23: purser.domain.v1.ExternalIDService.ListExternalIDs:output_type -> purser.domain.v1.ListExternalIDsResponse
+	18, // [18:24] is the sub-list for method output_type
+	12, // [12:18] is the sub-list for method input_type
+	12, // [12:12] is the sub-list for extension type_name
+	12, // [12:12] is the sub-list for extension extendee
+	0,  // [0:12] is the sub-list for field type_name
 }
 
 func init() { file_purser_domain_v1_external_id_proto_init() }
@@ -717,7 +836,7 @@ func file_purser_domain_v1_external_id_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_purser_domain_v1_external_id_proto_rawDesc), len(file_purser_domain_v1_external_id_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   11,
+			NumMessages:   13,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

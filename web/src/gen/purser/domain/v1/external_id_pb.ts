@@ -12,7 +12,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file purser/domain/v1/external_id.proto.
  */
 export const file_purser_domain_v1_external_id: GenFile = /*@__PURE__*/
-  fileDesc("CiJwdXJzZXIvZG9tYWluL3YxL2V4dGVybmFsX2lkLnByb3RvEhBwdXJzZXIuZG9tYWluLnYxInEKCkV4dGVybmFsSUQSMQoLZW50aXR5X3R5cGUYASABKA4yHC5wdXJzZXIuZG9tYWluLnYxLkVudGl0eVR5cGUSEQoJZW50aXR5X2lkGAIgASgJEg4KBnNvdXJjZRgDIAEoCRINCgV2YWx1ZRgEIAEoCSJMChdDcmVhdGVFeHRlcm5hbElEUmVxdWVzdBIxCgtleHRlcm5hbF9pZBgBIAEoCzIcLnB1cnNlci5kb21haW4udjEuRXh0ZXJuYWxJRCJNChhDcmVhdGVFeHRlcm5hbElEUmVzcG9uc2USMQoLZXh0ZXJuYWxfaWQYASABKAsyHC5wdXJzZXIuZG9tYWluLnYxLkV4dGVybmFsSUQibAoUR2V0RXh0ZXJuYWxJRFJlcXVlc3QSMQoLZW50aXR5X3R5cGUYASABKA4yHC5wdXJzZXIuZG9tYWluLnYxLkVudGl0eVR5cGUSEQoJZW50aXR5X2lkGAIgASgJEg4KBnNvdXJjZRgDIAEoCSJKChVHZXRFeHRlcm5hbElEUmVzcG9uc2USMQoLZXh0ZXJuYWxfaWQYASABKAsyHC5wdXJzZXIuZG9tYWluLnYxLkV4dGVybmFsSUQiTAoXVXBkYXRlRXh0ZXJuYWxJRFJlcXVlc3QSMQoLZXh0ZXJuYWxfaWQYASABKAsyHC5wdXJzZXIuZG9tYWluLnYxLkV4dGVybmFsSUQiTQoYVXBkYXRlRXh0ZXJuYWxJRFJlc3BvbnNlEjEKC2V4dGVybmFsX2lkGAEgASgLMhwucHVyc2VyLmRvbWFpbi52MS5FeHRlcm5hbElEIm8KF0RlbGV0ZUV4dGVybmFsSURSZXF1ZXN0EjEKC2VudGl0eV90eXBlGAEgASgOMhwucHVyc2VyLmRvbWFpbi52MS5FbnRpdHlUeXBlEhEKCWVudGl0eV9pZBgCIAEoCRIOCgZzb3VyY2UYAyABKAkiGgoYRGVsZXRlRXh0ZXJuYWxJRFJlc3BvbnNlIoUBChZMaXN0RXh0ZXJuYWxJRHNSZXF1ZXN0EjEKC2VudGl0eV90eXBlGAEgASgOMhwucHVyc2VyLmRvbWFpbi52MS5FbnRpdHlUeXBlEhEKCWVudGl0eV9pZBgCIAEoCRIRCglwYWdlX3NpemUYAyABKAUSEgoKcGFnZV90b2tlbhgEIAEoCSJmChdMaXN0RXh0ZXJuYWxJRHNSZXNwb25zZRIyCgxleHRlcm5hbF9pZHMYASADKAsyHC5wdXJzZXIuZG9tYWluLnYxLkV4dGVybmFsSUQSFwoPbmV4dF9wYWdlX3Rva2VuGAIgASgJMp4EChFFeHRlcm5hbElEU2VydmljZRJpChBDcmVhdGVFeHRlcm5hbElEEikucHVyc2VyLmRvbWFpbi52MS5DcmVhdGVFeHRlcm5hbElEUmVxdWVzdBoqLnB1cnNlci5kb21haW4udjEuQ3JlYXRlRXh0ZXJuYWxJRFJlc3BvbnNlEmAKDUdldEV4dGVybmFsSUQSJi5wdXJzZXIuZG9tYWluLnYxLkdldEV4dGVybmFsSURSZXF1ZXN0GicucHVyc2VyLmRvbWFpbi52MS5HZXRFeHRlcm5hbElEUmVzcG9uc2USaQoQVXBkYXRlRXh0ZXJuYWxJRBIpLnB1cnNlci5kb21haW4udjEuVXBkYXRlRXh0ZXJuYWxJRFJlcXVlc3QaKi5wdXJzZXIuZG9tYWluLnYxLlVwZGF0ZUV4dGVybmFsSURSZXNwb25zZRJpChBEZWxldGVFeHRlcm5hbElEEikucHVyc2VyLmRvbWFpbi52MS5EZWxldGVFeHRlcm5hbElEUmVxdWVzdBoqLnB1cnNlci5kb21haW4udjEuRGVsZXRlRXh0ZXJuYWxJRFJlc3BvbnNlEmYKD0xpc3RFeHRlcm5hbElEcxIoLnB1cnNlci5kb21haW4udjEuTGlzdEV4dGVybmFsSURzUmVxdWVzdBopLnB1cnNlci5kb21haW4udjEuTGlzdEV4dGVybmFsSURzUmVzcG9uc2VCKVoncHVyc2VyL2dlbi9nby9wdXJzZXIvZG9tYWluL3YxO2RvbWFpbnYxYgZwcm90bzM", [file_purser_domain_v1_common]);
+  fileDesc("CiJwdXJzZXIvZG9tYWluL3YxL2V4dGVybmFsX2lkLnByb3RvEhBwdXJzZXIuZG9tYWluLnYxInEKCkV4dGVybmFsSUQSMQoLZW50aXR5X3R5cGUYASABKA4yHC5wdXJzZXIuZG9tYWluLnYxLkVudGl0eVR5cGUSEQoJZW50aXR5X2lkGAIgASgJEg4KBnNvdXJjZRgDIAEoCRINCgV2YWx1ZRgEIAEoCSJMChdDcmVhdGVFeHRlcm5hbElEUmVxdWVzdBIxCgtleHRlcm5hbF9pZBgBIAEoCzIcLnB1cnNlci5kb21haW4udjEuRXh0ZXJuYWxJRCJNChhDcmVhdGVFeHRlcm5hbElEUmVzcG9uc2USMQoLZXh0ZXJuYWxfaWQYASABKAsyHC5wdXJzZXIuZG9tYWluLnYxLkV4dGVybmFsSUQibAoUR2V0RXh0ZXJuYWxJRFJlcXVlc3QSMQoLZW50aXR5X3R5cGUYASABKA4yHC5wdXJzZXIuZG9tYWluLnYxLkVudGl0eVR5cGUSEQoJZW50aXR5X2lkGAIgASgJEg4KBnNvdXJjZRgDIAEoCSJKChVHZXRFeHRlcm5hbElEUmVzcG9uc2USMQoLZXh0ZXJuYWxfaWQYASABKAsyHC5wdXJzZXIuZG9tYWluLnYxLkV4dGVybmFsSUQibwobR2V0RXh0ZXJuYWxJREJ5VmFsdWVSZXF1ZXN0EjEKC2VudGl0eV90eXBlGAEgASgOMhwucHVyc2VyLmRvbWFpbi52MS5FbnRpdHlUeXBlEg4KBnNvdXJjZRgCIAEoCRINCgV2YWx1ZRgDIAEoCSJRChxHZXRFeHRlcm5hbElEQnlWYWx1ZVJlc3BvbnNlEjEKC2V4dGVybmFsX2lkGAEgASgLMhwucHVyc2VyLmRvbWFpbi52MS5FeHRlcm5hbElEIkwKF1VwZGF0ZUV4dGVybmFsSURSZXF1ZXN0EjEKC2V4dGVybmFsX2lkGAEgASgLMhwucHVyc2VyLmRvbWFpbi52MS5FeHRlcm5hbElEIk0KGFVwZGF0ZUV4dGVybmFsSURSZXNwb25zZRIxCgtleHRlcm5hbF9pZBgBIAEoCzIcLnB1cnNlci5kb21haW4udjEuRXh0ZXJuYWxJRCJvChdEZWxldGVFeHRlcm5hbElEUmVxdWVzdBIxCgtlbnRpdHlfdHlwZRgBIAEoDjIcLnB1cnNlci5kb21haW4udjEuRW50aXR5VHlwZRIRCgllbnRpdHlfaWQYAiABKAkSDgoGc291cmNlGAMgASgJIhoKGERlbGV0ZUV4dGVybmFsSURSZXNwb25zZSKFAQoWTGlzdEV4dGVybmFsSURzUmVxdWVzdBIxCgtlbnRpdHlfdHlwZRgBIAEoDjIcLnB1cnNlci5kb21haW4udjEuRW50aXR5VHlwZRIRCgllbnRpdHlfaWQYAiABKAkSEQoJcGFnZV9zaXplGAMgASgFEhIKCnBhZ2VfdG9rZW4YBCABKAkiZgoXTGlzdEV4dGVybmFsSURzUmVzcG9uc2USMgoMZXh0ZXJuYWxfaWRzGAEgAygLMhwucHVyc2VyLmRvbWFpbi52MS5FeHRlcm5hbElEEhcKD25leHRfcGFnZV90b2tlbhgCIAEoCTKVBQoRRXh0ZXJuYWxJRFNlcnZpY2USaQoQQ3JlYXRlRXh0ZXJuYWxJRBIpLnB1cnNlci5kb21haW4udjEuQ3JlYXRlRXh0ZXJuYWxJRFJlcXVlc3QaKi5wdXJzZXIuZG9tYWluLnYxLkNyZWF0ZUV4dGVybmFsSURSZXNwb25zZRJgCg1HZXRFeHRlcm5hbElEEiYucHVyc2VyLmRvbWFpbi52MS5HZXRFeHRlcm5hbElEUmVxdWVzdBonLnB1cnNlci5kb21haW4udjEuR2V0RXh0ZXJuYWxJRFJlc3BvbnNlEnUKFEdldEV4dGVybmFsSURCeVZhbHVlEi0ucHVyc2VyLmRvbWFpbi52MS5HZXRFeHRlcm5hbElEQnlWYWx1ZVJlcXVlc3QaLi5wdXJzZXIuZG9tYWluLnYxLkdldEV4dGVybmFsSURCeVZhbHVlUmVzcG9uc2USaQoQVXBkYXRlRXh0ZXJuYWxJRBIpLnB1cnNlci5kb21haW4udjEuVXBkYXRlRXh0ZXJuYWxJRFJlcXVlc3QaKi5wdXJzZXIuZG9tYWluLnYxLlVwZGF0ZUV4dGVybmFsSURSZXNwb25zZRJpChBEZWxldGVFeHRlcm5hbElEEikucHVyc2VyLmRvbWFpbi52MS5EZWxldGVFeHRlcm5hbElEUmVxdWVzdBoqLnB1cnNlci5kb21haW4udjEuRGVsZXRlRXh0ZXJuYWxJRFJlc3BvbnNlEmYKD0xpc3RFeHRlcm5hbElEcxIoLnB1cnNlci5kb21haW4udjEuTGlzdEV4dGVybmFsSURzUmVxdWVzdBopLnB1cnNlci5kb21haW4udjEuTGlzdEV4dGVybmFsSURzUmVzcG9uc2VCKVoncHVyc2VyL2dlbi9nby9wdXJzZXIvZG9tYWluL3YxO2RvbWFpbnYxYgZwcm90bzM", [file_purser_domain_v1_common]);
 
 /**
  * ExternalID is the wire shape of internal/domain.ExternalID — a join row
@@ -131,6 +131,50 @@ export const GetExternalIDResponseSchema: GenMessage<GetExternalIDResponse> = /*
   messageDesc(file_purser_domain_v1_external_id, 4);
 
 /**
+ * @generated from message purser.domain.v1.GetExternalIDByValueRequest
+ */
+export type GetExternalIDByValueRequest = Message<"purser.domain.v1.GetExternalIDByValueRequest"> & {
+  /**
+   * @generated from field: purser.domain.v1.EntityType entity_type = 1;
+   */
+  entityType: EntityType;
+
+  /**
+   * @generated from field: string source = 2;
+   */
+  source: string;
+
+  /**
+   * @generated from field: string value = 3;
+   */
+  value: string;
+};
+
+/**
+ * Describes the message purser.domain.v1.GetExternalIDByValueRequest.
+ * Use `create(GetExternalIDByValueRequestSchema)` to create a new message.
+ */
+export const GetExternalIDByValueRequestSchema: GenMessage<GetExternalIDByValueRequest> = /*@__PURE__*/
+  messageDesc(file_purser_domain_v1_external_id, 5);
+
+/**
+ * @generated from message purser.domain.v1.GetExternalIDByValueResponse
+ */
+export type GetExternalIDByValueResponse = Message<"purser.domain.v1.GetExternalIDByValueResponse"> & {
+  /**
+   * @generated from field: purser.domain.v1.ExternalID external_id = 1;
+   */
+  externalId?: ExternalID | undefined;
+};
+
+/**
+ * Describes the message purser.domain.v1.GetExternalIDByValueResponse.
+ * Use `create(GetExternalIDByValueResponseSchema)` to create a new message.
+ */
+export const GetExternalIDByValueResponseSchema: GenMessage<GetExternalIDByValueResponse> = /*@__PURE__*/
+  messageDesc(file_purser_domain_v1_external_id, 6);
+
+/**
  * @generated from message purser.domain.v1.UpdateExternalIDRequest
  */
 export type UpdateExternalIDRequest = Message<"purser.domain.v1.UpdateExternalIDRequest"> & {
@@ -148,7 +192,7 @@ export type UpdateExternalIDRequest = Message<"purser.domain.v1.UpdateExternalID
  * Use `create(UpdateExternalIDRequestSchema)` to create a new message.
  */
 export const UpdateExternalIDRequestSchema: GenMessage<UpdateExternalIDRequest> = /*@__PURE__*/
-  messageDesc(file_purser_domain_v1_external_id, 5);
+  messageDesc(file_purser_domain_v1_external_id, 7);
 
 /**
  * @generated from message purser.domain.v1.UpdateExternalIDResponse
@@ -165,7 +209,7 @@ export type UpdateExternalIDResponse = Message<"purser.domain.v1.UpdateExternalI
  * Use `create(UpdateExternalIDResponseSchema)` to create a new message.
  */
 export const UpdateExternalIDResponseSchema: GenMessage<UpdateExternalIDResponse> = /*@__PURE__*/
-  messageDesc(file_purser_domain_v1_external_id, 6);
+  messageDesc(file_purser_domain_v1_external_id, 8);
 
 /**
  * @generated from message purser.domain.v1.DeleteExternalIDRequest
@@ -192,7 +236,7 @@ export type DeleteExternalIDRequest = Message<"purser.domain.v1.DeleteExternalID
  * Use `create(DeleteExternalIDRequestSchema)` to create a new message.
  */
 export const DeleteExternalIDRequestSchema: GenMessage<DeleteExternalIDRequest> = /*@__PURE__*/
-  messageDesc(file_purser_domain_v1_external_id, 7);
+  messageDesc(file_purser_domain_v1_external_id, 9);
 
 /**
  * @generated from message purser.domain.v1.DeleteExternalIDResponse
@@ -205,7 +249,7 @@ export type DeleteExternalIDResponse = Message<"purser.domain.v1.DeleteExternalI
  * Use `create(DeleteExternalIDResponseSchema)` to create a new message.
  */
 export const DeleteExternalIDResponseSchema: GenMessage<DeleteExternalIDResponse> = /*@__PURE__*/
-  messageDesc(file_purser_domain_v1_external_id, 8);
+  messageDesc(file_purser_domain_v1_external_id, 10);
 
 /**
  * @generated from message purser.domain.v1.ListExternalIDsRequest
@@ -241,7 +285,7 @@ export type ListExternalIDsRequest = Message<"purser.domain.v1.ListExternalIDsRe
  * Use `create(ListExternalIDsRequestSchema)` to create a new message.
  */
 export const ListExternalIDsRequestSchema: GenMessage<ListExternalIDsRequest> = /*@__PURE__*/
-  messageDesc(file_purser_domain_v1_external_id, 9);
+  messageDesc(file_purser_domain_v1_external_id, 11);
 
 /**
  * @generated from message purser.domain.v1.ListExternalIDsResponse
@@ -263,7 +307,7 @@ export type ListExternalIDsResponse = Message<"purser.domain.v1.ListExternalIDsR
  * Use `create(ListExternalIDsResponseSchema)` to create a new message.
  */
 export const ListExternalIDsResponseSchema: GenMessage<ListExternalIDsResponse> = /*@__PURE__*/
-  messageDesc(file_purser_domain_v1_external_id, 10);
+  messageDesc(file_purser_domain_v1_external_id, 12);
 
 /**
  * ExternalIDService owns exactly one entity — ExternalID — per
@@ -287,6 +331,14 @@ export const ExternalIDService: GenService<{
     methodKind: "unary";
     input: typeof GetExternalIDRequestSchema;
     output: typeof GetExternalIDResponseSchema;
+  },
+  /**
+   * @generated from rpc purser.domain.v1.ExternalIDService.GetExternalIDByValue
+   */
+  getExternalIDByValue: {
+    methodKind: "unary";
+    input: typeof GetExternalIDByValueRequestSchema;
+    output: typeof GetExternalIDByValueResponseSchema;
   },
   /**
    * @generated from rpc purser.domain.v1.ExternalIDService.UpdateExternalID

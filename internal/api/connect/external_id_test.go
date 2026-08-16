@@ -49,6 +49,18 @@ func (f *fakeExternalIDService) Get(_ context.Context, entityType domain.EntityT
 	return e, nil
 }
 
+func (f *fakeExternalIDService) GetByValue(_ context.Context, entityType domain.EntityType, source domain.ExternalIDSource, value string) (*domain.ExternalID, error) {
+	if f.getErr != nil {
+		return nil, f.getErr
+	}
+	for _, e := range f.byKey {
+		if e.EntityType == entityType && e.Source == source && e.Value == value {
+			return e, nil
+		}
+	}
+	return nil, ports.ErrNotFound
+}
+
 func (f *fakeExternalIDService) Update(_ context.Context, e *domain.ExternalID) (*domain.ExternalID, error) {
 	if f.updateErr != nil {
 		return nil, f.updateErr
@@ -123,6 +135,34 @@ func TestExternalIDHandler_GetExternalID(t *testing.T) {
 	if connect.CodeOf(err) != connect.CodeNotFound {
 		t.Fatalf("GetExternalID on missing key returned code %v, want %v", connect.CodeOf(err), connect.CodeNotFound)
 	}
+}
+
+func TestExternalIDHandler_GetExternalIDByValue(t *testing.T) {
+	t.Run("hit returns the matching external id", func(t *testing.T) {
+		svc := newFakeExternalIDService()
+		h := apiconnect.NewExternalIDHandler(svc, nil)
+		svc.byKey[eidKey(domain.EntityTypeLibraryEntry, "le1", "mbz")] = &domain.ExternalID{EntityType: domain.EntityTypeLibraryEntry, EntityID: "le1", Source: "mbz", Value: "mbid-123"}
+
+		req := &v1.GetExternalIDByValueRequest{EntityType: v1.EntityType_ENTITY_TYPE_LIBRARY_ENTRY, Source: "mbz", Value: "mbid-123"}
+		res, err := h.GetExternalIDByValue(context.Background(), connect.NewRequest(req))
+		if err != nil {
+			t.Fatalf("GetExternalIDByValue returned error: %v", err)
+		}
+		if res.Msg.GetExternalId().GetEntityId() != "le1" {
+			t.Fatalf("GetExternalIDByValue returned EntityId %q, want %q", res.Msg.GetExternalId().GetEntityId(), "le1")
+		}
+	})
+
+	t.Run("miss maps to CodeNotFound", func(t *testing.T) {
+		svc := newFakeExternalIDService()
+		h := apiconnect.NewExternalIDHandler(svc, nil)
+
+		req := &v1.GetExternalIDByValueRequest{EntityType: v1.EntityType_ENTITY_TYPE_LIBRARY_ENTRY, Source: "mbz", Value: "no-such-mbid"}
+		_, err := h.GetExternalIDByValue(context.Background(), connect.NewRequest(req))
+		if connect.CodeOf(err) != connect.CodeNotFound {
+			t.Fatalf("GetExternalIDByValue on missing value returned code %v, want %v", connect.CodeOf(err), connect.CodeNotFound)
+		}
+	})
 }
 
 func TestExternalIDHandler_UpdateExternalID(t *testing.T) {

@@ -36,6 +36,12 @@ export default () => {
     'GetExternalID returns the created value': (r) => r.json('externalId.value') === 'abc123',
   });
 
+  res = invoke(`${SERVICE}/GetExternalIDByValue`, JSON.stringify({ entityType: 'ENTITY_TYPE_PERSON', source: source, value: 'abc123' }), HEADERS);
+  check(res, {
+    'GetExternalIDByValue status is 200': (r) => r.status === 200,
+    'GetExternalIDByValue returns the created entity': (r) => r.json('externalId.entityId') === entityId,
+  });
+
   res = invoke(
     `${SERVICE}/UpdateExternalID`,
     JSON.stringify({ externalId: { entityType: 'ENTITY_TYPE_PERSON', entityId: entityId, source: source, value: 'xyz789' } }),
@@ -57,4 +63,7 @@ export default () => {
 
   res = invoke(`${SERVICE}/GetExternalID`, JSON.stringify({ entityType: 'ENTITY_TYPE_PERSON', entityId: entityId, source: source }), HEADERS);
   check(res, { 'GetExternalID after Delete is 404 (NotFound)': (r) => r.status === 404 });
+
+  res = invoke(`${SERVICE}/GetExternalIDByValue`, JSON.stringify({ entityType: 'ENTITY_TYPE_PERSON', source: source, value: 'xyz789' }), HEADERS);
+  check(res, { 'GetExternalIDByValue after Delete is 404 (NotFound)': (r) => r.status === 404 });
 };

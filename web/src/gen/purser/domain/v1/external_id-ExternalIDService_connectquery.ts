@@ -15,6 +15,11 @@ export const createExternalID = ExternalIDService.method.createExternalID;
 export const getExternalID = ExternalIDService.method.getExternalID;
 
 /**
+ * @generated from rpc purser.domain.v1.ExternalIDService.GetExternalIDByValue
+ */
+export const getExternalIDByValue = ExternalIDService.method.getExternalIDByValue;
+
+/**
  * @generated from rpc purser.domain.v1.ExternalIDService.UpdateExternalID
  */
 export const updateExternalID = ExternalIDService.method.updateExternalID;
