@@ -33,6 +33,8 @@ func TestCache(t *testing.T, newCache NewCacheFunc) {
 	t.Run("len reflects the number of entries", func(t *testing.T) { testLenReflectsEntries(t, newCache) })
 	t.Run("entries beyond MaxItems evict the least recently used", func(t *testing.T) { testMaxItemsEviction(t, newCache) })
 	t.Run("entries expire after DefaultTTL", func(t *testing.T) { testDefaultTTLExpiry(t, newCache) })
+	t.Run("stats reflects activity", func(t *testing.T) { testStatsReflectsActivity(t, newCache) })
+	t.Run("flush empties the cache but leaves it open", func(t *testing.T) { testFlushEmptiesCache(t, newCache) })
 	t.Run("methods after close return ErrClosed", func(t *testing.T) { testMethodsAfterClose(t, newCache) })
 }
 
@@ -211,6 +213,76 @@ func testDefaultTTLExpiry(t *testing.T, newCache NewCacheFunc) {
 	}
 }
 
+func testStatsReflectsActivity(t *testing.T, newCache NewCacheFunc) {
+	c := newCache(t, cache.DefaultConfig())
+	defer closeCache(t, c)
+
+	ctx := context.Background()
+	mustSet(t, c, ctx, "a", "a")
+	mustSet(t, c, ctx, "b", "b")
+
+	if _, _, err := c.Get(ctx, "a"); err != nil { // hit
+		t.Fatalf("Get returned error: %v", err)
+	}
+	if _, _, err := c.Get(ctx, "missing"); err != nil { // miss
+		t.Fatalf("Get returned error: %v", err)
+	}
+	if err := c.Delete(ctx, "b"); err != nil {
+		t.Fatalf("Delete returned error: %v", err)
+	}
+
+	stats, err := c.Stats(ctx)
+	if err != nil {
+		t.Fatalf("Stats returned error: %v", err)
+	}
+	if stats.Items != 1 {
+		t.Errorf("Stats.Items = %d, want 1", stats.Items)
+	}
+	if stats.Hits != 1 {
+		t.Errorf("Stats.Hits = %d, want 1", stats.Hits)
+	}
+	if stats.Misses != 1 {
+		t.Errorf("Stats.Misses = %d, want 1", stats.Misses)
+	}
+	if stats.Sets != 2 {
+		t.Errorf("Stats.Sets = %d, want 2", stats.Sets)
+	}
+	if stats.Deletes != 1 {
+		t.Errorf("Stats.Deletes = %d, want 1", stats.Deletes)
+	}
+}
+
+func testFlushEmptiesCache(t *testing.T, newCache NewCacheFunc) {
+	c := newCache(t, cache.DefaultConfig())
+	defer closeCache(t, c)
+
+	ctx := context.Background()
+	mustSet(t, c, ctx, "a", "a")
+	mustSet(t, c, ctx, "b", "b")
+
+	if err := c.Flush(ctx); err != nil {
+		t.Fatalf("Flush returned error: %v", err)
+	}
+
+	n, err := c.Len(ctx)
+	if err != nil {
+		t.Fatalf("Len returned error: %v", err)
+	}
+	if n != 0 {
+		t.Fatalf("Len = %d after Flush, want 0", n)
+	}
+
+	// The cache must remain usable after Flush.
+	mustSet(t, c, ctx, "c", "c")
+	_, ok, err := c.Get(ctx, "c")
+	if err != nil {
+		t.Fatalf("Get returned error: %v", err)
+	}
+	if !ok {
+		t.Fatal("Get missed for a key set after Flush")
+	}
+}
+
 func testMethodsAfterClose(t *testing.T, newCache NewCacheFunc) {
 	c := newCache(t, cache.DefaultConfig())
 	if err := c.Close(); err != nil {
@@ -229,6 +301,12 @@ func testMethodsAfterClose(t *testing.T, newCache NewCacheFunc) {
 	}
 	if _, err := c.Len(ctx); !errors.Is(err, cache.ErrClosed) {
 		t.Fatalf("Len after Close returned %v, want ErrClosed", err)
+	}
+	if _, err := c.Stats(ctx); !errors.Is(err, cache.ErrClosed) {
+		t.Fatalf("Stats after Close returned %v, want ErrClosed", err)
+	}
+	if err := c.Flush(ctx); !errors.Is(err, cache.ErrClosed) {
+		t.Fatalf("Flush after Close returned %v, want ErrClosed", err)
 	}
 }
 

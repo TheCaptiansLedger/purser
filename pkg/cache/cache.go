@@ -31,9 +31,51 @@ type Cache interface {
 	// Len reports the current number of entries.
 	Len(ctx context.Context) (int, error)
 
+	// Stats reports a live snapshot of this cache's size and cumulative
+	// activity counters. Stats lives on the main interface rather than a
+	// narrow optional capability: every realistic backend (in-memory
+	// directly, Redis via INFO, etc.) can report it without stubbing, and
+	// the administration UI needs it to work uniformly across every
+	// registered cache. See ADR 0002's ISP test.
+	Stats(ctx context.Context) (Stats, error)
+
+	// Flush removes all entries, leaving the cache open and its cumulative
+	// Stats counters (Hits, Misses, Sets, Deletes, Evictions) untouched —
+	// only Items/Bytes drop to zero. Same ISP reasoning as Stats.
+	Flush(ctx context.Context) error
+
 	// Close releases any resources held by the cache. After Close, all
 	// other methods return ErrClosed.
 	Close() error
+}
+
+// Stats is a point-in-time snapshot of a Cache's size and cumulative
+// activity. Counters are cumulative since the cache was constructed (Flush
+// does not reset them); Items/Bytes are current, live values.
+type Stats struct {
+	// Items is the current number of entries.
+	Items int
+
+	// Bytes is the current approximate total size, in bytes, of all cached
+	// keys and values.
+	Bytes int64
+
+	// Hits is the cumulative number of Get calls that found a live entry.
+	Hits int64
+
+	// Misses is the cumulative number of Get calls that found no entry, or
+	// found one that had expired.
+	Misses int64
+
+	// Sets is the cumulative number of Set calls.
+	Sets int64
+
+	// Deletes is the cumulative number of explicit Delete calls.
+	Deletes int64
+
+	// Evictions is the cumulative number of entries removed due to
+	// capacity (MaxItems/MaxBytes) or TTL pressure, not explicit Delete.
+	Evictions int64
 }
 
 // ErrClosed is returned by Cache methods once Close has been called.

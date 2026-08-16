@@ -47,6 +47,16 @@ type Cache struct {
 	currentBytes atomic.Int64
 	closed       atomic.Bool
 
+	// Cumulative counters backing Stats. These mirror what's recorded to
+	// the OTel counters below, kept separately because OTel instruments
+	// are write-only from application code — Stats needs a synchronously
+	// readable value.
+	statHits      atomic.Int64
+	statMisses    atomic.Int64
+	statSets      atomic.Int64
+	statDeletes   atomic.Int64
+	statEvictions atomic.Int64
+
 	logger *slog.Logger
 	tracer trace.Tracer
 
@@ -55,6 +65,7 @@ type Cache struct {
 	sets      metric.Int64Counter
 	deletes   metric.Int64Counter
 	evictions metric.Int64Counter
+	flushes   metric.Int64Counter
 }
 
 // New constructs a named in-memory Cache. name identifies this instance in
@@ -99,6 +110,9 @@ func New(name string, cfg cache.Config, opts ...Option) (cache.Cache, error) {
 	}
 	if c.evictions, err = meter.Int64Counter("cache.evictions", metric.WithDescription("entries removed due to capacity or TTL pressure")); err != nil {
 		return nil, fmt.Errorf("cache/memory: creating evictions counter: %w", err)
+	}
+	if c.flushes, err = meter.Int64Counter("cache.flushes", metric.WithDescription("explicit cache flushes")); err != nil {
+		return nil, fmt.Errorf("cache/memory: creating flushes counter: %w", err)
 	}
 
 	l, err := lru.NewWithEvict(cfg.MaxItems, c.onEvicted)
@@ -159,6 +173,7 @@ func (c *Cache) Get(ctx context.Context, key string) ([]byte, bool, error) {
 
 	e, ok := c.lru.Get(key)
 	if !ok {
+		c.statMisses.Add(1)
 		c.misses.Add(ctx, 1, attrs)
 		span.SetAttributes(attribute.Bool("cache.hit", false))
 		c.logger.DebugContext(ctx, "cache miss", "key", key)
@@ -167,13 +182,16 @@ func (c *Cache) Get(ctx context.Context, key string) ([]byte, bool, error) {
 
 	if e.expired(time.Now()) {
 		c.lru.Remove(key)
+		c.statEvictions.Add(1)
 		c.evictions.Add(ctx, 1, metric.WithAttributes(attribute.String("cache.name", c.name), attribute.String("reason", "ttl")))
+		c.statMisses.Add(1)
 		c.misses.Add(ctx, 1, attrs)
 		span.SetAttributes(attribute.Bool("cache.hit", false))
 		c.logger.DebugContext(ctx, "cache miss (expired)", "key", key)
 		return nil, false, nil
 	}
 
+	c.statHits.Add(1)
 	c.hits.Add(ctx, 1, attrs)
 	span.SetAttributes(attribute.Bool("cache.hit", true))
 	c.logger.DebugContext(ctx, "cache hit", "key", key)
@@ -203,6 +221,7 @@ func (c *Cache) Set(ctx context.Context, key string, value []byte) error {
 			if _, _, ok := c.lru.RemoveOldest(); !ok {
 				break
 			}
+			c.statEvictions.Add(1)
 			c.evictions.Add(ctx, 1, metric.WithAttributes(attribute.String("cache.name", c.name), attribute.String("reason", "capacity_bytes")))
 		}
 	}
@@ -210,9 +229,11 @@ func (c *Cache) Set(ctx context.Context, key string, value []byte) error {
 	evicted := c.lru.Add(key, e)
 	c.currentBytes.Add(e.size(key))
 	if evicted {
+		c.statEvictions.Add(1)
 		c.evictions.Add(ctx, 1, metric.WithAttributes(attribute.String("cache.name", c.name), attribute.String("reason", "capacity_items")))
 	}
 
+	c.statSets.Add(1)
 	c.sets.Add(ctx, 1, metric.WithAttributes(attribute.String("cache.name", c.name)))
 	c.logger.DebugContext(ctx, "cache set", "key", key, "bytes", e.size(key))
 	return nil
@@ -228,6 +249,7 @@ func (c *Cache) Delete(ctx context.Context, key string) error {
 	defer span.End()
 
 	c.lru.Remove(key)
+	c.statDeletes.Add(1)
 	c.deletes.Add(ctx, 1, metric.WithAttributes(attribute.String("cache.name", c.name)))
 	c.logger.DebugContext(ctx, "cache delete", "key", key)
 	return nil
@@ -245,6 +267,44 @@ func (c *Cache) Len(ctx context.Context) (int, error) {
 	n := c.lru.Len()
 	span.SetAttributes(attribute.Int("cache.len", n))
 	return n, nil
+}
+
+// Stats implements cache.Cache.
+func (c *Cache) Stats(ctx context.Context) (cache.Stats, error) {
+	if c.closed.Load() {
+		return cache.Stats{}, cache.ErrClosed
+	}
+
+	_, span := c.tracer.Start(ctx, "cache.stats", trace.WithAttributes(attribute.String("cache.name", c.name)))
+	defer span.End()
+
+	return cache.Stats{
+		Items:     c.lru.Len(),
+		Bytes:     c.currentBytes.Load(),
+		Hits:      c.statHits.Load(),
+		Misses:    c.statMisses.Load(),
+		Sets:      c.statSets.Load(),
+		Deletes:   c.statDeletes.Load(),
+		Evictions: c.statEvictions.Load(),
+	}, nil
+}
+
+// Flush implements cache.Cache.
+func (c *Cache) Flush(ctx context.Context) error {
+	if c.closed.Load() {
+		return cache.ErrClosed
+	}
+
+	ctx, span := c.tracer.Start(ctx, "cache.flush", trace.WithAttributes(attribute.String("cache.name", c.name)))
+	defer span.End()
+
+	n := c.lru.Len()
+	c.lru.Purge()
+	c.currentBytes.Store(0)
+
+	c.flushes.Add(ctx, 1, metric.WithAttributes(attribute.String("cache.name", c.name)))
+	c.logger.InfoContext(ctx, "cache flushed", "items_removed", n)
+	return nil
 }
 
 // Close implements cache.Cache.
