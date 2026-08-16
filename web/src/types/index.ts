@@ -116,3 +116,21 @@ export interface DatabaseInfo {
   storageSizeBytes: number
   collectionCounts: Record<string, number>
 }
+
+// CacheStats mirrors the subset of purser.cache.v1.CacheStats the Cache
+// tab (#617) actually renders (name/items/bytes/hits/misses). The wire
+// message also carries sets/deletes/evictions — left off this type per
+// ADR 0004 ("every field a component reads must exist here") until a
+// component reads them; add them back the same way storageSizeBytes was
+// added for DatabaseInfo if that changes. hits/misses/bytes are wire
+// int64 (bigint); converted to number here for the same reason
+// DatabaseInfo's counters are — comfortably inside
+// Number.MAX_SAFE_INTEGER for a real cache, and it keeps components off
+// bigint arithmetic.
+export interface CacheStats {
+  name: string
+  items: number
+  bytes: number
+  hits: number
+  misses: number
+}
