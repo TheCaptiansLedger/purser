@@ -20,6 +20,14 @@ type fakeMusicBrainzSearchService struct {
 	gotReleaseGroupMBID string
 	returnReleases      []ports.Release
 	releasesErr         error
+
+	gotQuery      string
+	returnArtists []ports.Artist
+	artistsErr    error
+
+	gotArtistMBID             string
+	returnArtistReleaseGroups []ports.ReleaseGroup
+	artistReleaseGroupsErr    error
 }
 
 func (f *fakeMusicBrainzSearchService) SearchReleaseGroups(_ context.Context, artistName, albumName string) ([]ports.ReleaseGroup, error) {
@@ -36,6 +44,22 @@ func (f *fakeMusicBrainzSearchService) ListReleasesForReleaseGroup(_ context.Con
 		return nil, f.releasesErr
 	}
 	return f.returnReleases, nil
+}
+
+func (f *fakeMusicBrainzSearchService) SearchArtists(_ context.Context, query string) ([]ports.Artist, error) {
+	f.gotQuery = query
+	if f.artistsErr != nil {
+		return nil, f.artistsErr
+	}
+	return f.returnArtists, nil
+}
+
+func (f *fakeMusicBrainzSearchService) ListReleaseGroupsForArtist(_ context.Context, artistMBID string) ([]ports.ReleaseGroup, error) {
+	f.gotArtistMBID = artistMBID
+	if f.artistReleaseGroupsErr != nil {
+		return nil, f.artistReleaseGroupsErr
+	}
+	return f.returnArtistReleaseGroups, nil
 }
 
 func TestMusicBrainzSearchHandler_SearchReleaseGroups(t *testing.T) {
@@ -128,6 +152,110 @@ func TestMusicBrainzSearchHandler_ListReleasesForReleaseGroup(t *testing.T) {
 		_, err := h.ListReleasesForReleaseGroup(context.Background(), connect.NewRequest(&musicv1.ListMusicBrainzReleasesRequest{ReleaseGroupMbid: "rg-1"}))
 		if connect.CodeOf(err) != connect.CodeInternal {
 			t.Fatalf("ListReleasesForReleaseGroup with an unmapped error returned code %v, want %v", connect.CodeOf(err), connect.CodeInternal)
+		}
+	})
+}
+
+func TestMusicBrainzSearchHandler_SearchArtists(t *testing.T) {
+	t.Run("valid request returns artists and passes the query through", func(t *testing.T) {
+		svc := &fakeMusicBrainzSearchService{returnArtists: []ports.Artist{
+			{
+				ID: "artist-1", Name: "REO Speedwagon", SortName: "REO Speedwagon", Type: "Group", Country: "US",
+				LifeSpan: ports.LifeSpan{Begin: "1967", End: ""},
+				Aliases:  []ports.Alias{{Name: "R.E.O. Speedwagon"}},
+			},
+		}}
+		h := apiconnect.NewMusicBrainzSearchHandler(svc, nil)
+
+		res, err := h.SearchArtists(context.Background(), connect.NewRequest(&musicv1.SearchMusicBrainzArtistsRequest{Query: "REO Speedwagon"}))
+		if err != nil {
+			t.Fatalf("SearchArtists returned error: %v", err)
+		}
+		if len(res.Msg.GetArtists()) != 1 {
+			t.Fatalf("SearchArtists returned %d artists, want 1", len(res.Msg.GetArtists()))
+		}
+		got := res.Msg.GetArtists()[0]
+		if got.GetMbid() != "artist-1" || got.GetName() != "REO Speedwagon" || got.GetType() != "Group" || got.GetCountry() != "US" {
+			t.Errorf("SearchArtists returned %+v, want a match for the fake's artist", got)
+		}
+		if got.GetLifeSpanBegin() != "1967" {
+			t.Errorf("LifeSpanBegin = %q, want 1967", got.GetLifeSpanBegin())
+		}
+		if len(got.GetAliases()) != 1 || got.GetAliases()[0] != "R.E.O. Speedwagon" {
+			t.Errorf("Aliases = %v, want [R.E.O. Speedwagon]", got.GetAliases())
+		}
+		if svc.gotQuery != "REO Speedwagon" {
+			t.Errorf("SearchArtists passed query=%q, want REO Speedwagon", svc.gotQuery)
+		}
+	})
+
+	t.Run("a genuinely empty result is a valid non-error response", func(t *testing.T) {
+		svc := &fakeMusicBrainzSearchService{returnArtists: nil}
+		h := apiconnect.NewMusicBrainzSearchHandler(svc, nil)
+
+		res, err := h.SearchArtists(context.Background(), connect.NewRequest(&musicv1.SearchMusicBrainzArtistsRequest{Query: "no such artist"}))
+		if err != nil {
+			t.Fatalf("SearchArtists returned error: %v", err)
+		}
+		if len(res.Msg.GetArtists()) != 0 {
+			t.Fatalf("SearchArtists returned %d artists, want 0", len(res.Msg.GetArtists()))
+		}
+	})
+
+	t.Run("an unmapped error maps to CodeInternal", func(t *testing.T) {
+		svc := &fakeMusicBrainzSearchService{artistsErr: errors.New("boom")}
+		h := apiconnect.NewMusicBrainzSearchHandler(svc, nil)
+
+		_, err := h.SearchArtists(context.Background(), connect.NewRequest(&musicv1.SearchMusicBrainzArtistsRequest{Query: "x"}))
+		if connect.CodeOf(err) != connect.CodeInternal {
+			t.Fatalf("SearchArtists with an unmapped error returned code %v, want %v", connect.CodeOf(err), connect.CodeInternal)
+		}
+	})
+}
+
+func TestMusicBrainzSearchHandler_ListReleaseGroupsForArtist(t *testing.T) {
+	t.Run("valid request returns release groups and passes the mbid through", func(t *testing.T) {
+		svc := &fakeMusicBrainzSearchService{returnArtistReleaseGroups: []ports.ReleaseGroup{
+			{ID: "rg-1", Title: "Hi Infidelity", PrimaryType: "Album", FirstReleaseDate: "1980-11-21"},
+		}}
+		h := apiconnect.NewMusicBrainzSearchHandler(svc, nil)
+
+		res, err := h.ListReleaseGroupsForArtist(context.Background(), connect.NewRequest(&musicv1.ListMusicBrainzArtistReleaseGroupsRequest{ArtistMbid: "artist-1"}))
+		if err != nil {
+			t.Fatalf("ListReleaseGroupsForArtist returned error: %v", err)
+		}
+		if len(res.Msg.GetReleaseGroups()) != 1 {
+			t.Fatalf("ListReleaseGroupsForArtist returned %d release groups, want 1", len(res.Msg.GetReleaseGroups()))
+		}
+		got := res.Msg.GetReleaseGroups()[0]
+		if got.GetMbid() != "rg-1" || got.GetTitle() != "Hi Infidelity" {
+			t.Errorf("ListReleaseGroupsForArtist returned %+v, want a match for the fake's release group", got)
+		}
+		if svc.gotArtistMBID != "artist-1" {
+			t.Errorf("ListReleaseGroupsForArtist passed artist_mbid=%q, want artist-1", svc.gotArtistMBID)
+		}
+	})
+
+	t.Run("a genuinely empty result is a valid non-error response", func(t *testing.T) {
+		svc := &fakeMusicBrainzSearchService{returnArtistReleaseGroups: nil}
+		h := apiconnect.NewMusicBrainzSearchHandler(svc, nil)
+
+		res, err := h.ListReleaseGroupsForArtist(context.Background(), connect.NewRequest(&musicv1.ListMusicBrainzArtistReleaseGroupsRequest{ArtistMbid: "artist-1"}))
+		if err != nil {
+			t.Fatalf("ListReleaseGroupsForArtist returned error: %v", err)
+		}
+		if len(res.Msg.GetReleaseGroups()) != 0 {
+			t.Fatalf("ListReleaseGroupsForArtist returned %d release groups, want 0", len(res.Msg.GetReleaseGroups()))
+		}
+	})
+
+	t.Run("an unmapped error maps to CodeInternal", func(t *testing.T) {
+		svc := &fakeMusicBrainzSearchService{artistReleaseGroupsErr: errors.New("boom")}
+		h := apiconnect.NewMusicBrainzSearchHandler(svc, nil)
+
+		_, err := h.ListReleaseGroupsForArtist(context.Background(), connect.NewRequest(&musicv1.ListMusicBrainzArtistReleaseGroupsRequest{ArtistMbid: "artist-1"}))
+		if connect.CodeOf(err) != connect.CodeInternal {
+			t.Fatalf("ListReleaseGroupsForArtist with an unmapped error returned code %v, want %v", connect.CodeOf(err), connect.CodeInternal)
 		}
 	})
 }

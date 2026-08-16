@@ -16,6 +16,8 @@ import (
 type musicBrainzSearchService interface {
 	SearchReleaseGroups(ctx context.Context, artistName, albumName string) ([]ports.ReleaseGroup, error)
 	ListReleasesForReleaseGroup(ctx context.Context, releaseGroupMBID string) ([]ports.Release, error)
+	SearchArtists(ctx context.Context, query string) ([]ports.Artist, error)
+	ListReleaseGroupsForArtist(ctx context.Context, artistMBID string) ([]ports.ReleaseGroup, error)
 }
 
 // MusicBrainzSearchHandler implements musicv1connect.MusicBrainzServiceHandler
@@ -61,6 +63,56 @@ func (h *MusicBrainzSearchHandler) ListReleasesForReleaseGroup(ctx context.Conte
 		out[i] = releaseToProto(r)
 	}
 	return connect.NewResponse(&musicv1.ListMusicBrainzReleasesResponse{Releases: out}), nil
+}
+
+// SearchArtists implements musicv1connect.MusicBrainzServiceHandler.
+func (h *MusicBrainzSearchHandler) SearchArtists(ctx context.Context, req *connect.Request[musicv1.SearchMusicBrainzArtistsRequest]) (*connect.Response[musicv1.SearchMusicBrainzArtistsResponse], error) {
+	artists, err := h.svc.SearchArtists(ctx, req.Msg.GetQuery())
+	if err != nil {
+		return nil, mapError(ctx, h.logger, err)
+	}
+	out := make([]*musicv1.MusicBrainzArtist, len(artists))
+	for i, a := range artists {
+		out[i] = artistToProto(a)
+	}
+	return connect.NewResponse(&musicv1.SearchMusicBrainzArtistsResponse{Artists: out}), nil
+}
+
+// ListReleaseGroupsForArtist implements
+// musicv1connect.MusicBrainzServiceHandler.
+func (h *MusicBrainzSearchHandler) ListReleaseGroupsForArtist(ctx context.Context, req *connect.Request[musicv1.ListMusicBrainzArtistReleaseGroupsRequest]) (*connect.Response[musicv1.ListMusicBrainzArtistReleaseGroupsResponse], error) {
+	rgs, err := h.svc.ListReleaseGroupsForArtist(ctx, req.Msg.GetArtistMbid())
+	if err != nil {
+		return nil, mapError(ctx, h.logger, err)
+	}
+	out := make([]*musicv1.MusicBrainzReleaseGroup, len(rgs))
+	for i, rg := range rgs {
+		out[i] = releaseGroupToProto(rg)
+	}
+	return connect.NewResponse(&musicv1.ListMusicBrainzArtistReleaseGroupsResponse{ReleaseGroups: out}), nil
+}
+
+// artistToProto maps ports.Artist (internal/adapters/musicbrainz's own DTO)
+// to its wire shape — the browse-list summary, per
+// MusicBrainzArtist's own doc comment.
+func artistToProto(a ports.Artist) *musicv1.MusicBrainzArtist {
+	aliases := make([]string, 0, len(a.Aliases))
+	for _, alias := range a.Aliases {
+		if alias.Name != "" {
+			aliases = append(aliases, alias.Name)
+		}
+	}
+	return &musicv1.MusicBrainzArtist{
+		Mbid:           a.ID,
+		Name:           a.Name,
+		SortName:       a.SortName,
+		Disambiguation: a.Disambiguation,
+		Type:           a.Type,
+		Country:        a.Country,
+		LifeSpanBegin:  a.LifeSpan.Begin,
+		LifeSpanEnd:    a.LifeSpan.End,
+		Aliases:        aliases,
+	}
 }
 
 // releaseGroupToProto maps ports.ReleaseGroup (internal/adapters/musicbrainz's

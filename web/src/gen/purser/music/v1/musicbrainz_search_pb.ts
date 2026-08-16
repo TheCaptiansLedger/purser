@@ -10,7 +10,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file purser/music/v1/musicbrainz_search.proto.
  */
 export const file_purser_music_v1_musicbrainz_search: GenFile = /*@__PURE__*/
-  fileDesc("CihwdXJzZXIvbXVzaWMvdjEvbXVzaWNicmFpbnpfc2VhcmNoLnByb3RvEg9wdXJzZXIubXVzaWMudjEimQEKF011c2ljQnJhaW56UmVsZWFzZUdyb3VwEgwKBG1iaWQYASABKAkSDQoFdGl0bGUYAiABKAkSFgoOZGlzYW1iaWd1YXRpb24YAyABKAkSFAoMcHJpbWFyeV90eXBlGAQgASgJEhcKD3NlY29uZGFyeV90eXBlcxgFIAMoCRIaChJmaXJzdF9yZWxlYXNlX2RhdGUYBiABKAki8AEKEk11c2ljQnJhaW56UmVsZWFzZRIMCgRtYmlkGAEgASgJEg0KBXRpdGxlGAIgASgJEhYKDmRpc2FtYmlndWF0aW9uGAMgASgJEg8KB2NvdW50cnkYBCABKAkSDAoEZGF0ZRgFIAEoCRIPCgdiYXJjb2RlGAYgASgJEg4KBnN0YXR1cxgHIAEoCRIOCgZmb3JtYXQYCCABKAkSFAoMbWVkaXVtX2NvdW50GAkgASgFEhMKC3RyYWNrX2NvdW50GAogASgFEhsKE2FydGlzdF9jcmVkaXRfbmFtZXMYCyADKAkSDQoFbGFiZWwYDCABKAkiUAolU2VhcmNoTXVzaWNCcmFpbnpSZWxlYXNlR3JvdXBzUmVxdWVzdBITCgthcnRpc3RfbmFtZRgBIAEoCRISCgphbGJ1bV9uYW1lGAIgASgJImoKJlNlYXJjaE11c2ljQnJhaW56UmVsZWFzZUdyb3Vwc1Jlc3BvbnNlEkAKDnJlbGVhc2VfZ3JvdXBzGAEgAygLMigucHVyc2VyLm11c2ljLnYxLk11c2ljQnJhaW56UmVsZWFzZUdyb3VwIjwKHkxpc3RNdXNpY0JyYWluelJlbGVhc2VzUmVxdWVzdBIaChJyZWxlYXNlX2dyb3VwX21iaWQYASABKAkiWAofTGlzdE11c2ljQnJhaW56UmVsZWFzZXNSZXNwb25zZRI1CghyZWxlYXNlcxgBIAMoCzIjLnB1cnNlci5tdXNpYy52MS5NdXNpY0JyYWluelJlbGVhc2UyoAIKEk11c2ljQnJhaW56U2VydmljZRKGAQoTU2VhcmNoUmVsZWFzZUdyb3VwcxI2LnB1cnNlci5tdXNpYy52MS5TZWFyY2hNdXNpY0JyYWluelJlbGVhc2VHcm91cHNSZXF1ZXN0GjcucHVyc2VyLm11c2ljLnYxLlNlYXJjaE11c2ljQnJhaW56UmVsZWFzZUdyb3Vwc1Jlc3BvbnNlEoABChtMaXN0UmVsZWFzZXNGb3JSZWxlYXNlR3JvdXASLy5wdXJzZXIubXVzaWMudjEuTGlzdE11c2ljQnJhaW56UmVsZWFzZXNSZXF1ZXN0GjAucHVyc2VyLm11c2ljLnYxLkxpc3RNdXNpY0JyYWluelJlbGVhc2VzUmVzcG9uc2VCJ1olcHVyc2VyL2dlbi9nby9wdXJzZXIvbXVzaWMvdjE7bXVzaWN2MWIGcHJvdG8z");
+  fileDesc("CihwdXJzZXIvbXVzaWMvdjEvbXVzaWNicmFpbnpfc2VhcmNoLnByb3RvEg9wdXJzZXIubXVzaWMudjEimQEKF011c2ljQnJhaW56UmVsZWFzZUdyb3VwEgwKBG1iaWQYASABKAkSDQoFdGl0bGUYAiABKAkSFgoOZGlzYW1iaWd1YXRpb24YAyABKAkSFAoMcHJpbWFyeV90eXBlGAQgASgJEhcKD3NlY29uZGFyeV90eXBlcxgFIAMoCRIaChJmaXJzdF9yZWxlYXNlX2RhdGUYBiABKAki8AEKEk11c2ljQnJhaW56UmVsZWFzZRIMCgRtYmlkGAEgASgJEg0KBXRpdGxlGAIgASgJEhYKDmRpc2FtYmlndWF0aW9uGAMgASgJEg8KB2NvdW50cnkYBCABKAkSDAoEZGF0ZRgFIAEoCRIPCgdiYXJjb2RlGAYgASgJEg4KBnN0YXR1cxgHIAEoCRIOCgZmb3JtYXQYCCABKAkSFAoMbWVkaXVtX2NvdW50GAkgASgFEhMKC3RyYWNrX2NvdW50GAogASgFEhsKE2FydGlzdF9jcmVkaXRfbmFtZXMYCyADKAkSDQoFbGFiZWwYDCABKAkiugEKEU11c2ljQnJhaW56QXJ0aXN0EgwKBG1iaWQYASABKAkSDAoEbmFtZRgCIAEoCRIRCglzb3J0X25hbWUYAyABKAkSFgoOZGlzYW1iaWd1YXRpb24YBCABKAkSDAoEdHlwZRgFIAEoCRIPCgdjb3VudHJ5GAYgASgJEhcKD2xpZmVfc3Bhbl9iZWdpbhgHIAEoCRIVCg1saWZlX3NwYW5fZW5kGAggASgJEg8KB2FsaWFzZXMYCSADKAkiMAofU2VhcmNoTXVzaWNCcmFpbnpBcnRpc3RzUmVxdWVzdBINCgVxdWVyeRgBIAEoCSJXCiBTZWFyY2hNdXNpY0JyYWluekFydGlzdHNSZXNwb25zZRIzCgdhcnRpc3RzGAEgAygLMiIucHVyc2VyLm11c2ljLnYxLk11c2ljQnJhaW56QXJ0aXN0IkAKKUxpc3RNdXNpY0JyYWluekFydGlzdFJlbGVhc2VHcm91cHNSZXF1ZXN0EhMKC2FydGlzdF9tYmlkGAEgASgJIm4KKkxpc3RNdXNpY0JyYWluekFydGlzdFJlbGVhc2VHcm91cHNSZXNwb25zZRJACg5yZWxlYXNlX2dyb3VwcxgBIAMoCzIoLnB1cnNlci5tdXNpYy52MS5NdXNpY0JyYWluelJlbGVhc2VHcm91cCJQCiVTZWFyY2hNdXNpY0JyYWluelJlbGVhc2VHcm91cHNSZXF1ZXN0EhMKC2FydGlzdF9uYW1lGAEgASgJEhIKCmFsYnVtX25hbWUYAiABKAkiagomU2VhcmNoTXVzaWNCcmFpbnpSZWxlYXNlR3JvdXBzUmVzcG9uc2USQAoOcmVsZWFzZV9ncm91cHMYASADKAsyKC5wdXJzZXIubXVzaWMudjEuTXVzaWNCcmFpbnpSZWxlYXNlR3JvdXAiPAoeTGlzdE11c2ljQnJhaW56UmVsZWFzZXNSZXF1ZXN0EhoKEnJlbGVhc2VfZ3JvdXBfbWJpZBgBIAEoCSJYCh9MaXN0TXVzaWNCcmFpbnpSZWxlYXNlc1Jlc3BvbnNlEjUKCHJlbGVhc2VzGAEgAygLMiMucHVyc2VyLm11c2ljLnYxLk11c2ljQnJhaW56UmVsZWFzZTKuBAoSTXVzaWNCcmFpbnpTZXJ2aWNlEoYBChNTZWFyY2hSZWxlYXNlR3JvdXBzEjYucHVyc2VyLm11c2ljLnYxLlNlYXJjaE11c2ljQnJhaW56UmVsZWFzZUdyb3Vwc1JlcXVlc3QaNy5wdXJzZXIubXVzaWMudjEuU2VhcmNoTXVzaWNCcmFpbnpSZWxlYXNlR3JvdXBzUmVzcG9uc2USgAEKG0xpc3RSZWxlYXNlc0ZvclJlbGVhc2VHcm91cBIvLnB1cnNlci5tdXNpYy52MS5MaXN0TXVzaWNCcmFpbnpSZWxlYXNlc1JlcXVlc3QaMC5wdXJzZXIubXVzaWMudjEuTGlzdE11c2ljQnJhaW56UmVsZWFzZXNSZXNwb25zZRJ0Cg1TZWFyY2hBcnRpc3RzEjAucHVyc2VyLm11c2ljLnYxLlNlYXJjaE11c2ljQnJhaW56QXJ0aXN0c1JlcXVlc3QaMS5wdXJzZXIubXVzaWMudjEuU2VhcmNoTXVzaWNCcmFpbnpBcnRpc3RzUmVzcG9uc2USlQEKGkxpc3RSZWxlYXNlR3JvdXBzRm9yQXJ0aXN0EjoucHVyc2VyLm11c2ljLnYxLkxpc3RNdXNpY0JyYWluekFydGlzdFJlbGVhc2VHcm91cHNSZXF1ZXN0GjsucHVyc2VyLm11c2ljLnYxLkxpc3RNdXNpY0JyYWluekFydGlzdFJlbGVhc2VHcm91cHNSZXNwb25zZUInWiVwdXJzZXIvZ2VuL2dvL3B1cnNlci9tdXNpYy92MTttdXNpY3YxYgZwcm90bzM");
 
 /**
  * MusicBrainzReleaseGroup is one candidate album MusicBrainz's own free-text
@@ -145,6 +145,151 @@ export const MusicBrainzReleaseSchema: GenMessage<MusicBrainzRelease> = /*@__PUR
   messageDesc(file_purser_music_v1_musicbrainz_search, 1);
 
 /**
+ * MusicBrainzArtist is MusicBrainz's artist DTO — the identity anchor for a
+ * person, group, orchestra, choir, character, or other credited entity.
+ * Deliberately not the full ports.Artist shape (no area/begin-area/isni/ipi/
+ * gender/relations) — this is the browse-list summary a human picks from
+ * before drilling into a specific artist's discography via
+ * ListReleaseGroupsForArtist, mirroring MusicBrainzReleaseGroup/
+ * MusicBrainzRelease's own summarize-for-the-list convention above.
+ *
+ * @generated from message purser.music.v1.MusicBrainzArtist
+ */
+export type MusicBrainzArtist = Message<"purser.music.v1.MusicBrainzArtist"> & {
+  /**
+   * @generated from field: string mbid = 1;
+   */
+  mbid: string;
+
+  /**
+   * @generated from field: string name = 2;
+   */
+  name: string;
+
+  /**
+   * @generated from field: string sort_name = 3;
+   */
+  sortName: string;
+
+  /**
+   * @generated from field: string disambiguation = 4;
+   */
+  disambiguation: string;
+
+  /**
+   * "Person" | "Group" | "Other" — MusicBrainz's own vocabulary
+   *
+   * @generated from field: string type = 5;
+   */
+  type: string;
+
+  /**
+   * @generated from field: string country = 6;
+   */
+  country: string;
+
+  /**
+   * @generated from field: string life_span_begin = 7;
+   */
+  lifeSpanBegin: string;
+
+  /**
+   * @generated from field: string life_span_end = 8;
+   */
+  lifeSpanEnd: string;
+
+  /**
+   * @generated from field: repeated string aliases = 9;
+   */
+  aliases: string[];
+};
+
+/**
+ * Describes the message purser.music.v1.MusicBrainzArtist.
+ * Use `create(MusicBrainzArtistSchema)` to create a new message.
+ */
+export const MusicBrainzArtistSchema: GenMessage<MusicBrainzArtist> = /*@__PURE__*/
+  messageDesc(file_purser_music_v1_musicbrainz_search, 2);
+
+/**
+ * SearchMusicBrainzArtistsRequest free-text searches MusicBrainz artists by
+ * name — the "Add Artist" entry point: find the artist before browsing
+ * their discography.
+ *
+ * @generated from message purser.music.v1.SearchMusicBrainzArtistsRequest
+ */
+export type SearchMusicBrainzArtistsRequest = Message<"purser.music.v1.SearchMusicBrainzArtistsRequest"> & {
+  /**
+   * @generated from field: string query = 1;
+   */
+  query: string;
+};
+
+/**
+ * Describes the message purser.music.v1.SearchMusicBrainzArtistsRequest.
+ * Use `create(SearchMusicBrainzArtistsRequestSchema)` to create a new message.
+ */
+export const SearchMusicBrainzArtistsRequestSchema: GenMessage<SearchMusicBrainzArtistsRequest> = /*@__PURE__*/
+  messageDesc(file_purser_music_v1_musicbrainz_search, 3);
+
+/**
+ * @generated from message purser.music.v1.SearchMusicBrainzArtistsResponse
+ */
+export type SearchMusicBrainzArtistsResponse = Message<"purser.music.v1.SearchMusicBrainzArtistsResponse"> & {
+  /**
+   * @generated from field: repeated purser.music.v1.MusicBrainzArtist artists = 1;
+   */
+  artists: MusicBrainzArtist[];
+};
+
+/**
+ * Describes the message purser.music.v1.SearchMusicBrainzArtistsResponse.
+ * Use `create(SearchMusicBrainzArtistsResponseSchema)` to create a new message.
+ */
+export const SearchMusicBrainzArtistsResponseSchema: GenMessage<SearchMusicBrainzArtistsResponse> = /*@__PURE__*/
+  messageDesc(file_purser_music_v1_musicbrainz_search, 4);
+
+/**
+ * ListMusicBrainzArtistReleaseGroupsRequest lists every release group
+ * (album) credited to one artist by artist MBID — the step after
+ * SearchArtists narrows to a single artist: "here is their full
+ * discography," used by Add Artist/Add Album to browse a known artist's
+ * catalog rather than free-text searching one album at a time.
+ *
+ * @generated from message purser.music.v1.ListMusicBrainzArtistReleaseGroupsRequest
+ */
+export type ListMusicBrainzArtistReleaseGroupsRequest = Message<"purser.music.v1.ListMusicBrainzArtistReleaseGroupsRequest"> & {
+  /**
+   * @generated from field: string artist_mbid = 1;
+   */
+  artistMbid: string;
+};
+
+/**
+ * Describes the message purser.music.v1.ListMusicBrainzArtistReleaseGroupsRequest.
+ * Use `create(ListMusicBrainzArtistReleaseGroupsRequestSchema)` to create a new message.
+ */
+export const ListMusicBrainzArtistReleaseGroupsRequestSchema: GenMessage<ListMusicBrainzArtistReleaseGroupsRequest> = /*@__PURE__*/
+  messageDesc(file_purser_music_v1_musicbrainz_search, 5);
+
+/**
+ * @generated from message purser.music.v1.ListMusicBrainzArtistReleaseGroupsResponse
+ */
+export type ListMusicBrainzArtistReleaseGroupsResponse = Message<"purser.music.v1.ListMusicBrainzArtistReleaseGroupsResponse"> & {
+  /**
+   * @generated from field: repeated purser.music.v1.MusicBrainzReleaseGroup release_groups = 1;
+   */
+  releaseGroups: MusicBrainzReleaseGroup[];
+};
+
+/**
+ * Describes the message purser.music.v1.ListMusicBrainzArtistReleaseGroupsResponse.
+ * Use `create(ListMusicBrainzArtistReleaseGroupsResponseSchema)` to create a new message.
+ */
+export const ListMusicBrainzArtistReleaseGroupsResponseSchema: GenMessage<ListMusicBrainzArtistReleaseGroupsResponse> = /*@__PURE__*/
+  messageDesc(file_purser_music_v1_musicbrainz_search, 6);
+
+/**
  * SearchMusicBrainzReleaseGroupsRequest free-text searches MusicBrainz by
  * artist and album name — the same query M7's own fuzzy-tag identification
  * path already issues automatically (adapters/pipeline/music.Identifier),
@@ -170,7 +315,7 @@ export type SearchMusicBrainzReleaseGroupsRequest = Message<"purser.music.v1.Sea
  * Use `create(SearchMusicBrainzReleaseGroupsRequestSchema)` to create a new message.
  */
 export const SearchMusicBrainzReleaseGroupsRequestSchema: GenMessage<SearchMusicBrainzReleaseGroupsRequest> = /*@__PURE__*/
-  messageDesc(file_purser_music_v1_musicbrainz_search, 2);
+  messageDesc(file_purser_music_v1_musicbrainz_search, 7);
 
 /**
  * @generated from message purser.music.v1.SearchMusicBrainzReleaseGroupsResponse
@@ -187,7 +332,7 @@ export type SearchMusicBrainzReleaseGroupsResponse = Message<"purser.music.v1.Se
  * Use `create(SearchMusicBrainzReleaseGroupsResponseSchema)` to create a new message.
  */
 export const SearchMusicBrainzReleaseGroupsResponseSchema: GenMessage<SearchMusicBrainzReleaseGroupsResponse> = /*@__PURE__*/
-  messageDesc(file_purser_music_v1_musicbrainz_search, 3);
+  messageDesc(file_purser_music_v1_musicbrainz_search, 8);
 
 /**
  * ListMusicBrainzReleasesRequest lists every known pressing/edition of one
@@ -208,7 +353,7 @@ export type ListMusicBrainzReleasesRequest = Message<"purser.music.v1.ListMusicB
  * Use `create(ListMusicBrainzReleasesRequestSchema)` to create a new message.
  */
 export const ListMusicBrainzReleasesRequestSchema: GenMessage<ListMusicBrainzReleasesRequest> = /*@__PURE__*/
-  messageDesc(file_purser_music_v1_musicbrainz_search, 4);
+  messageDesc(file_purser_music_v1_musicbrainz_search, 9);
 
 /**
  * @generated from message purser.music.v1.ListMusicBrainzReleasesResponse
@@ -225,22 +370,27 @@ export type ListMusicBrainzReleasesResponse = Message<"purser.music.v1.ListMusic
  * Use `create(ListMusicBrainzReleasesResponseSchema)` to create a new message.
  */
 export const ListMusicBrainzReleasesResponseSchema: GenMessage<ListMusicBrainzReleasesResponse> = /*@__PURE__*/
-  messageDesc(file_purser_music_v1_musicbrainz_search, 5);
+  messageDesc(file_purser_music_v1_musicbrainz_search, 10);
 
 /**
  * MusicBrainzService exposes internal/adapters/musicbrainz's read-only
- * search/browse capability directly — both RPCs already existed as
+ * search/browse capability directly — these RPCs already existed as
  * ports.MusicBrainzClient methods (SearchReleaseGroups,
- * ListReleasesForReleaseGroup), used internally by the identifier's own
- * candidate generation, but were never reachable by a caller wanting to
- * browse MusicBrainz directly: AcceptCandidateRequest only ever accepted a
- * candidate the automatic search already surfaced, or a raw MBID a human
- * already knew from browsing musicbrainz.org outside Purser entirely. This
- * is the "manual add an artist"-style consumer M2's own design doc noted
- * as a future user of the same adapter (docs/technical/music-musicbrainz-
- * adapter.md) — arriving here. Deliberately read-only: neither RPC writes
- * anything; AcceptCandidate (purser.pipeline.v1.UnmatchedFileService) is
- * still the only write path, unchanged.
+ * ListReleasesForReleaseGroup, SearchArtists, ListReleaseGroupsForArtist),
+ * used internally by the identifier's own candidate generation, but were
+ * never reachable by a caller wanting to browse MusicBrainz directly:
+ * AcceptCandidateRequest only ever accepted a candidate the automatic
+ * search already surfaced, or a raw MBID a human already knew from
+ * browsing musicbrainz.org outside Purser entirely. This is the "manual
+ * add an artist"-style consumer M2's own design doc noted as a future
+ * user of the same adapter (docs/technical/music-musicbrainz-adapter.md)
+ * — arriving here: SearchArtists/ListReleaseGroupsForArtist are Add
+ * Artist/Add Album's entry points, browsing a known artist's full
+ * discography rather than only ever free-text searching one album at a
+ * time. Deliberately no GetArtist/lookup-by-MBID RPC yet — no caller
+ * needs it until a later issue. Deliberately read-only: no RPC here
+ * writes anything; AcceptCandidate (purser.pipeline.v1.UnmatchedFileService)
+ * is still the only write path, unchanged.
  *
  * @generated from service purser.music.v1.MusicBrainzService
  */
@@ -260,6 +410,22 @@ export const MusicBrainzService: GenService<{
     methodKind: "unary";
     input: typeof ListMusicBrainzReleasesRequestSchema;
     output: typeof ListMusicBrainzReleasesResponseSchema;
+  },
+  /**
+   * @generated from rpc purser.music.v1.MusicBrainzService.SearchArtists
+   */
+  searchArtists: {
+    methodKind: "unary";
+    input: typeof SearchMusicBrainzArtistsRequestSchema;
+    output: typeof SearchMusicBrainzArtistsResponseSchema;
+  },
+  /**
+   * @generated from rpc purser.music.v1.MusicBrainzService.ListReleaseGroupsForArtist
+   */
+  listReleaseGroupsForArtist: {
+    methodKind: "unary";
+    input: typeof ListMusicBrainzArtistReleaseGroupsRequestSchema;
+    output: typeof ListMusicBrainzArtistReleaseGroupsResponseSchema;
   },
 }> = /*@__PURE__*/
   serviceDesc(file_purser_music_v1_musicbrainz_search, 0);

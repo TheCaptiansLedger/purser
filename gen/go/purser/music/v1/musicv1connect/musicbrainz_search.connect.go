@@ -39,12 +39,20 @@ const (
 	// MusicBrainzServiceListReleasesForReleaseGroupProcedure is the fully-qualified name of the
 	// MusicBrainzService's ListReleasesForReleaseGroup RPC.
 	MusicBrainzServiceListReleasesForReleaseGroupProcedure = "/purser.music.v1.MusicBrainzService/ListReleasesForReleaseGroup"
+	// MusicBrainzServiceSearchArtistsProcedure is the fully-qualified name of the MusicBrainzService's
+	// SearchArtists RPC.
+	MusicBrainzServiceSearchArtistsProcedure = "/purser.music.v1.MusicBrainzService/SearchArtists"
+	// MusicBrainzServiceListReleaseGroupsForArtistProcedure is the fully-qualified name of the
+	// MusicBrainzService's ListReleaseGroupsForArtist RPC.
+	MusicBrainzServiceListReleaseGroupsForArtistProcedure = "/purser.music.v1.MusicBrainzService/ListReleaseGroupsForArtist"
 )
 
 // MusicBrainzServiceClient is a client for the purser.music.v1.MusicBrainzService service.
 type MusicBrainzServiceClient interface {
 	SearchReleaseGroups(context.Context, *connect.Request[v1.SearchMusicBrainzReleaseGroupsRequest]) (*connect.Response[v1.SearchMusicBrainzReleaseGroupsResponse], error)
 	ListReleasesForReleaseGroup(context.Context, *connect.Request[v1.ListMusicBrainzReleasesRequest]) (*connect.Response[v1.ListMusicBrainzReleasesResponse], error)
+	SearchArtists(context.Context, *connect.Request[v1.SearchMusicBrainzArtistsRequest]) (*connect.Response[v1.SearchMusicBrainzArtistsResponse], error)
+	ListReleaseGroupsForArtist(context.Context, *connect.Request[v1.ListMusicBrainzArtistReleaseGroupsRequest]) (*connect.Response[v1.ListMusicBrainzArtistReleaseGroupsResponse], error)
 }
 
 // NewMusicBrainzServiceClient constructs a client for the purser.music.v1.MusicBrainzService
@@ -70,6 +78,18 @@ func NewMusicBrainzServiceClient(httpClient connect.HTTPClient, baseURL string, 
 			connect.WithSchema(musicBrainzServiceMethods.ByName("ListReleasesForReleaseGroup")),
 			connect.WithClientOptions(opts...),
 		),
+		searchArtists: connect.NewClient[v1.SearchMusicBrainzArtistsRequest, v1.SearchMusicBrainzArtistsResponse](
+			httpClient,
+			baseURL+MusicBrainzServiceSearchArtistsProcedure,
+			connect.WithSchema(musicBrainzServiceMethods.ByName("SearchArtists")),
+			connect.WithClientOptions(opts...),
+		),
+		listReleaseGroupsForArtist: connect.NewClient[v1.ListMusicBrainzArtistReleaseGroupsRequest, v1.ListMusicBrainzArtistReleaseGroupsResponse](
+			httpClient,
+			baseURL+MusicBrainzServiceListReleaseGroupsForArtistProcedure,
+			connect.WithSchema(musicBrainzServiceMethods.ByName("ListReleaseGroupsForArtist")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
@@ -77,6 +97,8 @@ func NewMusicBrainzServiceClient(httpClient connect.HTTPClient, baseURL string, 
 type musicBrainzServiceClient struct {
 	searchReleaseGroups         *connect.Client[v1.SearchMusicBrainzReleaseGroupsRequest, v1.SearchMusicBrainzReleaseGroupsResponse]
 	listReleasesForReleaseGroup *connect.Client[v1.ListMusicBrainzReleasesRequest, v1.ListMusicBrainzReleasesResponse]
+	searchArtists               *connect.Client[v1.SearchMusicBrainzArtistsRequest, v1.SearchMusicBrainzArtistsResponse]
+	listReleaseGroupsForArtist  *connect.Client[v1.ListMusicBrainzArtistReleaseGroupsRequest, v1.ListMusicBrainzArtistReleaseGroupsResponse]
 }
 
 // SearchReleaseGroups calls purser.music.v1.MusicBrainzService.SearchReleaseGroups.
@@ -89,10 +111,22 @@ func (c *musicBrainzServiceClient) ListReleasesForReleaseGroup(ctx context.Conte
 	return c.listReleasesForReleaseGroup.CallUnary(ctx, req)
 }
 
+// SearchArtists calls purser.music.v1.MusicBrainzService.SearchArtists.
+func (c *musicBrainzServiceClient) SearchArtists(ctx context.Context, req *connect.Request[v1.SearchMusicBrainzArtistsRequest]) (*connect.Response[v1.SearchMusicBrainzArtistsResponse], error) {
+	return c.searchArtists.CallUnary(ctx, req)
+}
+
+// ListReleaseGroupsForArtist calls purser.music.v1.MusicBrainzService.ListReleaseGroupsForArtist.
+func (c *musicBrainzServiceClient) ListReleaseGroupsForArtist(ctx context.Context, req *connect.Request[v1.ListMusicBrainzArtistReleaseGroupsRequest]) (*connect.Response[v1.ListMusicBrainzArtistReleaseGroupsResponse], error) {
+	return c.listReleaseGroupsForArtist.CallUnary(ctx, req)
+}
+
 // MusicBrainzServiceHandler is an implementation of the purser.music.v1.MusicBrainzService service.
 type MusicBrainzServiceHandler interface {
 	SearchReleaseGroups(context.Context, *connect.Request[v1.SearchMusicBrainzReleaseGroupsRequest]) (*connect.Response[v1.SearchMusicBrainzReleaseGroupsResponse], error)
 	ListReleasesForReleaseGroup(context.Context, *connect.Request[v1.ListMusicBrainzReleasesRequest]) (*connect.Response[v1.ListMusicBrainzReleasesResponse], error)
+	SearchArtists(context.Context, *connect.Request[v1.SearchMusicBrainzArtistsRequest]) (*connect.Response[v1.SearchMusicBrainzArtistsResponse], error)
+	ListReleaseGroupsForArtist(context.Context, *connect.Request[v1.ListMusicBrainzArtistReleaseGroupsRequest]) (*connect.Response[v1.ListMusicBrainzArtistReleaseGroupsResponse], error)
 }
 
 // NewMusicBrainzServiceHandler builds an HTTP handler from the service implementation. It returns
@@ -114,12 +148,28 @@ func NewMusicBrainzServiceHandler(svc MusicBrainzServiceHandler, opts ...connect
 		connect.WithSchema(musicBrainzServiceMethods.ByName("ListReleasesForReleaseGroup")),
 		connect.WithHandlerOptions(opts...),
 	)
+	musicBrainzServiceSearchArtistsHandler := connect.NewUnaryHandler(
+		MusicBrainzServiceSearchArtistsProcedure,
+		svc.SearchArtists,
+		connect.WithSchema(musicBrainzServiceMethods.ByName("SearchArtists")),
+		connect.WithHandlerOptions(opts...),
+	)
+	musicBrainzServiceListReleaseGroupsForArtistHandler := connect.NewUnaryHandler(
+		MusicBrainzServiceListReleaseGroupsForArtistProcedure,
+		svc.ListReleaseGroupsForArtist,
+		connect.WithSchema(musicBrainzServiceMethods.ByName("ListReleaseGroupsForArtist")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/purser.music.v1.MusicBrainzService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case MusicBrainzServiceSearchReleaseGroupsProcedure:
 			musicBrainzServiceSearchReleaseGroupsHandler.ServeHTTP(w, r)
 		case MusicBrainzServiceListReleasesForReleaseGroupProcedure:
 			musicBrainzServiceListReleasesForReleaseGroupHandler.ServeHTTP(w, r)
+		case MusicBrainzServiceSearchArtistsProcedure:
+			musicBrainzServiceSearchArtistsHandler.ServeHTTP(w, r)
+		case MusicBrainzServiceListReleaseGroupsForArtistProcedure:
+			musicBrainzServiceListReleaseGroupsForArtistHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -135,4 +185,12 @@ func (UnimplementedMusicBrainzServiceHandler) SearchReleaseGroups(context.Contex
 
 func (UnimplementedMusicBrainzServiceHandler) ListReleasesForReleaseGroup(context.Context, *connect.Request[v1.ListMusicBrainzReleasesRequest]) (*connect.Response[v1.ListMusicBrainzReleasesResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("purser.music.v1.MusicBrainzService.ListReleasesForReleaseGroup is not implemented"))
+}
+
+func (UnimplementedMusicBrainzServiceHandler) SearchArtists(context.Context, *connect.Request[v1.SearchMusicBrainzArtistsRequest]) (*connect.Response[v1.SearchMusicBrainzArtistsResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("purser.music.v1.MusicBrainzService.SearchArtists is not implemented"))
+}
+
+func (UnimplementedMusicBrainzServiceHandler) ListReleaseGroupsForArtist(context.Context, *connect.Request[v1.ListMusicBrainzArtistReleaseGroupsRequest]) (*connect.Response[v1.ListMusicBrainzArtistReleaseGroupsResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("purser.music.v1.MusicBrainzService.ListReleaseGroupsForArtist is not implemented"))
 }

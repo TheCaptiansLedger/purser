@@ -44,6 +44,49 @@ message MusicBrainzRelease {
   string label = 12;
 }
 
+// MusicBrainzArtist is MusicBrainz's artist DTO — the identity anchor for a
+// person, group, orchestra, choir, character, or other credited entity.
+// Deliberately not the full ports.Artist shape (no area/begin-area/isni/ipi/
+// gender/relations) — this is the browse-list summary a human picks from
+// before drilling into a specific artist's discography via
+// ListReleaseGroupsForArtist, mirroring MusicBrainzReleaseGroup/
+// MusicBrainzRelease's own summarize-for-the-list convention above.
+message MusicBrainzArtist {
+  string mbid = 1;
+  string name = 2;
+  string sort_name = 3;
+  string disambiguation = 4;
+  string type = 5;           // "Person" | "Group" | "Other" — MusicBrainz's own vocabulary
+  string country = 6;
+  string life_span_begin = 7;
+  string life_span_end = 8;
+  repeated string aliases = 9;
+}
+
+// SearchMusicBrainzArtistsRequest free-text searches MusicBrainz artists by
+// name — the "Add Artist" entry point: find the artist before browsing
+// their discography.
+message SearchMusicBrainzArtistsRequest {
+  string query = 1;
+}
+
+message SearchMusicBrainzArtistsResponse {
+  repeated MusicBrainzArtist artists = 1;
+}
+
+// ListMusicBrainzArtistReleaseGroupsRequest lists every release group
+// (album) credited to one artist by artist MBID — the step after
+// SearchArtists narrows to a single artist: "here is their full
+// discography," used by Add Artist/Add Album to browse a known artist's
+// catalog rather than free-text searching one album at a time.
+message ListMusicBrainzArtistReleaseGroupsRequest {
+  string artist_mbid = 1;
+}
+
+message ListMusicBrainzArtistReleaseGroupsResponse {
+  repeated MusicBrainzReleaseGroup release_groups = 1;
+}
+
 // SearchMusicBrainzReleaseGroupsRequest free-text searches MusicBrainz by
 // artist and album name — the same query M7's own fuzzy-tag identification
 // path already issues automatically (adapters/pipeline/music.Identifier),
@@ -70,19 +113,26 @@ message ListMusicBrainzReleasesResponse {
 }
 
 // MusicBrainzService exposes internal/adapters/musicbrainz's read-only
-// search/browse capability directly — both RPCs already existed as
+// search/browse capability directly — these RPCs already existed as
 // ports.MusicBrainzClient methods (SearchReleaseGroups,
-// ListReleasesForReleaseGroup), used internally by the identifier's own
-// candidate generation, but were never reachable by a caller wanting to
-// browse MusicBrainz directly: AcceptCandidateRequest only ever accepted a
-// candidate the automatic search already surfaced, or a raw MBID a human
-// already knew from browsing musicbrainz.org outside Purser entirely. This
-// is the "manual add an artist"-style consumer M2's own design doc noted
-// as a future user of the same adapter (docs/technical/music-musicbrainz-
-// adapter.md) — arriving here. Deliberately read-only: neither RPC writes
-// anything; AcceptCandidate (purser.pipeline.v1.UnmatchedFileService) is
-// still the only write path, unchanged.
+// ListReleasesForReleaseGroup, SearchArtists, ListReleaseGroupsForArtist),
+// used internally by the identifier's own candidate generation, but were
+// never reachable by a caller wanting to browse MusicBrainz directly:
+// AcceptCandidateRequest only ever accepted a candidate the automatic
+// search already surfaced, or a raw MBID a human already knew from
+// browsing musicbrainz.org outside Purser entirely. This is the "manual
+// add an artist"-style consumer M2's own design doc noted as a future
+// user of the same adapter (docs/technical/music-musicbrainz-adapter.md)
+// — arriving here: SearchArtists/ListReleaseGroupsForArtist are Add
+// Artist/Add Album's entry points, browsing a known artist's full
+// discography rather than only ever free-text searching one album at a
+// time. Deliberately no GetArtist/lookup-by-MBID RPC yet — no caller
+// needs it until a later issue. Deliberately read-only: no RPC here
+// writes anything; AcceptCandidate (purser.pipeline.v1.UnmatchedFileService)
+// is still the only write path, unchanged.
 service MusicBrainzService {
   rpc SearchReleaseGroups(SearchMusicBrainzReleaseGroupsRequest) returns (SearchMusicBrainzReleaseGroupsResponse);
   rpc ListReleasesForReleaseGroup(ListMusicBrainzReleasesRequest) returns (ListMusicBrainzReleasesResponse);
+  rpc SearchArtists(SearchMusicBrainzArtistsRequest) returns (SearchMusicBrainzArtistsResponse);
+  rpc ListReleaseGroupsForArtist(ListMusicBrainzArtistReleaseGroupsRequest) returns (ListMusicBrainzArtistReleaseGroupsResponse);
 }

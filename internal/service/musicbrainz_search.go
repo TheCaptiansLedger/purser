@@ -38,3 +38,17 @@ func (s *MusicBrainzSearch) SearchReleaseGroups(ctx context.Context, artistName,
 func (s *MusicBrainzSearch) ListReleasesForReleaseGroup(ctx context.Context, releaseGroupMBID string) ([]ports.Release, error) {
 	return s.mb.ListReleasesForReleaseGroup(ctx, releaseGroupMBID)
 }
+
+// SearchArtists free-text searches MusicBrainz artists by name — a thin
+// passthrough to ports.MusicBrainzClient.SearchArtists. An empty slice is
+// a valid, non-error result here too (see that port's own doc comment).
+func (s *MusicBrainzSearch) SearchArtists(ctx context.Context, query string) ([]ports.Artist, error) {
+	return s.mb.SearchArtists(ctx, query)
+}
+
+// ListReleaseGroupsForArtist lists every release group credited to one
+// artist by artist MBID — a thin passthrough to
+// ports.MusicBrainzClient.ListReleaseGroupsForArtist.
+func (s *MusicBrainzSearch) ListReleaseGroupsForArtist(ctx context.Context, artistMBID string) ([]ports.ReleaseGroup, error) {
+	return s.mb.ListReleaseGroupsForArtist(ctx, artistMBID)
+}

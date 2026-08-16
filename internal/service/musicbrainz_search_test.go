@@ -14,13 +14,19 @@ import (
 // per docs/adr/0003-go-testing-standards.md's "services fake the ports
 // they consume" rule.
 type fakeMusicBrainzClient struct {
-	releaseGroups    []ports.ReleaseGroup
-	releaseGroupsErr error
-	releases         []ports.Release
-	releasesErr      error
+	releaseGroups          []ports.ReleaseGroup
+	releaseGroupsErr       error
+	releases               []ports.Release
+	releasesErr            error
+	artists                []ports.Artist
+	artistsErr             error
+	artistReleaseGroups    []ports.ReleaseGroup
+	artistReleaseGroupsErr error
 
 	gotArtistName, gotAlbumName string
 	gotReleaseGroupMBID         string
+	gotQuery                    string
+	gotArtistMBID               string
 }
 
 var _ ports.MusicBrainzClient = (*fakeMusicBrainzClient)(nil)
@@ -29,16 +35,24 @@ func (f *fakeMusicBrainzClient) LookupArtist(context.Context, string) (*ports.Ar
 	return nil, ports.ErrNotFound
 }
 
-func (f *fakeMusicBrainzClient) SearchArtists(context.Context, string) ([]ports.Artist, error) {
-	return nil, nil
+func (f *fakeMusicBrainzClient) SearchArtists(_ context.Context, query string) ([]ports.Artist, error) {
+	f.gotQuery = query
+	if f.artistsErr != nil {
+		return nil, f.artistsErr
+	}
+	return f.artists, nil
 }
 
 func (f *fakeMusicBrainzClient) LookupReleaseGroup(context.Context, string) (*ports.ReleaseGroup, error) {
 	return nil, ports.ErrNotFound
 }
 
-func (f *fakeMusicBrainzClient) ListReleaseGroupsForArtist(context.Context, string) ([]ports.ReleaseGroup, error) {
-	return nil, nil
+func (f *fakeMusicBrainzClient) ListReleaseGroupsForArtist(_ context.Context, artistMBID string) ([]ports.ReleaseGroup, error) {
+	f.gotArtistMBID = artistMBID
+	if f.artistReleaseGroupsErr != nil {
+		return nil, f.artistReleaseGroupsErr
+	}
+	return f.artistReleaseGroups, nil
 }
 
 func (f *fakeMusicBrainzClient) SearchReleaseGroups(_ context.Context, artistName, albumName string) ([]ports.ReleaseGroup, error) {
@@ -120,5 +134,85 @@ func TestMusicBrainzSearch_ListReleasesForReleaseGroup_PropagatesError(t *testin
 
 	if _, err := s.ListReleasesForReleaseGroup(context.Background(), "rg-1"); !errors.Is(err, wantErr) {
 		t.Fatalf("ListReleasesForReleaseGroup returned %v, want %v", err, wantErr)
+	}
+}
+
+func TestMusicBrainzSearch_SearchArtists_PassesQueryThrough(t *testing.T) {
+	want := []ports.Artist{{ID: "artist-1", Name: "REO Speedwagon"}}
+	mb := &fakeMusicBrainzClient{artists: want}
+	s := service.NewMusicBrainzSearch(mb)
+
+	got, err := s.SearchArtists(context.Background(), "REO Speedwagon")
+	if err != nil {
+		t.Fatalf("SearchArtists returned error: %v", err)
+	}
+	if len(got) != 1 || got[0].ID != "artist-1" {
+		t.Errorf("SearchArtists = %+v, want %+v", got, want)
+	}
+	if mb.gotQuery != "REO Speedwagon" {
+		t.Errorf("SearchArtists called with query=%q, want REO Speedwagon", mb.gotQuery)
+	}
+}
+
+func TestMusicBrainzSearch_SearchArtists_EmptyResultIsNotAnError(t *testing.T) {
+	mb := &fakeMusicBrainzClient{artists: nil}
+	s := service.NewMusicBrainzSearch(mb)
+
+	got, err := s.SearchArtists(context.Background(), "no such artist")
+	if err != nil {
+		t.Fatalf("SearchArtists returned error: %v", err)
+	}
+	if len(got) != 0 {
+		t.Errorf("SearchArtists = %+v, want empty", got)
+	}
+}
+
+func TestMusicBrainzSearch_SearchArtists_PropagatesError(t *testing.T) {
+	wantErr := errors.New("musicbrainz unavailable")
+	mb := &fakeMusicBrainzClient{artistsErr: wantErr}
+	s := service.NewMusicBrainzSearch(mb)
+
+	if _, err := s.SearchArtists(context.Background(), "x"); !errors.Is(err, wantErr) {
+		t.Fatalf("SearchArtists returned %v, want %v", err, wantErr)
+	}
+}
+
+func TestMusicBrainzSearch_ListReleaseGroupsForArtist_PassesMBIDThrough(t *testing.T) {
+	want := []ports.ReleaseGroup{{ID: "rg-1", Title: "Hi Infidelity"}}
+	mb := &fakeMusicBrainzClient{artistReleaseGroups: want}
+	s := service.NewMusicBrainzSearch(mb)
+
+	got, err := s.ListReleaseGroupsForArtist(context.Background(), "artist-1")
+	if err != nil {
+		t.Fatalf("ListReleaseGroupsForArtist returned error: %v", err)
+	}
+	if len(got) != 1 || got[0].ID != "rg-1" {
+		t.Errorf("ListReleaseGroupsForArtist = %+v, want %+v", got, want)
+	}
+	if mb.gotArtistMBID != "artist-1" {
+		t.Errorf("ListReleaseGroupsForArtist called with %q, want artist-1", mb.gotArtistMBID)
+	}
+}
+
+func TestMusicBrainzSearch_ListReleaseGroupsForArtist_EmptyResultIsNotAnError(t *testing.T) {
+	mb := &fakeMusicBrainzClient{artistReleaseGroups: nil}
+	s := service.NewMusicBrainzSearch(mb)
+
+	got, err := s.ListReleaseGroupsForArtist(context.Background(), "artist-1")
+	if err != nil {
+		t.Fatalf("ListReleaseGroupsForArtist returned error: %v", err)
+	}
+	if len(got) != 0 {
+		t.Errorf("ListReleaseGroupsForArtist = %+v, want empty", got)
+	}
+}
+
+func TestMusicBrainzSearch_ListReleaseGroupsForArtist_PropagatesError(t *testing.T) {
+	wantErr := errors.New("musicbrainz unavailable")
+	mb := &fakeMusicBrainzClient{artistReleaseGroupsErr: wantErr}
+	s := service.NewMusicBrainzSearch(mb)
+
+	if _, err := s.ListReleaseGroupsForArtist(context.Background(), "artist-1"); !errors.Is(err, wantErr) {
+		t.Fatalf("ListReleaseGroupsForArtist returned %v, want %v", err, wantErr)
 	}
 }
