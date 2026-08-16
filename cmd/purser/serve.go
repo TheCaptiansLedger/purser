@@ -746,6 +746,12 @@ func wireScanPipeline(
 		return nil, fmt.Errorf("cmd/purser: constructing image store: %w", err)
 	}
 
+	// Plain, cacheable GET for a browser <img src>/the lightbox — not a
+	// Connect RPC, same non-RPC category as mountWebUI's SPA static
+	// handler. See docs/technical/image-caching-and-serving.md's "Byte
+	// serving" section.
+	mux.Handle("GET /media/images/{id}", newImageHandler(imageRepo, imageStore, logger))
+
 	// The remote-image fetcher adapter — see docs/adr/0013-image-blob-storage.md's
 	// Addendum. Provider-agnostic: shared by every module's Persister that
 	// attaches a provider-returned image URL, not AfterDark-specific.
