@@ -24,12 +24,12 @@ type groupService interface {
 type GroupHandler struct {
 	domainv1connect.UnimplementedGroupServiceHandler
 	svc         groupService
-	deletionSvc entityDeletionService
+	deletionSvc bulkDeletionService
 	logger      *slog.Logger
 }
 
 // NewGroupHandler constructs a GroupHandler backed by svc and deletionSvc.
-func NewGroupHandler(svc groupService, deletionSvc entityDeletionService, logger *slog.Logger) *GroupHandler {
+func NewGroupHandler(svc groupService, deletionSvc bulkDeletionService, logger *slog.Logger) *GroupHandler {
 	if logger == nil {
 		logger = slog.Default()
 	}
@@ -86,6 +86,14 @@ func (h *GroupHandler) GetGroupDeletionImpact(ctx context.Context, req *connect.
 		return nil, mapError(ctx, h.logger, err)
 	}
 	return connect.NewResponse(&v1.GetGroupDeletionImpactResponse{Impacts: deletionImpactRowsToProto(impact.Impacts)}), nil
+}
+
+// BulkDeleteGroups implements domainv1connect.GroupServiceHandler.
+func (h *GroupHandler) BulkDeleteGroups(ctx context.Context, req *connect.Request[v1.BulkDeleteGroupsRequest]) (*connect.Response[v1.BulkDeleteGroupsResponse], error) {
+	if err := h.deletionSvc.DeleteBatch(ctx, req.Msg.GetIds(), req.Msg.GetCascade()); err != nil {
+		return nil, mapError(ctx, h.logger, err)
+	}
+	return connect.NewResponse(&v1.BulkDeleteGroupsResponse{}), nil
 }
 
 // ListGroups implements domainv1connect.GroupServiceHandler.

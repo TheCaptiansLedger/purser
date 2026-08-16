@@ -24,13 +24,13 @@ type libraryEntryService interface {
 type LibraryEntryHandler struct {
 	domainv1connect.UnimplementedLibraryEntryServiceHandler
 	svc         libraryEntryService
-	deletionSvc entityDeletionService
+	deletionSvc bulkDeletionService
 	logger      *slog.Logger
 }
 
 // NewLibraryEntryHandler constructs a LibraryEntryHandler backed by svc
 // and deletionSvc.
-func NewLibraryEntryHandler(svc libraryEntryService, deletionSvc entityDeletionService, logger *slog.Logger) *LibraryEntryHandler {
+func NewLibraryEntryHandler(svc libraryEntryService, deletionSvc bulkDeletionService, logger *slog.Logger) *LibraryEntryHandler {
 	if logger == nil {
 		logger = slog.Default()
 	}
@@ -87,6 +87,15 @@ func (h *LibraryEntryHandler) GetLibraryEntryDeletionImpact(ctx context.Context,
 		return nil, mapError(ctx, h.logger, err)
 	}
 	return connect.NewResponse(&v1.GetLibraryEntryDeletionImpactResponse{Impacts: deletionImpactRowsToProto(impact.Impacts)}), nil
+}
+
+// BulkDeleteLibraryEntries implements
+// domainv1connect.LibraryEntryServiceHandler.
+func (h *LibraryEntryHandler) BulkDeleteLibraryEntries(ctx context.Context, req *connect.Request[v1.BulkDeleteLibraryEntriesRequest]) (*connect.Response[v1.BulkDeleteLibraryEntriesResponse], error) {
+	if err := h.deletionSvc.DeleteBatch(ctx, req.Msg.GetIds(), req.Msg.GetCascade()); err != nil {
+		return nil, mapError(ctx, h.logger, err)
+	}
+	return connect.NewResponse(&v1.BulkDeleteLibraryEntriesResponse{}), nil
 }
 
 // ListLibraryEntries implements domainv1connect.LibraryEntryServiceHandler.

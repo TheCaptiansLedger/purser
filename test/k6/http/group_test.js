@@ -133,4 +133,42 @@ export default () => {
 
   res = invoke(`${ITEM}/DeleteItem`, JSON.stringify({ id: trackId }), HEADERS);
   check(res, { 'cleanup: DeleteItem(track) status is 200': (r) => r.status === 200 });
+
+  // BulkDeleteGroups: the "delete these 12 duplicate discography groups"
+  // use case — see docs/adr/0016-bulk-operations.md.
+  const bulkIds = [];
+  for (let i = 0; i < 3; i++) {
+    res = invoke(
+      `${SERVICE}/CreateGroup`,
+      JSON.stringify({ group: { libraryEntryId: 'entry1', title: 'K6 Bulk Group', monitorMode: 'MONITOR_MODE_NONE' } }),
+      HEADERS
+    );
+    check(res, {
+      'setup: CreateGroup status is 200': (r) => r.status === 200,
+      'setup: CreateGroup returns an id': (r) => !!r.json('group.id'),
+    });
+    bulkIds.push(res.json('group.id'));
+  }
+  const [bulkId1, bulkId2, bulkId3] = bulkIds;
+
+  res = invoke(`${SERVICE}/BulkDeleteGroups`, JSON.stringify({ ids: [bulkId1, bulkId2] }), HEADERS);
+  check(res, { 'BulkDeleteGroups status is 200': (r) => r.status === 200 });
+
+  res = invoke(`${SERVICE}/GetGroup`, JSON.stringify({ id: bulkId1 }), HEADERS);
+  check(res, { 'GetGroup for bulkId1 after BulkDeleteGroups is 404': (r) => r.status === 404 });
+  res = invoke(`${SERVICE}/GetGroup`, JSON.stringify({ id: bulkId2 }), HEADERS);
+  check(res, { 'GetGroup for bulkId2 after BulkDeleteGroups is 404': (r) => r.status === 404 });
+  res = invoke(`${SERVICE}/GetGroup`, JSON.stringify({ id: bulkId3 }), HEADERS);
+  check(res, { 'GetGroup for bulkId3 (not in the batch) still exists': (r) => r.status === 200 });
+
+  // All-or-nothing: a batch with one missing id must fail entirely — the
+  // still-existing bulkId3 must not be removed either.
+  res = invoke(`${SERVICE}/BulkDeleteGroups`, JSON.stringify({ ids: [bulkId3, 'k6-http-group-missing'] }), HEADERS);
+  check(res, { 'BulkDeleteGroups with a missing id is 404': (r) => r.status === 404 });
+
+  res = invoke(`${SERVICE}/GetGroup`, JSON.stringify({ id: bulkId3 }), HEADERS);
+  check(res, { 'GetGroup for bulkId3 after failed batch still exists (rolled back)': (r) => r.status === 200 });
+
+  res = invoke(`${SERVICE}/DeleteGroup`, JSON.stringify({ id: bulkId3 }), HEADERS);
+  check(res, { 'cleanup: DeleteGroup status is 200': (r) => r.status === 200 });
 };

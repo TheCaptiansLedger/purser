@@ -57,6 +57,10 @@ func (f *browseFakeLibraryEntryRepository) Update(context.Context, *domain.Libra
 	return nil
 }
 func (f *browseFakeLibraryEntryRepository) Delete(context.Context, string) error { return nil }
+func (f *browseFakeLibraryEntryRepository) DeleteBatch(context.Context, []string) error {
+	return nil
+}
+
 func (f *browseFakeLibraryEntryRepository) List(_ context.Context, kind domain.Kind, parentID string, pageSize int, pageToken string) ([]*domain.LibraryEntry, string, error) {
 	var matched []*domain.LibraryEntry
 	for _, e := range f.byID {

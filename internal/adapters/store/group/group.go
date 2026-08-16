@@ -69,6 +69,11 @@ func (r *Repository) Delete(ctx context.Context, id string) error {
 	return r.inner.Delete(ctx, id)
 }
 
+// DeleteBatch implements ports.GroupRepository.
+func (r *Repository) DeleteBatch(ctx context.Context, ids []string) error {
+	return r.inner.DeleteBatch(ctx, ids)
+}
+
 // List implements ports.GroupRepository. libraryEntryID is an optional
 // filter — an empty string means "no filter on this field."
 func (r *Repository) List(ctx context.Context, libraryEntryID string, pageSize int, pageToken string) ([]*domain.Group, string, error) {

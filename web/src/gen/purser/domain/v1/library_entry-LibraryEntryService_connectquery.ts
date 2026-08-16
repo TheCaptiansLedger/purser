@@ -37,3 +37,11 @@ export const listLibraryEntries = LibraryEntryService.method.listLibraryEntries;
  * @generated from rpc purser.domain.v1.LibraryEntryService.GetLibraryEntryDeletionImpact
  */
 export const getLibraryEntryDeletionImpact = LibraryEntryService.method.getLibraryEntryDeletionImpact;
+
+/**
+ * BulkDeleteLibraryEntries removes every LibraryEntry in ids atomically
+ * — see docs/adr/0016-bulk-operations.md.
+ *
+ * @generated from rpc purser.domain.v1.LibraryEntryService.BulkDeleteLibraryEntries
+ */
+export const bulkDeleteLibraryEntries = LibraryEntryService.method.bulkDeleteLibraryEntries;

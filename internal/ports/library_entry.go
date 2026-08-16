@@ -22,4 +22,10 @@ type LibraryEntryRepository interface {
 	Update(ctx context.Context, entry *domain.LibraryEntry) error
 	Delete(ctx context.Context, id string) error
 	List(ctx context.Context, kind domain.Kind, parentID string, pageSize int, pageToken string) (entries []*domain.LibraryEntry, nextPageToken string, err error)
+
+	// DeleteBatch removes every LibraryEntry whose ID is in ids, atomically
+	// — all succeed or none do. LibraryEntry is one of the entities ADR
+	// 0016 names for a real bulk-delete UI use case; most entities never
+	// need this.
+	DeleteBatch(ctx context.Context, ids []string) error
 }

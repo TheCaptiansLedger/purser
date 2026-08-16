@@ -10,10 +10,11 @@ import (
 )
 
 type deletionFakeLibraryEntryRepository struct {
-	byID      map[string]*domain.LibraryEntry
-	listErr   error
-	updateErr error
-	deleteErr error
+	byID           map[string]*domain.LibraryEntry
+	listErr        error
+	updateErr      error
+	deleteErr      error
+	deleteBatchErr error
 }
 
 func (f *deletionFakeLibraryEntryRepository) Create(_ context.Context, e *domain.LibraryEntry) error {
@@ -45,6 +46,21 @@ func (f *deletionFakeLibraryEntryRepository) Delete(_ context.Context, id string
 		return ports.ErrNotFound
 	}
 	delete(f.byID, id)
+	return nil
+}
+
+func (f *deletionFakeLibraryEntryRepository) DeleteBatch(_ context.Context, ids []string) error {
+	if f.deleteBatchErr != nil {
+		return f.deleteBatchErr
+	}
+	for _, id := range ids {
+		if _, ok := f.byID[id]; !ok {
+			return ports.ErrNotFound
+		}
+	}
+	for _, id := range ids {
+		delete(f.byID, id)
+	}
 	return nil
 }
 
@@ -526,6 +542,149 @@ func TestLibraryEntryDeletionService_Delete_Cascade_PropagatesPortErrors(t *test
 		libraryEntries.deleteErr = errBoom
 		if err := svc.Delete(context.Background(), "studio2", true); !errors.Is(err, errBoom) {
 			t.Fatalf("Delete returned %v, want errBoom", err)
+		}
+	})
+}
+
+// newLibraryEntryDeletionBatchFixture builds three independent, top-level
+// LibraryEntries: e1 and e2 are clean (no Groups/Items), e3 has a Group
+// (g1) with an Item (i1) under it — the one row whose single-row Delete
+// precondition fails without cascade=true.
+func newLibraryEntryDeletionBatchFixture() (
+	*service.LibraryEntryDeletionService,
+	*deletionFakeLibraryEntryRepository,
+	*deletionFakeGroupRepository,
+	*deletionFakeItemRepositoryFiltered,
+) {
+	libraryEntries := &deletionFakeLibraryEntryRepository{byID: map[string]*domain.LibraryEntry{
+		"e1": {ID: "e1", Kind: domain.KindStudio},
+		"e2": {ID: "e2", Kind: domain.KindStudio},
+		"e3": {ID: "e3", Kind: domain.KindStudio},
+	}}
+	groups := &deletionFakeGroupRepository{byID: map[string]*domain.Group{
+		"g1": {ID: "g1", LibraryEntryID: "e3"},
+	}}
+	items := &deletionFakeItemRepositoryFiltered{byID: map[string]*domain.Item{
+		"i1": {ID: "i1", LibraryEntryID: "e3", GroupID: "g1"},
+	}}
+	entryPeople := &deletionFakeEntryPersonRepository{}
+	externalIDs := &deletionFakeExternalIDRepository{}
+	images := &deletionFakeImageRepository{byID: map[string]*domain.Image{}}
+	tagAssignments := &deletionFakeTagAssignmentRepository{}
+	releases := newFakeMusicReleaseRepository()
+
+	musicReleaseDeletion := service.NewMusicReleaseDeletionService(releases, items)
+	groupDeletion := service.NewGroupDeletionService(groups, items, externalIDs, images, tagAssignments, releases, musicReleaseDeletion)
+	itemDeletion := service.NewItemDeletionService(
+		items,
+		&deletionFakeItemPersonRepository{},
+		&deletionFakeMediaFileRepository{byID: map[string]*domain.MediaFile{}},
+		externalIDs,
+		images,
+		tagAssignments,
+	)
+	svc := service.NewLibraryEntryDeletionService(libraryEntries, groups, items, entryPeople, externalIDs, images, tagAssignments, releases, groupDeletion, itemDeletion)
+	return svc, libraryEntries, groups, items
+}
+
+func TestLibraryEntryDeletionService_DeleteBatch(t *testing.T) {
+	svc, libraryEntries, _, _ := newLibraryEntryDeletionBatchFixture()
+
+	if err := svc.DeleteBatch(context.Background(), []string{"e1", "e2"}, false); err != nil {
+		t.Fatalf("DeleteBatch returned error: %v", err)
+	}
+
+	if _, err := libraryEntries.Get(context.Background(), "e1"); !errors.Is(err, ports.ErrNotFound) {
+		t.Fatal("DeleteBatch did not remove e1")
+	}
+	if _, err := libraryEntries.Get(context.Background(), "e2"); !errors.Is(err, ports.ErrNotFound) {
+		t.Fatal("DeleteBatch did not remove e2")
+	}
+	if _, err := libraryEntries.Get(context.Background(), "e3"); err != nil {
+		t.Fatalf("DeleteBatch removed e3, which wasn't in the batch: %v", err)
+	}
+}
+
+// TestLibraryEntryDeletionService_DeleteBatch_BlockedRowFailsWholeBatch is
+// the acceptance criterion from issue #654: a batch containing one row
+// that would fail its own single-row Delete precondition (e3, which has a
+// Group and an Item, cascade=false) must fail the entire batch — e1, which
+// is otherwise perfectly deletable, must be left untouched too.
+func TestLibraryEntryDeletionService_DeleteBatch_BlockedRowFailsWholeBatch(t *testing.T) {
+	svc, libraryEntries, groups, items := newLibraryEntryDeletionBatchFixture()
+
+	err := svc.DeleteBatch(context.Background(), []string{"e1", "e3"}, false)
+	if !errors.Is(err, ports.ErrDeletionBlocked) {
+		t.Fatalf("DeleteBatch returned %v, want ErrDeletionBlocked", err)
+	}
+
+	if _, err := libraryEntries.Get(context.Background(), "e1"); err != nil {
+		t.Fatalf("DeleteBatch removed e1 despite the batch being blocked by e3: %v", err)
+	}
+	if _, err := libraryEntries.Get(context.Background(), "e3"); err != nil {
+		t.Fatalf("DeleteBatch removed e3 despite being blocked: %v", err)
+	}
+	if _, err := groups.Get(context.Background(), "g1"); err != nil {
+		t.Fatalf("DeleteBatch removed g1 despite the batch being blocked: %v", err)
+	}
+	if _, err := items.Get(context.Background(), "i1"); err != nil {
+		t.Fatalf("DeleteBatch removed i1 despite the batch being blocked: %v", err)
+	}
+}
+
+func TestLibraryEntryDeletionService_DeleteBatch_CascadeDeletesBlockedRowsToo(t *testing.T) {
+	svc, libraryEntries, groups, items := newLibraryEntryDeletionBatchFixture()
+
+	if err := svc.DeleteBatch(context.Background(), []string{"e1", "e3"}, true); err != nil {
+		t.Fatalf("DeleteBatch(cascade=true) returned error: %v", err)
+	}
+
+	for _, id := range []string{"e1", "e3"} {
+		if _, err := libraryEntries.Get(context.Background(), id); !errors.Is(err, ports.ErrNotFound) {
+			t.Fatalf("DeleteBatch(cascade=true) did not remove LibraryEntry %q", id)
+		}
+	}
+	if _, err := groups.Get(context.Background(), "g1"); !errors.Is(err, ports.ErrNotFound) {
+		t.Fatal("DeleteBatch(cascade=true) did not cascade-delete g1")
+	}
+	if _, err := items.Get(context.Background(), "i1"); !errors.Is(err, ports.ErrNotFound) {
+		t.Fatal("DeleteBatch(cascade=true) did not cascade-delete i1")
+	}
+	if _, err := libraryEntries.Get(context.Background(), "e2"); err != nil {
+		t.Fatalf("DeleteBatch removed e2, which wasn't in the batch: %v", err)
+	}
+}
+
+func TestLibraryEntryDeletionService_DeleteBatch_MissingIDFailsWithoutSideEffects(t *testing.T) {
+	svc, libraryEntries, _, _ := newLibraryEntryDeletionBatchFixture()
+
+	err := svc.DeleteBatch(context.Background(), []string{"e1", "missing", "e2"}, false)
+	if !errors.Is(err, ports.ErrNotFound) {
+		t.Fatalf("DeleteBatch with a missing id returned %v, want ErrNotFound", err)
+	}
+
+	if _, err := libraryEntries.Get(context.Background(), "e1"); err != nil {
+		t.Fatalf("DeleteBatch removed e1 despite failing: %v", err)
+	}
+	if _, err := libraryEntries.Get(context.Background(), "e2"); err != nil {
+		t.Fatalf("DeleteBatch removed e2 despite failing: %v", err)
+	}
+}
+
+func TestLibraryEntryDeletionService_DeleteBatch_PropagatesPortErrors(t *testing.T) {
+	t.Run("groups List error propagates from the batch blocking check", func(t *testing.T) {
+		svc, _, groups, _ := newLibraryEntryDeletionBatchFixture()
+		groups.listErr = errBoom
+		if err := svc.DeleteBatch(context.Background(), []string{"e1", "e2"}, false); !errors.Is(err, errBoom) {
+			t.Fatalf("DeleteBatch returned %v, want errBoom", err)
+		}
+	})
+
+	t.Run("libraryEntries DeleteBatch error propagates", func(t *testing.T) {
+		svc, libraryEntries, _, _ := newLibraryEntryDeletionBatchFixture()
+		libraryEntries.deleteBatchErr = errBoom
+		if err := svc.DeleteBatch(context.Background(), []string{"e1", "e2"}, false); !errors.Is(err, errBoom) {
+			t.Fatalf("DeleteBatch returned %v, want errBoom", err)
 		}
 	})
 }

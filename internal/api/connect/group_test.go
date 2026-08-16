@@ -71,7 +71,7 @@ func validProtoGroup(id string) *v1.Group {
 func TestGroupHandler_CreateGroup(t *testing.T) {
 	t.Run("valid request returns the created group", func(t *testing.T) {
 		svc := newFakeGroupService()
-		h := apiconnect.NewGroupHandler(svc, newFakeEntityDeletionService(), nil)
+		h := apiconnect.NewGroupHandler(svc, newFakeBulkDeletionService(), nil)
 
 		res, err := h.CreateGroup(context.Background(), connect.NewRequest(&v1.CreateGroupRequest{Group: validProtoGroup("g1")}))
 		if err != nil {
@@ -85,7 +85,7 @@ func TestGroupHandler_CreateGroup(t *testing.T) {
 	t.Run("a ValidationError from the service maps to CodeInvalidArgument", func(t *testing.T) {
 		svc := newFakeGroupService()
 		svc.createErr = &domain.ValidationError{Errors: []domain.FieldError{{Field: "Title", Rule: "required", Value: ""}}}
-		h := apiconnect.NewGroupHandler(svc, newFakeEntityDeletionService(), nil)
+		h := apiconnect.NewGroupHandler(svc, newFakeBulkDeletionService(), nil)
 
 		_, err := h.CreateGroup(context.Background(), connect.NewRequest(&v1.CreateGroupRequest{Group: validProtoGroup("g1")}))
 		if connect.CodeOf(err) != connect.CodeInvalidArgument {
@@ -96,7 +96,7 @@ func TestGroupHandler_CreateGroup(t *testing.T) {
 
 func TestGroupHandler_GetGroup(t *testing.T) {
 	svc := newFakeGroupService()
-	h := apiconnect.NewGroupHandler(svc, newFakeEntityDeletionService(), nil)
+	h := apiconnect.NewGroupHandler(svc, newFakeBulkDeletionService(), nil)
 	svc.byID["g1"] = &domain.Group{ID: "g1", Title: "Existing", MonitorMode: domain.MonitorModeNone}
 
 	res, err := h.GetGroup(context.Background(), connect.NewRequest(&v1.GetGroupRequest{Id: "g1"}))
@@ -116,7 +116,7 @@ func TestGroupHandler_GetGroup(t *testing.T) {
 func TestGroupHandler_UpdateGroup(t *testing.T) {
 	t.Run("field mask restricts the applied fields", func(t *testing.T) {
 		svc := newFakeGroupService()
-		h := apiconnect.NewGroupHandler(svc, newFakeEntityDeletionService(), nil)
+		h := apiconnect.NewGroupHandler(svc, newFakeBulkDeletionService(), nil)
 		svc.byID["g1"] = &domain.Group{ID: "g1", Title: "Original", Overview: "Original Overview", MonitorMode: domain.MonitorModeNone}
 
 		req := &v1.UpdateGroupRequest{
@@ -137,7 +137,7 @@ func TestGroupHandler_UpdateGroup(t *testing.T) {
 
 	t.Run("get failure maps through mapError", func(t *testing.T) {
 		svc := newFakeGroupService()
-		h := apiconnect.NewGroupHandler(svc, newFakeEntityDeletionService(), nil)
+		h := apiconnect.NewGroupHandler(svc, newFakeBulkDeletionService(), nil)
 
 		_, err := h.UpdateGroup(context.Background(), connect.NewRequest(&v1.UpdateGroupRequest{Group: &v1.Group{Id: "missing"}}))
 		if connect.CodeOf(err) != connect.CodeNotFound {
@@ -149,7 +149,7 @@ func TestGroupHandler_UpdateGroup(t *testing.T) {
 		svc := newFakeGroupService()
 		svc.byID["g1"] = &domain.Group{ID: "g1", Title: "Original", MonitorMode: domain.MonitorModeNone}
 		svc.updateErr = ports.ErrConflict
-		h := apiconnect.NewGroupHandler(svc, newFakeEntityDeletionService(), nil)
+		h := apiconnect.NewGroupHandler(svc, newFakeBulkDeletionService(), nil)
 
 		_, err := h.UpdateGroup(context.Background(), connect.NewRequest(&v1.UpdateGroupRequest{Group: &v1.Group{Id: "g1", Title: "New"}}))
 		if connect.CodeOf(err) != connect.CodeAlreadyExists {
@@ -161,7 +161,7 @@ func TestGroupHandler_UpdateGroup(t *testing.T) {
 func TestGroupHandler_DeleteGroup(t *testing.T) {
 	t.Run("valid delete succeeds and threads the cascade flag", func(t *testing.T) {
 		svc := newFakeGroupService()
-		deletionSvc := newFakeEntityDeletionService()
+		deletionSvc := newFakeBulkDeletionService()
 		h := apiconnect.NewGroupHandler(svc, deletionSvc, nil)
 
 		if _, err := h.DeleteGroup(context.Background(), connect.NewRequest(&v1.DeleteGroupRequest{Id: "g1", Cascade: true})); err != nil {
@@ -174,7 +174,7 @@ func TestGroupHandler_DeleteGroup(t *testing.T) {
 
 	t.Run("service error maps through mapError", func(t *testing.T) {
 		svc := newFakeGroupService()
-		deletionSvc := newFakeEntityDeletionService()
+		deletionSvc := newFakeBulkDeletionService()
 		deletionSvc.deleteErr = ports.ErrNotFound
 		h := apiconnect.NewGroupHandler(svc, deletionSvc, nil)
 
@@ -188,7 +188,7 @@ func TestGroupHandler_DeleteGroup(t *testing.T) {
 func TestGroupHandler_GetGroupDeletionImpact(t *testing.T) {
 	t.Run("valid request returns the impact rows", func(t *testing.T) {
 		svc := newFakeGroupService()
-		deletionSvc := newFakeEntityDeletionService()
+		deletionSvc := newFakeBulkDeletionService()
 		deletionSvc.impact = &domain.DeletionImpact{Impacts: []domain.DeletionImpactRow{{Kind: "item", Label: "Items (will be detached, not deleted)", Count: 5}}}
 		h := apiconnect.NewGroupHandler(svc, deletionSvc, nil)
 
@@ -203,7 +203,7 @@ func TestGroupHandler_GetGroupDeletionImpact(t *testing.T) {
 
 	t.Run("service error maps through mapError", func(t *testing.T) {
 		svc := newFakeGroupService()
-		deletionSvc := newFakeEntityDeletionService()
+		deletionSvc := newFakeBulkDeletionService()
 		deletionSvc.impactErr = ports.ErrNotFound
 		h := apiconnect.NewGroupHandler(svc, deletionSvc, nil)
 
@@ -217,7 +217,7 @@ func TestGroupHandler_GetGroupDeletionImpact(t *testing.T) {
 func TestGroupHandler_ListGroups(t *testing.T) {
 	t.Run("valid list succeeds", func(t *testing.T) {
 		svc := newFakeGroupService()
-		h := apiconnect.NewGroupHandler(svc, newFakeEntityDeletionService(), nil)
+		h := apiconnect.NewGroupHandler(svc, newFakeBulkDeletionService(), nil)
 		svc.byID["g1"] = &domain.Group{ID: "g1"}
 		svc.byID["g2"] = &domain.Group{ID: "g2"}
 
@@ -233,11 +233,39 @@ func TestGroupHandler_ListGroups(t *testing.T) {
 	t.Run("service error maps through mapError", func(t *testing.T) {
 		svc := newFakeGroupService()
 		svc.listErr = errors.New("boom")
-		h := apiconnect.NewGroupHandler(svc, newFakeEntityDeletionService(), nil)
+		h := apiconnect.NewGroupHandler(svc, newFakeBulkDeletionService(), nil)
 
 		_, err := h.ListGroups(context.Background(), connect.NewRequest(&v1.ListGroupsRequest{PageSize: 10}))
 		if connect.CodeOf(err) != connect.CodeInternal {
 			t.Fatalf("ListGroups with a service error returned code %v, want %v", connect.CodeOf(err), connect.CodeInternal)
+		}
+	})
+}
+
+func TestGroupHandler_BulkDeleteGroups(t *testing.T) {
+	t.Run("valid request threads ids and cascade through to the service", func(t *testing.T) {
+		svc := newFakeGroupService()
+		deletionSvc := newFakeBulkDeletionService()
+		h := apiconnect.NewGroupHandler(svc, deletionSvc, nil)
+
+		req := &v1.BulkDeleteGroupsRequest{Ids: []string{"g1", "g2"}, Cascade: true}
+		if _, err := h.BulkDeleteGroups(context.Background(), connect.NewRequest(req)); err != nil {
+			t.Fatalf("BulkDeleteGroups returned error: %v", err)
+		}
+		if len(deletionSvc.gotBatchIDs) != 2 || !deletionSvc.gotBatchCascade {
+			t.Fatalf("BulkDeleteGroups passed (ids=%v, cascade=%v), want ([g1 g2], true)", deletionSvc.gotBatchIDs, deletionSvc.gotBatchCascade)
+		}
+	})
+
+	t.Run("service error maps through mapError", func(t *testing.T) {
+		svc := newFakeGroupService()
+		deletionSvc := newFakeBulkDeletionService()
+		deletionSvc.deleteBatchErr = ports.ErrNotFound
+		h := apiconnect.NewGroupHandler(svc, deletionSvc, nil)
+
+		_, err := h.BulkDeleteGroups(context.Background(), connect.NewRequest(&v1.BulkDeleteGroupsRequest{Ids: []string{"missing"}}))
+		if connect.CodeOf(err) != connect.CodeNotFound {
+			t.Fatalf("BulkDeleteGroups on a missing id returned code %v, want %v", connect.CodeOf(err), connect.CodeNotFound)
 		}
 	})
 }

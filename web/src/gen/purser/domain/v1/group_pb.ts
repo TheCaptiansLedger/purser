@@ -14,7 +14,7 @@ import type { JsonObject, Message } from "@bufbuild/protobuf";
  * Describes the file purser/domain/v1/group.proto.
  */
 export const file_purser_domain_v1_group: GenFile = /*@__PURE__*/
-  fileDesc("ChxwdXJzZXIvZG9tYWluL3YxL2dyb3VwLnByb3RvEhBwdXJzZXIuZG9tYWluLnYxIvIBCgVHcm91cBIKCgJpZBgBIAEoCRIYChBsaWJyYXJ5X2VudHJ5X2lkGAIgASgJEg0KBXRpdGxlGAMgASgJEhEKCXNvcnRfbmFtZRgEIAEoCRIOCgZudW1iZXIYBSABKAkSDAoEeWVhchgGIAEoBRIQCghvdmVydmlldxgHIAEoCRIRCgltb25pdG9yZWQYCCABKAgSMwoMbW9uaXRvcl9tb2RlGAkgASgOMh0ucHVyc2VyLmRvbWFpbi52MS5Nb25pdG9yTW9kZRIpCghtZXRhZGF0YRgKIAEoCzIXLmdvb2dsZS5wcm90b2J1Zi5TdHJ1Y3QiPAoSQ3JlYXRlR3JvdXBSZXF1ZXN0EiYKBWdyb3VwGAEgASgLMhcucHVyc2VyLmRvbWFpbi52MS5Hcm91cCI9ChNDcmVhdGVHcm91cFJlc3BvbnNlEiYKBWdyb3VwGAEgASgLMhcucHVyc2VyLmRvbWFpbi52MS5Hcm91cCIdCg9HZXRHcm91cFJlcXVlc3QSCgoCaWQYASABKAkiOgoQR2V0R3JvdXBSZXNwb25zZRImCgVncm91cBgBIAEoCzIXLnB1cnNlci5kb21haW4udjEuR3JvdXAibQoSVXBkYXRlR3JvdXBSZXF1ZXN0EiYKBWdyb3VwGAEgASgLMhcucHVyc2VyLmRvbWFpbi52MS5Hcm91cBIvCgt1cGRhdGVfbWFzaxgCIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5GaWVsZE1hc2siPQoTVXBkYXRlR3JvdXBSZXNwb25zZRImCgVncm91cBgBIAEoCzIXLnB1cnNlci5kb21haW4udjEuR3JvdXAiMQoSRGVsZXRlR3JvdXBSZXF1ZXN0EgoKAmlkGAEgASgJEg8KB2Nhc2NhZGUYAiABKAgiFQoTRGVsZXRlR3JvdXBSZXNwb25zZSIrCh1HZXRHcm91cERlbGV0aW9uSW1wYWN0UmVxdWVzdBIKCgJpZBgBIAEoCSJWCh5HZXRHcm91cERlbGV0aW9uSW1wYWN0UmVzcG9uc2USNAoHaW1wYWN0cxgBIAMoCzIjLnB1cnNlci5kb21haW4udjEuRGVsZXRpb25JbXBhY3RSb3ciVAoRTGlzdEdyb3Vwc1JlcXVlc3QSEQoJcGFnZV9zaXplGAEgASgFEhIKCnBhZ2VfdG9rZW4YAiABKAkSGAoQbGlicmFyeV9lbnRyeV9pZBgDIAEoCSJWChJMaXN0R3JvdXBzUmVzcG9uc2USJwoGZ3JvdXBzGAEgAygLMhcucHVyc2VyLmRvbWFpbi52MS5Hcm91cBIXCg9uZXh0X3BhZ2VfdG9rZW4YAiABKAkyywQKDEdyb3VwU2VydmljZRJaCgtDcmVhdGVHcm91cBIkLnB1cnNlci5kb21haW4udjEuQ3JlYXRlR3JvdXBSZXF1ZXN0GiUucHVyc2VyLmRvbWFpbi52MS5DcmVhdGVHcm91cFJlc3BvbnNlElEKCEdldEdyb3VwEiEucHVyc2VyLmRvbWFpbi52MS5HZXRHcm91cFJlcXVlc3QaIi5wdXJzZXIuZG9tYWluLnYxLkdldEdyb3VwUmVzcG9uc2USWgoLVXBkYXRlR3JvdXASJC5wdXJzZXIuZG9tYWluLnYxLlVwZGF0ZUdyb3VwUmVxdWVzdBolLnB1cnNlci5kb21haW4udjEuVXBkYXRlR3JvdXBSZXNwb25zZRJaCgtEZWxldGVHcm91cBIkLnB1cnNlci5kb21haW4udjEuRGVsZXRlR3JvdXBSZXF1ZXN0GiUucHVyc2VyLmRvbWFpbi52MS5EZWxldGVHcm91cFJlc3BvbnNlElcKCkxpc3RHcm91cHMSIy5wdXJzZXIuZG9tYWluLnYxLkxpc3RHcm91cHNSZXF1ZXN0GiQucHVyc2VyLmRvbWFpbi52MS5MaXN0R3JvdXBzUmVzcG9uc2USewoWR2V0R3JvdXBEZWxldGlvbkltcGFjdBIvLnB1cnNlci5kb21haW4udjEuR2V0R3JvdXBEZWxldGlvbkltcGFjdFJlcXVlc3QaMC5wdXJzZXIuZG9tYWluLnYxLkdldEdyb3VwRGVsZXRpb25JbXBhY3RSZXNwb25zZUIpWidwdXJzZXIvZ2VuL2dvL3B1cnNlci9kb21haW4vdjE7ZG9tYWludjFiBnByb3RvMw", [file_google_protobuf_field_mask, file_google_protobuf_struct, file_purser_domain_v1_common]);
+  fileDesc("ChxwdXJzZXIvZG9tYWluL3YxL2dyb3VwLnByb3RvEhBwdXJzZXIuZG9tYWluLnYxIvIBCgVHcm91cBIKCgJpZBgBIAEoCRIYChBsaWJyYXJ5X2VudHJ5X2lkGAIgASgJEg0KBXRpdGxlGAMgASgJEhEKCXNvcnRfbmFtZRgEIAEoCRIOCgZudW1iZXIYBSABKAkSDAoEeWVhchgGIAEoBRIQCghvdmVydmlldxgHIAEoCRIRCgltb25pdG9yZWQYCCABKAgSMwoMbW9uaXRvcl9tb2RlGAkgASgOMh0ucHVyc2VyLmRvbWFpbi52MS5Nb25pdG9yTW9kZRIpCghtZXRhZGF0YRgKIAEoCzIXLmdvb2dsZS5wcm90b2J1Zi5TdHJ1Y3QiPAoSQ3JlYXRlR3JvdXBSZXF1ZXN0EiYKBWdyb3VwGAEgASgLMhcucHVyc2VyLmRvbWFpbi52MS5Hcm91cCI9ChNDcmVhdGVHcm91cFJlc3BvbnNlEiYKBWdyb3VwGAEgASgLMhcucHVyc2VyLmRvbWFpbi52MS5Hcm91cCIdCg9HZXRHcm91cFJlcXVlc3QSCgoCaWQYASABKAkiOgoQR2V0R3JvdXBSZXNwb25zZRImCgVncm91cBgBIAEoCzIXLnB1cnNlci5kb21haW4udjEuR3JvdXAibQoSVXBkYXRlR3JvdXBSZXF1ZXN0EiYKBWdyb3VwGAEgASgLMhcucHVyc2VyLmRvbWFpbi52MS5Hcm91cBIvCgt1cGRhdGVfbWFzaxgCIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5GaWVsZE1hc2siPQoTVXBkYXRlR3JvdXBSZXNwb25zZRImCgVncm91cBgBIAEoCzIXLnB1cnNlci5kb21haW4udjEuR3JvdXAiMQoSRGVsZXRlR3JvdXBSZXF1ZXN0EgoKAmlkGAEgASgJEg8KB2Nhc2NhZGUYAiABKAgiFQoTRGVsZXRlR3JvdXBSZXNwb25zZSIrCh1HZXRHcm91cERlbGV0aW9uSW1wYWN0UmVxdWVzdBIKCgJpZBgBIAEoCSJWCh5HZXRHcm91cERlbGV0aW9uSW1wYWN0UmVzcG9uc2USNAoHaW1wYWN0cxgBIAMoCzIjLnB1cnNlci5kb21haW4udjEuRGVsZXRpb25JbXBhY3RSb3ciNwoXQnVsa0RlbGV0ZUdyb3Vwc1JlcXVlc3QSCwoDaWRzGAEgAygJEg8KB2Nhc2NhZGUYAiABKAgiGgoYQnVsa0RlbGV0ZUdyb3Vwc1Jlc3BvbnNlIlQKEUxpc3RHcm91cHNSZXF1ZXN0EhEKCXBhZ2Vfc2l6ZRgBIAEoBRISCgpwYWdlX3Rva2VuGAIgASgJEhgKEGxpYnJhcnlfZW50cnlfaWQYAyABKAkiVgoSTGlzdEdyb3Vwc1Jlc3BvbnNlEicKBmdyb3VwcxgBIAMoCzIXLnB1cnNlci5kb21haW4udjEuR3JvdXASFwoPbmV4dF9wYWdlX3Rva2VuGAIgASgJMrYFCgxHcm91cFNlcnZpY2USWgoLQ3JlYXRlR3JvdXASJC5wdXJzZXIuZG9tYWluLnYxLkNyZWF0ZUdyb3VwUmVxdWVzdBolLnB1cnNlci5kb21haW4udjEuQ3JlYXRlR3JvdXBSZXNwb25zZRJRCghHZXRHcm91cBIhLnB1cnNlci5kb21haW4udjEuR2V0R3JvdXBSZXF1ZXN0GiIucHVyc2VyLmRvbWFpbi52MS5HZXRHcm91cFJlc3BvbnNlEloKC1VwZGF0ZUdyb3VwEiQucHVyc2VyLmRvbWFpbi52MS5VcGRhdGVHcm91cFJlcXVlc3QaJS5wdXJzZXIuZG9tYWluLnYxLlVwZGF0ZUdyb3VwUmVzcG9uc2USWgoLRGVsZXRlR3JvdXASJC5wdXJzZXIuZG9tYWluLnYxLkRlbGV0ZUdyb3VwUmVxdWVzdBolLnB1cnNlci5kb21haW4udjEuRGVsZXRlR3JvdXBSZXNwb25zZRJXCgpMaXN0R3JvdXBzEiMucHVyc2VyLmRvbWFpbi52MS5MaXN0R3JvdXBzUmVxdWVzdBokLnB1cnNlci5kb21haW4udjEuTGlzdEdyb3Vwc1Jlc3BvbnNlEnsKFkdldEdyb3VwRGVsZXRpb25JbXBhY3QSLy5wdXJzZXIuZG9tYWluLnYxLkdldEdyb3VwRGVsZXRpb25JbXBhY3RSZXF1ZXN0GjAucHVyc2VyLmRvbWFpbi52MS5HZXRHcm91cERlbGV0aW9uSW1wYWN0UmVzcG9uc2USaQoQQnVsa0RlbGV0ZUdyb3VwcxIpLnB1cnNlci5kb21haW4udjEuQnVsa0RlbGV0ZUdyb3Vwc1JlcXVlc3QaKi5wdXJzZXIuZG9tYWluLnYxLkJ1bGtEZWxldGVHcm91cHNSZXNwb25zZUIpWidwdXJzZXIvZ2VuL2dvL3B1cnNlci9kb21haW4vdjE7ZG9tYWludjFiBnByb3RvMw", [file_google_protobuf_field_mask, file_google_protobuf_struct, file_purser_domain_v1_common]);
 
 /**
  * Group is the wire shape of internal/domain.Group.
@@ -267,6 +267,47 @@ export const GetGroupDeletionImpactResponseSchema: GenMessage<GetGroupDeletionIm
   messageDesc(file_purser_domain_v1_group, 10);
 
 /**
+ * BulkDeleteGroups is one of the bulk-delete endpoints named by
+ * docs/adr/0016-bulk-operations.md — needed by the Discography-grid
+ * multi-select bulk-delete UI action, not a blanket bulk rollout.
+ *
+ * @generated from message purser.domain.v1.BulkDeleteGroupsRequest
+ */
+export type BulkDeleteGroupsRequest = Message<"purser.domain.v1.BulkDeleteGroupsRequest"> & {
+  /**
+   * @generated from field: repeated string ids = 1;
+   */
+  ids: string[];
+
+  /**
+   * cascade has no effect for Group today — see DeleteGroupRequest.cascade.
+   *
+   * @generated from field: bool cascade = 2;
+   */
+  cascade: boolean;
+};
+
+/**
+ * Describes the message purser.domain.v1.BulkDeleteGroupsRequest.
+ * Use `create(BulkDeleteGroupsRequestSchema)` to create a new message.
+ */
+export const BulkDeleteGroupsRequestSchema: GenMessage<BulkDeleteGroupsRequest> = /*@__PURE__*/
+  messageDesc(file_purser_domain_v1_group, 11);
+
+/**
+ * @generated from message purser.domain.v1.BulkDeleteGroupsResponse
+ */
+export type BulkDeleteGroupsResponse = Message<"purser.domain.v1.BulkDeleteGroupsResponse"> & {
+};
+
+/**
+ * Describes the message purser.domain.v1.BulkDeleteGroupsResponse.
+ * Use `create(BulkDeleteGroupsResponseSchema)` to create a new message.
+ */
+export const BulkDeleteGroupsResponseSchema: GenMessage<BulkDeleteGroupsResponse> = /*@__PURE__*/
+  messageDesc(file_purser_domain_v1_group, 12);
+
+/**
  * @generated from message purser.domain.v1.ListGroupsRequest
  */
 export type ListGroupsRequest = Message<"purser.domain.v1.ListGroupsRequest"> & {
@@ -293,7 +334,7 @@ export type ListGroupsRequest = Message<"purser.domain.v1.ListGroupsRequest"> & 
  * Use `create(ListGroupsRequestSchema)` to create a new message.
  */
 export const ListGroupsRequestSchema: GenMessage<ListGroupsRequest> = /*@__PURE__*/
-  messageDesc(file_purser_domain_v1_group, 11);
+  messageDesc(file_purser_domain_v1_group, 13);
 
 /**
  * @generated from message purser.domain.v1.ListGroupsResponse
@@ -315,7 +356,7 @@ export type ListGroupsResponse = Message<"purser.domain.v1.ListGroupsResponse"> 
  * Use `create(ListGroupsResponseSchema)` to create a new message.
  */
 export const ListGroupsResponseSchema: GenMessage<ListGroupsResponse> = /*@__PURE__*/
-  messageDesc(file_purser_domain_v1_group, 12);
+  messageDesc(file_purser_domain_v1_group, 14);
 
 /**
  * GroupService owns exactly one entity — Group — per
@@ -375,6 +416,17 @@ export const GroupService: GenService<{
     methodKind: "unary";
     input: typeof GetGroupDeletionImpactRequestSchema;
     output: typeof GetGroupDeletionImpactResponseSchema;
+  },
+  /**
+   * BulkDeleteGroups removes every Group in ids atomically — see
+   * docs/adr/0016-bulk-operations.md.
+   *
+   * @generated from rpc purser.domain.v1.GroupService.BulkDeleteGroups
+   */
+  bulkDeleteGroups: {
+    methodKind: "unary";
+    input: typeof BulkDeleteGroupsRequestSchema;
+    output: typeof BulkDeleteGroupsResponseSchema;
   },
 }> = /*@__PURE__*/
   serviceDesc(file_purser_domain_v1_group, 0);

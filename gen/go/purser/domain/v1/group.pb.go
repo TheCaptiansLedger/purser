@@ -596,6 +596,98 @@ func (x *GetGroupDeletionImpactResponse) GetImpacts() []*DeletionImpactRow {
 	return nil
 }
 
+// BulkDeleteGroups is one of the bulk-delete endpoints named by
+// docs/adr/0016-bulk-operations.md — needed by the Discography-grid
+// multi-select bulk-delete UI action, not a blanket bulk rollout.
+type BulkDeleteGroupsRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	Ids   []string               `protobuf:"bytes,1,rep,name=ids,proto3" json:"ids,omitempty"`
+	// cascade has no effect for Group today — see DeleteGroupRequest.cascade.
+	Cascade       bool `protobuf:"varint,2,opt,name=cascade,proto3" json:"cascade,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *BulkDeleteGroupsRequest) Reset() {
+	*x = BulkDeleteGroupsRequest{}
+	mi := &file_purser_domain_v1_group_proto_msgTypes[11]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *BulkDeleteGroupsRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*BulkDeleteGroupsRequest) ProtoMessage() {}
+
+func (x *BulkDeleteGroupsRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_purser_domain_v1_group_proto_msgTypes[11]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use BulkDeleteGroupsRequest.ProtoReflect.Descriptor instead.
+func (*BulkDeleteGroupsRequest) Descriptor() ([]byte, []int) {
+	return file_purser_domain_v1_group_proto_rawDescGZIP(), []int{11}
+}
+
+func (x *BulkDeleteGroupsRequest) GetIds() []string {
+	if x != nil {
+		return x.Ids
+	}
+	return nil
+}
+
+func (x *BulkDeleteGroupsRequest) GetCascade() bool {
+	if x != nil {
+		return x.Cascade
+	}
+	return false
+}
+
+type BulkDeleteGroupsResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *BulkDeleteGroupsResponse) Reset() {
+	*x = BulkDeleteGroupsResponse{}
+	mi := &file_purser_domain_v1_group_proto_msgTypes[12]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *BulkDeleteGroupsResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*BulkDeleteGroupsResponse) ProtoMessage() {}
+
+func (x *BulkDeleteGroupsResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_purser_domain_v1_group_proto_msgTypes[12]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use BulkDeleteGroupsResponse.ProtoReflect.Descriptor instead.
+func (*BulkDeleteGroupsResponse) Descriptor() ([]byte, []int) {
+	return file_purser_domain_v1_group_proto_rawDescGZIP(), []int{12}
+}
+
 type ListGroupsRequest struct {
 	state     protoimpl.MessageState `protogen:"open.v1"`
 	PageSize  int32                  `protobuf:"varint,1,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
@@ -608,7 +700,7 @@ type ListGroupsRequest struct {
 
 func (x *ListGroupsRequest) Reset() {
 	*x = ListGroupsRequest{}
-	mi := &file_purser_domain_v1_group_proto_msgTypes[11]
+	mi := &file_purser_domain_v1_group_proto_msgTypes[13]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -620,7 +712,7 @@ func (x *ListGroupsRequest) String() string {
 func (*ListGroupsRequest) ProtoMessage() {}
 
 func (x *ListGroupsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_purser_domain_v1_group_proto_msgTypes[11]
+	mi := &file_purser_domain_v1_group_proto_msgTypes[13]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -633,7 +725,7 @@ func (x *ListGroupsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListGroupsRequest.ProtoReflect.Descriptor instead.
 func (*ListGroupsRequest) Descriptor() ([]byte, []int) {
-	return file_purser_domain_v1_group_proto_rawDescGZIP(), []int{11}
+	return file_purser_domain_v1_group_proto_rawDescGZIP(), []int{13}
 }
 
 func (x *ListGroupsRequest) GetPageSize() int32 {
@@ -667,7 +759,7 @@ type ListGroupsResponse struct {
 
 func (x *ListGroupsResponse) Reset() {
 	*x = ListGroupsResponse{}
-	mi := &file_purser_domain_v1_group_proto_msgTypes[12]
+	mi := &file_purser_domain_v1_group_proto_msgTypes[14]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -679,7 +771,7 @@ func (x *ListGroupsResponse) String() string {
 func (*ListGroupsResponse) ProtoMessage() {}
 
 func (x *ListGroupsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_purser_domain_v1_group_proto_msgTypes[12]
+	mi := &file_purser_domain_v1_group_proto_msgTypes[14]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -692,7 +784,7 @@ func (x *ListGroupsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListGroupsResponse.ProtoReflect.Descriptor instead.
 func (*ListGroupsResponse) Descriptor() ([]byte, []int) {
-	return file_purser_domain_v1_group_proto_rawDescGZIP(), []int{12}
+	return file_purser_domain_v1_group_proto_rawDescGZIP(), []int{14}
 }
 
 func (x *ListGroupsResponse) GetGroups() []*Group {
@@ -747,7 +839,11 @@ const file_purser_domain_v1_group_proto_rawDesc = "" +
 	"\x1dGetGroupDeletionImpactRequest\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\"_\n" +
 	"\x1eGetGroupDeletionImpactResponse\x12=\n" +
-	"\aimpacts\x18\x01 \x03(\v2#.purser.domain.v1.DeletionImpactRowR\aimpacts\"y\n" +
+	"\aimpacts\x18\x01 \x03(\v2#.purser.domain.v1.DeletionImpactRowR\aimpacts\"E\n" +
+	"\x17BulkDeleteGroupsRequest\x12\x10\n" +
+	"\x03ids\x18\x01 \x03(\tR\x03ids\x12\x18\n" +
+	"\acascade\x18\x02 \x01(\bR\acascade\"\x1a\n" +
+	"\x18BulkDeleteGroupsResponse\"y\n" +
 	"\x11ListGroupsRequest\x12\x1b\n" +
 	"\tpage_size\x18\x01 \x01(\x05R\bpageSize\x12\x1d\n" +
 	"\n" +
@@ -755,7 +851,7 @@ const file_purser_domain_v1_group_proto_rawDesc = "" +
 	"\x10library_entry_id\x18\x03 \x01(\tR\x0elibraryEntryId\"m\n" +
 	"\x12ListGroupsResponse\x12/\n" +
 	"\x06groups\x18\x01 \x03(\v2\x17.purser.domain.v1.GroupR\x06groups\x12&\n" +
-	"\x0fnext_page_token\x18\x02 \x01(\tR\rnextPageToken2\xcb\x04\n" +
+	"\x0fnext_page_token\x18\x02 \x01(\tR\rnextPageToken2\xb6\x05\n" +
 	"\fGroupService\x12Z\n" +
 	"\vCreateGroup\x12$.purser.domain.v1.CreateGroupRequest\x1a%.purser.domain.v1.CreateGroupResponse\x12Q\n" +
 	"\bGetGroup\x12!.purser.domain.v1.GetGroupRequest\x1a\".purser.domain.v1.GetGroupResponse\x12Z\n" +
@@ -763,7 +859,8 @@ const file_purser_domain_v1_group_proto_rawDesc = "" +
 	"\vDeleteGroup\x12$.purser.domain.v1.DeleteGroupRequest\x1a%.purser.domain.v1.DeleteGroupResponse\x12W\n" +
 	"\n" +
 	"ListGroups\x12#.purser.domain.v1.ListGroupsRequest\x1a$.purser.domain.v1.ListGroupsResponse\x12{\n" +
-	"\x16GetGroupDeletionImpact\x12/.purser.domain.v1.GetGroupDeletionImpactRequest\x1a0.purser.domain.v1.GetGroupDeletionImpactResponseB)Z'purser/gen/go/purser/domain/v1;domainv1b\x06proto3"
+	"\x16GetGroupDeletionImpact\x12/.purser.domain.v1.GetGroupDeletionImpactRequest\x1a0.purser.domain.v1.GetGroupDeletionImpactResponse\x12i\n" +
+	"\x10BulkDeleteGroups\x12).purser.domain.v1.BulkDeleteGroupsRequest\x1a*.purser.domain.v1.BulkDeleteGroupsResponseB)Z'purser/gen/go/purser/domain/v1;domainv1b\x06proto3"
 
 var (
 	file_purser_domain_v1_group_proto_rawDescOnce sync.Once
@@ -777,7 +874,7 @@ func file_purser_domain_v1_group_proto_rawDescGZIP() []byte {
 	return file_purser_domain_v1_group_proto_rawDescData
 }
 
-var file_purser_domain_v1_group_proto_msgTypes = make([]protoimpl.MessageInfo, 13)
+var file_purser_domain_v1_group_proto_msgTypes = make([]protoimpl.MessageInfo, 15)
 var file_purser_domain_v1_group_proto_goTypes = []any{
 	(*Group)(nil),                          // 0: purser.domain.v1.Group
 	(*CreateGroupRequest)(nil),             // 1: purser.domain.v1.CreateGroupRequest
@@ -790,38 +887,42 @@ var file_purser_domain_v1_group_proto_goTypes = []any{
 	(*DeleteGroupResponse)(nil),            // 8: purser.domain.v1.DeleteGroupResponse
 	(*GetGroupDeletionImpactRequest)(nil),  // 9: purser.domain.v1.GetGroupDeletionImpactRequest
 	(*GetGroupDeletionImpactResponse)(nil), // 10: purser.domain.v1.GetGroupDeletionImpactResponse
-	(*ListGroupsRequest)(nil),              // 11: purser.domain.v1.ListGroupsRequest
-	(*ListGroupsResponse)(nil),             // 12: purser.domain.v1.ListGroupsResponse
-	(MonitorMode)(0),                       // 13: purser.domain.v1.MonitorMode
-	(*structpb.Struct)(nil),                // 14: google.protobuf.Struct
-	(*fieldmaskpb.FieldMask)(nil),          // 15: google.protobuf.FieldMask
-	(*DeletionImpactRow)(nil),              // 16: purser.domain.v1.DeletionImpactRow
+	(*BulkDeleteGroupsRequest)(nil),        // 11: purser.domain.v1.BulkDeleteGroupsRequest
+	(*BulkDeleteGroupsResponse)(nil),       // 12: purser.domain.v1.BulkDeleteGroupsResponse
+	(*ListGroupsRequest)(nil),              // 13: purser.domain.v1.ListGroupsRequest
+	(*ListGroupsResponse)(nil),             // 14: purser.domain.v1.ListGroupsResponse
+	(MonitorMode)(0),                       // 15: purser.domain.v1.MonitorMode
+	(*structpb.Struct)(nil),                // 16: google.protobuf.Struct
+	(*fieldmaskpb.FieldMask)(nil),          // 17: google.protobuf.FieldMask
+	(*DeletionImpactRow)(nil),              // 18: purser.domain.v1.DeletionImpactRow
 }
 var file_purser_domain_v1_group_proto_depIdxs = []int32{
-	13, // 0: purser.domain.v1.Group.monitor_mode:type_name -> purser.domain.v1.MonitorMode
-	14, // 1: purser.domain.v1.Group.metadata:type_name -> google.protobuf.Struct
+	15, // 0: purser.domain.v1.Group.monitor_mode:type_name -> purser.domain.v1.MonitorMode
+	16, // 1: purser.domain.v1.Group.metadata:type_name -> google.protobuf.Struct
 	0,  // 2: purser.domain.v1.CreateGroupRequest.group:type_name -> purser.domain.v1.Group
 	0,  // 3: purser.domain.v1.CreateGroupResponse.group:type_name -> purser.domain.v1.Group
 	0,  // 4: purser.domain.v1.GetGroupResponse.group:type_name -> purser.domain.v1.Group
 	0,  // 5: purser.domain.v1.UpdateGroupRequest.group:type_name -> purser.domain.v1.Group
-	15, // 6: purser.domain.v1.UpdateGroupRequest.update_mask:type_name -> google.protobuf.FieldMask
+	17, // 6: purser.domain.v1.UpdateGroupRequest.update_mask:type_name -> google.protobuf.FieldMask
 	0,  // 7: purser.domain.v1.UpdateGroupResponse.group:type_name -> purser.domain.v1.Group
-	16, // 8: purser.domain.v1.GetGroupDeletionImpactResponse.impacts:type_name -> purser.domain.v1.DeletionImpactRow
+	18, // 8: purser.domain.v1.GetGroupDeletionImpactResponse.impacts:type_name -> purser.domain.v1.DeletionImpactRow
 	0,  // 9: purser.domain.v1.ListGroupsResponse.groups:type_name -> purser.domain.v1.Group
 	1,  // 10: purser.domain.v1.GroupService.CreateGroup:input_type -> purser.domain.v1.CreateGroupRequest
 	3,  // 11: purser.domain.v1.GroupService.GetGroup:input_type -> purser.domain.v1.GetGroupRequest
 	5,  // 12: purser.domain.v1.GroupService.UpdateGroup:input_type -> purser.domain.v1.UpdateGroupRequest
 	7,  // 13: purser.domain.v1.GroupService.DeleteGroup:input_type -> purser.domain.v1.DeleteGroupRequest
-	11, // 14: purser.domain.v1.GroupService.ListGroups:input_type -> purser.domain.v1.ListGroupsRequest
+	13, // 14: purser.domain.v1.GroupService.ListGroups:input_type -> purser.domain.v1.ListGroupsRequest
 	9,  // 15: purser.domain.v1.GroupService.GetGroupDeletionImpact:input_type -> purser.domain.v1.GetGroupDeletionImpactRequest
-	2,  // 16: purser.domain.v1.GroupService.CreateGroup:output_type -> purser.domain.v1.CreateGroupResponse
-	4,  // 17: purser.domain.v1.GroupService.GetGroup:output_type -> purser.domain.v1.GetGroupResponse
-	6,  // 18: purser.domain.v1.GroupService.UpdateGroup:output_type -> purser.domain.v1.UpdateGroupResponse
-	8,  // 19: purser.domain.v1.GroupService.DeleteGroup:output_type -> purser.domain.v1.DeleteGroupResponse
-	12, // 20: purser.domain.v1.GroupService.ListGroups:output_type -> purser.domain.v1.ListGroupsResponse
-	10, // 21: purser.domain.v1.GroupService.GetGroupDeletionImpact:output_type -> purser.domain.v1.GetGroupDeletionImpactResponse
-	16, // [16:22] is the sub-list for method output_type
-	10, // [10:16] is the sub-list for method input_type
+	11, // 16: purser.domain.v1.GroupService.BulkDeleteGroups:input_type -> purser.domain.v1.BulkDeleteGroupsRequest
+	2,  // 17: purser.domain.v1.GroupService.CreateGroup:output_type -> purser.domain.v1.CreateGroupResponse
+	4,  // 18: purser.domain.v1.GroupService.GetGroup:output_type -> purser.domain.v1.GetGroupResponse
+	6,  // 19: purser.domain.v1.GroupService.UpdateGroup:output_type -> purser.domain.v1.UpdateGroupResponse
+	8,  // 20: purser.domain.v1.GroupService.DeleteGroup:output_type -> purser.domain.v1.DeleteGroupResponse
+	14, // 21: purser.domain.v1.GroupService.ListGroups:output_type -> purser.domain.v1.ListGroupsResponse
+	10, // 22: purser.domain.v1.GroupService.GetGroupDeletionImpact:output_type -> purser.domain.v1.GetGroupDeletionImpactResponse
+	12, // 23: purser.domain.v1.GroupService.BulkDeleteGroups:output_type -> purser.domain.v1.BulkDeleteGroupsResponse
+	17, // [17:24] is the sub-list for method output_type
+	10, // [10:17] is the sub-list for method input_type
 	10, // [10:10] is the sub-list for extension type_name
 	10, // [10:10] is the sub-list for extension extendee
 	0,  // [0:10] is the sub-list for field type_name
@@ -839,7 +940,7 @@ func file_purser_domain_v1_group_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_purser_domain_v1_group_proto_rawDesc), len(file_purser_domain_v1_group_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   13,
+			NumMessages:   15,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

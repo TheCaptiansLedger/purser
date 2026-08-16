@@ -30,6 +30,8 @@ func TestGroupRepository(t *testing.T, newRepo NewRepositoryFunc) {
 	t.Run("delete on a missing group returns ErrNotFound", func(t *testing.T) { testDeleteMissing(t, newRepo) })
 	t.Run("list filters by library entry independently", func(t *testing.T) { testListFilters(t, newRepo) })
 	t.Run("list returns every created group across pages", func(t *testing.T) { testListPaginates(t, newRepo) })
+	t.Run("delete batch removes every group atomically", func(t *testing.T) { testDeleteBatch(t, newRepo) })
+	t.Run("delete batch with one missing id rolls back the whole batch", func(t *testing.T) { testDeleteBatchRollsBackOnMissing(t, newRepo) })
 }
 
 func mustCreate(t *testing.T, r ports.GroupRepository, g *domain.Group) {
@@ -178,6 +180,41 @@ func testListPaginates(t *testing.T, newRepo NewRepositoryFunc) {
 		if !got[id] {
 			t.Errorf("List across pages missing group %q", id)
 		}
+	}
+}
+
+func testDeleteBatch(t *testing.T, newRepo NewRepositoryFunc) {
+	r := newRepo(t)
+	mustCreate(t, r, sampleGroup("g1"))
+	mustCreate(t, r, sampleGroup("g2"))
+	mustCreate(t, r, sampleGroup("g3"))
+
+	if err := r.DeleteBatch(context.Background(), []string{"g1", "g2"}); err != nil {
+		t.Fatalf("DeleteBatch returned error: %v", err)
+	}
+
+	if _, err := r.Get(context.Background(), "g1"); !errors.Is(err, ports.ErrNotFound) {
+		t.Fatalf("Get after DeleteBatch for g1 returned %v, want ErrNotFound", err)
+	}
+	if _, err := r.Get(context.Background(), "g2"); !errors.Is(err, ports.ErrNotFound) {
+		t.Fatalf("Get after DeleteBatch for g2 returned %v, want ErrNotFound", err)
+	}
+	if _, err := r.Get(context.Background(), "g3"); err != nil {
+		t.Fatalf("DeleteBatch removed g3, which wasn't in the batch: %v", err)
+	}
+}
+
+func testDeleteBatchRollsBackOnMissing(t *testing.T, newRepo NewRepositoryFunc) {
+	r := newRepo(t)
+	mustCreate(t, r, sampleGroup("g1"))
+
+	err := r.DeleteBatch(context.Background(), []string{"g1", "missing"})
+	if !errors.Is(err, ports.ErrNotFound) {
+		t.Fatalf("DeleteBatch with a missing id returned %v, want ErrNotFound", err)
+	}
+
+	if _, err := r.Get(context.Background(), "g1"); err != nil {
+		t.Fatalf("DeleteBatch removed g1 despite rolling back: %v", err)
 	}
 }
 

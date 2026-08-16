@@ -167,9 +167,62 @@ func (s *LibraryEntryDeletionService) Delete(ctx context.Context, id string, cas
 	return s.libraryEntries.Delete(ctx, id)
 }
 
+// DeleteBatch removes every LibraryEntry in ids, all-or-nothing — see
+// docs/adr/0016-bulk-operations.md. Every id must exist, and — when
+// cascade=false — pass the same "no Group/Item still references this
+// entry" precondition Delete checks, for the entire batch before any row
+// is mutated: a batch with one row that would fail its own single-row
+// Delete precondition (e.g. a LibraryEntry with children and
+// cascade=false) fails whole, not partially. Beyond that, per-id cascade
+// semantics are exactly Delete's — see the type doc comment. The final
+// row removal itself is one atomic
+// ports.LibraryEntryRepository.DeleteBatch call, not a loop of single-row
+// deletes.
+func (s *LibraryEntryDeletionService) DeleteBatch(ctx context.Context, ids []string, cascade bool) error {
+	for _, id := range ids {
+		if _, err := s.libraryEntries.Get(ctx, id); err != nil {
+			return err
+		}
+	}
+	if !cascade {
+		for _, id := range ids {
+			if err := s.checkUnlinkPrecondition(ctx, id); err != nil {
+				return err
+			}
+		}
+	}
+
+	for _, id := range ids {
+		if cascade {
+			if err := s.cascadeDeleteDescendants(ctx, id); err != nil {
+				return err
+			}
+		} else if err := s.detachChildren(ctx, id); err != nil {
+			return err
+		}
+		if err := s.unlinkAttachments(ctx, id); err != nil {
+			return err
+		}
+	}
+
+	return s.libraryEntries.DeleteBatch(ctx, ids)
+}
+
 // unlinkDescendants implements cascade=false: detach child LibraryEntries,
 // but block entirely if any Group or Item still references this entry.
 func (s *LibraryEntryDeletionService) unlinkDescendants(ctx context.Context, id string) error {
+	if err := s.checkUnlinkPrecondition(ctx, id); err != nil {
+		return err
+	}
+	return s.detachChildren(ctx, id)
+}
+
+// checkUnlinkPrecondition is the read-only half of unlinkDescendants: it
+// reports ports.ErrDeletionBlocked if any Group or Item still references
+// id, without mutating anything. Split out so DeleteBatch can check every
+// id in a batch against this precondition before mutating any of them —
+// see DeleteBatch's doc comment.
+func (s *LibraryEntryDeletionService) checkUnlinkPrecondition(ctx context.Context, id string) error {
 	groups, err := s.drainGroups(ctx, id)
 	if err != nil {
 		return err
@@ -181,7 +234,7 @@ func (s *LibraryEntryDeletionService) unlinkDescendants(ctx context.Context, id 
 	if len(groups) > 0 || len(items) > 0 {
 		return ports.ErrDeletionBlocked
 	}
-	return s.detachChildren(ctx, id)
+	return nil
 }
 
 // cascadeDeleteDescendants implements cascade=true: recursively delete

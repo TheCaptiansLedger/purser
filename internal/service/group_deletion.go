@@ -138,6 +138,38 @@ func (s *GroupDeletionService) Delete(ctx context.Context, id string, _ bool) er
 	return s.groups.Delete(ctx, id)
 }
 
+// DeleteBatch removes every Group in ids, all-or-nothing — see
+// docs/adr/0016-bulk-operations.md. Every id must exist before any Group
+// row is mutated; the final row removal itself is one atomic
+// ports.GroupRepository.DeleteBatch call, not a loop of single-row
+// deletes. cascade is accepted for API-shape consistency but unused: like
+// Delete, Group never blocks a delete.
+func (s *GroupDeletionService) DeleteBatch(ctx context.Context, ids []string, _ bool) error {
+	for _, id := range ids {
+		if _, err := s.groups.Get(ctx, id); err != nil {
+			return err
+		}
+	}
+	for _, id := range ids {
+		if err := s.deleteMusicReleases(ctx, id); err != nil {
+			return err
+		}
+		if err := s.detachItems(ctx, id); err != nil {
+			return err
+		}
+		if err := s.unlinkExternalIDs(ctx, id); err != nil {
+			return err
+		}
+		if err := s.unlinkImages(ctx, id); err != nil {
+			return err
+		}
+		if err := s.unlinkTagAssignments(ctx, id); err != nil {
+			return err
+		}
+	}
+	return s.groups.DeleteBatch(ctx, ids)
+}
+
 func (s *GroupDeletionService) detachItems(ctx context.Context, groupID string) error {
 	items, err := s.drainItems(ctx, groupID)
 	if err != nil {

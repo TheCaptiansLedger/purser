@@ -37,3 +37,11 @@ export const listGroups = GroupService.method.listGroups;
  * @generated from rpc purser.domain.v1.GroupService.GetGroupDeletionImpact
  */
 export const getGroupDeletionImpact = GroupService.method.getGroupDeletionImpact;
+
+/**
+ * BulkDeleteGroups removes every Group in ids atomically — see
+ * docs/adr/0016-bulk-operations.md.
+ *
+ * @generated from rpc purser.domain.v1.GroupService.BulkDeleteGroups
+ */
+export const bulkDeleteGroups = GroupService.method.bulkDeleteGroups;

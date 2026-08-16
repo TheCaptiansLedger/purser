@@ -14,4 +14,9 @@ type GroupRepository interface {
 	Update(ctx context.Context, g *domain.Group) error
 	Delete(ctx context.Context, id string) error
 	List(ctx context.Context, libraryEntryID string, pageSize int, pageToken string) (groups []*domain.Group, nextPageToken string, err error)
+
+	// DeleteBatch removes every Group whose ID is in ids, atomically — all
+	// succeed or none do. Group is one of the entities ADR 0016 names for a
+	// real bulk-delete UI use case; most entities never need this.
+	DeleteBatch(ctx context.Context, ids []string) error
 }

@@ -49,6 +49,9 @@ const (
 	// GroupServiceGetGroupDeletionImpactProcedure is the fully-qualified name of the GroupService's
 	// GetGroupDeletionImpact RPC.
 	GroupServiceGetGroupDeletionImpactProcedure = "/purser.domain.v1.GroupService/GetGroupDeletionImpact"
+	// GroupServiceBulkDeleteGroupsProcedure is the fully-qualified name of the GroupService's
+	// BulkDeleteGroups RPC.
+	GroupServiceBulkDeleteGroupsProcedure = "/purser.domain.v1.GroupService/BulkDeleteGroups"
 )
 
 // GroupServiceClient is a client for the purser.domain.v1.GroupService service.
@@ -62,6 +65,9 @@ type GroupServiceClient interface {
 	// Delete is called — see
 	// docs/adr/0015-deletion-impact-and-composing-services.md.
 	GetGroupDeletionImpact(context.Context, *connect.Request[v1.GetGroupDeletionImpactRequest]) (*connect.Response[v1.GetGroupDeletionImpactResponse], error)
+	// BulkDeleteGroups removes every Group in ids atomically — see
+	// docs/adr/0016-bulk-operations.md.
+	BulkDeleteGroups(context.Context, *connect.Request[v1.BulkDeleteGroupsRequest]) (*connect.Response[v1.BulkDeleteGroupsResponse], error)
 }
 
 // NewGroupServiceClient constructs a client for the purser.domain.v1.GroupService service. By
@@ -111,6 +117,12 @@ func NewGroupServiceClient(httpClient connect.HTTPClient, baseURL string, opts .
 			connect.WithSchema(groupServiceMethods.ByName("GetGroupDeletionImpact")),
 			connect.WithClientOptions(opts...),
 		),
+		bulkDeleteGroups: connect.NewClient[v1.BulkDeleteGroupsRequest, v1.BulkDeleteGroupsResponse](
+			httpClient,
+			baseURL+GroupServiceBulkDeleteGroupsProcedure,
+			connect.WithSchema(groupServiceMethods.ByName("BulkDeleteGroups")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
@@ -122,6 +134,7 @@ type groupServiceClient struct {
 	deleteGroup            *connect.Client[v1.DeleteGroupRequest, v1.DeleteGroupResponse]
 	listGroups             *connect.Client[v1.ListGroupsRequest, v1.ListGroupsResponse]
 	getGroupDeletionImpact *connect.Client[v1.GetGroupDeletionImpactRequest, v1.GetGroupDeletionImpactResponse]
+	bulkDeleteGroups       *connect.Client[v1.BulkDeleteGroupsRequest, v1.BulkDeleteGroupsResponse]
 }
 
 // CreateGroup calls purser.domain.v1.GroupService.CreateGroup.
@@ -154,6 +167,11 @@ func (c *groupServiceClient) GetGroupDeletionImpact(ctx context.Context, req *co
 	return c.getGroupDeletionImpact.CallUnary(ctx, req)
 }
 
+// BulkDeleteGroups calls purser.domain.v1.GroupService.BulkDeleteGroups.
+func (c *groupServiceClient) BulkDeleteGroups(ctx context.Context, req *connect.Request[v1.BulkDeleteGroupsRequest]) (*connect.Response[v1.BulkDeleteGroupsResponse], error) {
+	return c.bulkDeleteGroups.CallUnary(ctx, req)
+}
+
 // GroupServiceHandler is an implementation of the purser.domain.v1.GroupService service.
 type GroupServiceHandler interface {
 	CreateGroup(context.Context, *connect.Request[v1.CreateGroupRequest]) (*connect.Response[v1.CreateGroupResponse], error)
@@ -165,6 +183,9 @@ type GroupServiceHandler interface {
 	// Delete is called — see
 	// docs/adr/0015-deletion-impact-and-composing-services.md.
 	GetGroupDeletionImpact(context.Context, *connect.Request[v1.GetGroupDeletionImpactRequest]) (*connect.Response[v1.GetGroupDeletionImpactResponse], error)
+	// BulkDeleteGroups removes every Group in ids atomically — see
+	// docs/adr/0016-bulk-operations.md.
+	BulkDeleteGroups(context.Context, *connect.Request[v1.BulkDeleteGroupsRequest]) (*connect.Response[v1.BulkDeleteGroupsResponse], error)
 }
 
 // NewGroupServiceHandler builds an HTTP handler from the service implementation. It returns the
@@ -210,6 +231,12 @@ func NewGroupServiceHandler(svc GroupServiceHandler, opts ...connect.HandlerOpti
 		connect.WithSchema(groupServiceMethods.ByName("GetGroupDeletionImpact")),
 		connect.WithHandlerOptions(opts...),
 	)
+	groupServiceBulkDeleteGroupsHandler := connect.NewUnaryHandler(
+		GroupServiceBulkDeleteGroupsProcedure,
+		svc.BulkDeleteGroups,
+		connect.WithSchema(groupServiceMethods.ByName("BulkDeleteGroups")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/purser.domain.v1.GroupService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case GroupServiceCreateGroupProcedure:
@@ -224,6 +251,8 @@ func NewGroupServiceHandler(svc GroupServiceHandler, opts ...connect.HandlerOpti
 			groupServiceListGroupsHandler.ServeHTTP(w, r)
 		case GroupServiceGetGroupDeletionImpactProcedure:
 			groupServiceGetGroupDeletionImpactHandler.ServeHTTP(w, r)
+		case GroupServiceBulkDeleteGroupsProcedure:
+			groupServiceBulkDeleteGroupsHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -255,4 +284,8 @@ func (UnimplementedGroupServiceHandler) ListGroups(context.Context, *connect.Req
 
 func (UnimplementedGroupServiceHandler) GetGroupDeletionImpact(context.Context, *connect.Request[v1.GetGroupDeletionImpactRequest]) (*connect.Response[v1.GetGroupDeletionImpactResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("purser.domain.v1.GroupService.GetGroupDeletionImpact is not implemented"))
+}
+
+func (UnimplementedGroupServiceHandler) BulkDeleteGroups(context.Context, *connect.Request[v1.BulkDeleteGroupsRequest]) (*connect.Response[v1.BulkDeleteGroupsResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("purser.domain.v1.GroupService.BulkDeleteGroups is not implemented"))
 }

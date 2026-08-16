@@ -636,6 +636,100 @@ func (x *GetLibraryEntryDeletionImpactResponse) GetImpacts() []*DeletionImpactRo
 	return nil
 }
 
+// BulkDeleteLibraryEntries is one of the bulk-delete endpoints named by
+// docs/adr/0016-bulk-operations.md — needed by the Library-grid
+// multi-select bulk-delete UI action, not a blanket bulk rollout.
+type BulkDeleteLibraryEntriesRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	Ids   []string               `protobuf:"bytes,1,rep,name=ids,proto3" json:"ids,omitempty"`
+	// cascade follows the same semantics as DeleteLibraryEntryRequest.cascade,
+	// applied per id: without it, a batch containing any id with existing
+	// Groups/Items fails entirely with FAILED_PRECONDITION.
+	Cascade       bool `protobuf:"varint,2,opt,name=cascade,proto3" json:"cascade,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *BulkDeleteLibraryEntriesRequest) Reset() {
+	*x = BulkDeleteLibraryEntriesRequest{}
+	mi := &file_purser_domain_v1_library_entry_proto_msgTypes[11]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *BulkDeleteLibraryEntriesRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*BulkDeleteLibraryEntriesRequest) ProtoMessage() {}
+
+func (x *BulkDeleteLibraryEntriesRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_purser_domain_v1_library_entry_proto_msgTypes[11]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use BulkDeleteLibraryEntriesRequest.ProtoReflect.Descriptor instead.
+func (*BulkDeleteLibraryEntriesRequest) Descriptor() ([]byte, []int) {
+	return file_purser_domain_v1_library_entry_proto_rawDescGZIP(), []int{11}
+}
+
+func (x *BulkDeleteLibraryEntriesRequest) GetIds() []string {
+	if x != nil {
+		return x.Ids
+	}
+	return nil
+}
+
+func (x *BulkDeleteLibraryEntriesRequest) GetCascade() bool {
+	if x != nil {
+		return x.Cascade
+	}
+	return false
+}
+
+type BulkDeleteLibraryEntriesResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *BulkDeleteLibraryEntriesResponse) Reset() {
+	*x = BulkDeleteLibraryEntriesResponse{}
+	mi := &file_purser_domain_v1_library_entry_proto_msgTypes[12]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *BulkDeleteLibraryEntriesResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*BulkDeleteLibraryEntriesResponse) ProtoMessage() {}
+
+func (x *BulkDeleteLibraryEntriesResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_purser_domain_v1_library_entry_proto_msgTypes[12]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use BulkDeleteLibraryEntriesResponse.ProtoReflect.Descriptor instead.
+func (*BulkDeleteLibraryEntriesResponse) Descriptor() ([]byte, []int) {
+	return file_purser_domain_v1_library_entry_proto_rawDescGZIP(), []int{12}
+}
+
 type ListLibraryEntriesRequest struct {
 	state     protoimpl.MessageState `protogen:"open.v1"`
 	PageSize  int32                  `protobuf:"varint,1,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
@@ -650,7 +744,7 @@ type ListLibraryEntriesRequest struct {
 
 func (x *ListLibraryEntriesRequest) Reset() {
 	*x = ListLibraryEntriesRequest{}
-	mi := &file_purser_domain_v1_library_entry_proto_msgTypes[11]
+	mi := &file_purser_domain_v1_library_entry_proto_msgTypes[13]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -662,7 +756,7 @@ func (x *ListLibraryEntriesRequest) String() string {
 func (*ListLibraryEntriesRequest) ProtoMessage() {}
 
 func (x *ListLibraryEntriesRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_purser_domain_v1_library_entry_proto_msgTypes[11]
+	mi := &file_purser_domain_v1_library_entry_proto_msgTypes[13]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -675,7 +769,7 @@ func (x *ListLibraryEntriesRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListLibraryEntriesRequest.ProtoReflect.Descriptor instead.
 func (*ListLibraryEntriesRequest) Descriptor() ([]byte, []int) {
-	return file_purser_domain_v1_library_entry_proto_rawDescGZIP(), []int{11}
+	return file_purser_domain_v1_library_entry_proto_rawDescGZIP(), []int{13}
 }
 
 func (x *ListLibraryEntriesRequest) GetPageSize() int32 {
@@ -716,7 +810,7 @@ type ListLibraryEntriesResponse struct {
 
 func (x *ListLibraryEntriesResponse) Reset() {
 	*x = ListLibraryEntriesResponse{}
-	mi := &file_purser_domain_v1_library_entry_proto_msgTypes[12]
+	mi := &file_purser_domain_v1_library_entry_proto_msgTypes[14]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -728,7 +822,7 @@ func (x *ListLibraryEntriesResponse) String() string {
 func (*ListLibraryEntriesResponse) ProtoMessage() {}
 
 func (x *ListLibraryEntriesResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_purser_domain_v1_library_entry_proto_msgTypes[12]
+	mi := &file_purser_domain_v1_library_entry_proto_msgTypes[14]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -741,7 +835,7 @@ func (x *ListLibraryEntriesResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListLibraryEntriesResponse.ProtoReflect.Descriptor instead.
 func (*ListLibraryEntriesResponse) Descriptor() ([]byte, []int) {
-	return file_purser_domain_v1_library_entry_proto_rawDescGZIP(), []int{12}
+	return file_purser_domain_v1_library_entry_proto_rawDescGZIP(), []int{14}
 }
 
 func (x *ListLibraryEntriesResponse) GetLibraryEntries() []*LibraryEntry {
@@ -800,7 +894,11 @@ const file_purser_domain_v1_library_entry_proto_rawDesc = "" +
 	"$GetLibraryEntryDeletionImpactRequest\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\"f\n" +
 	"%GetLibraryEntryDeletionImpactResponse\x12=\n" +
-	"\aimpacts\x18\x01 \x03(\v2#.purser.domain.v1.DeletionImpactRowR\aimpacts\"\x88\x01\n" +
+	"\aimpacts\x18\x01 \x03(\v2#.purser.domain.v1.DeletionImpactRowR\aimpacts\"M\n" +
+	"\x1fBulkDeleteLibraryEntriesRequest\x12\x10\n" +
+	"\x03ids\x18\x01 \x03(\tR\x03ids\x12\x18\n" +
+	"\acascade\x18\x02 \x01(\bR\acascade\"\"\n" +
+	" BulkDeleteLibraryEntriesResponse\"\x88\x01\n" +
 	"\x19ListLibraryEntriesRequest\x12\x1b\n" +
 	"\tpage_size\x18\x01 \x01(\x05R\bpageSize\x12\x1d\n" +
 	"\n" +
@@ -809,14 +907,15 @@ const file_purser_domain_v1_library_entry_proto_rawDesc = "" +
 	"\tparent_id\x18\x04 \x01(\tR\bparentId\"\x8d\x01\n" +
 	"\x1aListLibraryEntriesResponse\x12G\n" +
 	"\x0flibrary_entries\x18\x01 \x03(\v2\x1e.purser.domain.v1.LibraryEntryR\x0elibraryEntries\x12&\n" +
-	"\x0fnext_page_token\x18\x02 \x01(\tR\rnextPageToken2\xd4\x05\n" +
+	"\x0fnext_page_token\x18\x02 \x01(\tR\rnextPageToken2\xd8\x06\n" +
 	"\x13LibraryEntryService\x12o\n" +
 	"\x12CreateLibraryEntry\x12+.purser.domain.v1.CreateLibraryEntryRequest\x1a,.purser.domain.v1.CreateLibraryEntryResponse\x12f\n" +
 	"\x0fGetLibraryEntry\x12(.purser.domain.v1.GetLibraryEntryRequest\x1a).purser.domain.v1.GetLibraryEntryResponse\x12o\n" +
 	"\x12UpdateLibraryEntry\x12+.purser.domain.v1.UpdateLibraryEntryRequest\x1a,.purser.domain.v1.UpdateLibraryEntryResponse\x12o\n" +
 	"\x12DeleteLibraryEntry\x12+.purser.domain.v1.DeleteLibraryEntryRequest\x1a,.purser.domain.v1.DeleteLibraryEntryResponse\x12o\n" +
 	"\x12ListLibraryEntries\x12+.purser.domain.v1.ListLibraryEntriesRequest\x1a,.purser.domain.v1.ListLibraryEntriesResponse\x12\x90\x01\n" +
-	"\x1dGetLibraryEntryDeletionImpact\x126.purser.domain.v1.GetLibraryEntryDeletionImpactRequest\x1a7.purser.domain.v1.GetLibraryEntryDeletionImpactResponseB)Z'purser/gen/go/purser/domain/v1;domainv1b\x06proto3"
+	"\x1dGetLibraryEntryDeletionImpact\x126.purser.domain.v1.GetLibraryEntryDeletionImpactRequest\x1a7.purser.domain.v1.GetLibraryEntryDeletionImpactResponse\x12\x81\x01\n" +
+	"\x18BulkDeleteLibraryEntries\x121.purser.domain.v1.BulkDeleteLibraryEntriesRequest\x1a2.purser.domain.v1.BulkDeleteLibraryEntriesResponseB)Z'purser/gen/go/purser/domain/v1;domainv1b\x06proto3"
 
 var (
 	file_purser_domain_v1_library_entry_proto_rawDescOnce sync.Once
@@ -830,7 +929,7 @@ func file_purser_domain_v1_library_entry_proto_rawDescGZIP() []byte {
 	return file_purser_domain_v1_library_entry_proto_rawDescData
 }
 
-var file_purser_domain_v1_library_entry_proto_msgTypes = make([]protoimpl.MessageInfo, 13)
+var file_purser_domain_v1_library_entry_proto_msgTypes = make([]protoimpl.MessageInfo, 15)
 var file_purser_domain_v1_library_entry_proto_goTypes = []any{
 	(*LibraryEntry)(nil),                          // 0: purser.domain.v1.LibraryEntry
 	(*CreateLibraryEntryRequest)(nil),             // 1: purser.domain.v1.CreateLibraryEntryRequest
@@ -843,38 +942,42 @@ var file_purser_domain_v1_library_entry_proto_goTypes = []any{
 	(*DeleteLibraryEntryResponse)(nil),            // 8: purser.domain.v1.DeleteLibraryEntryResponse
 	(*GetLibraryEntryDeletionImpactRequest)(nil),  // 9: purser.domain.v1.GetLibraryEntryDeletionImpactRequest
 	(*GetLibraryEntryDeletionImpactResponse)(nil), // 10: purser.domain.v1.GetLibraryEntryDeletionImpactResponse
-	(*ListLibraryEntriesRequest)(nil),             // 11: purser.domain.v1.ListLibraryEntriesRequest
-	(*ListLibraryEntriesResponse)(nil),            // 12: purser.domain.v1.ListLibraryEntriesResponse
-	(MonitorMode)(0),                              // 13: purser.domain.v1.MonitorMode
-	(*structpb.Struct)(nil),                       // 14: google.protobuf.Struct
-	(*fieldmaskpb.FieldMask)(nil),                 // 15: google.protobuf.FieldMask
-	(*DeletionImpactRow)(nil),                     // 16: purser.domain.v1.DeletionImpactRow
+	(*BulkDeleteLibraryEntriesRequest)(nil),       // 11: purser.domain.v1.BulkDeleteLibraryEntriesRequest
+	(*BulkDeleteLibraryEntriesResponse)(nil),      // 12: purser.domain.v1.BulkDeleteLibraryEntriesResponse
+	(*ListLibraryEntriesRequest)(nil),             // 13: purser.domain.v1.ListLibraryEntriesRequest
+	(*ListLibraryEntriesResponse)(nil),            // 14: purser.domain.v1.ListLibraryEntriesResponse
+	(MonitorMode)(0),                              // 15: purser.domain.v1.MonitorMode
+	(*structpb.Struct)(nil),                       // 16: google.protobuf.Struct
+	(*fieldmaskpb.FieldMask)(nil),                 // 17: google.protobuf.FieldMask
+	(*DeletionImpactRow)(nil),                     // 18: purser.domain.v1.DeletionImpactRow
 }
 var file_purser_domain_v1_library_entry_proto_depIdxs = []int32{
-	13, // 0: purser.domain.v1.LibraryEntry.monitor_mode:type_name -> purser.domain.v1.MonitorMode
-	14, // 1: purser.domain.v1.LibraryEntry.metadata:type_name -> google.protobuf.Struct
+	15, // 0: purser.domain.v1.LibraryEntry.monitor_mode:type_name -> purser.domain.v1.MonitorMode
+	16, // 1: purser.domain.v1.LibraryEntry.metadata:type_name -> google.protobuf.Struct
 	0,  // 2: purser.domain.v1.CreateLibraryEntryRequest.library_entry:type_name -> purser.domain.v1.LibraryEntry
 	0,  // 3: purser.domain.v1.CreateLibraryEntryResponse.library_entry:type_name -> purser.domain.v1.LibraryEntry
 	0,  // 4: purser.domain.v1.GetLibraryEntryResponse.library_entry:type_name -> purser.domain.v1.LibraryEntry
 	0,  // 5: purser.domain.v1.UpdateLibraryEntryRequest.library_entry:type_name -> purser.domain.v1.LibraryEntry
-	15, // 6: purser.domain.v1.UpdateLibraryEntryRequest.update_mask:type_name -> google.protobuf.FieldMask
+	17, // 6: purser.domain.v1.UpdateLibraryEntryRequest.update_mask:type_name -> google.protobuf.FieldMask
 	0,  // 7: purser.domain.v1.UpdateLibraryEntryResponse.library_entry:type_name -> purser.domain.v1.LibraryEntry
-	16, // 8: purser.domain.v1.GetLibraryEntryDeletionImpactResponse.impacts:type_name -> purser.domain.v1.DeletionImpactRow
+	18, // 8: purser.domain.v1.GetLibraryEntryDeletionImpactResponse.impacts:type_name -> purser.domain.v1.DeletionImpactRow
 	0,  // 9: purser.domain.v1.ListLibraryEntriesResponse.library_entries:type_name -> purser.domain.v1.LibraryEntry
 	1,  // 10: purser.domain.v1.LibraryEntryService.CreateLibraryEntry:input_type -> purser.domain.v1.CreateLibraryEntryRequest
 	3,  // 11: purser.domain.v1.LibraryEntryService.GetLibraryEntry:input_type -> purser.domain.v1.GetLibraryEntryRequest
 	5,  // 12: purser.domain.v1.LibraryEntryService.UpdateLibraryEntry:input_type -> purser.domain.v1.UpdateLibraryEntryRequest
 	7,  // 13: purser.domain.v1.LibraryEntryService.DeleteLibraryEntry:input_type -> purser.domain.v1.DeleteLibraryEntryRequest
-	11, // 14: purser.domain.v1.LibraryEntryService.ListLibraryEntries:input_type -> purser.domain.v1.ListLibraryEntriesRequest
+	13, // 14: purser.domain.v1.LibraryEntryService.ListLibraryEntries:input_type -> purser.domain.v1.ListLibraryEntriesRequest
 	9,  // 15: purser.domain.v1.LibraryEntryService.GetLibraryEntryDeletionImpact:input_type -> purser.domain.v1.GetLibraryEntryDeletionImpactRequest
-	2,  // 16: purser.domain.v1.LibraryEntryService.CreateLibraryEntry:output_type -> purser.domain.v1.CreateLibraryEntryResponse
-	4,  // 17: purser.domain.v1.LibraryEntryService.GetLibraryEntry:output_type -> purser.domain.v1.GetLibraryEntryResponse
-	6,  // 18: purser.domain.v1.LibraryEntryService.UpdateLibraryEntry:output_type -> purser.domain.v1.UpdateLibraryEntryResponse
-	8,  // 19: purser.domain.v1.LibraryEntryService.DeleteLibraryEntry:output_type -> purser.domain.v1.DeleteLibraryEntryResponse
-	12, // 20: purser.domain.v1.LibraryEntryService.ListLibraryEntries:output_type -> purser.domain.v1.ListLibraryEntriesResponse
-	10, // 21: purser.domain.v1.LibraryEntryService.GetLibraryEntryDeletionImpact:output_type -> purser.domain.v1.GetLibraryEntryDeletionImpactResponse
-	16, // [16:22] is the sub-list for method output_type
-	10, // [10:16] is the sub-list for method input_type
+	11, // 16: purser.domain.v1.LibraryEntryService.BulkDeleteLibraryEntries:input_type -> purser.domain.v1.BulkDeleteLibraryEntriesRequest
+	2,  // 17: purser.domain.v1.LibraryEntryService.CreateLibraryEntry:output_type -> purser.domain.v1.CreateLibraryEntryResponse
+	4,  // 18: purser.domain.v1.LibraryEntryService.GetLibraryEntry:output_type -> purser.domain.v1.GetLibraryEntryResponse
+	6,  // 19: purser.domain.v1.LibraryEntryService.UpdateLibraryEntry:output_type -> purser.domain.v1.UpdateLibraryEntryResponse
+	8,  // 20: purser.domain.v1.LibraryEntryService.DeleteLibraryEntry:output_type -> purser.domain.v1.DeleteLibraryEntryResponse
+	14, // 21: purser.domain.v1.LibraryEntryService.ListLibraryEntries:output_type -> purser.domain.v1.ListLibraryEntriesResponse
+	10, // 22: purser.domain.v1.LibraryEntryService.GetLibraryEntryDeletionImpact:output_type -> purser.domain.v1.GetLibraryEntryDeletionImpactResponse
+	12, // 23: purser.domain.v1.LibraryEntryService.BulkDeleteLibraryEntries:output_type -> purser.domain.v1.BulkDeleteLibraryEntriesResponse
+	17, // [17:24] is the sub-list for method output_type
+	10, // [10:17] is the sub-list for method input_type
 	10, // [10:10] is the sub-list for extension type_name
 	10, // [10:10] is the sub-list for extension extendee
 	0,  // [0:10] is the sub-list for field type_name
@@ -892,7 +995,7 @@ func file_purser_domain_v1_library_entry_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_purser_domain_v1_library_entry_proto_rawDesc), len(file_purser_domain_v1_library_entry_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   13,
+			NumMessages:   15,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

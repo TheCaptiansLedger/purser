@@ -132,5 +132,41 @@ export default () => {
   res = invoke('purser.domain.v1.ItemService/DeleteItem', { id: trackId });
   check(res, { 'cleanup: DeleteItem(track) status is OK': (r) => r && r.status === grpc.StatusOK });
 
+  // BulkDeleteGroups: the "delete these 12 duplicate discography groups"
+  // use case — see docs/adr/0016-bulk-operations.md.
+  const bulkIds = [];
+  for (let i = 0; i < 3; i++) {
+    res = invoke('purser.domain.v1.GroupService/CreateGroup', {
+      group: { libraryEntryId: 'entry1', title: 'K6 Bulk Group', monitorMode: 'MONITOR_MODE_NONE' },
+    });
+    check(res, {
+      'setup: CreateGroup status is OK': (r) => r && r.status === grpc.StatusOK,
+      'setup: CreateGroup returns an id': (r) => r && r.message && r.message.group && !!r.message.group.id,
+    });
+    bulkIds.push(res.message.group.id);
+  }
+  const [bulkId1, bulkId2, bulkId3] = bulkIds;
+
+  res = invoke('purser.domain.v1.GroupService/BulkDeleteGroups', { ids: [bulkId1, bulkId2] });
+  check(res, { 'BulkDeleteGroups status is OK': (r) => r && r.status === grpc.StatusOK });
+
+  res = invoke('purser.domain.v1.GroupService/GetGroup', { id: bulkId1 });
+  check(res, { 'GetGroup for bulkId1 after BulkDeleteGroups is NotFound': (r) => r && r.status === grpc.StatusNotFound });
+  res = invoke('purser.domain.v1.GroupService/GetGroup', { id: bulkId2 });
+  check(res, { 'GetGroup for bulkId2 after BulkDeleteGroups is NotFound': (r) => r && r.status === grpc.StatusNotFound });
+  res = invoke('purser.domain.v1.GroupService/GetGroup', { id: bulkId3 });
+  check(res, { 'GetGroup for bulkId3 (not in the batch) still exists': (r) => r && r.status === grpc.StatusOK });
+
+  // All-or-nothing: a batch with one missing id must fail entirely — the
+  // still-existing bulkId3 must not be removed either.
+  res = invoke('purser.domain.v1.GroupService/BulkDeleteGroups', { ids: [bulkId3, 'k6-grpc-group-missing'] });
+  check(res, { 'BulkDeleteGroups with a missing id is NotFound': (r) => r && r.status === grpc.StatusNotFound });
+
+  res = invoke('purser.domain.v1.GroupService/GetGroup', { id: bulkId3 });
+  check(res, { 'GetGroup for bulkId3 after failed batch still exists (rolled back)': (r) => r && r.status === grpc.StatusOK });
+
+  res = invoke('purser.domain.v1.GroupService/DeleteGroup', { id: bulkId3 });
+  check(res, { 'cleanup: DeleteGroup status is OK': (r) => r && r.status === grpc.StatusOK });
+
   client.close();
 };

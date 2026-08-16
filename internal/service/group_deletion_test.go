@@ -10,9 +10,10 @@ import (
 )
 
 type deletionFakeGroupRepository struct {
-	byID      map[string]*domain.Group
-	listErr   error
-	deleteErr error
+	byID           map[string]*domain.Group
+	listErr        error
+	deleteErr      error
+	deleteBatchErr error
 }
 
 func (f *deletionFakeGroupRepository) Create(_ context.Context, g *domain.Group) error {
@@ -41,6 +42,21 @@ func (f *deletionFakeGroupRepository) Delete(_ context.Context, id string) error
 		return ports.ErrNotFound
 	}
 	delete(f.byID, id)
+	return nil
+}
+
+func (f *deletionFakeGroupRepository) DeleteBatch(_ context.Context, ids []string) error {
+	if f.deleteBatchErr != nil {
+		return f.deleteBatchErr
+	}
+	for _, id := range ids {
+		if _, ok := f.byID[id]; !ok {
+			return ports.ErrNotFound
+		}
+	}
+	for _, id := range ids {
+		delete(f.byID, id)
+	}
 	return nil
 }
 
@@ -395,6 +411,98 @@ func TestGroupDeletionService_Delete_PropagatesPortErrors(t *testing.T) {
 		releases.listByGroupErr = errBoom
 		if _, err := svc.GetDeletionImpact(context.Background(), "g1"); !errors.Is(err, errBoom) {
 			t.Fatalf("GetDeletionImpact returned %v, want errBoom", err)
+		}
+	})
+}
+
+func newGroupDeletionBatchFixture() (*service.GroupDeletionService, *deletionFakeGroupRepository, *deletionFakeItemRepositoryFiltered) {
+	groups := &deletionFakeGroupRepository{byID: map[string]*domain.Group{
+		"g1": {ID: "g1", LibraryEntryID: "e1"},
+		"g2": {ID: "g2", LibraryEntryID: "e1"},
+		"g3": {ID: "g3", LibraryEntryID: "e1"},
+	}}
+	items := &deletionFakeItemRepositoryFiltered{byID: map[string]*domain.Item{
+		"i1": {ID: "i1", LibraryEntryID: "e1", GroupID: "g1"},
+		"i2": {ID: "i2", LibraryEntryID: "e1", GroupID: "g2"},
+		"i3": {ID: "i3", LibraryEntryID: "e1", GroupID: "g3"},
+	}}
+	externalIDs := &deletionFakeExternalIDRepository{}
+	images := &deletionFakeImageRepository{byID: map[string]*domain.Image{}}
+	tagAssignments := &deletionFakeTagAssignmentRepository{}
+	releases := newFakeMusicReleaseRepository()
+	musicReleaseDeletion := service.NewMusicReleaseDeletionService(releases, items)
+	svc := service.NewGroupDeletionService(groups, items, externalIDs, images, tagAssignments, releases, musicReleaseDeletion)
+	return svc, groups, items
+}
+
+func TestGroupDeletionService_DeleteBatch(t *testing.T) {
+	svc, groups, items := newGroupDeletionBatchFixture()
+
+	if err := svc.DeleteBatch(context.Background(), []string{"g1", "g2"}, false); err != nil {
+		t.Fatalf("DeleteBatch returned error: %v", err)
+	}
+
+	if _, err := groups.Get(context.Background(), "g1"); !errors.Is(err, ports.ErrNotFound) {
+		t.Fatal("DeleteBatch did not remove g1")
+	}
+	if _, err := groups.Get(context.Background(), "g2"); !errors.Is(err, ports.ErrNotFound) {
+		t.Fatal("DeleteBatch did not remove g2")
+	}
+	if _, err := groups.Get(context.Background(), "g3"); err != nil {
+		t.Fatalf("DeleteBatch removed g3, which wasn't in the batch: %v", err)
+	}
+
+	// Items under the deleted groups must be detached, not deleted.
+	i1, err := items.Get(context.Background(), "i1")
+	if err != nil {
+		t.Fatalf("DeleteBatch removed Item i1 entirely, want it detached but intact: %v", err)
+	}
+	if i1.GroupID != "" {
+		t.Fatalf("DeleteBatch left Item i1 GroupID = %q, want empty (detached)", i1.GroupID)
+	}
+	i3, err := items.Get(context.Background(), "i3")
+	if err != nil {
+		t.Fatalf("DeleteBatch affected an unrelated item: %v", err)
+	}
+	if i3.GroupID != "g3" {
+		t.Fatalf("DeleteBatch changed Item i3 GroupID to %q, want it untouched (g3)", i3.GroupID)
+	}
+}
+
+func TestGroupDeletionService_DeleteBatch_MissingIDFailsWithoutSideEffects(t *testing.T) {
+	svc, groups, items := newGroupDeletionBatchFixture()
+
+	err := svc.DeleteBatch(context.Background(), []string{"g1", "missing", "g2"}, false)
+	if !errors.Is(err, ports.ErrNotFound) {
+		t.Fatalf("DeleteBatch with a missing id returned %v, want ErrNotFound", err)
+	}
+
+	if _, err := groups.Get(context.Background(), "g1"); err != nil {
+		t.Fatalf("DeleteBatch removed g1 despite failing: %v", err)
+	}
+	i1, err := items.Get(context.Background(), "i1")
+	if err != nil {
+		t.Fatalf("DeleteBatch removed Item i1 despite failing: %v", err)
+	}
+	if i1.GroupID != "g1" {
+		t.Fatalf("DeleteBatch detached Item i1 despite failing: GroupID = %q, want g1", i1.GroupID)
+	}
+}
+
+func TestGroupDeletionService_DeleteBatch_PropagatesPortErrors(t *testing.T) {
+	t.Run("groups DeleteBatch error propagates", func(t *testing.T) {
+		svc, groups, _ := newGroupDeletionBatchFixture()
+		groups.deleteBatchErr = errBoom
+		if err := svc.DeleteBatch(context.Background(), []string{"g1", "g2"}, false); !errors.Is(err, errBoom) {
+			t.Fatalf("DeleteBatch returned %v, want errBoom", err)
+		}
+	})
+
+	t.Run("items Update error propagates", func(t *testing.T) {
+		svc, _, items := newGroupDeletionBatchFixture()
+		items.updateErr = errBoom
+		if err := svc.DeleteBatch(context.Background(), []string{"g1", "g2"}, false); !errors.Is(err, errBoom) {
+			t.Fatalf("DeleteBatch returned %v, want errBoom", err)
 		}
 	})
 }

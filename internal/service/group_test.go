@@ -60,6 +60,18 @@ func (f *fakeGroupRepository) Delete(_ context.Context, id string) error {
 	return nil
 }
 
+func (f *fakeGroupRepository) DeleteBatch(_ context.Context, ids []string) error {
+	for _, id := range ids {
+		if _, ok := f.byID[id]; !ok {
+			return ports.ErrNotFound
+		}
+	}
+	for _, id := range ids {
+		delete(f.byID, id)
+	}
+	return nil
+}
+
 func (f *fakeGroupRepository) List(_ context.Context, _ string, _ int, _ string) ([]*domain.Group, string, error) {
 	groups := make([]*domain.Group, 0, len(f.byID))
 	for _, g := range f.byID {

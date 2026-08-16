@@ -134,4 +134,69 @@ export default () => {
 
   res = invoke(`${GROUP_SERVICE}/GetGroup`, JSON.stringify({ id: groupId }), HEADERS);
   check(res, { 'GetGroup after cascade Delete is 404 (NotFound)': (r) => r.status === 404 });
+
+  // BulkDeleteLibraryEntries: the "delete these 12 duplicate studios" use
+  // case — see docs/adr/0016-bulk-operations.md.
+  const bulkIds = [];
+  for (let i = 0; i < 3; i++) {
+    res = invoke(
+      `${SERVICE}/CreateLibraryEntry`,
+      JSON.stringify({ libraryEntry: { contentType: 'adult', kind: 'studio', name: 'K6 Bulk Entry', monitorMode: 'MONITOR_MODE_NONE' } }),
+      HEADERS
+    );
+    check(res, {
+      'setup: CreateLibraryEntry status is 200': (r) => r.status === 200,
+      'setup: CreateLibraryEntry returns an id': (r) => !!r.json('libraryEntry.id'),
+    });
+    bulkIds.push(res.json('libraryEntry.id'));
+  }
+  const [bulkId1, bulkId2, bulkId3] = bulkIds;
+
+  res = invoke(`${SERVICE}/BulkDeleteLibraryEntries`, JSON.stringify({ ids: [bulkId1, bulkId2] }), HEADERS);
+  check(res, { 'BulkDeleteLibraryEntries status is 200': (r) => r.status === 200 });
+
+  res = invoke(`${SERVICE}/GetLibraryEntry`, JSON.stringify({ id: bulkId1 }), HEADERS);
+  check(res, { 'GetLibraryEntry for bulkId1 after BulkDeleteLibraryEntries is 404': (r) => r.status === 404 });
+  res = invoke(`${SERVICE}/GetLibraryEntry`, JSON.stringify({ id: bulkId2 }), HEADERS);
+  check(res, { 'GetLibraryEntry for bulkId2 after BulkDeleteLibraryEntries is 404': (r) => r.status === 404 });
+  res = invoke(`${SERVICE}/GetLibraryEntry`, JSON.stringify({ id: bulkId3 }), HEADERS);
+  check(res, { 'GetLibraryEntry for bulkId3 (not in the batch) still exists': (r) => r.status === 200 });
+
+  // All-or-nothing: a batch with one missing id must fail entirely — the
+  // still-existing bulkId3 must not be removed either.
+  res = invoke(`${SERVICE}/BulkDeleteLibraryEntries`, JSON.stringify({ ids: [bulkId3, 'k6-http-entry-missing'] }), HEADERS);
+  check(res, { 'BulkDeleteLibraryEntries with a missing id is 404': (r) => r.status === 404 });
+
+  res = invoke(`${SERVICE}/GetLibraryEntry`, JSON.stringify({ id: bulkId3 }), HEADERS);
+  check(res, { 'GetLibraryEntry for bulkId3 after failed batch still exists (rolled back)': (r) => r.status === 200 });
+
+  // All-or-nothing precondition: bulkId3 (clean) plus a row with a Group
+  // under it and cascade=false must fail the whole batch, per issue #654's
+  // acceptance criterion — bulkId3 must not be removed either, even
+  // though it's otherwise perfectly deletable on its own.
+  res = invoke(
+    `${GROUP_SERVICE}/CreateGroup`,
+    JSON.stringify({ group: { libraryEntryId: bulkId3, title: 'K6 Bulk Entry Blocking Group', monitorMode: 'MONITOR_MODE_NONE' } }),
+    HEADERS
+  );
+  check(res, {
+    'setup: CreateGroup (blocking) status is 200': (r) => r.status === 200,
+    'setup: CreateGroup (blocking) returns an id': (r) => !!r.json('group.id'),
+  });
+  const blockingGroupId = res.json('group.id');
+
+  res = invoke(`${SERVICE}/BulkDeleteLibraryEntries`, JSON.stringify({ ids: [bulkId3] }), HEADERS);
+  check(res, {
+    'BulkDeleteLibraryEntries without cascade is 400 (FailedPrecondition) when a Group exists': (r) => r.status === 400,
+  });
+  res = invoke(`${SERVICE}/GetLibraryEntry`, JSON.stringify({ id: bulkId3 }), HEADERS);
+  check(res, { 'GetLibraryEntry for bulkId3 after blocked batch still exists': (r) => r.status === 200 });
+
+  res = invoke(`${SERVICE}/BulkDeleteLibraryEntries`, JSON.stringify({ ids: [bulkId3], cascade: true }), HEADERS);
+  check(res, { 'BulkDeleteLibraryEntries with cascade status is 200': (r) => r.status === 200 });
+
+  res = invoke(`${SERVICE}/GetLibraryEntry`, JSON.stringify({ id: bulkId3 }), HEADERS);
+  check(res, { 'GetLibraryEntry for bulkId3 after cascade batch is 404 (NotFound)': (r) => r.status === 404 });
+  res = invoke(`${GROUP_SERVICE}/GetGroup`, JSON.stringify({ id: blockingGroupId }), HEADERS);
+  check(res, { 'GetGroup for the blocking group after cascade batch is 404 (NotFound)': (r) => r.status === 404 });
 };

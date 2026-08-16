@@ -82,6 +82,19 @@ message GetLibraryEntryDeletionImpactResponse {
   repeated DeletionImpactRow impacts = 1;
 }
 
+// BulkDeleteLibraryEntries is one of the bulk-delete endpoints named by
+// docs/adr/0016-bulk-operations.md — needed by the Library-grid
+// multi-select bulk-delete UI action, not a blanket bulk rollout.
+message BulkDeleteLibraryEntriesRequest {
+  repeated string ids = 1;
+  // cascade follows the same semantics as DeleteLibraryEntryRequest.cascade,
+  // applied per id: without it, a batch containing any id with existing
+  // Groups/Items fails entirely with FAILED_PRECONDITION.
+  bool cascade = 2;
+}
+
+message BulkDeleteLibraryEntriesResponse {}
+
 message ListLibraryEntriesRequest {
   int32 page_size = 1;
   string page_token = 2;
@@ -108,4 +121,7 @@ service LibraryEntryService {
   // LibraryEntry before Delete is called — see
   // docs/adr/0015-deletion-impact-and-composing-services.md.
   rpc GetLibraryEntryDeletionImpact(GetLibraryEntryDeletionImpactRequest) returns (GetLibraryEntryDeletionImpactResponse);
+  // BulkDeleteLibraryEntries removes every LibraryEntry in ids atomically
+  // — see docs/adr/0016-bulk-operations.md.
+  rpc BulkDeleteLibraryEntries(BulkDeleteLibraryEntriesRequest) returns (BulkDeleteLibraryEntriesResponse);
 }

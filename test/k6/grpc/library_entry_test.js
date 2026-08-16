@@ -136,5 +136,66 @@ export default () => {
   res = invoke('purser.domain.v1.GroupService/GetGroup', { id: groupId });
   check(res, { 'GetGroup after cascade Delete is NotFound': (r) => r && r.status === grpc.StatusNotFound });
 
+  // BulkDeleteLibraryEntries: the "delete these 12 duplicate studios" use
+  // case — see docs/adr/0016-bulk-operations.md.
+  const bulkIds = [];
+  for (let i = 0; i < 3; i++) {
+    res = invoke('purser.domain.v1.LibraryEntryService/CreateLibraryEntry', {
+      libraryEntry: { contentType: 'adult', kind: 'studio', name: 'K6 Bulk Entry', monitorMode: 'MONITOR_MODE_NONE' },
+    });
+    check(res, {
+      'setup: CreateLibraryEntry status is OK': (r) => r && r.status === grpc.StatusOK,
+      'setup: CreateLibraryEntry returns an id': (r) => r && r.message && r.message.libraryEntry && !!r.message.libraryEntry.id,
+    });
+    bulkIds.push(res.message.libraryEntry.id);
+  }
+  const [bulkId1, bulkId2, bulkId3] = bulkIds;
+
+  res = invoke('purser.domain.v1.LibraryEntryService/BulkDeleteLibraryEntries', { ids: [bulkId1, bulkId2] });
+  check(res, { 'BulkDeleteLibraryEntries status is OK': (r) => r && r.status === grpc.StatusOK });
+
+  res = invoke('purser.domain.v1.LibraryEntryService/GetLibraryEntry', { id: bulkId1 });
+  check(res, { 'GetLibraryEntry for bulkId1 after BulkDeleteLibraryEntries is NotFound': (r) => r && r.status === grpc.StatusNotFound });
+  res = invoke('purser.domain.v1.LibraryEntryService/GetLibraryEntry', { id: bulkId2 });
+  check(res, { 'GetLibraryEntry for bulkId2 after BulkDeleteLibraryEntries is NotFound': (r) => r && r.status === grpc.StatusNotFound });
+  res = invoke('purser.domain.v1.LibraryEntryService/GetLibraryEntry', { id: bulkId3 });
+  check(res, { 'GetLibraryEntry for bulkId3 (not in the batch) still exists': (r) => r && r.status === grpc.StatusOK });
+
+  // All-or-nothing: a batch with one missing id must fail entirely — the
+  // still-existing bulkId3 must not be removed either.
+  res = invoke('purser.domain.v1.LibraryEntryService/BulkDeleteLibraryEntries', { ids: [bulkId3, 'k6-grpc-entry-missing'] });
+  check(res, { 'BulkDeleteLibraryEntries with a missing id is NotFound': (r) => r && r.status === grpc.StatusNotFound });
+
+  res = invoke('purser.domain.v1.LibraryEntryService/GetLibraryEntry', { id: bulkId3 });
+  check(res, { 'GetLibraryEntry for bulkId3 after failed batch still exists (rolled back)': (r) => r && r.status === grpc.StatusOK });
+
+  // All-or-nothing precondition: bulkId3 (clean) plus a row with a Group
+  // under it and cascade=false must fail the whole batch, per issue #654's
+  // acceptance criterion — bulkId3 must not be removed either, even
+  // though it's otherwise perfectly deletable on its own.
+  res = invoke('purser.domain.v1.GroupService/CreateGroup', {
+    group: { libraryEntryId: bulkId3, title: 'K6 Bulk Entry Blocking Group', monitorMode: 'MONITOR_MODE_NONE' },
+  });
+  check(res, {
+    'setup: CreateGroup (blocking) status is OK': (r) => r && r.status === grpc.StatusOK,
+    'setup: CreateGroup (blocking) returns an id': (r) => r && r.message && r.message.group && !!r.message.group.id,
+  });
+  const blockingGroupId = res.message.group.id;
+
+  res = invoke('purser.domain.v1.LibraryEntryService/BulkDeleteLibraryEntries', { ids: [bulkId3] });
+  check(res, {
+    'BulkDeleteLibraryEntries without cascade is FailedPrecondition when a Group exists': (r) => r && r.status === grpc.StatusFailedPrecondition,
+  });
+  res = invoke('purser.domain.v1.LibraryEntryService/GetLibraryEntry', { id: bulkId3 });
+  check(res, { 'GetLibraryEntry for bulkId3 after blocked batch still exists': (r) => r && r.status === grpc.StatusOK });
+
+  res = invoke('purser.domain.v1.LibraryEntryService/BulkDeleteLibraryEntries', { ids: [bulkId3], cascade: true });
+  check(res, { 'BulkDeleteLibraryEntries with cascade status is OK': (r) => r && r.status === grpc.StatusOK });
+
+  res = invoke('purser.domain.v1.LibraryEntryService/GetLibraryEntry', { id: bulkId3 });
+  check(res, { 'GetLibraryEntry for bulkId3 after cascade batch is NotFound': (r) => r && r.status === grpc.StatusNotFound });
+  res = invoke('purser.domain.v1.GroupService/GetGroup', { id: blockingGroupId });
+  check(res, { 'GetGroup for the blocking group after cascade batch is NotFound': (r) => r && r.status === grpc.StatusNotFound });
+
   client.close();
 };
