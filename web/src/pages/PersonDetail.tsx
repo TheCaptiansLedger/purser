@@ -7,6 +7,7 @@ import type { Timestamp } from '@bufbuild/protobuf/wkt'
 import { ChooseArtworkDialog } from '../components/ChooseArtworkDialog'
 import { ImageGallery } from '../components/ImageGallery'
 import { ImageLightbox } from '../components/ImageLightbox'
+import { PersonAppearances } from '../components/PersonAppearances'
 import { Toggle } from '../components/Toggle'
 import { MonitorMode } from '../gen/purser/domain/v1/common_pb'
 import { getSelectedImage } from '../gen/purser/domain/v1/image-ImageService_connectquery'
@@ -26,6 +27,8 @@ function formatDate(timestamp: Timestamp | undefined): string | undefined {
 // #655's ImageLightbox to view the current one full-screen on click.
 // Upload-only in ChooseArtworkDialog — unlike Artist/Album art there's no
 // provider lookup RPC for a Person photo, so no candidates are passed.
+// #662's PersonAppearances renders the "Appears as" cross-module list
+// below the facts panel.
 export function PersonDetail() {
   const { id = '' } = useParams<{ id: string }>()
   const personQuery = usePerson(id)
@@ -161,6 +164,8 @@ export function PersonDetail() {
               ))}
             </div>
           )}
+
+          <PersonAppearances personId={id} />
         </div>
       </div>
 

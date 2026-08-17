@@ -1,3 +1,4 @@
+import type { ConnectRouter } from '@connectrpc/connect'
 import { createRouterTransport } from '@connectrpc/connect'
 import { TransportProvider } from '@connectrpc/connect-query'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
@@ -6,8 +7,10 @@ import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { timestampFromDate } from '@bufbuild/protobuf/wkt'
 import { describe, expect, it } from 'vitest'
 import { MonitorMode } from '../gen/purser/domain/v1/common_pb'
+import { EntryPersonService } from '../gen/purser/domain/v1/entry_person_pb'
 import { ImageBlobService } from '../gen/purser/domain/v1/image_blob_pb'
 import { ImageService } from '../gen/purser/domain/v1/image_pb'
+import { ItemPersonService } from '../gen/purser/domain/v1/item_person_pb'
 import { Gender, PersonService } from '../gen/purser/domain/v1/person_pb'
 import { PersonDetail } from './PersonDetail'
 
@@ -55,11 +58,21 @@ function noSelectedImage() {
   }
 }
 
+// registerNoAppearances — #662's PersonAppearances renders unconditionally
+// below the facts panel, so every test that renders past GetPerson needs
+// EntryPersonService/ItemPersonService wired to something; empty lists
+// keep these tests focused on what they actually assert.
+function registerNoAppearances(router: ConnectRouter) {
+  router.service(EntryPersonService, { listEntryPeople: () => ({ entryPeople: [], nextPageToken: '' }) })
+  router.service(ItemPersonService, { listItemPeople: () => ({ itemPeople: [], nextPageToken: '' }) })
+}
+
 describe('PersonDetail — load', () => {
   it('renders the facts panel from GetPerson', async () => {
     const mockTransport = createRouterTransport(router => {
       router.service(PersonService, { getPerson: () => ({ person: basePerson }) })
       router.service(ImageService, { getSelectedImage: noSelectedImage() })
+      registerNoAppearances(router)
     })
 
     renderPersonDetail(mockTransport)
@@ -100,6 +113,7 @@ describe('PersonDetail — monitor toggle round-trip', () => {
         },
       })
       router.service(ImageService, { getSelectedImage: noSelectedImage() })
+      registerNoAppearances(router)
     })
 
     renderPersonDetail(mockTransport)
@@ -126,6 +140,7 @@ describe('PersonDetail — monitor toggle round-trip', () => {
         },
       })
       router.service(ImageService, { getSelectedImage: noSelectedImage() })
+      registerNoAppearances(router)
     })
 
     renderPersonDetail(mockTransport)
@@ -167,6 +182,7 @@ describe('PersonDetail — photo attach and lightbox', () => {
           blob: { key: 'person/ab/img-1.jpg', width: 300, height: 300, contentType: 'image/jpeg', sizeBytes: 1000n },
         }),
       })
+      registerNoAppearances(router)
     })
 
     renderPersonDetail(mockTransport)
@@ -198,6 +214,7 @@ describe('PersonDetail — manage photos', () => {
           return { image: { id: req.imageId } }
         },
       })
+      registerNoAppearances(router)
     })
 
     renderPersonDetail(mockTransport)
