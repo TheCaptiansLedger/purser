@@ -165,6 +165,24 @@ export interface LibraryEntryRef {
   imageId?: string
 }
 
+// GroupRef is the minimal identity shape AlbumCard (#667) needs — not the
+// full purser.domain.v1.Group message, same LibraryEntryRef/PersonRef
+// precedent. status is the derived ownership badge (#667's "Discography
+// ownership" rule): the default (is_default=true) MusicRelease's Status,
+// falling back to the first returned edition if none is marked default,
+// or undefined when the Group has zero MusicRelease rows at all (renders
+// AlbumCard's "No edition selected" state) — resolving that is the
+// caller's job (useDiscography), not AlbumCard's. imageId is a resolved
+// purser.domain.v1.Image.id (owner_type="group", image_type="poster") for
+// GET /media/images/{id}.
+export interface GroupRef {
+  id: string
+  title: string
+  year?: number
+  status?: ReleaseStatus
+  imageId?: string
+}
+
 // CacheStats mirrors the subset of purser.cache.v1.CacheStats the Cache
 // tab (#617) actually renders (name/items/bytes/hits/misses). The wire
 // message also carries sets/deletes/evictions — left off this type per

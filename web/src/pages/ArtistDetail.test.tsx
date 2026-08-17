@@ -7,10 +7,12 @@ import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { describe, expect, it } from 'vitest'
 import { MonitorMode } from '../gen/purser/domain/v1/common_pb'
 import { ExternalIDService } from '../gen/purser/domain/v1/external_id_pb'
+import { GroupService } from '../gen/purser/domain/v1/group_pb'
 import { ImageBlobService } from '../gen/purser/domain/v1/image_blob_pb'
 import { ImageService } from '../gen/purser/domain/v1/image_pb'
 import { LibraryEntryService } from '../gen/purser/domain/v1/library_entry_pb'
 import { FanartTVService } from '../gen/purser/music/v1/fanarttv_pb'
+import { MusicReleaseService, ReleaseStatus } from '../gen/purser/music/v1/release_pb'
 import { TheAudioDBService } from '../gen/purser/music/v1/theaudiodb_pb'
 import { ArtistDetail } from './ArtistDetail'
 
@@ -79,12 +81,21 @@ function registerNoImages(router: ConnectRouter) {
   router.service(ImageService, { getSelectedImage: noSelectedImage() })
 }
 
+// registerNoAlbums — every test not specifically exercising the
+// Discography tab registers this so useDiscography's unconditional
+// ListGroups call resolves to an empty page rather than hitting an
+// unregistered service.
+function registerNoAlbums(router: ConnectRouter) {
+  router.service(GroupService, { listGroups: () => ({ groups: [] }) })
+}
+
 describe('ArtistDetail — load', () => {
   it('renders the Hero and facts sidebar from GetLibraryEntry', async () => {
     const mockTransport = createRouterTransport(router => {
       router.service(LibraryEntryService, { getLibraryEntry: () => ({ libraryEntry: baseEntry }) })
       registerNoProviderData(router)
       registerNoImages(router)
+      registerNoAlbums(router)
     })
 
     renderArtistDetail(mockTransport)
@@ -111,6 +122,7 @@ describe('ArtistDetail — load', () => {
       })
       registerNoProviderData(router)
       registerNoImages(router)
+      registerNoAlbums(router)
     })
 
     renderArtistDetail(mockTransport)
@@ -128,6 +140,7 @@ describe('ArtistDetail — load', () => {
           throw new Error('not found')
         },
       })
+      registerNoAlbums(router)
     })
 
     renderArtistDetail(mockTransport)
@@ -140,6 +153,7 @@ describe('ArtistDetail — load', () => {
       router.service(LibraryEntryService, { getLibraryEntry: () => ({ libraryEntry: baseEntry }) })
       registerNoProviderData(router)
       registerNoImages(router)
+      registerNoAlbums(router)
     })
 
     renderArtistDetail(mockTransport)
@@ -164,6 +178,7 @@ describe('ArtistDetail — load', () => {
         },
       })
       registerNoImages(router)
+      registerNoAlbums(router)
     })
 
     renderArtistDetail(mockTransport)
@@ -189,6 +204,7 @@ describe('ArtistDetail — monitor toggle round-trip', () => {
       })
       registerNoProviderData(router)
       registerNoImages(router)
+      registerNoAlbums(router)
     })
 
     renderArtistDetail(mockTransport)
@@ -214,6 +230,7 @@ describe('ArtistDetail — monitor toggle round-trip', () => {
       })
       registerNoProviderData(router)
       registerNoImages(router)
+      registerNoAlbums(router)
     })
 
     renderArtistDetail(mockTransport)
@@ -254,6 +271,7 @@ describe('ArtistDetail — poster attach and lightbox', () => {
         }),
       })
       registerNoProviderData(router)
+      registerNoAlbums(router)
     })
 
     renderArtistDetail(mockTransport)
@@ -308,6 +326,7 @@ describe('ArtistDetail — backdrop attach from a fanart.tv candidate', () => {
           blob: { key: 'library_entry/cd/img-2.jpg', width: 1920, height: 1080, contentType: 'image/jpeg', sizeBytes: 2000n },
         }),
       })
+      registerNoAlbums(router)
     })
 
     renderArtistDetail(mockTransport)
@@ -357,6 +376,7 @@ describe('ArtistDetail — poster attach from a fanart.tv candidate', () => {
           blob: { key: 'library_entry/ef/img-3.jpg', width: 1000, height: 1500, contentType: 'image/jpeg', sizeBytes: 1500n },
         }),
       })
+      registerNoAlbums(router)
     })
 
     renderArtistDetail(mockTransport)
@@ -367,5 +387,87 @@ describe('ArtistDetail — poster attach from a fanart.tv candidate', () => {
 
     const posterButton = await screen.findByRole('button', { name: "View Fleetwood Mac's poster" })
     expect(posterButton.querySelector('img')).toHaveAttribute('src', '/media/images/image-3')
+  })
+})
+
+describe('ArtistDetail — Discography tab', () => {
+  it('shows an empty state when the artist has no groups', async () => {
+    const mockTransport = createRouterTransport(router => {
+      router.service(LibraryEntryService, { getLibraryEntry: () => ({ libraryEntry: baseEntry }) })
+      registerNoProviderData(router)
+      registerNoImages(router)
+      registerNoAlbums(router)
+    })
+
+    renderArtistDetail(mockTransport)
+    await waitFor(() => expect(screen.getByRole('heading', { name: 'Fleetwood Mac' })).toBeInTheDocument())
+
+    expect(await screen.findByText('No albums yet')).toBeInTheDocument()
+  })
+
+  it("badges an album with its default edition's status", async () => {
+    const mockTransport = createRouterTransport(router => {
+      router.service(LibraryEntryService, { getLibraryEntry: () => ({ libraryEntry: baseEntry }) })
+      registerNoProviderData(router)
+      registerNoImages(router)
+      router.service(GroupService, {
+        listGroups: () => ({ groups: [{ id: 'group-1', title: 'Rumours', year: 1977 }] }),
+      })
+      router.service(MusicReleaseService, {
+        listMusicReleases: () => ({
+          musicReleases: [
+            { id: 'rel-1', groupId: 'group-1', isDefault: false, status: ReleaseStatus.PARTIAL },
+            { id: 'rel-2', groupId: 'group-1', isDefault: true, status: ReleaseStatus.IMPORTED },
+          ],
+        }),
+      })
+    })
+
+    renderArtistDetail(mockTransport)
+    await waitFor(() => expect(screen.getByRole('heading', { name: 'Fleetwood Mac' })).toBeInTheDocument())
+
+    expect(await screen.findByText('Rumours')).toBeInTheDocument()
+    expect(screen.getByText('1977')).toBeInTheDocument()
+    expect(screen.getByText('Imported')).toBeInTheDocument()
+  })
+
+  it('falls back to the first returned edition when none is marked default', async () => {
+    const mockTransport = createRouterTransport(router => {
+      router.service(LibraryEntryService, { getLibraryEntry: () => ({ libraryEntry: baseEntry }) })
+      registerNoProviderData(router)
+      registerNoImages(router)
+      router.service(GroupService, {
+        listGroups: () => ({ groups: [{ id: 'group-1', title: 'Tusk', year: 1979 }] }),
+      })
+      router.service(MusicReleaseService, {
+        listMusicReleases: () => ({
+          musicReleases: [{ id: 'rel-1', groupId: 'group-1', isDefault: false, status: ReleaseStatus.STUB }],
+        }),
+      })
+    })
+
+    renderArtistDetail(mockTransport)
+    await waitFor(() => expect(screen.getByRole('heading', { name: 'Fleetwood Mac' })).toBeInTheDocument())
+
+    expect(await screen.findByText('Tusk')).toBeInTheDocument()
+    expect(screen.getByText('Stub')).toBeInTheDocument()
+  })
+
+  it('renders "No edition selected" for a Group with zero MusicRelease rows, without crashing', async () => {
+    const mockTransport = createRouterTransport(router => {
+      router.service(LibraryEntryService, { getLibraryEntry: () => ({ libraryEntry: baseEntry }) })
+      registerNoProviderData(router)
+      registerNoImages(router)
+      router.service(GroupService, {
+        listGroups: () => ({ groups: [{ id: 'group-1', title: 'Unreleased Sessions', year: 0 }] }),
+      })
+      router.service(MusicReleaseService, { listMusicReleases: () => ({ musicReleases: [] }) })
+    })
+
+    renderArtistDetail(mockTransport)
+    await waitFor(() => expect(screen.getByRole('heading', { name: 'Fleetwood Mac' })).toBeInTheDocument())
+
+    expect(await screen.findByText('Unreleased Sessions')).toBeInTheDocument()
+    expect(screen.getByText('No edition selected')).toBeInTheDocument()
   })
 })

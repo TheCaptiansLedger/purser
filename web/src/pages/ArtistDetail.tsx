@@ -1,9 +1,11 @@
 import type { JsonObject } from '@bufbuild/protobuf'
 import { useQuery } from '@connectrpc/connect-query'
-import { Camera, Images, Maximize2, Music } from 'lucide-react'
+import { Camera, Disc3, Images, Maximize2, Music } from 'lucide-react'
 import { useState } from 'react'
 import { useParams } from 'react-router-dom'
+import { AlbumCard } from '../components/AlbumCard'
 import { ChooseArtworkDialog } from '../components/ChooseArtworkDialog'
+import { EmptyState } from '../components/EmptyState'
 import { Hero } from '../components/Hero'
 import { ImageGallery } from '../components/ImageGallery'
 import { ImageLightbox } from '../components/ImageLightbox'
@@ -11,7 +13,18 @@ import { Toggle } from '../components/Toggle'
 import { MonitorMode } from '../gen/purser/domain/v1/common_pb'
 import { getSelectedImage } from '../gen/purser/domain/v1/image-ImageService_connectquery'
 import { useArtistProviderData } from '../hooks/useArtistProviderData'
+import { useDiscography } from '../hooks/useDiscography'
+import { useGroupImages } from '../hooks/useGroupImages'
 import { useLibraryEntry, useUpdateLibraryEntryMutation } from '../hooks/useLibraryEntry'
+
+// ArtistDetailTab — a local, state-driven tab registry (not route-based:
+// unlike SettingsLayout's separately-routed tabs, #668's future "Members"
+// tab lives on this same /music/artists/:id route). Discography (#667)
+// is the only working tab today; #668 extends this exact array/union
+// rather than introducing a second tab mechanism.
+type ArtistDetailTab = 'discography'
+
+const TAB_ITEMS: { id: ArtistDetailTab; label: string }[] = [{ id: 'discography', label: 'Discography' }]
 
 function stringField(metadata: JsonObject | undefined, key: string): string | undefined {
   const value = metadata?.[key]
@@ -48,11 +61,19 @@ function aliasesField(metadata: JsonObject | undefined): string[] {
 // that section simply being absent (see useArtistProviderData) — this
 // page never errors out over missing provider data, only over a missing
 // LibraryEntry itself.
+//
+// Discography tab (#667): GroupService.ListGroups(library_entry_id), then
+// per group MusicReleaseService.ListMusicReleases(group_id) — see
+// useDiscography — rendered as an AlbumCard (#658 Card config) grid. A
+// Group with zero MusicRelease rows renders AlbumCard's own defined "No
+// edition selected" badge rather than crashing on a missing default.
 export function ArtistDetail() {
   const { id = '' } = useParams<{ id: string }>()
   const entryQuery = useLibraryEntry(id)
   const updateMutation = useUpdateLibraryEntryMutation()
   const provider = useArtistProviderData(id)
+  const discography = useDiscography(id)
+  const albumImagesByGroupId = useGroupImages(discography.albums.map(album => album.id))
 
   const posterQuery = useQuery(
     getSelectedImage,
@@ -74,6 +95,7 @@ export function ArtistDetail() {
   const [backdropLightboxOpen, setBackdropLightboxOpen] = useState(false)
   const [backdropDialogOpen, setBackdropDialogOpen] = useState(false)
   const [backdropGalleryOpen, setBackdropGalleryOpen] = useState(false)
+  const [activeTab, setActiveTab] = useState<ArtistDetailTab>('discography')
 
   // Doherty threshold — see docs/design/ux-principles.md#feedback--system-status.
   if (entryQuery.isPending) {
@@ -254,6 +276,49 @@ export function ArtistDetail() {
           )}
 
           {provider.bio && <p className="max-w-2xl text-body text-text-secondary">{provider.bio}</p>}
+        </div>
+      </div>
+
+      <div className="mt-8">
+        <div role="tablist" aria-label="Artist detail" className="flex gap-1 border-b border-border">
+          {TAB_ITEMS.map(tab => (
+            <button
+              key={tab.id}
+              type="button"
+              role="tab"
+              aria-selected={activeTab === tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              className={[
+                'px-3 h-10 flex items-center text-body border-b-2 -mb-px transition-colors',
+                'text-text-secondary hover:text-text',
+                activeTab === tab.id ? 'text-text border-text' : 'border-transparent',
+              ].join(' ')}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
+
+        <div role="tabpanel" className="mt-6">
+          {activeTab === 'discography' && (
+            <>
+              {!discography.isPending && discography.albums.length === 0 && (
+                <EmptyState
+                  icon={Disc3}
+                  title="No albums yet"
+                  description="Albums added to this artist will show up here."
+                />
+              )}
+
+              {discography.albums.length > 0 && (
+                <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8">
+                  {discography.albums.map(album => (
+                    <AlbumCard key={album.id} album={{ ...album, imageId: albumImagesByGroupId[album.id] }} />
+                  ))}
+                </div>
+              )}
+            </>
+          )}
         </div>
       </div>
 
