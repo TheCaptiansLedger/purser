@@ -99,7 +99,56 @@ func (h *MusicBrainzSearchHandler) GetArtist(ctx context.Context, req *connect.R
 	if err != nil {
 		return nil, mapError(ctx, h.logger, err)
 	}
-	return connect.NewResponse(&musicv1.GetMusicBrainzArtistResponse{Artist: artistToProto(*a)}), nil
+	officialURL, wikipediaURL := artistLinksFromRelations(a.Relations)
+	return connect.NewResponse(&musicv1.GetMusicBrainzArtistResponse{
+		Artist:       artistToProto(*a),
+		Isnis:        a.ISNIs,
+		OfficialUrl:  officialURL,
+		WikipediaUrl: wikipediaURL,
+		Members:      membersFromRelations(a.Relations),
+	}), nil
+}
+
+// artistLinksFromRelations pulls the official-homepage and Wikipedia URLs
+// out of an Artist's Relations — MusicBrainz's own relation-type
+// vocabulary ("official homepage", "wikipedia"), read-only passthrough per
+// ADR 0027. Either or both may be absent; callers treat an empty string as
+// "not offered by MusicBrainz for this artist," not an error.
+func artistLinksFromRelations(relations []ports.Relation) (officialURL, wikipediaURL string) {
+	for _, r := range relations {
+		if r.URL == nil {
+			continue
+		}
+		switch r.Type {
+		case "official homepage":
+			officialURL = r.URL.Resource
+		case "wikipedia":
+			wikipediaURL = r.URL.Resource
+		}
+	}
+	return officialURL, wikipediaURL
+}
+
+// membersFromRelations pulls band-member edges ("member of band",
+// Relation.Artist populated) out of an Artist's Relations and maps them to
+// the wire shape — the Add Artist flow's source for creating the
+// corresponding Person/EntryPerson rows for a Group artist.
+func membersFromRelations(relations []ports.Relation) []*musicv1.MusicBrainzArtistMember {
+	members := make([]*musicv1.MusicBrainzArtistMember, 0)
+	for _, r := range relations {
+		if r.Type != "member of band" || r.Artist == nil {
+			continue
+		}
+		members = append(members, &musicv1.MusicBrainzArtistMember{
+			Mbid:       r.Artist.ID,
+			Name:       r.Artist.Name,
+			Attributes: r.Attributes,
+			Begin:      r.Begin,
+			End:        r.End,
+			Ended:      r.Ended,
+		})
+	}
+	return members
 }
 
 // artistToProto maps ports.Artist (internal/adapters/musicbrainz's own DTO)

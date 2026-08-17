@@ -36,9 +36,10 @@ restated here).
 | Edition format/label/badge | `MusicRelease` fields directly — `Format`, `Label`, `CatalogNumber`, `Country`, `Status`, `Monitored` |
 | Track status chip | `Item.Status` (`wanted`\|`grabbed`\|`downloading`\|`imported`\|`missing`\|`skipped`) |
 | Genre/mood chips | `TagAssignment` rows on the `Group`, `Scope=metadata`, resolved through `TagService` for display names |
-| Member era ("Former · 1970–1989") | `EntryPerson.Role` + its own metadata bag — exact shape TBD at story time, not decided here |
+| Member era ("Former · 1970–1989") | `EntryPerson.StartDate`/`EndDate` — already real fields on `domain.EntryPerson`, no metadata bag needed. Populated at Add Artist time from a `Type=="Group"` candidate's MusicBrainz "member of band" relations (`MusicBrainzService.GetArtist(mbid).members[].begin`/`end`), one `EntryPerson` created per member — see `useAddArtist.ts` |
 | Bio panel | `TheAudioDBService.LookupArtist(mbid).Biography` — provider passthrough, never persisted server-side per [0027](../adr/0027-provider-independence.md) |
-| Backdrop/logo art | `FanartTVService.LookupArtist(mbid)` for `artist_background`/`hd_music_logo` at browse time; **committing** one as the artist's poster goes through `image-caching-and-serving.md`'s two-call sequence |
+| Backdrop/logo art | `FanartTVService.LookupArtist(mbid)` for `artist_background`/`hd_music_logo` at browse time (Hero's `backdrop`), `artist_thumb` for the grid/sidebar `poster` — **committing** either goes through `image-caching-and-serving.md`'s two-call sequence |
+| ISNI / official site / Wikipedia link | `MusicBrainzService.GetArtist(mbid)`'s `isnis`/`official_url`/`wikipedia_url` (relations data, deliberately absent from `SearchArtists`' `MusicBrainzArtist` — see that message's own doc comment) — a structured identity fact, written once into `LibraryEntry.Metadata` at Add Artist time same as `artist_type`/`aliases`, not re-fetched live like the bio/backdrop above |
 
 ## Screens
 

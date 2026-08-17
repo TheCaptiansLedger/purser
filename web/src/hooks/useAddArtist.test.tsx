@@ -5,8 +5,11 @@ import { renderHook, act } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 import type { ReactNode } from 'react'
 import { MonitorMode } from '../gen/purser/domain/v1/common_pb'
+import { EntryPersonService } from '../gen/purser/domain/v1/entry_person_pb'
 import { ExternalIDService } from '../gen/purser/domain/v1/external_id_pb'
 import { LibraryEntryService } from '../gen/purser/domain/v1/library_entry_pb'
+import { PersonService } from '../gen/purser/domain/v1/person_pb'
+import { MusicBrainzService } from '../gen/purser/music/v1/musicbrainz_search_pb'
 import { TheAudioDBService } from '../gen/purser/music/v1/theaudiodb_pb'
 import type { MusicBrainzArtist } from '../gen/purser/music/v1/musicbrainz_search_pb'
 import { libraryEntryMetadataFromMusicBrainzArtist, useAddArtist } from './useAddArtist'
@@ -38,9 +41,9 @@ const groupCandidate: MusicBrainzArtist = {
   aliases: ['REO'],
 }
 
-// tadbMiss registers a NotFound-throwing LookupArtist handler — the
-// common case in these tests, isolating the get-or-create composition
-// from the best-effort enrichment step.
+// tadbMiss registers a NotFound-throwing TheAudioDB LookupArtist handler —
+// the common case in these tests, isolating the get-or-create composition
+// from that best-effort enrichment step.
 function tadbMiss(router: Parameters<Parameters<typeof createRouterTransport>[0]>[0]) {
   router.service(TheAudioDBService, {
     lookupArtist: () => {
@@ -49,10 +52,23 @@ function tadbMiss(router: Parameters<Parameters<typeof createRouterTransport>[0]
   })
 }
 
+// mbzRelationsMiss registers a NotFound-throwing MusicBrainzService.GetArtist
+// handler — isolates the get-or-create composition from the
+// MusicBrainz-relations best-effort enrichment step (ISNI/links/band
+// members), same role as tadbMiss above.
+function mbzRelationsMiss(router: Parameters<Parameters<typeof createRouterTransport>[0]>[0]) {
+  router.service(MusicBrainzService, {
+    getArtist: () => {
+      throw new ConnectError('not found', Code.NotFound)
+    },
+  })
+}
+
 describe('libraryEntryMetadataFromMusicBrainzArtist', () => {
-  it('maps a Group to founded_date/dissolved_date, artist_type, and aliases', () => {
+  it('maps a Group to founded_date/dissolved_date, artist_type, country, and aliases', () => {
     expect(libraryEntryMetadataFromMusicBrainzArtist(groupCandidate)).toEqual({
       artist_type: 'Group',
+      country: 'US',
       aliases: ['REO'],
       founded_date: '1967',
     })
@@ -62,13 +78,14 @@ describe('libraryEntryMetadataFromMusicBrainzArtist', () => {
     const person: MusicBrainzArtist = { ...groupCandidate, type: 'Person', lifeSpanBegin: '1940', lifeSpanEnd: '2016', aliases: [] }
     expect(libraryEntryMetadataFromMusicBrainzArtist(person)).toEqual({
       artist_type: 'Person',
+      country: 'US',
       born_date: '1940',
       died_date: '2016',
     })
   })
 
   it('omits empty fields rather than writing empty strings/arrays', () => {
-    const bare: MusicBrainzArtist = { ...groupCandidate, type: '', lifeSpanBegin: '', lifeSpanEnd: '', aliases: [] }
+    const bare: MusicBrainzArtist = { ...groupCandidate, type: '', country: '', lifeSpanBegin: '', lifeSpanEnd: '', aliases: [] }
     expect(libraryEntryMetadataFromMusicBrainzArtist(bare)).toEqual({})
   })
 })
@@ -123,7 +140,7 @@ describe('useAddArtist', () => {
       router.service(LibraryEntryService, {
         createLibraryEntry: req => {
           expect(req.libraryEntry?.name).toBe('REO Speedwagon')
-          expect(req.libraryEntry?.metadata).toEqual({ artist_type: 'Group', aliases: ['REO'], founded_date: '1967' })
+          expect(req.libraryEntry?.metadata).toEqual({ artist_type: 'Group', country: 'US', aliases: ['REO'], founded_date: '1967' })
           // Regression: MonitorMode is a required oneof on
           // domain.LibraryEntry.Validate — MONITOR_MODE_UNSPECIFIED (the
           // zero value) fails it with "MonitorMode: failed required".
@@ -137,6 +154,7 @@ describe('useAddArtist', () => {
         },
       })
       tadbMiss(router)
+      mbzRelationsMiss(router)
     })
 
     const { result } = renderHook(() => useAddArtist(), { wrapper: wrapper(mockTransport) })
@@ -171,6 +189,7 @@ describe('useAddArtist', () => {
         },
       })
       tadbMiss(router)
+      mbzRelationsMiss(router)
     })
 
     const { result } = renderHook(() => useAddArtist(), { wrapper: wrapper(mockTransport) })
@@ -204,6 +223,7 @@ describe('useAddArtist', () => {
       router.service(TheAudioDBService, {
         lookupArtist: () => ({ artist: { genre: 'Rock', style: 'Arena Rock' } }),
       })
+      mbzRelationsMiss(router)
     })
 
     const { result } = renderHook(() => useAddArtist(), { wrapper: wrapper(mockTransport) })
@@ -233,6 +253,7 @@ describe('useAddArtist', () => {
         },
       })
       tadbMiss(router)
+      mbzRelationsMiss(router)
     })
 
     const { result } = renderHook(() => useAddArtist(), { wrapper: wrapper(mockTransport) })
@@ -244,6 +265,245 @@ describe('useAddArtist', () => {
 
     expect(entry).toMatchObject({ id: 'new-1' })
     expect(updateCalled).toBe(false)
+  })
+
+  it('MusicBrainz-relations hit: merges isni/official_url/wikipedia_url into Metadata', async () => {
+    const mockTransport = createRouterTransport(router => {
+      router.service(ExternalIDService, {
+        getExternalIDByValue: () => {
+          throw new ConnectError('not found', Code.NotFound)
+        },
+        createExternalID: req => ({ externalId: { entityId: req.externalId!.entityId } }),
+      })
+      router.service(LibraryEntryService, {
+        createLibraryEntry: () => ({
+          libraryEntry: { id: 'new-1', name: 'REO Speedwagon', metadata: { artist_type: 'Group' } },
+        }),
+        updateLibraryEntry: req => {
+          expect(req.updateMask?.paths).toEqual(['metadata'])
+          expect(req.libraryEntry?.metadata).toEqual({
+            artist_type: 'Group',
+            isni: '0000000123456789',
+            official_url: 'http://www.speedwagon.com/',
+            wikipedia_url: 'https://en.wikipedia.org/wiki/REO_Speedwagon',
+          })
+          return { libraryEntry: { id: 'new-1', name: 'REO Speedwagon', metadata: req.libraryEntry!.metadata } }
+        },
+      })
+      tadbMiss(router)
+      router.service(MusicBrainzService, {
+        getArtist: () => ({
+          artist: { mbid: 'mbid-1', name: 'REO Speedwagon' },
+          isnis: ['0000000123456789'],
+          officialUrl: 'http://www.speedwagon.com/',
+          wikipediaUrl: 'https://en.wikipedia.org/wiki/REO_Speedwagon',
+          members: [],
+        }),
+      })
+    })
+
+    const { result } = renderHook(() => useAddArtist(), { wrapper: wrapper(mockTransport) })
+
+    let entry
+    await act(async () => {
+      entry = await result.current.addArtist(groupCandidate)
+    })
+
+    expect(entry).toMatchObject({
+      metadata: { isni: '0000000123456789', official_url: 'http://www.speedwagon.com/', wikipedia_url: 'https://en.wikipedia.org/wiki/REO_Speedwagon' },
+    })
+  })
+
+  it('MusicBrainz-relations miss: never calls UpdateLibraryEntry and still succeeds', async () => {
+    let updateCalled = false
+    const mockTransport = createRouterTransport(router => {
+      router.service(ExternalIDService, {
+        getExternalIDByValue: () => {
+          throw new ConnectError('not found', Code.NotFound)
+        },
+        createExternalID: req => ({ externalId: { entityId: req.externalId!.entityId } }),
+      })
+      router.service(LibraryEntryService, {
+        createLibraryEntry: () => ({ libraryEntry: { id: 'new-1', name: 'REO Speedwagon' } }),
+        updateLibraryEntry: () => {
+          updateCalled = true
+          return { libraryEntry: {} }
+        },
+      })
+      tadbMiss(router)
+      mbzRelationsMiss(router)
+    })
+
+    const { result } = renderHook(() => useAddArtist(), { wrapper: wrapper(mockTransport) })
+
+    let entry
+    await act(async () => {
+      entry = await result.current.addArtist(groupCandidate)
+    })
+
+    expect(entry).toMatchObject({ id: 'new-1' })
+    expect(updateCalled).toBe(false)
+  })
+
+  it('Group artist with band members: get-or-creates a Person per member and links each via CreateEntryPerson', async () => {
+    const createdPersonNames: string[] = []
+    const linkedEntryPeople: { personId: string; role: string }[] = []
+
+    const mockTransport = createRouterTransport(router => {
+      router.service(ExternalIDService, {
+        getExternalIDByValue: req => {
+          // LibraryEntry lookup misses; the two PERSON lookups (Cronin,
+          // Doughty) also miss — every member is a fresh Person here.
+          expect(['mbid-1', 'member-cronin', 'member-doughty']).toContain(req.value)
+          throw new ConnectError('not found', Code.NotFound)
+        },
+        createExternalID: req => ({ externalId: { entityId: req.externalId!.entityId } }),
+      })
+      router.service(LibraryEntryService, {
+        createLibraryEntry: () => ({ libraryEntry: { id: 'artist-1', name: 'REO Speedwagon' } }),
+      })
+      router.service(PersonService, {
+        createPerson: req => {
+          createdPersonNames.push(req.person!.name)
+          // Regression: MonitorMode is a required oneof on
+          // domain.Person.Validate — MONITOR_MODE_UNSPECIFIED (the zero
+          // value) fails it server-side with "MonitorMode: failed
+          // required". A mock that echoes back whatever's sent, like this
+          // one, can't catch a missing field on its own — this assertion
+          // is what actually catches it.
+          expect(req.person?.monitored).toBe(true)
+          expect(req.person?.monitorMode).toBe(MonitorMode.ALL)
+          return { person: { id: `person-${req.person!.name}`, name: req.person!.name } }
+        },
+      })
+      router.service(EntryPersonService, {
+        createEntryPerson: req => {
+          linkedEntryPeople.push({ personId: req.entryPerson!.personId, role: req.entryPerson!.role })
+          return { entryPerson: req.entryPerson }
+        },
+      })
+      tadbMiss(router)
+      router.service(MusicBrainzService, {
+        getArtist: () => ({
+          artist: { mbid: 'mbid-1', name: 'REO Speedwagon' },
+          isnis: [],
+          officialUrl: '',
+          wikipediaUrl: '',
+          members: [
+            { mbid: 'member-cronin', name: 'Kevin Cronin', attributes: ['vocal', 'guitar'], begin: '1972', end: '', ended: false },
+            { mbid: 'member-doughty', name: 'Neal Doughty', attributes: [], begin: '1967', end: '', ended: false },
+          ],
+        }),
+      })
+    })
+
+    const { result } = renderHook(() => useAddArtist(), { wrapper: wrapper(mockTransport) })
+
+    await act(async () => {
+      await result.current.addArtist(groupCandidate)
+    })
+
+    expect(createdPersonNames.sort()).toEqual(['Kevin Cronin', 'Neal Doughty'])
+    expect(linkedEntryPeople).toContainEqual({ personId: 'person-Kevin Cronin', role: 'vocal, guitar' })
+    // No attributes on the relation falls back to a non-empty Role —
+    // domain.EntryPerson.Validate requires one.
+    expect(linkedEntryPeople).toContainEqual({ personId: 'person-Neal Doughty', role: 'Member' })
+  })
+
+  it('Group artist, member already linked as a Person: reuses the existing Person, never re-creates it', async () => {
+    let createPersonCalled = false
+    const mockTransport = createRouterTransport(router => {
+      router.service(ExternalIDService, {
+        getExternalIDByValue: req => {
+          if (req.value === 'member-cronin') return { externalId: { entityId: 'existing-person-1' } }
+          throw new ConnectError('not found', Code.NotFound)
+        },
+        createExternalID: req => ({ externalId: { entityId: req.externalId!.entityId } }),
+      })
+      router.service(LibraryEntryService, {
+        createLibraryEntry: () => ({ libraryEntry: { id: 'artist-1', name: 'REO Speedwagon' } }),
+      })
+      router.service(PersonService, {
+        createPerson: () => {
+          createPersonCalled = true
+          return { person: { id: 'should-not-happen' } }
+        },
+      })
+      router.service(EntryPersonService, {
+        createEntryPerson: req => ({ entryPerson: req.entryPerson }),
+      })
+      tadbMiss(router)
+      router.service(MusicBrainzService, {
+        getArtist: () => ({
+          artist: { mbid: 'mbid-1', name: 'REO Speedwagon' },
+          isnis: [],
+          officialUrl: '',
+          wikipediaUrl: '',
+          members: [{ mbid: 'member-cronin', name: 'Kevin Cronin', attributes: [], begin: '', end: '', ended: false }],
+        }),
+      })
+    })
+
+    const { result } = renderHook(() => useAddArtist(), { wrapper: wrapper(mockTransport) })
+
+    await act(async () => {
+      await result.current.addArtist(groupCandidate)
+    })
+
+    expect(createPersonCalled).toBe(false)
+  })
+
+  it('Person (solo) artist with relations data present: never creates band-member Person/EntryPerson rows', async () => {
+    let createPersonCalled = false
+    let createEntryPersonCalled = false
+    const soloCandidate: MusicBrainzArtist = { ...groupCandidate, type: 'Person' }
+
+    const mockTransport = createRouterTransport(router => {
+      router.service(ExternalIDService, {
+        getExternalIDByValue: () => {
+          throw new ConnectError('not found', Code.NotFound)
+        },
+        createExternalID: req => ({ externalId: { entityId: req.externalId!.entityId } }),
+      })
+      router.service(LibraryEntryService, {
+        createLibraryEntry: () => ({ libraryEntry: { id: 'artist-1', name: 'Stevie Nicks' } }),
+      })
+      router.service(PersonService, {
+        createPerson: () => {
+          createPersonCalled = true
+          return { person: { id: 'should-not-happen' } }
+        },
+      })
+      router.service(EntryPersonService, {
+        createEntryPerson: () => {
+          createEntryPersonCalled = true
+          return { entryPerson: {} }
+        },
+      })
+      tadbMiss(router)
+      router.service(MusicBrainzService, {
+        // A MusicBrainz "member of band" edge would never actually appear
+        // on a solo Person's own relations, but if one somehow did, a
+        // Type=="Person" candidate must still never trigger member
+        // creation — that's #672's own human-driven linking step.
+        getArtist: () => ({
+          artist: { mbid: 'mbid-1', name: 'Stevie Nicks' },
+          isnis: [],
+          officialUrl: '',
+          wikipediaUrl: '',
+          members: [{ mbid: 'member-x', name: 'Someone', attributes: [], begin: '', end: '', ended: false }],
+        }),
+      })
+    })
+
+    const { result } = renderHook(() => useAddArtist(), { wrapper: wrapper(mockTransport) })
+
+    await act(async () => {
+      await result.current.addArtist(soloCandidate)
+    })
+
+    expect(createPersonCalled).toBe(false)
+    expect(createEntryPersonCalled).toBe(false)
   })
 
   // Acceptance criterion: two callers importing the same MBID at once
@@ -288,6 +548,7 @@ describe('useAddArtist', () => {
         getLibraryEntry: req => ({ libraryEntry: { id: req.id, name: 'REO Speedwagon' } }),
       })
       tadbMiss(router)
+      mbzRelationsMiss(router)
     })
 
     const hookA = renderHook(() => useAddArtist(), { wrapper: wrapper(mockTransport) })

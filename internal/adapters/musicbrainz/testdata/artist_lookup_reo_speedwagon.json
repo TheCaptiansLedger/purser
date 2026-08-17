@@ -1,1 +1,627 @@
-{"country":"US","area":{"disambiguation":"","type":null,"type-id":null,"sort-name":"United States","name":"United States","id":"489ce91b-6658-3307-9877-795b68554c98","iso-3166-1-codes":["US"]},"begin-area":{"disambiguation":"","type":null,"type-id":null,"sort-name":"Champaign","name":"Champaign","id":"14e7a419-ac00-4569-a2e9-c74f9ed47ff2"},"life-span":{"ended":true,"begin":"1967","end":"2025-01-01"},"end-area":null,"aliases":[{"name":"R E O Speedwagon","ended":false,"begin":null,"sort-name":"R E O Speedwagon","locale":null,"type":null,"primary":null,"type-id":null,"end":null},{"ended":false,"name":"REO Speedwagaon","sort-name":"REO Speedwagaon","begin":null,"type-id":null,"primary":null,"type":null,"locale":null,"end":null}],"gender-id":null,"type-id":"e431f5f6-b5d2-343d-8b36-72607fffb74b","gender":null,"sort-name":"REO Speedwagon","ipis":[],"name":"REO Speedwagon","id":"bdc70372-7e8a-4cb9-8d33-f036b3b7cdc1","relations":[{"url":{"resource":"https://www.allmusic.com/artist/mn0000327735","id":"3621eae6-6d6e-44e2-9647-07c93bee40c7"},"source-credit":"","attribute-ids":{},"type":"allmusic","begin":null,"direction":"forward","ended":false,"end":null,"type-id":"6b3e3c85-0002-4f34-aca6-80ace0d7e846","attribute-values":{},"attributes":[],"target-credit":"","target-type":"url"},{"target-type":"url","attribute-values":{},"attributes":[],"target-credit":"","type-id":"04a5b104-a4c2-4bac-99a1-7b837c37d9e4","end":null,"ended":false,"begin":null,"direction":"forward","attribute-ids":{},"source-credit":"","url":{"id":"88d336e2-871a-412d-b751-a3ac98d64436","resource":"https://www.discogs.com/artist/254406"},"type":"discogs"},{"target-credit":"","attributes":[],"attribute-values":{},"target-type":"url","end":null,"type-id":"769085a1-c2f7-4c24-a532-2375a77693bd","direction":"forward","begin":null,"ended":false,"type":"free streaming","source-credit":"","attribute-ids":{},"url":{"resource":"https://open.spotify.com/artist/55vs7NT1KxcFjbMC4y202E","id":"97036d58-ee09-437f-b9e3-711da98bfae4"}},{"attribute-ids":{},"source-credit":"","url":{"resource":"https://www.deezer.com/artist/3875","id":"954d01e2-a7b3-4ab1-9b8e-d8208a58984e"},"type":"free streaming","ended":false,"begin":null,"direction":"forward","type-id":"769085a1-c2f7-4c24-a532-2375a77693bd","end":null,"target-type":"url","attributes":[],"target-credit":"","attribute-values":{}},{"ended":false,"direction":"forward","begin":null,"type":"free streaming","url":{"resource":"http://www.pandora.com/reo-speedwagon","id":"2a148f1b-cab6-40ef-9f36-ef24ea6a6f24"},"source-credit":"","attribute-ids":{},"target-type":"url","target-credit":"","attributes":[],"attribute-values":{},"type-id":"769085a1-c2f7-4c24-a532-2375a77693bd","end":null},{"target-type":"url","attributes":[],"target-credit":"","attribute-values":{},"type-id":"94c8b0cc-4477-4106-932c-da60e63de61c","end":null,"ended":false,"begin":null,"direction":"forward","url":{"id":"ca7efe50-31cf-4734-b3db-b9ee7e611c95","resource":"https://www.imdb.com/name/nm1884543/"},"source-credit":"","attribute-ids":{},"type":"IMDb"},{"url":{"id":"687fa835-1ea1-4f01-b109-93593a228640","resource":"https://www.last.fm/music/REO%20Speedwagon"},"source-credit":"","attribute-ids":{},"type":"last.fm","begin":null,"direction":"forward","ended":false,"end":null,"type-id":"08db8098-c0df-4b78-82c3-c8697b4bba7f","attribute-values":{},"attributes":[],"target-credit":"","target-type":"url"},{"target-type":"url","attribute-values":{},"target-credit":"","attributes":[],"type-id":"e4d73442-3762-45a8-905c-401da65544ed","end":null,"ended":false,"direction":"forward","begin":null,"type":"lyrics","attribute-ids":{},"source-credit":"","url":{"id":"7d3d885a-587d-4675-a979-7cfee4563040","resource":"http://muzikum.eu/en/122-6031/reo-speedwagon/lyrics.html"}},{"begin":null,"direction":"forward","ended":false,"source-credit":"","url":{"resource":"https://myspace.com/reospeedwagontunes","id":"709eba2a-b10e-412d-919a-b912691a9989"},"attribute-ids":{},"type":"myspace","attributes":[],"target-credit":"","attribute-values":{},"target-type":"url","end":null,"type-id":"bac47923-ecde-4b59-822e-d08f0cd10156"},{"target-type":"url","attributes":[],"target-credit":"","attribute-values":{},"type-id":"fe33d22f-c3b0-4d68-bd53-a856badf2b15","end":null,"ended":false,"begin":null,"direction":"forward","url":{"id":"cf482209-ae13-4dd1-9930-3c6a38537a65","resource":"http://www.speedwagon.com/"},"source-credit":"","attribute-ids":{},"type":"official homepage"},{"url":{"resource":"http://id.loc.gov/authorities/names/n84088344","id":"218fada0-5fc6-4ddf-a914-1975c06c5534"},"source-credit":"","attribute-ids":{},"type":"other databases","ended":false,"begin":null,"direction":"forward","type-id":"d94fb61c-fa20-4e3c-a19a-71a949fb2c55","end":null,"target-type":"url","attributes":[],"target-credit":"","attribute-values":{}},{"target-type":"url","attribute-values":{},"attributes":[],"target-credit":"","type-id":"d94fb61c-fa20-4e3c-a19a-71a949fb2c55","end":null,"ended":false,"begin":null,"direction":"forward","attribute-ids":{},"source-credit":"","url":{"resource":"https://catalogue.bnf.fr/ark:/12148/cb139061287","id":"11542abc-fd29-449a-ab4d-9b6c7ce33c89"},"type":"other databases"},{"ended":false,"begin":null,"direction":"forward","source-credit":"","url":{"id":"f57658c4-3388-4415-9f45-d7feef95b3a5","resource":"https://d-nb.info/gnd/6062155-2"},"attribute-ids":{},"type":"other databases","target-type":"url","attribute-values":{},"attributes":[],"target-credit":"","type-id":"d94fb61c-fa20-4e3c-a19a-71a949fb2c55","end":null},{"type-id":"d94fb61c-fa20-4e3c-a19a-71a949fb2c55","end":null,"target-type":"url","target-credit":"","attributes":[],"attribute-values":{},"type":"other databases","url":{"id":"0a66fed5-463e-4022-9c4a-6ecd4ecd770f","resource":"https://imvdb.com/n/reo-speedwagon"},"source-credit":"","attribute-ids":{},"ended":false,"direction":"forward","begin":null},{"target-type":"url","target-credit":"","attributes":[],"attribute-values":{},"type-id":"d94fb61c-fa20-4e3c-a19a-71a949fb2c55","end":null,"ended":false,"direction":"forward","begin":null,"type":"other databases","attribute-ids":{},"source-credit":"","url":{"resource":"https://rateyourmusic.com/artist/reo_speedwagon","id":"8452a2d8-b98e-4492-a591-b9556de699b9"}},{"target-type":"url","target-credit":"","attributes":[],"attribute-values":{},"type-id":"d94fb61c-fa20-4e3c-a19a-71a949fb2c55","end":null,"ended":false,"direction":"forward","begin":null,"type":"other databases","attribute-ids":{},"source-credit":"","url":{"resource":"https://www.musik-sammler.de/artist/reo-speedwagon/","id":"bc8adfca-fa1a-48b4-8c11-ad338908dab9"}},{"ended":false,"direction":"forward","begin":null,"type":"other databases","source-credit":"","attribute-ids":{},"url":{"resource":"http://www.worldcat.org/wcidentities/lccn-n84-88344","id":"f2e76e93-9e6a-41e1-afec-c39e9b0e55e8"},"target-type":"url","target-credit":"","attributes":[],"attribute-values":{},"type-id":"d94fb61c-fa20-4e3c-a19a-71a949fb2c55","end":null},{"ended":true,"direction":"forward","begin":null,"type":"purchase for download","source-credit":"","url":{"resource":"https://itunes.apple.com/us/artist/id575609","id":"97f6a73c-0ae3-4bfb-b5a4-a14506304b5b"},"attribute-ids":{},"target-type":"url","target-credit":"","attributes":[],"attribute-values":{},"type-id":"f8319a2f-f824-4617-81c8-be6560b3b203","end":"2019-05-19"},{"target-type":"url","attribute-values":{},"attributes":[],"target-credit":"","type-id":"f8319a2f-f824-4617-81c8-be6560b3b203","end":null,"ended":false,"begin":null,"direction":"forward","source-credit":"","url":{"resource":"https://music.apple.com/us/artist/575609","id":"85a241c8-c122-48e6-a3f6-ddc149d2875c"},"attribute-ids":{},"type":"purchase for download"},{"type":"social network","attribute-ids":{},"source-credit":"","url":{"resource":"https://www.facebook.com/reospeedwagon","id":"fab2a075-b941-47a4-a912-e0ad36f11a4c"},"ended":false,"direction":"forward","begin":null,"type-id":"99429741-f3f6-484b-84f8-23af51991770","end":null,"target-type":"url","target-credit":"","attributes":[],"attribute-values":{}},{"end":null,"type-id":"aac9c4bc-a5b9-30b8-9839-e3ac314c6e58","target-credit":"","attributes":[],"attribute-values":{},"target-type":"url","type":"songkick","source-credit":"","url":{"resource":"https://www.songkick.com/artists/12785","id":"0031066f-67bf-45fb-8904-2d8cb2ca6449"},"attribute-ids":{},"direction":"forward","begin":null,"ended":false},{"end":null,"type-id":"63cc5d1f-f096-4c94-a43f-ecb32ea94161","attribute-values":{},"target-credit":"","attributes":[],"target-type":"url","type":"streaming","source-credit":"","attribute-ids":{},"url":{"resource":"https://music.apple.com/us/artist/575609","id":"85a241c8-c122-48e6-a3f6-ddc149d2875c"},"direction":"forward","begin":null,"ended":false},{"source-credit":"","url":{"id":"4fd175bb-0c50-486f-ac3f-77f00953302a","resource":"https://tidal.com/artist/1137"},"attribute-ids":{},"type":"streaming","begin":null,"direction":"forward","ended":false,"end":null,"type-id":"63cc5d1f-f096-4c94-a43f-ecb32ea94161","attribute-values":{},"attributes":[],"target-credit":"","target-type":"url"},{"direction":"forward","begin":null,"ended":false,"type":"VIAF","attribute-ids":{},"source-credit":"","url":{"resource":"http://viaf.org/viaf/132667469","id":"f428e53e-7be9-436a-8873-6179fc731269"},"target-credit":"","attributes":[],"attribute-values":{},"target-type":"url","end":null,"type-id":"e8571dcc-35d4-4e91-a577-a3382fd84460"},{"source-credit":"","url":{"id":"91a4a4cf-99a5-45ca-8401-cff2fe447f27","resource":"https://www.wikidata.org/wiki/Q845084"},"attribute-ids":{},"type":"wikidata","ended":false,"begin":null,"direction":"forward","type-id":"689870a4-a1e4-4912-b17f-7b2664215698","end":null,"target-type":"url","attributes":[],"target-credit":"","attribute-values":{}}],"disambiguation":"","isnis":["0000000119560719"],"type":"Group"}
+{
+  "country": "US",
+  "area": {
+    "disambiguation": "",
+    "type": null,
+    "type-id": null,
+    "sort-name": "United States",
+    "name": "United States",
+    "id": "489ce91b-6658-3307-9877-795b68554c98",
+    "iso-3166-1-codes": [
+      "US"
+    ]
+  },
+  "begin-area": {
+    "disambiguation": "",
+    "type": null,
+    "type-id": null,
+    "sort-name": "Champaign",
+    "name": "Champaign",
+    "id": "14e7a419-ac00-4569-a2e9-c74f9ed47ff2"
+  },
+  "life-span": {
+    "ended": true,
+    "begin": "1967",
+    "end": "2025-01-01"
+  },
+  "end-area": null,
+  "aliases": [
+    {
+      "name": "R E O Speedwagon",
+      "ended": false,
+      "begin": null,
+      "sort-name": "R E O Speedwagon",
+      "locale": null,
+      "type": null,
+      "primary": null,
+      "type-id": null,
+      "end": null
+    },
+    {
+      "ended": false,
+      "name": "REO Speedwagaon",
+      "sort-name": "REO Speedwagaon",
+      "begin": null,
+      "type-id": null,
+      "primary": null,
+      "type": null,
+      "locale": null,
+      "end": null
+    }
+  ],
+  "gender-id": null,
+  "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+  "gender": null,
+  "sort-name": "REO Speedwagon",
+  "ipis": [],
+  "name": "REO Speedwagon",
+  "id": "bdc70372-7e8a-4cb9-8d33-f036b3b7cdc1",
+  "relations": [
+    {
+      "url": {
+        "resource": "https://www.allmusic.com/artist/mn0000327735",
+        "id": "3621eae6-6d6e-44e2-9647-07c93bee40c7"
+      },
+      "source-credit": "",
+      "attribute-ids": {},
+      "type": "allmusic",
+      "begin": null,
+      "direction": "forward",
+      "ended": false,
+      "end": null,
+      "type-id": "6b3e3c85-0002-4f34-aca6-80ace0d7e846",
+      "attribute-values": {},
+      "attributes": [],
+      "target-credit": "",
+      "target-type": "url"
+    },
+    {
+      "target-type": "url",
+      "attribute-values": {},
+      "attributes": [],
+      "target-credit": "",
+      "type-id": "04a5b104-a4c2-4bac-99a1-7b837c37d9e4",
+      "end": null,
+      "ended": false,
+      "begin": null,
+      "direction": "forward",
+      "attribute-ids": {},
+      "source-credit": "",
+      "url": {
+        "id": "88d336e2-871a-412d-b751-a3ac98d64436",
+        "resource": "https://www.discogs.com/artist/254406"
+      },
+      "type": "discogs"
+    },
+    {
+      "target-credit": "",
+      "attributes": [],
+      "attribute-values": {},
+      "target-type": "url",
+      "end": null,
+      "type-id": "769085a1-c2f7-4c24-a532-2375a77693bd",
+      "direction": "forward",
+      "begin": null,
+      "ended": false,
+      "type": "free streaming",
+      "source-credit": "",
+      "attribute-ids": {},
+      "url": {
+        "resource": "https://open.spotify.com/artist/55vs7NT1KxcFjbMC4y202E",
+        "id": "97036d58-ee09-437f-b9e3-711da98bfae4"
+      }
+    },
+    {
+      "attribute-ids": {},
+      "source-credit": "",
+      "url": {
+        "resource": "https://www.deezer.com/artist/3875",
+        "id": "954d01e2-a7b3-4ab1-9b8e-d8208a58984e"
+      },
+      "type": "free streaming",
+      "ended": false,
+      "begin": null,
+      "direction": "forward",
+      "type-id": "769085a1-c2f7-4c24-a532-2375a77693bd",
+      "end": null,
+      "target-type": "url",
+      "attributes": [],
+      "target-credit": "",
+      "attribute-values": {}
+    },
+    {
+      "ended": false,
+      "direction": "forward",
+      "begin": null,
+      "type": "free streaming",
+      "url": {
+        "resource": "http://www.pandora.com/reo-speedwagon",
+        "id": "2a148f1b-cab6-40ef-9f36-ef24ea6a6f24"
+      },
+      "source-credit": "",
+      "attribute-ids": {},
+      "target-type": "url",
+      "target-credit": "",
+      "attributes": [],
+      "attribute-values": {},
+      "type-id": "769085a1-c2f7-4c24-a532-2375a77693bd",
+      "end": null
+    },
+    {
+      "target-type": "url",
+      "attributes": [],
+      "target-credit": "",
+      "attribute-values": {},
+      "type-id": "94c8b0cc-4477-4106-932c-da60e63de61c",
+      "end": null,
+      "ended": false,
+      "begin": null,
+      "direction": "forward",
+      "url": {
+        "id": "ca7efe50-31cf-4734-b3db-b9ee7e611c95",
+        "resource": "https://www.imdb.com/name/nm1884543/"
+      },
+      "source-credit": "",
+      "attribute-ids": {},
+      "type": "IMDb"
+    },
+    {
+      "url": {
+        "id": "687fa835-1ea1-4f01-b109-93593a228640",
+        "resource": "https://www.last.fm/music/REO%20Speedwagon"
+      },
+      "source-credit": "",
+      "attribute-ids": {},
+      "type": "last.fm",
+      "begin": null,
+      "direction": "forward",
+      "ended": false,
+      "end": null,
+      "type-id": "08db8098-c0df-4b78-82c3-c8697b4bba7f",
+      "attribute-values": {},
+      "attributes": [],
+      "target-credit": "",
+      "target-type": "url"
+    },
+    {
+      "target-type": "url",
+      "attribute-values": {},
+      "target-credit": "",
+      "attributes": [],
+      "type-id": "e4d73442-3762-45a8-905c-401da65544ed",
+      "end": null,
+      "ended": false,
+      "direction": "forward",
+      "begin": null,
+      "type": "lyrics",
+      "attribute-ids": {},
+      "source-credit": "",
+      "url": {
+        "id": "7d3d885a-587d-4675-a979-7cfee4563040",
+        "resource": "http://muzikum.eu/en/122-6031/reo-speedwagon/lyrics.html"
+      }
+    },
+    {
+      "begin": null,
+      "direction": "forward",
+      "ended": false,
+      "source-credit": "",
+      "url": {
+        "resource": "https://myspace.com/reospeedwagontunes",
+        "id": "709eba2a-b10e-412d-919a-b912691a9989"
+      },
+      "attribute-ids": {},
+      "type": "myspace",
+      "attributes": [],
+      "target-credit": "",
+      "attribute-values": {},
+      "target-type": "url",
+      "end": null,
+      "type-id": "bac47923-ecde-4b59-822e-d08f0cd10156"
+    },
+    {
+      "target-type": "url",
+      "attributes": [],
+      "target-credit": "",
+      "attribute-values": {},
+      "type-id": "fe33d22f-c3b0-4d68-bd53-a856badf2b15",
+      "end": null,
+      "ended": false,
+      "begin": null,
+      "direction": "forward",
+      "url": {
+        "id": "cf482209-ae13-4dd1-9930-3c6a38537a65",
+        "resource": "http://www.speedwagon.com/"
+      },
+      "source-credit": "",
+      "attribute-ids": {},
+      "type": "official homepage"
+    },
+    {
+      "url": {
+        "resource": "http://id.loc.gov/authorities/names/n84088344",
+        "id": "218fada0-5fc6-4ddf-a914-1975c06c5534"
+      },
+      "source-credit": "",
+      "attribute-ids": {},
+      "type": "other databases",
+      "ended": false,
+      "begin": null,
+      "direction": "forward",
+      "type-id": "d94fb61c-fa20-4e3c-a19a-71a949fb2c55",
+      "end": null,
+      "target-type": "url",
+      "attributes": [],
+      "target-credit": "",
+      "attribute-values": {}
+    },
+    {
+      "target-type": "url",
+      "attribute-values": {},
+      "attributes": [],
+      "target-credit": "",
+      "type-id": "d94fb61c-fa20-4e3c-a19a-71a949fb2c55",
+      "end": null,
+      "ended": false,
+      "begin": null,
+      "direction": "forward",
+      "attribute-ids": {},
+      "source-credit": "",
+      "url": {
+        "resource": "https://catalogue.bnf.fr/ark:/12148/cb139061287",
+        "id": "11542abc-fd29-449a-ab4d-9b6c7ce33c89"
+      },
+      "type": "other databases"
+    },
+    {
+      "ended": false,
+      "begin": null,
+      "direction": "forward",
+      "source-credit": "",
+      "url": {
+        "id": "f57658c4-3388-4415-9f45-d7feef95b3a5",
+        "resource": "https://d-nb.info/gnd/6062155-2"
+      },
+      "attribute-ids": {},
+      "type": "other databases",
+      "target-type": "url",
+      "attribute-values": {},
+      "attributes": [],
+      "target-credit": "",
+      "type-id": "d94fb61c-fa20-4e3c-a19a-71a949fb2c55",
+      "end": null
+    },
+    {
+      "type-id": "d94fb61c-fa20-4e3c-a19a-71a949fb2c55",
+      "end": null,
+      "target-type": "url",
+      "target-credit": "",
+      "attributes": [],
+      "attribute-values": {},
+      "type": "other databases",
+      "url": {
+        "id": "0a66fed5-463e-4022-9c4a-6ecd4ecd770f",
+        "resource": "https://imvdb.com/n/reo-speedwagon"
+      },
+      "source-credit": "",
+      "attribute-ids": {},
+      "ended": false,
+      "direction": "forward",
+      "begin": null
+    },
+    {
+      "target-type": "url",
+      "target-credit": "",
+      "attributes": [],
+      "attribute-values": {},
+      "type-id": "d94fb61c-fa20-4e3c-a19a-71a949fb2c55",
+      "end": null,
+      "ended": false,
+      "direction": "forward",
+      "begin": null,
+      "type": "other databases",
+      "attribute-ids": {},
+      "source-credit": "",
+      "url": {
+        "resource": "https://rateyourmusic.com/artist/reo_speedwagon",
+        "id": "8452a2d8-b98e-4492-a591-b9556de699b9"
+      }
+    },
+    {
+      "target-type": "url",
+      "target-credit": "",
+      "attributes": [],
+      "attribute-values": {},
+      "type-id": "d94fb61c-fa20-4e3c-a19a-71a949fb2c55",
+      "end": null,
+      "ended": false,
+      "direction": "forward",
+      "begin": null,
+      "type": "other databases",
+      "attribute-ids": {},
+      "source-credit": "",
+      "url": {
+        "resource": "https://www.musik-sammler.de/artist/reo-speedwagon/",
+        "id": "bc8adfca-fa1a-48b4-8c11-ad338908dab9"
+      }
+    },
+    {
+      "ended": false,
+      "direction": "forward",
+      "begin": null,
+      "type": "other databases",
+      "source-credit": "",
+      "attribute-ids": {},
+      "url": {
+        "resource": "http://www.worldcat.org/wcidentities/lccn-n84-88344",
+        "id": "f2e76e93-9e6a-41e1-afec-c39e9b0e55e8"
+      },
+      "target-type": "url",
+      "target-credit": "",
+      "attributes": [],
+      "attribute-values": {},
+      "type-id": "d94fb61c-fa20-4e3c-a19a-71a949fb2c55",
+      "end": null
+    },
+    {
+      "ended": true,
+      "direction": "forward",
+      "begin": null,
+      "type": "purchase for download",
+      "source-credit": "",
+      "url": {
+        "resource": "https://itunes.apple.com/us/artist/id575609",
+        "id": "97f6a73c-0ae3-4bfb-b5a4-a14506304b5b"
+      },
+      "attribute-ids": {},
+      "target-type": "url",
+      "target-credit": "",
+      "attributes": [],
+      "attribute-values": {},
+      "type-id": "f8319a2f-f824-4617-81c8-be6560b3b203",
+      "end": "2019-05-19"
+    },
+    {
+      "target-type": "url",
+      "attribute-values": {},
+      "attributes": [],
+      "target-credit": "",
+      "type-id": "f8319a2f-f824-4617-81c8-be6560b3b203",
+      "end": null,
+      "ended": false,
+      "begin": null,
+      "direction": "forward",
+      "source-credit": "",
+      "url": {
+        "resource": "https://music.apple.com/us/artist/575609",
+        "id": "85a241c8-c122-48e6-a3f6-ddc149d2875c"
+      },
+      "attribute-ids": {},
+      "type": "purchase for download"
+    },
+    {
+      "type": "social network",
+      "attribute-ids": {},
+      "source-credit": "",
+      "url": {
+        "resource": "https://www.facebook.com/reospeedwagon",
+        "id": "fab2a075-b941-47a4-a912-e0ad36f11a4c"
+      },
+      "ended": false,
+      "direction": "forward",
+      "begin": null,
+      "type-id": "99429741-f3f6-484b-84f8-23af51991770",
+      "end": null,
+      "target-type": "url",
+      "target-credit": "",
+      "attributes": [],
+      "attribute-values": {}
+    },
+    {
+      "end": null,
+      "type-id": "aac9c4bc-a5b9-30b8-9839-e3ac314c6e58",
+      "target-credit": "",
+      "attributes": [],
+      "attribute-values": {},
+      "target-type": "url",
+      "type": "songkick",
+      "source-credit": "",
+      "url": {
+        "resource": "https://www.songkick.com/artists/12785",
+        "id": "0031066f-67bf-45fb-8904-2d8cb2ca6449"
+      },
+      "attribute-ids": {},
+      "direction": "forward",
+      "begin": null,
+      "ended": false
+    },
+    {
+      "end": null,
+      "type-id": "63cc5d1f-f096-4c94-a43f-ecb32ea94161",
+      "attribute-values": {},
+      "target-credit": "",
+      "attributes": [],
+      "target-type": "url",
+      "type": "streaming",
+      "source-credit": "",
+      "attribute-ids": {},
+      "url": {
+        "resource": "https://music.apple.com/us/artist/575609",
+        "id": "85a241c8-c122-48e6-a3f6-ddc149d2875c"
+      },
+      "direction": "forward",
+      "begin": null,
+      "ended": false
+    },
+    {
+      "source-credit": "",
+      "url": {
+        "id": "4fd175bb-0c50-486f-ac3f-77f00953302a",
+        "resource": "https://tidal.com/artist/1137"
+      },
+      "attribute-ids": {},
+      "type": "streaming",
+      "begin": null,
+      "direction": "forward",
+      "ended": false,
+      "end": null,
+      "type-id": "63cc5d1f-f096-4c94-a43f-ecb32ea94161",
+      "attribute-values": {},
+      "attributes": [],
+      "target-credit": "",
+      "target-type": "url"
+    },
+    {
+      "direction": "forward",
+      "begin": null,
+      "ended": false,
+      "type": "VIAF",
+      "attribute-ids": {},
+      "source-credit": "",
+      "url": {
+        "resource": "http://viaf.org/viaf/132667469",
+        "id": "f428e53e-7be9-436a-8873-6179fc731269"
+      },
+      "target-credit": "",
+      "attributes": [],
+      "attribute-values": {},
+      "target-type": "url",
+      "end": null,
+      "type-id": "e8571dcc-35d4-4e91-a577-a3382fd84460"
+    },
+    {
+      "source-credit": "",
+      "url": {
+        "id": "91a4a4cf-99a5-45ca-8401-cff2fe447f27",
+        "resource": "https://www.wikidata.org/wiki/Q845084"
+      },
+      "attribute-ids": {},
+      "type": "wikidata",
+      "ended": false,
+      "begin": null,
+      "direction": "forward",
+      "type-id": "689870a4-a1e4-4912-b17f-7b2664215698",
+      "end": null,
+      "target-type": "url",
+      "attributes": [],
+      "target-credit": "",
+      "attribute-values": {}
+    },
+    {
+      "target-type": "artist",
+      "type": "member of band",
+      "type-id": "5be4c609-9afa-4ea0-910b-12ffb71e3821",
+      "direction": "backward",
+      "begin": "1972",
+      "end": null,
+      "ended": false,
+      "attributes": [
+        "vocal",
+        "guitar"
+      ],
+      "attribute-ids": {},
+      "attribute-values": {},
+      "source-credit": "",
+      "target-credit": "",
+      "artist": {
+        "id": "d19c3048-4a55-4cec-9fd3-1f4f87748664",
+        "name": "Kevin Cronin",
+        "sort-name": "Kevin Cronin",
+        "disambiguation": ""
+      }
+    },
+    {
+      "target-type": "artist",
+      "type": "member of band",
+      "type-id": "5be4c609-9afa-4ea0-910b-12ffb71e3821",
+      "direction": "backward",
+      "begin": "1967",
+      "end": null,
+      "ended": false,
+      "attributes": [
+        "keyboard"
+      ],
+      "attribute-ids": {},
+      "attribute-values": {},
+      "source-credit": "",
+      "target-credit": "",
+      "artist": {
+        "id": "e469608f-b0af-431f-83d6-f2d2e3f7d1d1",
+        "name": "Neal Doughty",
+        "sort-name": "Neal Doughty",
+        "disambiguation": ""
+      }
+    },
+    {
+      "target-type": "artist",
+      "type": "member of band",
+      "type-id": "5be4c609-9afa-4ea0-910b-12ffb71e3821",
+      "direction": "backward",
+      "begin": "1977",
+      "end": null,
+      "ended": false,
+      "attributes": [
+        "bass guitar"
+      ],
+      "attribute-ids": {},
+      "attribute-values": {},
+      "source-credit": "",
+      "target-credit": "",
+      "artist": {
+        "id": "29bda306-6837-4ccc-b4b0-22652134ecd5",
+        "name": "Bruce Hall",
+        "sort-name": "Bruce Hall",
+        "disambiguation": ""
+      }
+    },
+    {
+      "target-type": "artist",
+      "type": "member of band",
+      "type-id": "5be4c609-9afa-4ea0-910b-12ffb71e3821",
+      "direction": "backward",
+      "begin": "1970",
+      "end": "1989",
+      "ended": true,
+      "attributes": [
+        "guitar"
+      ],
+      "attribute-ids": {},
+      "attribute-values": {},
+      "source-credit": "",
+      "target-credit": "",
+      "artist": {
+        "id": "52c763fb-3bde-438e-930a-1ab4ee0b7a35",
+        "name": "Gary Richrath",
+        "sort-name": "Gary Richrath",
+        "disambiguation": ""
+      }
+    },
+    {
+      "target-type": "artist",
+      "type": "member of band",
+      "type-id": "5be4c609-9afa-4ea0-910b-12ffb71e3821",
+      "direction": "backward",
+      "begin": "1967",
+      "end": "1988",
+      "ended": true,
+      "attributes": [
+        "drums (drum set)"
+      ],
+      "attribute-ids": {},
+      "attribute-values": {},
+      "source-credit": "",
+      "target-credit": "",
+      "artist": {
+        "id": "5be05a2f-adf9-44f6-a9fe-835a3a464861",
+        "name": "Alan Gratzer",
+        "sort-name": "Alan Gratzer",
+        "disambiguation": ""
+      }
+    }
+  ],
+  "disambiguation": "",
+  "isnis": [
+    "0000000119560719"
+  ],
+  "type": "Group"
+}

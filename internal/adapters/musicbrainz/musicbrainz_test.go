@@ -108,6 +108,54 @@ func TestLookupArtist_MapsRecordedBeatlesFixture(t *testing.T) {
 	}
 }
 
+// TestLookupArtist_MapsBandMemberRelations regression-covers the
+// artist-rels inc= addition (LookupArtist previously requested url-rels
+// only, so a Group artist's "member of band" relations — the data the Add
+// Artist flow needs to create Person/EntryPerson rows for each member —
+// were silently never returned).
+func TestLookupArtist_MapsBandMemberRelations(t *testing.T) {
+	rt := httpmock.New(httpmock.Route{
+		Method:    http.MethodGet,
+		Path:      "/ws/2/artist/bdc70372-7e8a-4cb9-8d33-f036b3b7cdc1",
+		Responder: httpmock.Raw(http.StatusOK, rawFixture(t, "artist_lookup_reo_speedwagon")),
+	})
+
+	c := newMockedTestClient(t, rt)
+	a, err := c.LookupArtist(context.Background(), "bdc70372-7e8a-4cb9-8d33-f036b3b7cdc1")
+	if err != nil {
+		t.Fatalf("LookupArtist returned error: %v", err)
+	}
+
+	var members []ports.Relation
+	for _, r := range a.Relations {
+		if r.Type == "member of band" && r.Artist != nil {
+			members = append(members, r)
+		}
+	}
+	if len(members) != 5 {
+		t.Fatalf("member of band relations = %d, want 5", len(members))
+	}
+
+	var cronin *ports.Relation
+	for i := range members {
+		if members[i].Artist.Name == "Kevin Cronin" {
+			cronin = &members[i]
+		}
+	}
+	if cronin == nil {
+		t.Fatal("Kevin Cronin relation not found")
+	}
+	if cronin.Artist.ID == "" {
+		t.Error("Kevin Cronin relation has no Artist.ID")
+	}
+	if cronin.Begin != "1972" || cronin.Ended {
+		t.Errorf("Kevin Cronin Begin/Ended = %q/%v, want 1972/false (current member)", cronin.Begin, cronin.Ended)
+	}
+	if len(cronin.Attributes) == 0 {
+		t.Error("Kevin Cronin has no Attributes, want instrument/role detail")
+	}
+}
+
 func TestLookupRelease_MapsRecordedReleaseFixture(t *testing.T) {
 	rt := httpmock.New(httpmock.Route{
 		Method:    http.MethodGet,

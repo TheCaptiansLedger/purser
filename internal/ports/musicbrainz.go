@@ -100,12 +100,20 @@ type RelationArtist struct {
 }
 
 // Relation is one MusicBrainz relationship edge — e.g. "member of band",
-// "official homepage", "wikipedia" — embedded on an Artist.
+// "official homepage", "wikipedia" — embedded on an Artist. Begin/End/Ended
+// carry the relationship's own life span (e.g. when a member joined/left a
+// band), distinct from the target Artist's own LifeSpan. Attributes is
+// relation-type-specific detail MusicBrainz attaches to some edges — for
+// "member of band" it's the instrument/role list (e.g. "vocal", "guitar").
 type Relation struct {
-	Type      string          `json:"type"`
-	Direction string          `json:"direction"`
-	URL       *RelationURL    `json:"url,omitempty"`
-	Artist    *RelationArtist `json:"artist,omitempty"`
+	Type       string          `json:"type"`
+	Direction  string          `json:"direction"`
+	URL        *RelationURL    `json:"url,omitempty"`
+	Artist     *RelationArtist `json:"artist,omitempty"`
+	Begin      string          `json:"begin"`
+	End        string          `json:"end"`
+	Ended      bool            `json:"ended"`
+	Attributes []string        `json:"attributes"`
 }
 
 // Artist is MusicBrainz's artist DTO — the identity anchor for a person,

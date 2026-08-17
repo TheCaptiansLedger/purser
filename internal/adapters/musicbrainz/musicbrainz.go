@@ -206,7 +206,12 @@ func (c *Client) Close() error {
 // LookupArtist implements ports.MusicBrainzClient.
 func (c *Client) LookupArtist(ctx context.Context, mbid string) (*ports.Artist, error) {
 	q := url.Values{}
-	q.Set("inc", "url-rels aliases")
+	// artist-rels is what surfaces band-member edges (Relation.Artist
+	// populated, e.g. "member of band") alongside url-rels' external links
+	// (official homepage, wikipedia, ...) — both come back on the same
+	// Relations slice, distinguished by which of Relation.Artist/Relation.URL
+	// is set.
+	q.Set("inc", "artist-rels url-rels aliases")
 
 	var a ports.Artist
 	if err := c.get(ctx, "artist/"+mbid, q, &a); err != nil {

@@ -108,8 +108,34 @@ message GetMusicBrainzArtistRequest {
   string mbid = 1;
 }
 
+// MusicBrainzArtistMember is one band-member edge from a Group artist's
+// "member of band" relations — the Add Artist flow's source for creating
+// the corresponding Person/EntryPerson rows (see docs/technical/music-web-ui.md).
+// attributes is MusicBrainz's own instrument/role detail on the relation
+// (e.g. "vocal", "guitar"); begin/end/ended describe the relation's own
+// life span (when this person joined/left the band), distinct from the
+// member's own MusicBrainzArtist life span.
+message MusicBrainzArtistMember {
+  string mbid = 1;
+  string name = 2;
+  repeated string attributes = 3;
+  string begin = 4;
+  string end = 5;
+  bool ended = 6;
+}
+
+// GetMusicBrainzArtistResponse's extra fields (isnis/official_url/
+// wikipedia_url/members) come from the same MusicBrainz relations data
+// SearchArtists' MusicBrainzArtist deliberately omits (see that message's
+// own doc comment) — GetArtist is the "caller already knows the exact
+// artist" lookup, the right place for the heavier per-artist detail
+// nothing else needs.
 message GetMusicBrainzArtistResponse {
   MusicBrainzArtist artist = 1;
+  repeated string isnis = 2;
+  string official_url = 3;
+  string wikipedia_url = 4;
+  repeated MusicBrainzArtistMember members = 5;
 }
 
 // ListMusicBrainzReleasesRequest lists every known pressing/edition of one

@@ -196,4 +196,13 @@ describe('MusicLibrary', () => {
     expect(screen.getByText('Artist detail page')).toBeInTheDocument()
     expect(screen.queryByText('Add Artist dialog open')).not.toBeInTheDocument()
   })
+
+  it('links each card to its Artist Detail route', () => {
+    mockUseArtistLibraryEntries.mockReturnValue(loaded([{ id: 'a1', name: 'Fleetwood Mac', monitored: true }]))
+
+    renderMusicLibrary()
+    fireEvent.click(screen.getByText('Fleetwood Mac'))
+
+    expect(screen.getByText('Artist detail page')).toBeInTheDocument()
+  })
 })

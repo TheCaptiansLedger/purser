@@ -1,7 +1,7 @@
 import type { JsonObject } from '@bufbuild/protobuf'
 import { Music, Plus, Search, SearchX } from 'lucide-react'
 import { useMemo, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { AddArtistDialog } from '../components/AddArtistDialog'
 import { ArtistCard } from '../components/ArtistCard'
 import { EmptyState } from '../components/EmptyState'
@@ -29,13 +29,13 @@ function genreOf(metadata: JsonObject | undefined): string | undefined {
 // useArtistLibraryEntries), same accepted-limitation precedent the
 // People index page (#660) set for its own monitored-only filter.
 //
-// No ownership ring (#670) and no click-through to Artist Detail (#671
-// isn't built yet) — both explicitly out of this issue's scope.
+// No ownership ring (#670) — out of this issue's scope. Each card links
+// to its Artist Detail route (#666) via a plain <Link>; ArtistCard itself
+// has no nested interactive element (unlike PersonCard's photo button),
+// so this needs none of People.tsx's click-target-detection workaround.
 //
 // The "Add Artist" button (#665) opens AddArtistDialog and navigates to
-// the resulting artist's detail route on success — that route has no
-// page behind it yet (Artist Detail is #666/#667/#668), so it's a dead
-// link until those land, a deliberate call rather than an oversight.
+// the resulting artist's detail route (#666) on success.
 export function MusicLibrary() {
   const navigate = useNavigate()
   const [search, setSearch] = useState('')
@@ -141,7 +141,9 @@ export function MusicLibrary() {
       {visibleArtists.length > 0 && (
         <div className="mt-6 grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8 2xl:grid-cols-10">
           {visibleArtists.map(artist => (
-            <ArtistCard key={artist.id} artist={{ ...artist, imageId: imagesByArtistId[artist.id] }} />
+            <Link key={artist.id} to={`/music/artists/${artist.id}`} className="rounded-lg hover:bg-surface-raised">
+              <ArtistCard artist={{ ...artist, imageId: imagesByArtistId[artist.id] }} />
+            </Link>
           ))}
         </div>
       )}

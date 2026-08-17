@@ -304,6 +304,56 @@ func TestMusicBrainzSearchHandler_GetArtist(t *testing.T) {
 		}
 	})
 
+	// Regression coverage: GetArtist is the "caller already knows the exact
+	// artist" lookup — the right place for isnis/official_url/wikipedia_url/
+	// members, the relations data SearchArtists' MusicBrainzArtist
+	// deliberately omits. See the Add Artist flow (band-member Person/
+	// EntryPerson creation) and Artist Detail's facts sidebar (ISNI, links).
+	t.Run("maps isnis, official/wikipedia links, and band members from Relations", func(t *testing.T) {
+		svc := &fakeMusicBrainzSearchService{returnArtist: &ports.Artist{
+			ID: "artist-1", Name: "REO Speedwagon", Type: "Group",
+			ISNIs: []string{"0000000123456789"},
+			Relations: []ports.Relation{
+				{Type: "official homepage", URL: &ports.RelationURL{Resource: "http://www.speedwagon.com/"}},
+				{Type: "wikipedia", URL: &ports.RelationURL{Resource: "https://en.wikipedia.org/wiki/REO_Speedwagon"}},
+				{Type: "allmusic", URL: &ports.RelationURL{Resource: "https://www.allmusic.com/artist/x"}},
+				{
+					Type: "member of band", Direction: "backward",
+					Artist:     &ports.RelationArtist{ID: "member-1", Name: "Kevin Cronin"},
+					Attributes: []string{"vocal", "guitar"},
+					Begin:      "1972",
+				},
+				{Type: "member of band", Direction: "backward", Artist: nil}, // malformed edge, no target — must not panic or produce a blank member
+			},
+		}}
+		h := apiconnect.NewMusicBrainzSearchHandler(svc, nil)
+
+		res, err := h.GetArtist(context.Background(), connect.NewRequest(&musicv1.GetMusicBrainzArtistRequest{Mbid: "artist-1"}))
+		if err != nil {
+			t.Fatalf("GetArtist returned error: %v", err)
+		}
+
+		if len(res.Msg.GetIsnis()) != 1 || res.Msg.GetIsnis()[0] != "0000000123456789" {
+			t.Errorf("Isnis = %v, want [0000000123456789]", res.Msg.GetIsnis())
+		}
+		if res.Msg.GetOfficialUrl() != "http://www.speedwagon.com/" {
+			t.Errorf("OfficialUrl = %q, want http://www.speedwagon.com/", res.Msg.GetOfficialUrl())
+		}
+		if res.Msg.GetWikipediaUrl() != "https://en.wikipedia.org/wiki/REO_Speedwagon" {
+			t.Errorf("WikipediaUrl = %q, want https://en.wikipedia.org/wiki/REO_Speedwagon", res.Msg.GetWikipediaUrl())
+		}
+		if len(res.Msg.GetMembers()) != 1 {
+			t.Fatalf("Members = %d, want 1 (the malformed nil-Artist edge must be skipped)", len(res.Msg.GetMembers()))
+		}
+		m := res.Msg.GetMembers()[0]
+		if m.GetMbid() != "member-1" || m.GetName() != "Kevin Cronin" || m.GetBegin() != "1972" {
+			t.Errorf("Members[0] = %+v, want mbid=member-1 name=Kevin Cronin begin=1972", m)
+		}
+		if len(m.GetAttributes()) != 2 {
+			t.Errorf("Members[0].Attributes = %v, want [vocal guitar]", m.GetAttributes())
+		}
+	})
+
 	t.Run("an unmapped error maps to CodeInternal", func(t *testing.T) {
 		svc := &fakeMusicBrainzSearchService{artistErr: errors.New("boom")}
 		h := apiconnect.NewMusicBrainzSearchHandler(svc, nil)

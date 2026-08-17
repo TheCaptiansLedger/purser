@@ -10,7 +10,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file purser/music/v1/musicbrainz_search.proto.
  */
 export const file_purser_music_v1_musicbrainz_search: GenFile = /*@__PURE__*/
-  fileDesc("CihwdXJzZXIvbXVzaWMvdjEvbXVzaWNicmFpbnpfc2VhcmNoLnByb3RvEg9wdXJzZXIubXVzaWMudjEimQEKF011c2ljQnJhaW56UmVsZWFzZUdyb3VwEgwKBG1iaWQYASABKAkSDQoFdGl0bGUYAiABKAkSFgoOZGlzYW1iaWd1YXRpb24YAyABKAkSFAoMcHJpbWFyeV90eXBlGAQgASgJEhcKD3NlY29uZGFyeV90eXBlcxgFIAMoCRIaChJmaXJzdF9yZWxlYXNlX2RhdGUYBiABKAki8AEKEk11c2ljQnJhaW56UmVsZWFzZRIMCgRtYmlkGAEgASgJEg0KBXRpdGxlGAIgASgJEhYKDmRpc2FtYmlndWF0aW9uGAMgASgJEg8KB2NvdW50cnkYBCABKAkSDAoEZGF0ZRgFIAEoCRIPCgdiYXJjb2RlGAYgASgJEg4KBnN0YXR1cxgHIAEoCRIOCgZmb3JtYXQYCCABKAkSFAoMbWVkaXVtX2NvdW50GAkgASgFEhMKC3RyYWNrX2NvdW50GAogASgFEhsKE2FydGlzdF9jcmVkaXRfbmFtZXMYCyADKAkSDQoFbGFiZWwYDCABKAkiugEKEU11c2ljQnJhaW56QXJ0aXN0EgwKBG1iaWQYASABKAkSDAoEbmFtZRgCIAEoCRIRCglzb3J0X25hbWUYAyABKAkSFgoOZGlzYW1iaWd1YXRpb24YBCABKAkSDAoEdHlwZRgFIAEoCRIPCgdjb3VudHJ5GAYgASgJEhcKD2xpZmVfc3Bhbl9iZWdpbhgHIAEoCRIVCg1saWZlX3NwYW5fZW5kGAggASgJEg8KB2FsaWFzZXMYCSADKAkiMAofU2VhcmNoTXVzaWNCcmFpbnpBcnRpc3RzUmVxdWVzdBINCgVxdWVyeRgBIAEoCSJXCiBTZWFyY2hNdXNpY0JyYWluekFydGlzdHNSZXNwb25zZRIzCgdhcnRpc3RzGAEgAygLMiIucHVyc2VyLm11c2ljLnYxLk11c2ljQnJhaW56QXJ0aXN0IkAKKUxpc3RNdXNpY0JyYWluekFydGlzdFJlbGVhc2VHcm91cHNSZXF1ZXN0EhMKC2FydGlzdF9tYmlkGAEgASgJIm4KKkxpc3RNdXNpY0JyYWluekFydGlzdFJlbGVhc2VHcm91cHNSZXNwb25zZRJACg5yZWxlYXNlX2dyb3VwcxgBIAMoCzIoLnB1cnNlci5tdXNpYy52MS5NdXNpY0JyYWluelJlbGVhc2VHcm91cCJQCiVTZWFyY2hNdXNpY0JyYWluelJlbGVhc2VHcm91cHNSZXF1ZXN0EhMKC2FydGlzdF9uYW1lGAEgASgJEhIKCmFsYnVtX25hbWUYAiABKAkiagomU2VhcmNoTXVzaWNCcmFpbnpSZWxlYXNlR3JvdXBzUmVzcG9uc2USQAoOcmVsZWFzZV9ncm91cHMYASADKAsyKC5wdXJzZXIubXVzaWMudjEuTXVzaWNCcmFpbnpSZWxlYXNlR3JvdXAiKwobR2V0TXVzaWNCcmFpbnpBcnRpc3RSZXF1ZXN0EgwKBG1iaWQYASABKAkiUgocR2V0TXVzaWNCcmFpbnpBcnRpc3RSZXNwb25zZRIyCgZhcnRpc3QYASABKAsyIi5wdXJzZXIubXVzaWMudjEuTXVzaWNCcmFpbnpBcnRpc3QiPAoeTGlzdE11c2ljQnJhaW56UmVsZWFzZXNSZXF1ZXN0EhoKEnJlbGVhc2VfZ3JvdXBfbWJpZBgBIAEoCSJYCh9MaXN0TXVzaWNCcmFpbnpSZWxlYXNlc1Jlc3BvbnNlEjUKCHJlbGVhc2VzGAEgAygLMiMucHVyc2VyLm11c2ljLnYxLk11c2ljQnJhaW56UmVsZWFzZTKYBQoSTXVzaWNCcmFpbnpTZXJ2aWNlEoYBChNTZWFyY2hSZWxlYXNlR3JvdXBzEjYucHVyc2VyLm11c2ljLnYxLlNlYXJjaE11c2ljQnJhaW56UmVsZWFzZUdyb3Vwc1JlcXVlc3QaNy5wdXJzZXIubXVzaWMudjEuU2VhcmNoTXVzaWNCcmFpbnpSZWxlYXNlR3JvdXBzUmVzcG9uc2USgAEKG0xpc3RSZWxlYXNlc0ZvclJlbGVhc2VHcm91cBIvLnB1cnNlci5tdXNpYy52MS5MaXN0TXVzaWNCcmFpbnpSZWxlYXNlc1JlcXVlc3QaMC5wdXJzZXIubXVzaWMudjEuTGlzdE11c2ljQnJhaW56UmVsZWFzZXNSZXNwb25zZRJ0Cg1TZWFyY2hBcnRpc3RzEjAucHVyc2VyLm11c2ljLnYxLlNlYXJjaE11c2ljQnJhaW56QXJ0aXN0c1JlcXVlc3QaMS5wdXJzZXIubXVzaWMudjEuU2VhcmNoTXVzaWNCcmFpbnpBcnRpc3RzUmVzcG9uc2USlQEKGkxpc3RSZWxlYXNlR3JvdXBzRm9yQXJ0aXN0EjoucHVyc2VyLm11c2ljLnYxLkxpc3RNdXNpY0JyYWluekFydGlzdFJlbGVhc2VHcm91cHNSZXF1ZXN0GjsucHVyc2VyLm11c2ljLnYxLkxpc3RNdXNpY0JyYWluekFydGlzdFJlbGVhc2VHcm91cHNSZXNwb25zZRJoCglHZXRBcnRpc3QSLC5wdXJzZXIubXVzaWMudjEuR2V0TXVzaWNCcmFpbnpBcnRpc3RSZXF1ZXN0Gi0ucHVyc2VyLm11c2ljLnYxLkdldE11c2ljQnJhaW56QXJ0aXN0UmVzcG9uc2VCJ1olcHVyc2VyL2dlbi9nby9wdXJzZXIvbXVzaWMvdjE7bXVzaWN2MWIGcHJvdG8z");
+  fileDesc("CihwdXJzZXIvbXVzaWMvdjEvbXVzaWNicmFpbnpfc2VhcmNoLnByb3RvEg9wdXJzZXIubXVzaWMudjEimQEKF011c2ljQnJhaW56UmVsZWFzZUdyb3VwEgwKBG1iaWQYASABKAkSDQoFdGl0bGUYAiABKAkSFgoOZGlzYW1iaWd1YXRpb24YAyABKAkSFAoMcHJpbWFyeV90eXBlGAQgASgJEhcKD3NlY29uZGFyeV90eXBlcxgFIAMoCRIaChJmaXJzdF9yZWxlYXNlX2RhdGUYBiABKAki8AEKEk11c2ljQnJhaW56UmVsZWFzZRIMCgRtYmlkGAEgASgJEg0KBXRpdGxlGAIgASgJEhYKDmRpc2FtYmlndWF0aW9uGAMgASgJEg8KB2NvdW50cnkYBCABKAkSDAoEZGF0ZRgFIAEoCRIPCgdiYXJjb2RlGAYgASgJEg4KBnN0YXR1cxgHIAEoCRIOCgZmb3JtYXQYCCABKAkSFAoMbWVkaXVtX2NvdW50GAkgASgFEhMKC3RyYWNrX2NvdW50GAogASgFEhsKE2FydGlzdF9jcmVkaXRfbmFtZXMYCyADKAkSDQoFbGFiZWwYDCABKAkiugEKEU11c2ljQnJhaW56QXJ0aXN0EgwKBG1iaWQYASABKAkSDAoEbmFtZRgCIAEoCRIRCglzb3J0X25hbWUYAyABKAkSFgoOZGlzYW1iaWd1YXRpb24YBCABKAkSDAoEdHlwZRgFIAEoCRIPCgdjb3VudHJ5GAYgASgJEhcKD2xpZmVfc3Bhbl9iZWdpbhgHIAEoCRIVCg1saWZlX3NwYW5fZW5kGAggASgJEg8KB2FsaWFzZXMYCSADKAkiMAofU2VhcmNoTXVzaWNCcmFpbnpBcnRpc3RzUmVxdWVzdBINCgVxdWVyeRgBIAEoCSJXCiBTZWFyY2hNdXNpY0JyYWluekFydGlzdHNSZXNwb25zZRIzCgdhcnRpc3RzGAEgAygLMiIucHVyc2VyLm11c2ljLnYxLk11c2ljQnJhaW56QXJ0aXN0IkAKKUxpc3RNdXNpY0JyYWluekFydGlzdFJlbGVhc2VHcm91cHNSZXF1ZXN0EhMKC2FydGlzdF9tYmlkGAEgASgJIm4KKkxpc3RNdXNpY0JyYWluekFydGlzdFJlbGVhc2VHcm91cHNSZXNwb25zZRJACg5yZWxlYXNlX2dyb3VwcxgBIAMoCzIoLnB1cnNlci5tdXNpYy52MS5NdXNpY0JyYWluelJlbGVhc2VHcm91cCJQCiVTZWFyY2hNdXNpY0JyYWluelJlbGVhc2VHcm91cHNSZXF1ZXN0EhMKC2FydGlzdF9uYW1lGAEgASgJEhIKCmFsYnVtX25hbWUYAiABKAkiagomU2VhcmNoTXVzaWNCcmFpbnpSZWxlYXNlR3JvdXBzUmVzcG9uc2USQAoOcmVsZWFzZV9ncm91cHMYASADKAsyKC5wdXJzZXIubXVzaWMudjEuTXVzaWNCcmFpbnpSZWxlYXNlR3JvdXAiKwobR2V0TXVzaWNCcmFpbnpBcnRpc3RSZXF1ZXN0EgwKBG1iaWQYASABKAkidAoXTXVzaWNCcmFpbnpBcnRpc3RNZW1iZXISDAoEbWJpZBgBIAEoCRIMCgRuYW1lGAIgASgJEhIKCmF0dHJpYnV0ZXMYAyADKAkSDQoFYmVnaW4YBCABKAkSCwoDZW5kGAUgASgJEg0KBWVuZGVkGAYgASgIIskBChxHZXRNdXNpY0JyYWluekFydGlzdFJlc3BvbnNlEjIKBmFydGlzdBgBIAEoCzIiLnB1cnNlci5tdXNpYy52MS5NdXNpY0JyYWluekFydGlzdBINCgVpc25pcxgCIAMoCRIUCgxvZmZpY2lhbF91cmwYAyABKAkSFQoNd2lraXBlZGlhX3VybBgEIAEoCRI5CgdtZW1iZXJzGAUgAygLMigucHVyc2VyLm11c2ljLnYxLk11c2ljQnJhaW56QXJ0aXN0TWVtYmVyIjwKHkxpc3RNdXNpY0JyYWluelJlbGVhc2VzUmVxdWVzdBIaChJyZWxlYXNlX2dyb3VwX21iaWQYASABKAkiWAofTGlzdE11c2ljQnJhaW56UmVsZWFzZXNSZXNwb25zZRI1CghyZWxlYXNlcxgBIAMoCzIjLnB1cnNlci5tdXNpYy52MS5NdXNpY0JyYWluelJlbGVhc2UymAUKEk11c2ljQnJhaW56U2VydmljZRKGAQoTU2VhcmNoUmVsZWFzZUdyb3VwcxI2LnB1cnNlci5tdXNpYy52MS5TZWFyY2hNdXNpY0JyYWluelJlbGVhc2VHcm91cHNSZXF1ZXN0GjcucHVyc2VyLm11c2ljLnYxLlNlYXJjaE11c2ljQnJhaW56UmVsZWFzZUdyb3Vwc1Jlc3BvbnNlEoABChtMaXN0UmVsZWFzZXNGb3JSZWxlYXNlR3JvdXASLy5wdXJzZXIubXVzaWMudjEuTGlzdE11c2ljQnJhaW56UmVsZWFzZXNSZXF1ZXN0GjAucHVyc2VyLm11c2ljLnYxLkxpc3RNdXNpY0JyYWluelJlbGVhc2VzUmVzcG9uc2USdAoNU2VhcmNoQXJ0aXN0cxIwLnB1cnNlci5tdXNpYy52MS5TZWFyY2hNdXNpY0JyYWluekFydGlzdHNSZXF1ZXN0GjEucHVyc2VyLm11c2ljLnYxLlNlYXJjaE11c2ljQnJhaW56QXJ0aXN0c1Jlc3BvbnNlEpUBChpMaXN0UmVsZWFzZUdyb3Vwc0ZvckFydGlzdBI6LnB1cnNlci5tdXNpYy52MS5MaXN0TXVzaWNCcmFpbnpBcnRpc3RSZWxlYXNlR3JvdXBzUmVxdWVzdBo7LnB1cnNlci5tdXNpYy52MS5MaXN0TXVzaWNCcmFpbnpBcnRpc3RSZWxlYXNlR3JvdXBzUmVzcG9uc2USaAoJR2V0QXJ0aXN0EiwucHVyc2VyLm11c2ljLnYxLkdldE11c2ljQnJhaW56QXJ0aXN0UmVxdWVzdBotLnB1cnNlci5tdXNpYy52MS5HZXRNdXNpY0JyYWluekFydGlzdFJlc3BvbnNlQidaJXB1cnNlci9nZW4vZ28vcHVyc2VyL211c2ljL3YxO211c2ljdjFiBnByb3RvMw");
 
 /**
  * MusicBrainzReleaseGroup is one candidate album MusicBrainz's own free-text
@@ -356,6 +356,63 @@ export const GetMusicBrainzArtistRequestSchema: GenMessage<GetMusicBrainzArtistR
   messageDesc(file_purser_music_v1_musicbrainz_search, 9);
 
 /**
+ * MusicBrainzArtistMember is one band-member edge from a Group artist's
+ * "member of band" relations — the Add Artist flow's source for creating
+ * the corresponding Person/EntryPerson rows (see docs/technical/music-web-ui.md).
+ * attributes is MusicBrainz's own instrument/role detail on the relation
+ * (e.g. "vocal", "guitar"); begin/end/ended describe the relation's own
+ * life span (when this person joined/left the band), distinct from the
+ * member's own MusicBrainzArtist life span.
+ *
+ * @generated from message purser.music.v1.MusicBrainzArtistMember
+ */
+export type MusicBrainzArtistMember = Message<"purser.music.v1.MusicBrainzArtistMember"> & {
+  /**
+   * @generated from field: string mbid = 1;
+   */
+  mbid: string;
+
+  /**
+   * @generated from field: string name = 2;
+   */
+  name: string;
+
+  /**
+   * @generated from field: repeated string attributes = 3;
+   */
+  attributes: string[];
+
+  /**
+   * @generated from field: string begin = 4;
+   */
+  begin: string;
+
+  /**
+   * @generated from field: string end = 5;
+   */
+  end: string;
+
+  /**
+   * @generated from field: bool ended = 6;
+   */
+  ended: boolean;
+};
+
+/**
+ * Describes the message purser.music.v1.MusicBrainzArtistMember.
+ * Use `create(MusicBrainzArtistMemberSchema)` to create a new message.
+ */
+export const MusicBrainzArtistMemberSchema: GenMessage<MusicBrainzArtistMember> = /*@__PURE__*/
+  messageDesc(file_purser_music_v1_musicbrainz_search, 10);
+
+/**
+ * GetMusicBrainzArtistResponse's extra fields (isnis/official_url/
+ * wikipedia_url/members) come from the same MusicBrainz relations data
+ * SearchArtists' MusicBrainzArtist deliberately omits (see that message's
+ * own doc comment) — GetArtist is the "caller already knows the exact
+ * artist" lookup, the right place for the heavier per-artist detail
+ * nothing else needs.
+ *
  * @generated from message purser.music.v1.GetMusicBrainzArtistResponse
  */
 export type GetMusicBrainzArtistResponse = Message<"purser.music.v1.GetMusicBrainzArtistResponse"> & {
@@ -363,6 +420,26 @@ export type GetMusicBrainzArtistResponse = Message<"purser.music.v1.GetMusicBrai
    * @generated from field: purser.music.v1.MusicBrainzArtist artist = 1;
    */
   artist?: MusicBrainzArtist | undefined;
+
+  /**
+   * @generated from field: repeated string isnis = 2;
+   */
+  isnis: string[];
+
+  /**
+   * @generated from field: string official_url = 3;
+   */
+  officialUrl: string;
+
+  /**
+   * @generated from field: string wikipedia_url = 4;
+   */
+  wikipediaUrl: string;
+
+  /**
+   * @generated from field: repeated purser.music.v1.MusicBrainzArtistMember members = 5;
+   */
+  members: MusicBrainzArtistMember[];
 };
 
 /**
@@ -370,7 +447,7 @@ export type GetMusicBrainzArtistResponse = Message<"purser.music.v1.GetMusicBrai
  * Use `create(GetMusicBrainzArtistResponseSchema)` to create a new message.
  */
 export const GetMusicBrainzArtistResponseSchema: GenMessage<GetMusicBrainzArtistResponse> = /*@__PURE__*/
-  messageDesc(file_purser_music_v1_musicbrainz_search, 10);
+  messageDesc(file_purser_music_v1_musicbrainz_search, 11);
 
 /**
  * ListMusicBrainzReleasesRequest lists every known pressing/edition of one
@@ -391,7 +468,7 @@ export type ListMusicBrainzReleasesRequest = Message<"purser.music.v1.ListMusicB
  * Use `create(ListMusicBrainzReleasesRequestSchema)` to create a new message.
  */
 export const ListMusicBrainzReleasesRequestSchema: GenMessage<ListMusicBrainzReleasesRequest> = /*@__PURE__*/
-  messageDesc(file_purser_music_v1_musicbrainz_search, 11);
+  messageDesc(file_purser_music_v1_musicbrainz_search, 12);
 
 /**
  * @generated from message purser.music.v1.ListMusicBrainzReleasesResponse
@@ -408,7 +485,7 @@ export type ListMusicBrainzReleasesResponse = Message<"purser.music.v1.ListMusic
  * Use `create(ListMusicBrainzReleasesResponseSchema)` to create a new message.
  */
 export const ListMusicBrainzReleasesResponseSchema: GenMessage<ListMusicBrainzReleasesResponse> = /*@__PURE__*/
-  messageDesc(file_purser_music_v1_musicbrainz_search, 12);
+  messageDesc(file_purser_music_v1_musicbrainz_search, 13);
 
 /**
  * MusicBrainzService exposes internal/adapters/musicbrainz's read-only
