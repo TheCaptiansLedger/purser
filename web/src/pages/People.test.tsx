@@ -1,8 +1,24 @@
 import { fireEvent, render, screen } from '@testing-library/react'
+import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { describe, expect, it, vi } from 'vitest'
 import { usePeopleList } from '../hooks/usePeopleList'
 import { usePersonImages } from '../hooks/usePersonImages'
 import { People } from './People'
+
+// People navigates via useNavigate(), which throws outside a Router
+// context — every render needs one. A /people/:id route is present so a
+// navigation assertion can check the resulting location's rendered output
+// instead of reaching into the router's internals.
+function renderPeople() {
+  render(
+    <MemoryRouter initialEntries={['/people']}>
+      <Routes>
+        <Route path="/people" element={<People />} />
+        <Route path="/people/:id" element={<div>Person detail page</div>} />
+      </Routes>
+    </MemoryRouter>,
+  )
+}
 
 // Page-level test: composition only, per ADR 0004 — usePeopleList's own
 // wire behavior is tested in usePeopleList.test.tsx, usePersonImages' own
@@ -45,7 +61,7 @@ describe('People', () => {
   it('shows the empty-library state with a disabled Add Person action when nothing exists', () => {
     mockUsePeopleList.mockReturnValue(loaded([]))
 
-    render(<People />)
+    renderPeople()
 
     expect(screen.getByText('No people yet')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Add Person' })).toBeDisabled()
@@ -59,7 +75,7 @@ describe('People', () => {
       ]),
     )
 
-    render(<People />)
+    renderPeople()
 
     expect(screen.getByText('Jane Doe')).toBeInTheDocument()
     expect(screen.getByText('Stevie Nicks')).toBeInTheDocument()
@@ -74,7 +90,7 @@ describe('People', () => {
       ]),
     )
 
-    render(<People />)
+    renderPeople()
     fireEvent.click(screen.getByRole('switch', { name: 'Monitored only' }))
 
     expect(screen.getByText('Jane Doe')).toBeInTheDocument()
@@ -84,7 +100,7 @@ describe('People', () => {
   it('shows the zero-results EmptyState when Monitored only filters out every loaded person', () => {
     mockUsePeopleList.mockReturnValue(loaded([{ id: 'p1', name: 'Jane Doe', monitored: false }]))
 
-    render(<People />)
+    renderPeople()
     fireEvent.click(screen.getByRole('switch', { name: 'Monitored only' }))
 
     expect(screen.getByText('No matches')).toBeInTheDocument()
@@ -95,7 +111,7 @@ describe('People', () => {
     const listResult = loaded([{ id: 'p1', name: 'Jane Doe', monitored: true }], true)
     mockUsePeopleList.mockReturnValue(listResult)
 
-    render(<People />)
+    renderPeople()
     fireEvent.click(screen.getByRole('button', { name: 'Load more' }))
 
     expect(listResult.fetchNextPage).toHaveBeenCalledOnce()
@@ -105,7 +121,7 @@ describe('People', () => {
   it('shows nothing while the first page is pending', () => {
     mockUsePeopleList.mockReturnValue(pending())
 
-    render(<People />)
+    renderPeople()
 
     expect(screen.queryByText('No people yet')).not.toBeInTheDocument()
     expect(screen.queryByText('No matches')).not.toBeInTheDocument()
@@ -119,8 +135,28 @@ describe('People', () => {
       error: { message: 'unavailable' },
     } as unknown as ReturnType<typeof usePeopleList>)
 
-    render(<People />)
+    renderPeople()
 
     expect(screen.getByText(/unavailable/)).toBeInTheDocument()
+  })
+
+  it('navigates to the Person detail page when a card is clicked', () => {
+    mockUsePeopleList.mockReturnValue(loaded([{ id: 'p1', name: 'Jane Doe', monitored: true }]))
+
+    renderPeople()
+    fireEvent.click(screen.getByRole('link', { name: 'View Jane Doe' }))
+
+    expect(screen.getByText('Person detail page')).toBeInTheDocument()
+  })
+
+  it('opens the lightbox instead of navigating when the photo itself is clicked', () => {
+    mockUsePersonImages.mockReturnValueOnce({ p1: 'img-1' })
+    mockUsePeopleList.mockReturnValue(loaded([{ id: 'p1', name: 'Jane Doe', monitored: true }]))
+
+    renderPeople()
+    fireEvent.click(screen.getByRole('button', { name: "View Jane Doe's photo" }))
+
+    expect(screen.getByRole('dialog', { name: 'Jane Doe' })).toBeInTheDocument()
+    expect(screen.queryByText('Person detail page')).not.toBeInTheDocument()
   })
 })

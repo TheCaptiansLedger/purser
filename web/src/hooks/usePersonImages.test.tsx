@@ -1,4 +1,5 @@
 import { createRouterTransport } from '@connectrpc/connect'
+import { ConnectError, Code } from '@connectrpc/connect'
 import { TransportProvider } from '@connectrpc/connect-query'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { renderHook, waitFor } from '@testing-library/react'
@@ -24,12 +25,13 @@ describe('usePersonImages', () => {
   it('resolves one imageId per person, keyed by person id', async () => {
     const mockTransport = createRouterTransport(router => {
       router.service(ImageService, {
-        listImages: request => {
+        getSelectedImage: request => {
           expect(request.ownerType).toBe('person')
+          expect(request.imageType).toBe('photo')
           if (request.ownerId === 'p1') {
-            return { images: [{ id: 'img-1' }], nextPageToken: '' }
+            return { image: { id: 'img-1' } }
           }
-          return { images: [{ id: 'img-2' }], nextPageToken: '' }
+          return { image: { id: 'img-2' } }
         },
       })
     })
@@ -39,15 +41,17 @@ describe('usePersonImages', () => {
     await waitFor(() => expect(result.current).toEqual({ p1: 'img-1', p2: 'img-2' }))
   })
 
-  it('omits people with no image rather than mapping them to an empty id', async () => {
-    const listImagesSpy = vi.fn(() => ({ images: [], nextPageToken: '' }))
+  it('omits people with no selected image rather than mapping them to an empty id', async () => {
+    const getSelectedImageSpy = vi.fn(() => {
+      throw new ConnectError('not found', Code.NotFound)
+    })
     const mockTransport = createRouterTransport(router => {
-      router.service(ImageService, { listImages: listImagesSpy })
+      router.service(ImageService, { getSelectedImage: getSelectedImageSpy })
     })
 
     const { result } = renderHook(() => usePersonImages(['p3']), { wrapper: wrapper(mockTransport) })
 
-    await waitFor(() => expect(listImagesSpy).toHaveBeenCalledOnce())
+    await waitFor(() => expect(getSelectedImageSpy).toHaveBeenCalledOnce())
     expect(result.current).toEqual({})
   })
 })

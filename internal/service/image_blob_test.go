@@ -35,7 +35,9 @@ func (f *fakeImageFetcher) Fetch(_ context.Context, url string) (io.ReadCloser, 
 	return io.NopCloser(bytes.NewReader(f.body)), nil
 }
 
-// fakeImageStore is a minimal ports.ImageStore double.
+// fakeImageStore is a minimal ports.ImageStore double, shared with
+// image_test.go — ImageService.Delete is the other caller, exercising
+// Delete/deleteErr/deleted below.
 type fakeImageStore struct {
 	key string
 	err error
@@ -43,6 +45,13 @@ type fakeImageStore struct {
 	gotOwnerType string
 	gotID        string
 	gotBytes     []byte
+
+	// deleteErr, when set, is returned by the next Delete call — used by
+	// image_test.go to prove ImageService.Delete's row delete still
+	// succeeds even when the blob cleanup fails (the accepted, bounded
+	// orphan-file risk).
+	deleteErr error
+	deleted   []string
 }
 
 var _ ports.ImageStore = (*fakeImageStore)(nil)
@@ -65,8 +74,12 @@ func (f *fakeImageStore) Get(context.Context, string) (io.ReadCloser, error) {
 	return nil, errors.New("not implemented")
 }
 
-func (f *fakeImageStore) Delete(context.Context, string) error {
-	return errors.New("not implemented")
+func (f *fakeImageStore) Delete(_ context.Context, key string) error {
+	if f.deleteErr != nil {
+		return f.deleteErr
+	}
+	f.deleted = append(f.deleted, key)
+	return nil
 }
 
 // pngFixture returns a small, valid PNG's encoded bytes with the given

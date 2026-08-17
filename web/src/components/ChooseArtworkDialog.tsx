@@ -47,16 +47,17 @@ export function ChooseArtworkDialog({
   onClose,
   onAttached,
 }: ChooseArtworkDialogProps) {
-  const { attachFromUrl, attachFromFile, cacheRemoteImage, uploadImage, createImage } = useAttachImage()
+  const { attachFromUrl, attachFromFile, cacheRemoteImage, uploadImage, createImage, selectImage } = useAttachImage()
   const [pendingUrl, setPendingUrl] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
-  // Both entry points converge on CreateImage, so its pending/error state
-  // is shared; the blob-call state stays split by which entry point is
-  // in flight (see useAttachImage's own reasoning for keeping the two
-  // apart instead of collapsing them into one status).
+  // Both entry points converge on CreateImage/SelectImage, so their
+  // pending/error state is shared; the blob-call state stays split by
+  // which entry point is in flight (see useAttachImage's own reasoning
+  // for keeping these apart instead of collapsing them into one status).
   const blobError = cacheRemoteImage.error ?? uploadImage.error
   const blobPending = cacheRemoteImage.isPending || uploadImage.isPending
+  const attachPending = createImage.isPending || selectImage.isPending
   const target = { ownerType, ownerId, imageType, priority }
 
   async function handlePick(candidate: ArtworkCandidate) {
@@ -99,12 +100,12 @@ export function ChooseArtworkDialog({
                   key={candidate.url}
                   type="button"
                   onClick={() => void handlePick(candidate)}
-                  disabled={blobPending || createImage.isPending}
+                  disabled={blobPending || attachPending}
                   aria-label={candidate.label ?? candidate.source}
                   className="group relative aspect-square overflow-hidden rounded-lg border border-border disabled:opacity-50"
                 >
                   <img src={candidate.url} alt={candidate.label ?? candidate.source} className="h-full w-full object-cover" />
-                  {pendingUrl === candidate.url && (blobPending || createImage.isPending) && (
+                  {pendingUrl === candidate.url && (blobPending || attachPending) && (
                     <div className="absolute inset-0 flex items-center justify-center bg-bg/70">
                       <Loader2 size={20} className="text-accent-system animate-spin" />
                     </div>
@@ -120,7 +121,7 @@ export function ChooseArtworkDialog({
           <button
             type="button"
             onClick={() => fileInputRef.current?.click()}
-            disabled={blobPending || createImage.isPending}
+            disabled={blobPending || attachPending}
             className="flex h-9 w-fit items-center gap-2 rounded-lg bg-surface border border-border px-4 text-body font-medium text-text hover:bg-surface-raised disabled:opacity-50"
           >
             {uploadImage.isPending ? <Loader2 size={16} className="animate-spin" /> : <Upload size={16} />}
@@ -143,6 +144,11 @@ export function ChooseArtworkDialog({
         {createImage.isError && (
           <p className="text-status-failure text-body" role="alert">
             Image was stored but couldn't be attached ({createImage.error?.message}).
+          </p>
+        )}
+        {createImage.isSuccess && selectImage.isError && (
+          <p className="text-status-failure text-body" role="alert">
+            Image was attached but couldn't be set as current ({selectImage.error?.message}).
           </p>
         )}
       </div>

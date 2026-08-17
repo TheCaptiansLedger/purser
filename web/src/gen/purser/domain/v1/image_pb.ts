@@ -12,7 +12,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file purser/domain/v1/image.proto.
  */
 export const file_purser_domain_v1_image: GenFile = /*@__PURE__*/
-  fileDesc("ChxwdXJzZXIvZG9tYWluL3YxL2ltYWdlLnByb3RvEhBwdXJzZXIuZG9tYWluLnYxIpsBCgVJbWFnZRIKCgJpZBgBIAEoCRISCgpvd25lcl90eXBlGAIgASgJEhAKCG93bmVyX2lkGAMgASgJEhIKCmltYWdlX3R5cGUYBCABKAkSCwoDdXJsGAUgASgJEg0KBXdpZHRoGAYgASgFEg4KBmhlaWdodBgHIAEoBRIOCgZzb3VyY2UYCCABKAkSEAoIcHJpb3JpdHkYCSABKAUiPAoSQ3JlYXRlSW1hZ2VSZXF1ZXN0EiYKBWltYWdlGAEgASgLMhcucHVyc2VyLmRvbWFpbi52MS5JbWFnZSI9ChNDcmVhdGVJbWFnZVJlc3BvbnNlEiYKBWltYWdlGAEgASgLMhcucHVyc2VyLmRvbWFpbi52MS5JbWFnZSIdCg9HZXRJbWFnZVJlcXVlc3QSCgoCaWQYASABKAkiOgoQR2V0SW1hZ2VSZXNwb25zZRImCgVpbWFnZRgBIAEoCzIXLnB1cnNlci5kb21haW4udjEuSW1hZ2UibQoSVXBkYXRlSW1hZ2VSZXF1ZXN0EiYKBWltYWdlGAEgASgLMhcucHVyc2VyLmRvbWFpbi52MS5JbWFnZRIvCgt1cGRhdGVfbWFzaxgCIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5GaWVsZE1hc2siPQoTVXBkYXRlSW1hZ2VSZXNwb25zZRImCgVpbWFnZRgBIAEoCzIXLnB1cnNlci5kb21haW4udjEuSW1hZ2UiIAoSRGVsZXRlSW1hZ2VSZXF1ZXN0EgoKAmlkGAEgASgJIhUKE0RlbGV0ZUltYWdlUmVzcG9uc2UiYAoRTGlzdEltYWdlc1JlcXVlc3QSEgoKb3duZXJfdHlwZRgBIAEoCRIQCghvd25lcl9pZBgCIAEoCRIRCglwYWdlX3NpemUYAyABKAUSEgoKcGFnZV90b2tlbhgEIAEoCSJWChJMaXN0SW1hZ2VzUmVzcG9uc2USJwoGaW1hZ2VzGAEgAygLMhcucHVyc2VyLmRvbWFpbi52MS5JbWFnZRIXCg9uZXh0X3BhZ2VfdG9rZW4YAiABKAkyzgMKDEltYWdlU2VydmljZRJaCgtDcmVhdGVJbWFnZRIkLnB1cnNlci5kb21haW4udjEuQ3JlYXRlSW1hZ2VSZXF1ZXN0GiUucHVyc2VyLmRvbWFpbi52MS5DcmVhdGVJbWFnZVJlc3BvbnNlElEKCEdldEltYWdlEiEucHVyc2VyLmRvbWFpbi52MS5HZXRJbWFnZVJlcXVlc3QaIi5wdXJzZXIuZG9tYWluLnYxLkdldEltYWdlUmVzcG9uc2USWgoLVXBkYXRlSW1hZ2USJC5wdXJzZXIuZG9tYWluLnYxLlVwZGF0ZUltYWdlUmVxdWVzdBolLnB1cnNlci5kb21haW4udjEuVXBkYXRlSW1hZ2VSZXNwb25zZRJaCgtEZWxldGVJbWFnZRIkLnB1cnNlci5kb21haW4udjEuRGVsZXRlSW1hZ2VSZXF1ZXN0GiUucHVyc2VyLmRvbWFpbi52MS5EZWxldGVJbWFnZVJlc3BvbnNlElcKCkxpc3RJbWFnZXMSIy5wdXJzZXIuZG9tYWluLnYxLkxpc3RJbWFnZXNSZXF1ZXN0GiQucHVyc2VyLmRvbWFpbi52MS5MaXN0SW1hZ2VzUmVzcG9uc2VCKVoncHVyc2VyL2dlbi9nby9wdXJzZXIvZG9tYWluL3YxO2RvbWFpbnYxYgZwcm90bzM", [file_google_protobuf_field_mask]);
+  fileDesc("ChxwdXJzZXIvZG9tYWluL3YxL2ltYWdlLnByb3RvEhBwdXJzZXIuZG9tYWluLnYxIpsBCgVJbWFnZRIKCgJpZBgBIAEoCRISCgpvd25lcl90eXBlGAIgASgJEhAKCG93bmVyX2lkGAMgASgJEhIKCmltYWdlX3R5cGUYBCABKAkSCwoDdXJsGAUgASgJEg0KBXdpZHRoGAYgASgFEg4KBmhlaWdodBgHIAEoBRIOCgZzb3VyY2UYCCABKAkSEAoIcHJpb3JpdHkYCSABKAUiPAoSQ3JlYXRlSW1hZ2VSZXF1ZXN0EiYKBWltYWdlGAEgASgLMhcucHVyc2VyLmRvbWFpbi52MS5JbWFnZSI9ChNDcmVhdGVJbWFnZVJlc3BvbnNlEiYKBWltYWdlGAEgASgLMhcucHVyc2VyLmRvbWFpbi52MS5JbWFnZSIdCg9HZXRJbWFnZVJlcXVlc3QSCgoCaWQYASABKAkiOgoQR2V0SW1hZ2VSZXNwb25zZRImCgVpbWFnZRgBIAEoCzIXLnB1cnNlci5kb21haW4udjEuSW1hZ2UibQoSVXBkYXRlSW1hZ2VSZXF1ZXN0EiYKBWltYWdlGAEgASgLMhcucHVyc2VyLmRvbWFpbi52MS5JbWFnZRIvCgt1cGRhdGVfbWFzaxgCIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5GaWVsZE1hc2siPQoTVXBkYXRlSW1hZ2VSZXNwb25zZRImCgVpbWFnZRgBIAEoCzIXLnB1cnNlci5kb21haW4udjEuSW1hZ2UiIAoSRGVsZXRlSW1hZ2VSZXF1ZXN0EgoKAmlkGAEgASgJIhUKE0RlbGV0ZUltYWdlUmVzcG9uc2UidAoRTGlzdEltYWdlc1JlcXVlc3QSEgoKb3duZXJfdHlwZRgBIAEoCRIQCghvd25lcl9pZBgCIAEoCRIRCglwYWdlX3NpemUYAyABKAUSEgoKcGFnZV90b2tlbhgEIAEoCRISCgppbWFnZV90eXBlGAUgASgJIlYKEkxpc3RJbWFnZXNSZXNwb25zZRInCgZpbWFnZXMYASADKAsyFy5wdXJzZXIuZG9tYWluLnYxLkltYWdlEhcKD25leHRfcGFnZV90b2tlbhgCIAEoCSJgChJTZWxlY3RJbWFnZVJlcXVlc3QSEgoKb3duZXJfdHlwZRgBIAEoCRIQCghvd25lcl9pZBgCIAEoCRISCgppbWFnZV90eXBlGAMgASgJEhAKCGltYWdlX2lkGAQgASgJIj0KE1NlbGVjdEltYWdlUmVzcG9uc2USJgoFaW1hZ2UYASABKAsyFy5wdXJzZXIuZG9tYWluLnYxLkltYWdlIlMKF0dldFNlbGVjdGVkSW1hZ2VSZXF1ZXN0EhIKCm93bmVyX3R5cGUYASABKAkSEAoIb3duZXJfaWQYAiABKAkSEgoKaW1hZ2VfdHlwZRgDIAEoCSJCChhHZXRTZWxlY3RlZEltYWdlUmVzcG9uc2USJgoFaW1hZ2UYASABKAsyFy5wdXJzZXIuZG9tYWluLnYxLkltYWdlMpUFCgxJbWFnZVNlcnZpY2USWgoLQ3JlYXRlSW1hZ2USJC5wdXJzZXIuZG9tYWluLnYxLkNyZWF0ZUltYWdlUmVxdWVzdBolLnB1cnNlci5kb21haW4udjEuQ3JlYXRlSW1hZ2VSZXNwb25zZRJRCghHZXRJbWFnZRIhLnB1cnNlci5kb21haW4udjEuR2V0SW1hZ2VSZXF1ZXN0GiIucHVyc2VyLmRvbWFpbi52MS5HZXRJbWFnZVJlc3BvbnNlEloKC1VwZGF0ZUltYWdlEiQucHVyc2VyLmRvbWFpbi52MS5VcGRhdGVJbWFnZVJlcXVlc3QaJS5wdXJzZXIuZG9tYWluLnYxLlVwZGF0ZUltYWdlUmVzcG9uc2USWgoLRGVsZXRlSW1hZ2USJC5wdXJzZXIuZG9tYWluLnYxLkRlbGV0ZUltYWdlUmVxdWVzdBolLnB1cnNlci5kb21haW4udjEuRGVsZXRlSW1hZ2VSZXNwb25zZRJXCgpMaXN0SW1hZ2VzEiMucHVyc2VyLmRvbWFpbi52MS5MaXN0SW1hZ2VzUmVxdWVzdBokLnB1cnNlci5kb21haW4udjEuTGlzdEltYWdlc1Jlc3BvbnNlEloKC1NlbGVjdEltYWdlEiQucHVyc2VyLmRvbWFpbi52MS5TZWxlY3RJbWFnZVJlcXVlc3QaJS5wdXJzZXIuZG9tYWluLnYxLlNlbGVjdEltYWdlUmVzcG9uc2USaQoQR2V0U2VsZWN0ZWRJbWFnZRIpLnB1cnNlci5kb21haW4udjEuR2V0U2VsZWN0ZWRJbWFnZVJlcXVlc3QaKi5wdXJzZXIuZG9tYWluLnYxLkdldFNlbGVjdGVkSW1hZ2VSZXNwb25zZUIpWidwdXJzZXIvZ2VuL2dvL3B1cnNlci9kb21haW4vdjE7ZG9tYWludjFiBnByb3RvMw", [file_google_protobuf_field_mask]);
 
 /**
  * Image is the wire shape of internal/domain.Image. image_type stays a
@@ -223,6 +223,9 @@ export type ListImagesRequest = Message<"purser.domain.v1.ListImagesRequest"> & 
   /**
    * owner_type and owner_id are optional filters, always used together
    * ("all images for this owner") per docs/adr/0011-api-design.md.
+   * image_type additionally narrows to one slot (e.g. "photo") — optional,
+   * since an owner_type/owner_id-only query ("every image this owner has,
+   * any slot") is also a real use.
    *
    * @generated from field: string owner_type = 1;
    */
@@ -242,6 +245,11 @@ export type ListImagesRequest = Message<"purser.domain.v1.ListImagesRequest"> & 
    * @generated from field: string page_token = 4;
    */
   pageToken: string;
+
+  /**
+   * @generated from field: string image_type = 5;
+   */
+  imageType: string;
 };
 
 /**
@@ -274,8 +282,118 @@ export const ListImagesResponseSchema: GenMessage<ListImagesResponse> = /*@__PUR
   messageDesc(file_purser_domain_v1_image, 10);
 
 /**
+ * SelectImage sets which Image is the current one for a
+ * (owner_type, owner_id, image_type) slot — the action behind "use this
+ * one" in a gallery of previously attached images, and behind attaching a
+ * brand new one (which selects itself). image_id must already be an
+ * Image row for exactly that slot.
+ *
+ * @generated from message purser.domain.v1.SelectImageRequest
+ */
+export type SelectImageRequest = Message<"purser.domain.v1.SelectImageRequest"> & {
+  /**
+   * @generated from field: string owner_type = 1;
+   */
+  ownerType: string;
+
+  /**
+   * @generated from field: string owner_id = 2;
+   */
+  ownerId: string;
+
+  /**
+   * @generated from field: string image_type = 3;
+   */
+  imageType: string;
+
+  /**
+   * @generated from field: string image_id = 4;
+   */
+  imageId: string;
+};
+
+/**
+ * Describes the message purser.domain.v1.SelectImageRequest.
+ * Use `create(SelectImageRequestSchema)` to create a new message.
+ */
+export const SelectImageRequestSchema: GenMessage<SelectImageRequest> = /*@__PURE__*/
+  messageDesc(file_purser_domain_v1_image, 11);
+
+/**
+ * @generated from message purser.domain.v1.SelectImageResponse
+ */
+export type SelectImageResponse = Message<"purser.domain.v1.SelectImageResponse"> & {
+  /**
+   * @generated from field: purser.domain.v1.Image image = 1;
+   */
+  image?: Image | undefined;
+};
+
+/**
+ * Describes the message purser.domain.v1.SelectImageResponse.
+ * Use `create(SelectImageResponseSchema)` to create a new message.
+ */
+export const SelectImageResponseSchema: GenMessage<SelectImageResponse> = /*@__PURE__*/
+  messageDesc(file_purser_domain_v1_image, 12);
+
+/**
+ * GetSelectedImage returns the current Image for a
+ * (owner_type, owner_id, image_type) slot — the one call every screen
+ * that renders "this owner's photo/poster/whatever" should use, instead
+ * of guessing from ListImages' row order. Returns ports.ErrNotFound,
+ * mapped to Connect's NOT_FOUND, if nothing has ever been attached to
+ * this slot.
+ *
+ * @generated from message purser.domain.v1.GetSelectedImageRequest
+ */
+export type GetSelectedImageRequest = Message<"purser.domain.v1.GetSelectedImageRequest"> & {
+  /**
+   * @generated from field: string owner_type = 1;
+   */
+  ownerType: string;
+
+  /**
+   * @generated from field: string owner_id = 2;
+   */
+  ownerId: string;
+
+  /**
+   * @generated from field: string image_type = 3;
+   */
+  imageType: string;
+};
+
+/**
+ * Describes the message purser.domain.v1.GetSelectedImageRequest.
+ * Use `create(GetSelectedImageRequestSchema)` to create a new message.
+ */
+export const GetSelectedImageRequestSchema: GenMessage<GetSelectedImageRequest> = /*@__PURE__*/
+  messageDesc(file_purser_domain_v1_image, 13);
+
+/**
+ * @generated from message purser.domain.v1.GetSelectedImageResponse
+ */
+export type GetSelectedImageResponse = Message<"purser.domain.v1.GetSelectedImageResponse"> & {
+  /**
+   * @generated from field: purser.domain.v1.Image image = 1;
+   */
+  image?: Image | undefined;
+};
+
+/**
+ * Describes the message purser.domain.v1.GetSelectedImageResponse.
+ * Use `create(GetSelectedImageResponseSchema)` to create a new message.
+ */
+export const GetSelectedImageResponseSchema: GenMessage<GetSelectedImageResponse> = /*@__PURE__*/
+  messageDesc(file_purser_domain_v1_image, 14);
+
+/**
  * ImageService owns exactly one entity — Image — per
- * docs/adr/0011-api-design.md's SRP-per-entity rule.
+ * docs/adr/0011-api-design.md's SRP-per-entity rule. SelectImage/
+ * GetSelectedImage don't violate that: an ImageSelection is a persistence
+ * detail behind "which Image is current," not a second user-facing
+ * resource with its own lifecycle — same status the reservation document
+ * behind Tag's identity (0019) and ExternalID's get-or-create (0026) has.
  *
  * @generated from service purser.domain.v1.ImageService
  */
@@ -319,6 +437,22 @@ export const ImageService: GenService<{
     methodKind: "unary";
     input: typeof ListImagesRequestSchema;
     output: typeof ListImagesResponseSchema;
+  },
+  /**
+   * @generated from rpc purser.domain.v1.ImageService.SelectImage
+   */
+  selectImage: {
+    methodKind: "unary";
+    input: typeof SelectImageRequestSchema;
+    output: typeof SelectImageResponseSchema;
+  },
+  /**
+   * @generated from rpc purser.domain.v1.ImageService.GetSelectedImage
+   */
+  getSelectedImage: {
+    methodKind: "unary";
+    input: typeof GetSelectedImageRequestSchema;
+    output: typeof GetSelectedImageResponseSchema;
   },
 }> = /*@__PURE__*/
   serviceDesc(file_purser_domain_v1_image, 0);

@@ -54,6 +54,10 @@ describe('ChooseArtworkDialog — person photo, provider candidates', () => {
           expect(req.image?.source).toBe('fanart.tv')
           return { image: { ...req.image!, id: 'image-1' } }
         },
+        selectImage: req => {
+          expect(req.imageId).toBe('image-1')
+          return { image: { id: 'image-1' } }
+        },
       })
     })
     const { onClose, onAttached } = renderDialog(mockTransport, { candidates })
@@ -102,6 +106,29 @@ describe('ChooseArtworkDialog — person photo, provider candidates', () => {
     expect(onAttached).not.toHaveBeenCalled()
     expect(onClose).not.toHaveBeenCalled()
   })
+
+  it('shows a select error, distinct from an attach error, when SelectImage fails after a successful create', async () => {
+    const mockTransport = createRouterTransport(router => {
+      router.service(ImageBlobService, {
+        cacheRemoteImage: () => ({
+          blob: { key: 'person/ab/img-1.jpg', width: 300, height: 300, contentType: 'image/jpeg', sizeBytes: 1000n },
+        }),
+      })
+      router.service(ImageService, {
+        createImage: req => ({ image: { ...req.image!, id: 'image-1' } }),
+        selectImage: () => {
+          throw new Error('slot locked')
+        },
+      })
+    })
+    const { onClose, onAttached } = renderDialog(mockTransport, { candidates })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Poster' }))
+
+    await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent("attached but couldn't be set as current"))
+    expect(onAttached).not.toHaveBeenCalled()
+    expect(onClose).not.toHaveBeenCalled()
+  })
 })
 
 // Music album poster, upload-only — the second content-type/prop
@@ -127,6 +154,10 @@ describe('ChooseArtworkDialog — group poster, upload only', () => {
           expect(req.image?.ownerType).toBe('group')
           expect(req.image?.source).toBe('user')
           return { image: { ...req.image!, id: 'image-2' } }
+        },
+        selectImage: req => {
+          expect(req.imageId).toBe('image-2')
+          return { image: { id: 'image-2' } }
         },
       })
     })

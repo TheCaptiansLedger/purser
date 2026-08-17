@@ -5,6 +5,7 @@ import (
 	"errors"
 	"purser/internal/domain"
 	"purser/internal/ports"
+	"purser/internal/service"
 	"testing"
 
 	"connectrpc.com/connect"
@@ -15,16 +16,23 @@ import (
 )
 
 type fakeImageService struct {
-	byID      map[string]*domain.Image
-	createErr error
-	getErr    error
-	updateErr error
-	deleteErr error
-	listErr   error
+	byID       map[string]*domain.Image
+	selections map[string]*domain.ImageSelection
+	createErr  error
+	getErr     error
+	updateErr  error
+	deleteErr  error
+	listErr    error
+	selectErr  error
+	getSelErr  error
 }
 
 func newFakeImageService() *fakeImageService {
-	return &fakeImageService{byID: make(map[string]*domain.Image)}
+	return &fakeImageService{byID: make(map[string]*domain.Image), selections: make(map[string]*domain.ImageSelection)}
+}
+
+func imageSlotKey(ownerType, ownerID string, imageType domain.ImageType) string {
+	return ownerType + "/" + ownerID + "/" + string(imageType)
 }
 
 func (f *fakeImageService) Create(_ context.Context, img *domain.Image) (*domain.Image, error) {
@@ -62,7 +70,7 @@ func (f *fakeImageService) Delete(_ context.Context, id string) error {
 	return nil
 }
 
-func (f *fakeImageService) List(_ context.Context, _, _ string, _ int, _ string) ([]*domain.Image, string, error) {
+func (f *fakeImageService) List(_ context.Context, _, _ string, _ domain.ImageType, _ int, _ string) ([]*domain.Image, string, error) {
 	if f.listErr != nil {
 		return nil, "", f.listErr
 	}
@@ -71,6 +79,30 @@ func (f *fakeImageService) List(_ context.Context, _, _ string, _ int, _ string)
 		images = append(images, img)
 	}
 	return images, "", nil
+}
+
+func (f *fakeImageService) Select(_ context.Context, ownerType, ownerID string, imageType domain.ImageType, imageID string) (*domain.ImageSelection, error) {
+	if f.selectErr != nil {
+		return nil, f.selectErr
+	}
+	sel := &domain.ImageSelection{OwnerType: ownerType, OwnerID: ownerID, ImageType: imageType, ImageID: imageID}
+	f.selections[imageSlotKey(ownerType, ownerID, imageType)] = sel
+	return sel, nil
+}
+
+func (f *fakeImageService) GetSelected(_ context.Context, ownerType, ownerID string, imageType domain.ImageType) (*domain.Image, error) {
+	if f.getSelErr != nil {
+		return nil, f.getSelErr
+	}
+	sel, ok := f.selections[imageSlotKey(ownerType, ownerID, imageType)]
+	if !ok {
+		return nil, ports.ErrNotFound
+	}
+	img, ok := f.byID[sel.ImageID]
+	if !ok {
+		return nil, ports.ErrNotFound
+	}
+	return img, nil
 }
 
 func validProtoImage(id string) *v1.Image {
@@ -202,6 +234,64 @@ func TestImageHandler_ListImages(t *testing.T) {
 		_, err := h.ListImages(context.Background(), connect.NewRequest(&v1.ListImagesRequest{PageSize: 10}))
 		if connect.CodeOf(err) != connect.CodeInternal {
 			t.Fatalf("ListImages with a service error returned code %v, want %v", connect.CodeOf(err), connect.CodeInternal)
+		}
+	})
+}
+
+func TestImageHandler_SelectImage(t *testing.T) {
+	t.Run("valid select returns the now-selected image", func(t *testing.T) {
+		svc := newFakeImageService()
+		h := apiconnect.NewImageHandler(svc, nil)
+		svc.byID["i1"] = &domain.Image{ID: "i1", OwnerType: "person", OwnerID: "p1", ImageType: "photo", URL: "https://example.com/i1.jpg"}
+
+		req := &v1.SelectImageRequest{OwnerType: "person", OwnerId: "p1", ImageType: "photo", ImageId: "i1"}
+		res, err := h.SelectImage(context.Background(), connect.NewRequest(req))
+		if err != nil {
+			t.Fatalf("SelectImage returned error: %v", err)
+		}
+		if res.Msg.GetImage().GetId() != "i1" {
+			t.Fatalf("SelectImage returned image %q, want %q", res.Msg.GetImage().GetId(), "i1")
+		}
+	})
+
+	t.Run("an owner-mismatch error from the service maps to CodeInvalidArgument", func(t *testing.T) {
+		svc := newFakeImageService()
+		svc.selectErr = service.ErrImageOwnerMismatch
+		h := apiconnect.NewImageHandler(svc, nil)
+
+		req := &v1.SelectImageRequest{OwnerType: "person", OwnerId: "p1", ImageType: "photo", ImageId: "i1"}
+		_, err := h.SelectImage(context.Background(), connect.NewRequest(req))
+		if connect.CodeOf(err) != connect.CodeInvalidArgument {
+			t.Fatalf("SelectImage with ErrImageOwnerMismatch returned code %v, want %v", connect.CodeOf(err), connect.CodeInvalidArgument)
+		}
+	})
+}
+
+func TestImageHandler_GetSelectedImage(t *testing.T) {
+	t.Run("returns the selected image for the slot", func(t *testing.T) {
+		svc := newFakeImageService()
+		h := apiconnect.NewImageHandler(svc, nil)
+		svc.byID["i1"] = &domain.Image{ID: "i1", OwnerType: "person", OwnerID: "p1", ImageType: "photo", URL: "https://example.com/i1.jpg"}
+		svc.selections[imageSlotKey("person", "p1", "photo")] = &domain.ImageSelection{OwnerType: "person", OwnerID: "p1", ImageType: "photo", ImageID: "i1"}
+
+		req := &v1.GetSelectedImageRequest{OwnerType: "person", OwnerId: "p1", ImageType: "photo"}
+		res, err := h.GetSelectedImage(context.Background(), connect.NewRequest(req))
+		if err != nil {
+			t.Fatalf("GetSelectedImage returned error: %v", err)
+		}
+		if res.Msg.GetImage().GetId() != "i1" {
+			t.Fatalf("GetSelectedImage returned image %q, want %q", res.Msg.GetImage().GetId(), "i1")
+		}
+	})
+
+	t.Run("no selection maps to CodeNotFound", func(t *testing.T) {
+		svc := newFakeImageService()
+		h := apiconnect.NewImageHandler(svc, nil)
+
+		req := &v1.GetSelectedImageRequest{OwnerType: "person", OwnerId: "nobody", ImageType: "photo"}
+		_, err := h.GetSelectedImage(context.Background(), connect.NewRequest(req))
+		if connect.CodeOf(err) != connect.CodeNotFound {
+			t.Fatalf("GetSelectedImage on an empty slot returned code %v, want %v", connect.CodeOf(err), connect.CodeNotFound)
 		}
 	})
 }

@@ -18,7 +18,9 @@ type imageService interface {
 	Get(ctx context.Context, id string) (*domain.Image, error)
 	Update(ctx context.Context, img *domain.Image) (*domain.Image, error)
 	Delete(ctx context.Context, id string) error
-	List(ctx context.Context, ownerType, ownerID string, pageSize int, pageToken string) ([]*domain.Image, string, error)
+	List(ctx context.Context, ownerType, ownerID string, imageType domain.ImageType, pageSize int, pageToken string) ([]*domain.Image, string, error)
+	Select(ctx context.Context, ownerType, ownerID string, imageType domain.ImageType, imageID string) (*domain.ImageSelection, error)
+	GetSelected(ctx context.Context, ownerType, ownerID string, imageType domain.ImageType) (*domain.Image, error)
 }
 
 // ImageHandler implements domainv1connect.ImageServiceHandler.
@@ -81,7 +83,7 @@ func (h *ImageHandler) DeleteImage(ctx context.Context, req *connect.Request[v1.
 
 // ListImages implements domainv1connect.ImageServiceHandler.
 func (h *ImageHandler) ListImages(ctx context.Context, req *connect.Request[v1.ListImagesRequest]) (*connect.Response[v1.ListImagesResponse], error) {
-	images, next, err := h.svc.List(ctx, req.Msg.GetOwnerType(), req.Msg.GetOwnerId(), int(req.Msg.GetPageSize()), req.Msg.GetPageToken())
+	images, next, err := h.svc.List(ctx, req.Msg.GetOwnerType(), req.Msg.GetOwnerId(), domain.ImageType(req.Msg.GetImageType()), int(req.Msg.GetPageSize()), req.Msg.GetPageToken())
 	if err != nil {
 		return nil, mapError(ctx, h.logger, err)
 	}
@@ -90,4 +92,27 @@ func (h *ImageHandler) ListImages(ctx context.Context, req *connect.Request[v1.L
 		pbImages = append(pbImages, imageToProto(img))
 	}
 	return connect.NewResponse(&v1.ListImagesResponse{Images: pbImages, NextPageToken: next}), nil
+}
+
+// SelectImage implements domainv1connect.ImageServiceHandler.
+func (h *ImageHandler) SelectImage(ctx context.Context, req *connect.Request[v1.SelectImageRequest]) (*connect.Response[v1.SelectImageResponse], error) {
+	imageType := domain.ImageType(req.Msg.GetImageType())
+	if _, err := h.svc.Select(ctx, req.Msg.GetOwnerType(), req.Msg.GetOwnerId(), imageType, req.Msg.GetImageId()); err != nil {
+		return nil, mapError(ctx, h.logger, err)
+	}
+	img, err := h.svc.Get(ctx, req.Msg.GetImageId())
+	if err != nil {
+		return nil, mapError(ctx, h.logger, err)
+	}
+	return connect.NewResponse(&v1.SelectImageResponse{Image: imageToProto(img)}), nil
+}
+
+// GetSelectedImage implements domainv1connect.ImageServiceHandler.
+func (h *ImageHandler) GetSelectedImage(ctx context.Context, req *connect.Request[v1.GetSelectedImageRequest]) (*connect.Response[v1.GetSelectedImageResponse], error) {
+	imageType := domain.ImageType(req.Msg.GetImageType())
+	img, err := h.svc.GetSelected(ctx, req.Msg.GetOwnerType(), req.Msg.GetOwnerId(), imageType)
+	if err != nil {
+		return nil, mapError(ctx, h.logger, err)
+	}
+	return connect.NewResponse(&v1.GetSelectedImageResponse{Image: imageToProto(img)}), nil
 }

@@ -28,3 +28,13 @@ export const deleteImage = ImageService.method.deleteImage;
  * @generated from rpc purser.domain.v1.ImageService.ListImages
  */
 export const listImages = ImageService.method.listImages;
+
+/**
+ * @generated from rpc purser.domain.v1.ImageService.SelectImage
+ */
+export const selectImage = ImageService.method.selectImage;
+
+/**
+ * @generated from rpc purser.domain.v1.ImageService.GetSelectedImage
+ */
+export const getSelectedImage = ImageService.method.getSelectedImage;

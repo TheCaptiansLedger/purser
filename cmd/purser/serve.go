@@ -67,6 +67,7 @@ import (
 	storeexternalid "purser/internal/adapters/store/externalid"
 	storegroup "purser/internal/adapters/store/group"
 	storeimage "purser/internal/adapters/store/image"
+	storeimageselection "purser/internal/adapters/store/imageselection"
 	storeitem "purser/internal/adapters/store/item"
 	storeitemperson "purser/internal/adapters/store/itemperson"
 	storelibraryentry "purser/internal/adapters/store/libraryentry"
@@ -316,6 +317,27 @@ func registerCache(caches map[string]cache.Cache, name string, client any) {
 	}
 }
 
+// newImageDeps constructs the three collaborators ImageService needs —
+// factored out of newServeMux purely to keep that function's branch count
+// down (three independent constructors, each its own error check, would
+// otherwise push newServeMux over cyclop's complexity budget); it carries
+// no logic of its own beyond "build these and stop at the first error."
+func newImageDeps(ds datastore.Datastore, mediaPath string, logger *slog.Logger) (ports.ImageRepository, ports.ImageSelectionRepository, ports.ImageStore, error) {
+	imageRepo, err := storeimage.New("image", ds, storeimage.WithLogger(logger))
+	if err != nil {
+		return nil, nil, nil, fmt.Errorf("cmd/purser: constructing image repository: %w", err)
+	}
+	imageSelectionRepo, err := storeimageselection.New("image_selection", ds, storeimageselection.WithLogger(logger))
+	if err != nil {
+		return nil, nil, nil, fmt.Errorf("cmd/purser: constructing image selection repository: %w", err)
+	}
+	imageStore, err := imagestorelocal.New("image", mediaPath, imagestorelocal.WithLogger(logger))
+	if err != nil {
+		return nil, nil, nil, fmt.Errorf("cmd/purser: constructing image store: %w", err)
+	}
+	return imageRepo, imageSelectionRepo, imageStore, nil
+}
+
 // newServeMux wires every entity's adapter -> service -> Connect handler
 // and mounts it, plus gRPC reflection for grpcurl/buf curl debugging (see
 // ADR-0011). Every shared-kernel entity in this pass follows the exact
@@ -414,11 +436,15 @@ func newServeMux(ctx context.Context, logger *slog.Logger, ds datastore.Datastor
 	externalIDPath, externalIDConnectHandler := domainv1connect.NewExternalIDServiceHandler(externalIDHandler, interceptors)
 	mux.Handle(externalIDPath, externalIDConnectHandler)
 
-	imageRepo, err := storeimage.New("image", ds, storeimage.WithLogger(logger))
+	// Constructed together, ahead of ImageService, rather than down by
+	// ImageBlobService's own wiring below: ImageService.Delete needs
+	// imageStore too, to actually free bytes on delete instead of only
+	// removing the metadata row. See docs/adr/0013-image-blob-storage.md.
+	imageRepo, imageSelectionRepo, imageStore, err := newImageDeps(ds, mediaCfg.Path, logger)
 	if err != nil {
-		return nil, nil, fmt.Errorf("cmd/purser: constructing image repository: %w", err)
+		return nil, nil, err
 	}
-	imageHandler := apiconnect.NewImageHandler(service.NewImageService(imageRepo), logger)
+	imageHandler := apiconnect.NewImageHandler(service.NewImageService(imageRepo, imageSelectionRepo, imageStore), logger)
 	imagePath, imageConnectHandler := domainv1connect.NewImageServiceHandler(imageHandler, interceptors)
 	mux.Handle(imagePath, imageConnectHandler)
 
@@ -587,7 +613,7 @@ func newServeMux(ctx context.Context, logger *slog.Logger, ds datastore.Datastor
 	// Common Scan Pipeline: split into its own function purely to keep
 	// newServeMux's cyclomatic complexity under budget — no behavior
 	// difference from being inlined here. See docs/adr/0024-pipeline-core.md.
-	watcherCloser, err := wireScanPipeline(ctx, mux, ds, logger, interceptors, jobEngine, jobAdapter, itemRepo, mediaFileRepo, libraryEntryRepo, groupRepo, externalIDRepo, musicReleaseRepo, imageRepo, personRepo, performerProfileRepo, itemPersonRepo, tagRepo, tagAssignmentRepo, pipelineCfg, mbCfg, acoustIDCfg, stashDBCfg, tpdbCfg, mediaCfg, afterDarkCfg, providerCaches)
+	watcherCloser, err := wireScanPipeline(ctx, mux, ds, logger, interceptors, jobEngine, jobAdapter, itemRepo, mediaFileRepo, libraryEntryRepo, groupRepo, externalIDRepo, musicReleaseRepo, imageRepo, imageStore, personRepo, performerProfileRepo, itemPersonRepo, tagRepo, tagAssignmentRepo, pipelineCfg, mbCfg, acoustIDCfg, stashDBCfg, tpdbCfg, afterDarkCfg, providerCaches)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -680,6 +706,7 @@ func wireScanPipeline(
 	externalIDRepo ports.ExternalIDRepository,
 	musicReleaseRepo ports.MusicReleaseRepository,
 	imageRepo ports.ImageRepository,
+	imageStore ports.ImageStore,
 	personRepo ports.PersonRepository,
 	performerProfileRepo ports.PerformerProfileRepository,
 	itemPersonRepo ports.ItemPersonRepository,
@@ -690,7 +717,6 @@ func wireScanPipeline(
 	acoustIDCfg config.AcoustID,
 	stashDBCfg config.StashDB,
 	tpdbCfg config.ThePornDB,
-	mediaCfg config.Media,
 	afterDarkCfg config.AfterDark,
 	providerCaches map[string]cache.Cache,
 ) (io.Closer, error) {
@@ -739,12 +765,6 @@ func wireScanPipeline(
 		pipelinemusic.NewConfidenceScorer(pipelinemusic.WithLogger(logger)),
 		pipelineafterdark.NewConfidenceScorer(pipelineafterdark.WithLogger(logger)),
 	)
-
-	// The local imagestore adapter — see docs/adr/0013-image-blob-storage.md.
-	imageStore, err := imagestorelocal.New("image", mediaCfg.Path, imagestorelocal.WithLogger(logger))
-	if err != nil {
-		return nil, fmt.Errorf("cmd/purser: constructing image store: %w", err)
-	}
 
 	// Plain, cacheable GET for a browser <img src>/the lightbox — not a
 	// Connect RPC, same non-RPC category as mountWebUI's SPA static

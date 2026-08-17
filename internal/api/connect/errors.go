@@ -62,6 +62,8 @@ func mapError(ctx context.Context, logger *slog.Logger, err error) error {
 		return connect.NewError(connect.CodeInvalidArgument, err)
 	case errors.Is(err, service.ErrUnsupportedProtocol):
 		return connect.NewError(connect.CodeInvalidArgument, err)
+	case errors.Is(err, service.ErrImageOwnerMismatch):
+		return connect.NewError(connect.CodeInvalidArgument, err)
 	default:
 		logUnmapped(ctx, logger, err)
 		return connect.NewError(connect.CodeInternal, errors.New("internal error"))

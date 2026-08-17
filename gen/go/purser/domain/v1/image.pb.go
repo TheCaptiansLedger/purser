@@ -492,10 +492,14 @@ type ListImagesRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// owner_type and owner_id are optional filters, always used together
 	// ("all images for this owner") per docs/adr/0011-api-design.md.
+	// image_type additionally narrows to one slot (e.g. "photo") — optional,
+	// since an owner_type/owner_id-only query ("every image this owner has,
+	// any slot") is also a real use.
 	OwnerType     string `protobuf:"bytes,1,opt,name=owner_type,json=ownerType,proto3" json:"owner_type,omitempty"`
 	OwnerId       string `protobuf:"bytes,2,opt,name=owner_id,json=ownerId,proto3" json:"owner_id,omitempty"`
 	PageSize      int32  `protobuf:"varint,3,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
 	PageToken     string `protobuf:"bytes,4,opt,name=page_token,json=pageToken,proto3" json:"page_token,omitempty"`
+	ImageType     string `protobuf:"bytes,5,opt,name=image_type,json=imageType,proto3" json:"image_type,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -558,6 +562,13 @@ func (x *ListImagesRequest) GetPageToken() string {
 	return ""
 }
 
+func (x *ListImagesRequest) GetImageType() string {
+	if x != nil {
+		return x.ImageType
+	}
+	return ""
+}
+
 type ListImagesResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Images        []*Image               `protobuf:"bytes,1,rep,name=images,proto3" json:"images,omitempty"`
@@ -610,6 +621,233 @@ func (x *ListImagesResponse) GetNextPageToken() string {
 	return ""
 }
 
+// SelectImage sets which Image is the current one for a
+// (owner_type, owner_id, image_type) slot — the action behind "use this
+// one" in a gallery of previously attached images, and behind attaching a
+// brand new one (which selects itself). image_id must already be an
+// Image row for exactly that slot.
+type SelectImageRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	OwnerType     string                 `protobuf:"bytes,1,opt,name=owner_type,json=ownerType,proto3" json:"owner_type,omitempty"`
+	OwnerId       string                 `protobuf:"bytes,2,opt,name=owner_id,json=ownerId,proto3" json:"owner_id,omitempty"`
+	ImageType     string                 `protobuf:"bytes,3,opt,name=image_type,json=imageType,proto3" json:"image_type,omitempty"`
+	ImageId       string                 `protobuf:"bytes,4,opt,name=image_id,json=imageId,proto3" json:"image_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SelectImageRequest) Reset() {
+	*x = SelectImageRequest{}
+	mi := &file_purser_domain_v1_image_proto_msgTypes[11]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SelectImageRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SelectImageRequest) ProtoMessage() {}
+
+func (x *SelectImageRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_purser_domain_v1_image_proto_msgTypes[11]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SelectImageRequest.ProtoReflect.Descriptor instead.
+func (*SelectImageRequest) Descriptor() ([]byte, []int) {
+	return file_purser_domain_v1_image_proto_rawDescGZIP(), []int{11}
+}
+
+func (x *SelectImageRequest) GetOwnerType() string {
+	if x != nil {
+		return x.OwnerType
+	}
+	return ""
+}
+
+func (x *SelectImageRequest) GetOwnerId() string {
+	if x != nil {
+		return x.OwnerId
+	}
+	return ""
+}
+
+func (x *SelectImageRequest) GetImageType() string {
+	if x != nil {
+		return x.ImageType
+	}
+	return ""
+}
+
+func (x *SelectImageRequest) GetImageId() string {
+	if x != nil {
+		return x.ImageId
+	}
+	return ""
+}
+
+type SelectImageResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Image         *Image                 `protobuf:"bytes,1,opt,name=image,proto3" json:"image,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SelectImageResponse) Reset() {
+	*x = SelectImageResponse{}
+	mi := &file_purser_domain_v1_image_proto_msgTypes[12]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SelectImageResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SelectImageResponse) ProtoMessage() {}
+
+func (x *SelectImageResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_purser_domain_v1_image_proto_msgTypes[12]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SelectImageResponse.ProtoReflect.Descriptor instead.
+func (*SelectImageResponse) Descriptor() ([]byte, []int) {
+	return file_purser_domain_v1_image_proto_rawDescGZIP(), []int{12}
+}
+
+func (x *SelectImageResponse) GetImage() *Image {
+	if x != nil {
+		return x.Image
+	}
+	return nil
+}
+
+// GetSelectedImage returns the current Image for a
+// (owner_type, owner_id, image_type) slot — the one call every screen
+// that renders "this owner's photo/poster/whatever" should use, instead
+// of guessing from ListImages' row order. Returns ports.ErrNotFound,
+// mapped to Connect's NOT_FOUND, if nothing has ever been attached to
+// this slot.
+type GetSelectedImageRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	OwnerType     string                 `protobuf:"bytes,1,opt,name=owner_type,json=ownerType,proto3" json:"owner_type,omitempty"`
+	OwnerId       string                 `protobuf:"bytes,2,opt,name=owner_id,json=ownerId,proto3" json:"owner_id,omitempty"`
+	ImageType     string                 `protobuf:"bytes,3,opt,name=image_type,json=imageType,proto3" json:"image_type,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetSelectedImageRequest) Reset() {
+	*x = GetSelectedImageRequest{}
+	mi := &file_purser_domain_v1_image_proto_msgTypes[13]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetSelectedImageRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetSelectedImageRequest) ProtoMessage() {}
+
+func (x *GetSelectedImageRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_purser_domain_v1_image_proto_msgTypes[13]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetSelectedImageRequest.ProtoReflect.Descriptor instead.
+func (*GetSelectedImageRequest) Descriptor() ([]byte, []int) {
+	return file_purser_domain_v1_image_proto_rawDescGZIP(), []int{13}
+}
+
+func (x *GetSelectedImageRequest) GetOwnerType() string {
+	if x != nil {
+		return x.OwnerType
+	}
+	return ""
+}
+
+func (x *GetSelectedImageRequest) GetOwnerId() string {
+	if x != nil {
+		return x.OwnerId
+	}
+	return ""
+}
+
+func (x *GetSelectedImageRequest) GetImageType() string {
+	if x != nil {
+		return x.ImageType
+	}
+	return ""
+}
+
+type GetSelectedImageResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Image         *Image                 `protobuf:"bytes,1,opt,name=image,proto3" json:"image,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetSelectedImageResponse) Reset() {
+	*x = GetSelectedImageResponse{}
+	mi := &file_purser_domain_v1_image_proto_msgTypes[14]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetSelectedImageResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetSelectedImageResponse) ProtoMessage() {}
+
+func (x *GetSelectedImageResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_purser_domain_v1_image_proto_msgTypes[14]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetSelectedImageResponse.ProtoReflect.Descriptor instead.
+func (*GetSelectedImageResponse) Descriptor() ([]byte, []int) {
+	return file_purser_domain_v1_image_proto_rawDescGZIP(), []int{14}
+}
+
+func (x *GetSelectedImageResponse) GetImage() *Image {
+	if x != nil {
+		return x.Image
+	}
+	return nil
+}
+
 var File_purser_domain_v1_image_proto protoreflect.FileDescriptor
 
 const file_purser_domain_v1_image_proto_rawDesc = "" +
@@ -643,24 +881,45 @@ const file_purser_domain_v1_image_proto_rawDesc = "" +
 	"\x05image\x18\x01 \x01(\v2\x17.purser.domain.v1.ImageR\x05image\"$\n" +
 	"\x12DeleteImageRequest\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\"\x15\n" +
-	"\x13DeleteImageResponse\"\x89\x01\n" +
+	"\x13DeleteImageResponse\"\xa8\x01\n" +
 	"\x11ListImagesRequest\x12\x1d\n" +
 	"\n" +
 	"owner_type\x18\x01 \x01(\tR\townerType\x12\x19\n" +
 	"\bowner_id\x18\x02 \x01(\tR\aownerId\x12\x1b\n" +
 	"\tpage_size\x18\x03 \x01(\x05R\bpageSize\x12\x1d\n" +
 	"\n" +
-	"page_token\x18\x04 \x01(\tR\tpageToken\"m\n" +
+	"page_token\x18\x04 \x01(\tR\tpageToken\x12\x1d\n" +
+	"\n" +
+	"image_type\x18\x05 \x01(\tR\timageType\"m\n" +
 	"\x12ListImagesResponse\x12/\n" +
 	"\x06images\x18\x01 \x03(\v2\x17.purser.domain.v1.ImageR\x06images\x12&\n" +
-	"\x0fnext_page_token\x18\x02 \x01(\tR\rnextPageToken2\xce\x03\n" +
+	"\x0fnext_page_token\x18\x02 \x01(\tR\rnextPageToken\"\x88\x01\n" +
+	"\x12SelectImageRequest\x12\x1d\n" +
+	"\n" +
+	"owner_type\x18\x01 \x01(\tR\townerType\x12\x19\n" +
+	"\bowner_id\x18\x02 \x01(\tR\aownerId\x12\x1d\n" +
+	"\n" +
+	"image_type\x18\x03 \x01(\tR\timageType\x12\x19\n" +
+	"\bimage_id\x18\x04 \x01(\tR\aimageId\"D\n" +
+	"\x13SelectImageResponse\x12-\n" +
+	"\x05image\x18\x01 \x01(\v2\x17.purser.domain.v1.ImageR\x05image\"r\n" +
+	"\x17GetSelectedImageRequest\x12\x1d\n" +
+	"\n" +
+	"owner_type\x18\x01 \x01(\tR\townerType\x12\x19\n" +
+	"\bowner_id\x18\x02 \x01(\tR\aownerId\x12\x1d\n" +
+	"\n" +
+	"image_type\x18\x03 \x01(\tR\timageType\"I\n" +
+	"\x18GetSelectedImageResponse\x12-\n" +
+	"\x05image\x18\x01 \x01(\v2\x17.purser.domain.v1.ImageR\x05image2\x95\x05\n" +
 	"\fImageService\x12Z\n" +
 	"\vCreateImage\x12$.purser.domain.v1.CreateImageRequest\x1a%.purser.domain.v1.CreateImageResponse\x12Q\n" +
 	"\bGetImage\x12!.purser.domain.v1.GetImageRequest\x1a\".purser.domain.v1.GetImageResponse\x12Z\n" +
 	"\vUpdateImage\x12$.purser.domain.v1.UpdateImageRequest\x1a%.purser.domain.v1.UpdateImageResponse\x12Z\n" +
 	"\vDeleteImage\x12$.purser.domain.v1.DeleteImageRequest\x1a%.purser.domain.v1.DeleteImageResponse\x12W\n" +
 	"\n" +
-	"ListImages\x12#.purser.domain.v1.ListImagesRequest\x1a$.purser.domain.v1.ListImagesResponseB)Z'purser/gen/go/purser/domain/v1;domainv1b\x06proto3"
+	"ListImages\x12#.purser.domain.v1.ListImagesRequest\x1a$.purser.domain.v1.ListImagesResponse\x12Z\n" +
+	"\vSelectImage\x12$.purser.domain.v1.SelectImageRequest\x1a%.purser.domain.v1.SelectImageResponse\x12i\n" +
+	"\x10GetSelectedImage\x12).purser.domain.v1.GetSelectedImageRequest\x1a*.purser.domain.v1.GetSelectedImageResponseB)Z'purser/gen/go/purser/domain/v1;domainv1b\x06proto3"
 
 var (
 	file_purser_domain_v1_image_proto_rawDescOnce sync.Once
@@ -674,44 +933,54 @@ func file_purser_domain_v1_image_proto_rawDescGZIP() []byte {
 	return file_purser_domain_v1_image_proto_rawDescData
 }
 
-var file_purser_domain_v1_image_proto_msgTypes = make([]protoimpl.MessageInfo, 11)
+var file_purser_domain_v1_image_proto_msgTypes = make([]protoimpl.MessageInfo, 15)
 var file_purser_domain_v1_image_proto_goTypes = []any{
-	(*Image)(nil),                 // 0: purser.domain.v1.Image
-	(*CreateImageRequest)(nil),    // 1: purser.domain.v1.CreateImageRequest
-	(*CreateImageResponse)(nil),   // 2: purser.domain.v1.CreateImageResponse
-	(*GetImageRequest)(nil),       // 3: purser.domain.v1.GetImageRequest
-	(*GetImageResponse)(nil),      // 4: purser.domain.v1.GetImageResponse
-	(*UpdateImageRequest)(nil),    // 5: purser.domain.v1.UpdateImageRequest
-	(*UpdateImageResponse)(nil),   // 6: purser.domain.v1.UpdateImageResponse
-	(*DeleteImageRequest)(nil),    // 7: purser.domain.v1.DeleteImageRequest
-	(*DeleteImageResponse)(nil),   // 8: purser.domain.v1.DeleteImageResponse
-	(*ListImagesRequest)(nil),     // 9: purser.domain.v1.ListImagesRequest
-	(*ListImagesResponse)(nil),    // 10: purser.domain.v1.ListImagesResponse
-	(*fieldmaskpb.FieldMask)(nil), // 11: google.protobuf.FieldMask
+	(*Image)(nil),                    // 0: purser.domain.v1.Image
+	(*CreateImageRequest)(nil),       // 1: purser.domain.v1.CreateImageRequest
+	(*CreateImageResponse)(nil),      // 2: purser.domain.v1.CreateImageResponse
+	(*GetImageRequest)(nil),          // 3: purser.domain.v1.GetImageRequest
+	(*GetImageResponse)(nil),         // 4: purser.domain.v1.GetImageResponse
+	(*UpdateImageRequest)(nil),       // 5: purser.domain.v1.UpdateImageRequest
+	(*UpdateImageResponse)(nil),      // 6: purser.domain.v1.UpdateImageResponse
+	(*DeleteImageRequest)(nil),       // 7: purser.domain.v1.DeleteImageRequest
+	(*DeleteImageResponse)(nil),      // 8: purser.domain.v1.DeleteImageResponse
+	(*ListImagesRequest)(nil),        // 9: purser.domain.v1.ListImagesRequest
+	(*ListImagesResponse)(nil),       // 10: purser.domain.v1.ListImagesResponse
+	(*SelectImageRequest)(nil),       // 11: purser.domain.v1.SelectImageRequest
+	(*SelectImageResponse)(nil),      // 12: purser.domain.v1.SelectImageResponse
+	(*GetSelectedImageRequest)(nil),  // 13: purser.domain.v1.GetSelectedImageRequest
+	(*GetSelectedImageResponse)(nil), // 14: purser.domain.v1.GetSelectedImageResponse
+	(*fieldmaskpb.FieldMask)(nil),    // 15: google.protobuf.FieldMask
 }
 var file_purser_domain_v1_image_proto_depIdxs = []int32{
 	0,  // 0: purser.domain.v1.CreateImageRequest.image:type_name -> purser.domain.v1.Image
 	0,  // 1: purser.domain.v1.CreateImageResponse.image:type_name -> purser.domain.v1.Image
 	0,  // 2: purser.domain.v1.GetImageResponse.image:type_name -> purser.domain.v1.Image
 	0,  // 3: purser.domain.v1.UpdateImageRequest.image:type_name -> purser.domain.v1.Image
-	11, // 4: purser.domain.v1.UpdateImageRequest.update_mask:type_name -> google.protobuf.FieldMask
+	15, // 4: purser.domain.v1.UpdateImageRequest.update_mask:type_name -> google.protobuf.FieldMask
 	0,  // 5: purser.domain.v1.UpdateImageResponse.image:type_name -> purser.domain.v1.Image
 	0,  // 6: purser.domain.v1.ListImagesResponse.images:type_name -> purser.domain.v1.Image
-	1,  // 7: purser.domain.v1.ImageService.CreateImage:input_type -> purser.domain.v1.CreateImageRequest
-	3,  // 8: purser.domain.v1.ImageService.GetImage:input_type -> purser.domain.v1.GetImageRequest
-	5,  // 9: purser.domain.v1.ImageService.UpdateImage:input_type -> purser.domain.v1.UpdateImageRequest
-	7,  // 10: purser.domain.v1.ImageService.DeleteImage:input_type -> purser.domain.v1.DeleteImageRequest
-	9,  // 11: purser.domain.v1.ImageService.ListImages:input_type -> purser.domain.v1.ListImagesRequest
-	2,  // 12: purser.domain.v1.ImageService.CreateImage:output_type -> purser.domain.v1.CreateImageResponse
-	4,  // 13: purser.domain.v1.ImageService.GetImage:output_type -> purser.domain.v1.GetImageResponse
-	6,  // 14: purser.domain.v1.ImageService.UpdateImage:output_type -> purser.domain.v1.UpdateImageResponse
-	8,  // 15: purser.domain.v1.ImageService.DeleteImage:output_type -> purser.domain.v1.DeleteImageResponse
-	10, // 16: purser.domain.v1.ImageService.ListImages:output_type -> purser.domain.v1.ListImagesResponse
-	12, // [12:17] is the sub-list for method output_type
-	7,  // [7:12] is the sub-list for method input_type
-	7,  // [7:7] is the sub-list for extension type_name
-	7,  // [7:7] is the sub-list for extension extendee
-	0,  // [0:7] is the sub-list for field type_name
+	0,  // 7: purser.domain.v1.SelectImageResponse.image:type_name -> purser.domain.v1.Image
+	0,  // 8: purser.domain.v1.GetSelectedImageResponse.image:type_name -> purser.domain.v1.Image
+	1,  // 9: purser.domain.v1.ImageService.CreateImage:input_type -> purser.domain.v1.CreateImageRequest
+	3,  // 10: purser.domain.v1.ImageService.GetImage:input_type -> purser.domain.v1.GetImageRequest
+	5,  // 11: purser.domain.v1.ImageService.UpdateImage:input_type -> purser.domain.v1.UpdateImageRequest
+	7,  // 12: purser.domain.v1.ImageService.DeleteImage:input_type -> purser.domain.v1.DeleteImageRequest
+	9,  // 13: purser.domain.v1.ImageService.ListImages:input_type -> purser.domain.v1.ListImagesRequest
+	11, // 14: purser.domain.v1.ImageService.SelectImage:input_type -> purser.domain.v1.SelectImageRequest
+	13, // 15: purser.domain.v1.ImageService.GetSelectedImage:input_type -> purser.domain.v1.GetSelectedImageRequest
+	2,  // 16: purser.domain.v1.ImageService.CreateImage:output_type -> purser.domain.v1.CreateImageResponse
+	4,  // 17: purser.domain.v1.ImageService.GetImage:output_type -> purser.domain.v1.GetImageResponse
+	6,  // 18: purser.domain.v1.ImageService.UpdateImage:output_type -> purser.domain.v1.UpdateImageResponse
+	8,  // 19: purser.domain.v1.ImageService.DeleteImage:output_type -> purser.domain.v1.DeleteImageResponse
+	10, // 20: purser.domain.v1.ImageService.ListImages:output_type -> purser.domain.v1.ListImagesResponse
+	12, // 21: purser.domain.v1.ImageService.SelectImage:output_type -> purser.domain.v1.SelectImageResponse
+	14, // 22: purser.domain.v1.ImageService.GetSelectedImage:output_type -> purser.domain.v1.GetSelectedImageResponse
+	16, // [16:23] is the sub-list for method output_type
+	9,  // [9:16] is the sub-list for method input_type
+	9,  // [9:9] is the sub-list for extension type_name
+	9,  // [9:9] is the sub-list for extension extendee
+	0,  // [0:9] is the sub-list for field type_name
 }
 
 func init() { file_purser_domain_v1_image_proto_init() }
@@ -725,7 +994,7 @@ func file_purser_domain_v1_image_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_purser_domain_v1_image_proto_rawDesc), len(file_purser_domain_v1_image_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   11,
+			NumMessages:   15,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

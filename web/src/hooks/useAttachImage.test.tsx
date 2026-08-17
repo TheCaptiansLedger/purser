@@ -26,7 +26,7 @@ function wrapper(mockTransport: ReturnType<typeof createRouterTransport>) {
 const target = { ownerType: 'person', ownerId: 'person-1', imageType: 'photo' }
 
 describe('useAttachImage.attachFromUrl', () => {
-  it('caches the remote URL then creates the Image row', async () => {
+  it('caches the remote URL, creates the Image row, then selects it', async () => {
     const mockTransport = createRouterTransport(router => {
       router.service(ImageBlobService, {
         cacheRemoteImage: req => {
@@ -39,6 +39,13 @@ describe('useAttachImage.attachFromUrl', () => {
           expect(req.image?.url).toBe('person/ab/img-1.jpg')
           expect(req.image?.source).toBe('fanart.tv')
           return { image: { ...req.image!, id: 'image-1' } }
+        },
+        selectImage: req => {
+          expect(req.ownerType).toBe('person')
+          expect(req.ownerId).toBe('person-1')
+          expect(req.imageType).toBe('photo')
+          expect(req.imageId).toBe('image-1')
+          return { image: { id: 'image-1' } }
         },
       })
     })
@@ -53,6 +60,7 @@ describe('useAttachImage.attachFromUrl', () => {
     expect(image).toMatchObject({ id: 'image-1', url: 'person/ab/img-1.jpg' })
     await waitFor(() => expect(result.current.cacheRemoteImage.isSuccess).toBe(true))
     await waitFor(() => expect(result.current.createImage.isSuccess).toBe(true))
+    await waitFor(() => expect(result.current.selectImage.isSuccess).toBe(true))
   })
 
   it('surfaces a CacheRemoteImage failure on cacheRemoteImage state and never calls CreateImage', async () => {
@@ -85,7 +93,8 @@ describe('useAttachImage.attachFromUrl', () => {
     expect(createImageCalled).toBe(false)
   })
 
-  it('surfaces a CreateImage failure on createImage state after a successful cache', async () => {
+  it('surfaces a CreateImage failure on createImage state after a successful cache, and never calls SelectImage', async () => {
+    let selectImageCalled = false
     const mockTransport = createRouterTransport(router => {
       router.service(ImageBlobService, {
         cacheRemoteImage: () => ({
@@ -95,6 +104,10 @@ describe('useAttachImage.attachFromUrl', () => {
       router.service(ImageService, {
         createImage: () => {
           throw new Error('invalid owner_id')
+        },
+        selectImage: () => {
+          selectImageCalled = true
+          return { image: {} }
         },
       })
     })
@@ -109,11 +122,39 @@ describe('useAttachImage.attachFromUrl', () => {
 
     await waitFor(() => expect(result.current.cacheRemoteImage.isSuccess).toBe(true))
     await waitFor(() => expect(result.current.createImage.isError).toBe(true))
+    expect(selectImageCalled).toBe(false)
+  })
+
+  it('surfaces a SelectImage failure on selectImage state after a successful create', async () => {
+    const mockTransport = createRouterTransport(router => {
+      router.service(ImageBlobService, {
+        cacheRemoteImage: () => ({
+          blob: { key: 'person/ab/img-1.jpg', width: 300, height: 300, contentType: 'image/jpeg', sizeBytes: 1000n },
+        }),
+      })
+      router.service(ImageService, {
+        createImage: req => ({ image: { ...req.image!, id: 'image-1' } }),
+        selectImage: () => {
+          throw new Error('slot locked')
+        },
+      })
+    })
+
+    const { result } = renderHook(() => useAttachImage(), { wrapper: wrapper(mockTransport) })
+
+    await act(async () => {
+      await expect(
+        result.current.attachFromUrl({ url: 'https://fanart.tv/poster.jpg', source: 'fanart.tv', ...target }),
+      ).rejects.toThrow()
+    })
+
+    await waitFor(() => expect(result.current.createImage.isSuccess).toBe(true))
+    await waitFor(() => expect(result.current.selectImage.isError).toBe(true))
   })
 })
 
 describe('useAttachImage.attachFromFile', () => {
-  it('uploads the file then creates the Image row with source "user"', async () => {
+  it('uploads the file, creates the Image row with source "user", then selects it', async () => {
     const mockTransport = createRouterTransport(router => {
       router.service(ImageBlobService, {
         uploadImage: req => {
@@ -126,6 +167,10 @@ describe('useAttachImage.attachFromFile', () => {
           expect(req.image?.source).toBe('user')
           return { image: { ...req.image!, id: 'image-2' } }
         },
+        selectImage: req => {
+          expect(req.imageId).toBe('image-2')
+          return { image: { id: 'image-2' } }
+        },
       })
     })
 
@@ -137,6 +182,7 @@ describe('useAttachImage.attachFromFile', () => {
     })
 
     expect(image).toMatchObject({ id: 'image-2', url: 'person/cd/img-2.jpg' })
+    await waitFor(() => expect(result.current.selectImage.isSuccess).toBe(true))
   })
 
   it('surfaces an UploadImage failure on uploadImage state and never calls CreateImage', async () => {

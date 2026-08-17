@@ -4,7 +4,7 @@ import {
   cacheRemoteImage,
   uploadImage,
 } from '../gen/purser/domain/v1/image_blob-ImageBlobService_connectquery'
-import { createImage } from '../gen/purser/domain/v1/image-ImageService_connectquery'
+import { createImage, selectImage } from '../gen/purser/domain/v1/image-ImageService_connectquery'
 import type { Image } from '../gen/purser/domain/v1/image_pb'
 
 export interface AttachImageTarget {
@@ -26,24 +26,30 @@ export interface AttachFromFileParams extends AttachImageTarget {
   data: Uint8Array
 }
 
-// useAttachImage is the one place the two-call sequence
-// docs/technical/image-caching-and-serving.md requires — blob RPC, then
-// ImageService.CreateImage — is written, so every consuming screen
-// (Person photo, Artist poster, Album cover, ...) reuses it instead of
-// re-deriving the call order itself.
+// useAttachImage is the one place the three-call sequence — blob RPC,
+// then ImageService.CreateImage, then ImageService.SelectImage — is
+// written, so every consuming screen (Person photo, Artist poster, Album
+// cover, ...) reuses it instead of re-deriving the call order itself.
+// Attaching *is* the user picking: there's no separate step where a
+// freshly attached image sits around unselected, so SelectImage always
+// follows a successful CreateImage here rather than being left to each
+// caller to remember.
 //
-// Deliberately returns the three underlying connect-query mutation
-// objects (cacheRemoteImage/uploadImage/createImage) rather than
-// collapsing them into one status: a CacheRemoteImage/UploadImage
+// Deliberately returns the four underlying connect-query mutation
+// objects (cacheRemoteImage/uploadImage/createImage/selectImage) rather
+// than collapsing them into one status: a CacheRemoteImage/UploadImage
 // failure leaves nothing orphaned (nothing was ever created), a
-// CreateImage failure leaves an orphaned blob per the doc's
-// accepted-risk note — the UI needs to tell those apart, so the state
-// stays per-call, same one-mutation-object-per-RPC shape useSettings.ts
-// already established.
+// CreateImage failure leaves an orphaned blob per
+// docs/technical/image-caching-and-serving.md's accepted-risk note, and a
+// SelectImage failure leaves a real, valid Image row that simply isn't
+// the owner's current one yet — the UI needs to tell those apart, so the
+// state stays per-call, same one-mutation-object-per-RPC shape
+// useSettings.ts already established.
 export function useAttachImage() {
   const cacheRemoteImageMutation = useMutation(cacheRemoteImage)
   const uploadImageMutation = useMutation(uploadImage)
   const createImageMutation = useMutation(createImage)
+  const selectImageMutation = useMutation(selectImage)
 
   const attachFromUrl = useCallback(
     async (params: AttachFromUrlParams): Promise<Image> => {
@@ -65,12 +71,14 @@ export function useAttachImage() {
           priority: priority ?? 0,
         },
       })
-      if (!createResponse.image) {
+      const image = createResponse.image
+      if (!image) {
         throw new Error('CreateImage returned no image')
       }
-      return createResponse.image
+      await selectImageMutation.mutateAsync({ ownerType, ownerId, imageType, imageId: image.id })
+      return image
     },
-    [cacheRemoteImageMutation, createImageMutation],
+    [cacheRemoteImageMutation, createImageMutation, selectImageMutation],
   )
 
   const attachFromFile = useCallback(
@@ -93,12 +101,14 @@ export function useAttachImage() {
           priority: priority ?? 0,
         },
       })
-      if (!createResponse.image) {
+      const image = createResponse.image
+      if (!image) {
         throw new Error('CreateImage returned no image')
       }
-      return createResponse.image
+      await selectImageMutation.mutateAsync({ ownerType, ownerId, imageType, imageId: image.id })
+      return image
     },
-    [uploadImageMutation, createImageMutation],
+    [uploadImageMutation, createImageMutation, selectImageMutation],
   )
 
   return {
@@ -107,5 +117,6 @@ export function useAttachImage() {
     cacheRemoteImage: cacheRemoteImageMutation,
     uploadImage: uploadImageMutation,
     createImage: createImageMutation,
+    selectImage: selectImageMutation,
   }
 }

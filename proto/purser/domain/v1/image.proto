@@ -58,10 +58,14 @@ message DeleteImageResponse {}
 message ListImagesRequest {
   // owner_type and owner_id are optional filters, always used together
   // ("all images for this owner") per docs/adr/0011-api-design.md.
+  // image_type additionally narrows to one slot (e.g. "photo") — optional,
+  // since an owner_type/owner_id-only query ("every image this owner has,
+  // any slot") is also a real use.
   string owner_type = 1;
   string owner_id = 2;
   int32 page_size = 3;
   string page_token = 4;
+  string image_type = 5;
 }
 
 message ListImagesResponse {
@@ -69,12 +73,50 @@ message ListImagesResponse {
   string next_page_token = 2;
 }
 
+// SelectImage sets which Image is the current one for a
+// (owner_type, owner_id, image_type) slot — the action behind "use this
+// one" in a gallery of previously attached images, and behind attaching a
+// brand new one (which selects itself). image_id must already be an
+// Image row for exactly that slot.
+message SelectImageRequest {
+  string owner_type = 1;
+  string owner_id = 2;
+  string image_type = 3;
+  string image_id = 4;
+}
+
+message SelectImageResponse {
+  Image image = 1;
+}
+
+// GetSelectedImage returns the current Image for a
+// (owner_type, owner_id, image_type) slot — the one call every screen
+// that renders "this owner's photo/poster/whatever" should use, instead
+// of guessing from ListImages' row order. Returns ports.ErrNotFound,
+// mapped to Connect's NOT_FOUND, if nothing has ever been attached to
+// this slot.
+message GetSelectedImageRequest {
+  string owner_type = 1;
+  string owner_id = 2;
+  string image_type = 3;
+}
+
+message GetSelectedImageResponse {
+  Image image = 1;
+}
+
 // ImageService owns exactly one entity — Image — per
-// docs/adr/0011-api-design.md's SRP-per-entity rule.
+// docs/adr/0011-api-design.md's SRP-per-entity rule. SelectImage/
+// GetSelectedImage don't violate that: an ImageSelection is a persistence
+// detail behind "which Image is current," not a second user-facing
+// resource with its own lifecycle — same status the reservation document
+// behind Tag's identity (0019) and ExternalID's get-or-create (0026) has.
 service ImageService {
   rpc CreateImage(CreateImageRequest) returns (CreateImageResponse);
   rpc GetImage(GetImageRequest) returns (GetImageResponse);
   rpc UpdateImage(UpdateImageRequest) returns (UpdateImageResponse);
   rpc DeleteImage(DeleteImageRequest) returns (DeleteImageResponse);
   rpc ListImages(ListImagesRequest) returns (ListImagesResponse);
+  rpc SelectImage(SelectImageRequest) returns (SelectImageResponse);
+  rpc GetSelectedImage(GetSelectedImageRequest) returns (GetSelectedImageResponse);
 }

@@ -46,6 +46,12 @@ const (
 	ImageServiceDeleteImageProcedure = "/purser.domain.v1.ImageService/DeleteImage"
 	// ImageServiceListImagesProcedure is the fully-qualified name of the ImageService's ListImages RPC.
 	ImageServiceListImagesProcedure = "/purser.domain.v1.ImageService/ListImages"
+	// ImageServiceSelectImageProcedure is the fully-qualified name of the ImageService's SelectImage
+	// RPC.
+	ImageServiceSelectImageProcedure = "/purser.domain.v1.ImageService/SelectImage"
+	// ImageServiceGetSelectedImageProcedure is the fully-qualified name of the ImageService's
+	// GetSelectedImage RPC.
+	ImageServiceGetSelectedImageProcedure = "/purser.domain.v1.ImageService/GetSelectedImage"
 )
 
 // ImageServiceClient is a client for the purser.domain.v1.ImageService service.
@@ -55,6 +61,8 @@ type ImageServiceClient interface {
 	UpdateImage(context.Context, *connect.Request[v1.UpdateImageRequest]) (*connect.Response[v1.UpdateImageResponse], error)
 	DeleteImage(context.Context, *connect.Request[v1.DeleteImageRequest]) (*connect.Response[v1.DeleteImageResponse], error)
 	ListImages(context.Context, *connect.Request[v1.ListImagesRequest]) (*connect.Response[v1.ListImagesResponse], error)
+	SelectImage(context.Context, *connect.Request[v1.SelectImageRequest]) (*connect.Response[v1.SelectImageResponse], error)
+	GetSelectedImage(context.Context, *connect.Request[v1.GetSelectedImageRequest]) (*connect.Response[v1.GetSelectedImageResponse], error)
 }
 
 // NewImageServiceClient constructs a client for the purser.domain.v1.ImageService service. By
@@ -98,16 +106,30 @@ func NewImageServiceClient(httpClient connect.HTTPClient, baseURL string, opts .
 			connect.WithSchema(imageServiceMethods.ByName("ListImages")),
 			connect.WithClientOptions(opts...),
 		),
+		selectImage: connect.NewClient[v1.SelectImageRequest, v1.SelectImageResponse](
+			httpClient,
+			baseURL+ImageServiceSelectImageProcedure,
+			connect.WithSchema(imageServiceMethods.ByName("SelectImage")),
+			connect.WithClientOptions(opts...),
+		),
+		getSelectedImage: connect.NewClient[v1.GetSelectedImageRequest, v1.GetSelectedImageResponse](
+			httpClient,
+			baseURL+ImageServiceGetSelectedImageProcedure,
+			connect.WithSchema(imageServiceMethods.ByName("GetSelectedImage")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
 // imageServiceClient implements ImageServiceClient.
 type imageServiceClient struct {
-	createImage *connect.Client[v1.CreateImageRequest, v1.CreateImageResponse]
-	getImage    *connect.Client[v1.GetImageRequest, v1.GetImageResponse]
-	updateImage *connect.Client[v1.UpdateImageRequest, v1.UpdateImageResponse]
-	deleteImage *connect.Client[v1.DeleteImageRequest, v1.DeleteImageResponse]
-	listImages  *connect.Client[v1.ListImagesRequest, v1.ListImagesResponse]
+	createImage      *connect.Client[v1.CreateImageRequest, v1.CreateImageResponse]
+	getImage         *connect.Client[v1.GetImageRequest, v1.GetImageResponse]
+	updateImage      *connect.Client[v1.UpdateImageRequest, v1.UpdateImageResponse]
+	deleteImage      *connect.Client[v1.DeleteImageRequest, v1.DeleteImageResponse]
+	listImages       *connect.Client[v1.ListImagesRequest, v1.ListImagesResponse]
+	selectImage      *connect.Client[v1.SelectImageRequest, v1.SelectImageResponse]
+	getSelectedImage *connect.Client[v1.GetSelectedImageRequest, v1.GetSelectedImageResponse]
 }
 
 // CreateImage calls purser.domain.v1.ImageService.CreateImage.
@@ -135,6 +157,16 @@ func (c *imageServiceClient) ListImages(ctx context.Context, req *connect.Reques
 	return c.listImages.CallUnary(ctx, req)
 }
 
+// SelectImage calls purser.domain.v1.ImageService.SelectImage.
+func (c *imageServiceClient) SelectImage(ctx context.Context, req *connect.Request[v1.SelectImageRequest]) (*connect.Response[v1.SelectImageResponse], error) {
+	return c.selectImage.CallUnary(ctx, req)
+}
+
+// GetSelectedImage calls purser.domain.v1.ImageService.GetSelectedImage.
+func (c *imageServiceClient) GetSelectedImage(ctx context.Context, req *connect.Request[v1.GetSelectedImageRequest]) (*connect.Response[v1.GetSelectedImageResponse], error) {
+	return c.getSelectedImage.CallUnary(ctx, req)
+}
+
 // ImageServiceHandler is an implementation of the purser.domain.v1.ImageService service.
 type ImageServiceHandler interface {
 	CreateImage(context.Context, *connect.Request[v1.CreateImageRequest]) (*connect.Response[v1.CreateImageResponse], error)
@@ -142,6 +174,8 @@ type ImageServiceHandler interface {
 	UpdateImage(context.Context, *connect.Request[v1.UpdateImageRequest]) (*connect.Response[v1.UpdateImageResponse], error)
 	DeleteImage(context.Context, *connect.Request[v1.DeleteImageRequest]) (*connect.Response[v1.DeleteImageResponse], error)
 	ListImages(context.Context, *connect.Request[v1.ListImagesRequest]) (*connect.Response[v1.ListImagesResponse], error)
+	SelectImage(context.Context, *connect.Request[v1.SelectImageRequest]) (*connect.Response[v1.SelectImageResponse], error)
+	GetSelectedImage(context.Context, *connect.Request[v1.GetSelectedImageRequest]) (*connect.Response[v1.GetSelectedImageResponse], error)
 }
 
 // NewImageServiceHandler builds an HTTP handler from the service implementation. It returns the
@@ -181,6 +215,18 @@ func NewImageServiceHandler(svc ImageServiceHandler, opts ...connect.HandlerOpti
 		connect.WithSchema(imageServiceMethods.ByName("ListImages")),
 		connect.WithHandlerOptions(opts...),
 	)
+	imageServiceSelectImageHandler := connect.NewUnaryHandler(
+		ImageServiceSelectImageProcedure,
+		svc.SelectImage,
+		connect.WithSchema(imageServiceMethods.ByName("SelectImage")),
+		connect.WithHandlerOptions(opts...),
+	)
+	imageServiceGetSelectedImageHandler := connect.NewUnaryHandler(
+		ImageServiceGetSelectedImageProcedure,
+		svc.GetSelectedImage,
+		connect.WithSchema(imageServiceMethods.ByName("GetSelectedImage")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/purser.domain.v1.ImageService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case ImageServiceCreateImageProcedure:
@@ -193,6 +239,10 @@ func NewImageServiceHandler(svc ImageServiceHandler, opts ...connect.HandlerOpti
 			imageServiceDeleteImageHandler.ServeHTTP(w, r)
 		case ImageServiceListImagesProcedure:
 			imageServiceListImagesHandler.ServeHTTP(w, r)
+		case ImageServiceSelectImageProcedure:
+			imageServiceSelectImageHandler.ServeHTTP(w, r)
+		case ImageServiceGetSelectedImageProcedure:
+			imageServiceGetSelectedImageHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -220,4 +270,12 @@ func (UnimplementedImageServiceHandler) DeleteImage(context.Context, *connect.Re
 
 func (UnimplementedImageServiceHandler) ListImages(context.Context, *connect.Request[v1.ListImagesRequest]) (*connect.Response[v1.ListImagesResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("purser.domain.v1.ImageService.ListImages is not implemented"))
+}
+
+func (UnimplementedImageServiceHandler) SelectImage(context.Context, *connect.Request[v1.SelectImageRequest]) (*connect.Response[v1.SelectImageResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("purser.domain.v1.ImageService.SelectImage is not implemented"))
+}
+
+func (UnimplementedImageServiceHandler) GetSelectedImage(context.Context, *connect.Request[v1.GetSelectedImageRequest]) (*connect.Response[v1.GetSelectedImageResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("purser.domain.v1.ImageService.GetSelectedImage is not implemented"))
 }

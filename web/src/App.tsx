@@ -5,6 +5,7 @@ import { transport } from './api/transport'
 import { Layout } from './components/layout/Layout'
 import { Welcome } from './pages/Welcome'
 import { People } from './pages/People'
+import { PersonDetail } from './pages/PersonDetail'
 import { SettingsLayout } from './pages/settings/SettingsLayout'
 import { ConfigTab } from './pages/settings/ConfigTab'
 import { JobsTab } from './pages/settings/JobsTab'
@@ -13,8 +14,9 @@ import { CacheTab } from './pages/settings/CacheTab'
 
 const queryClient = new QueryClient()
 
-// Welcome, /people (#660), and the /settings/* admin area (#596). No
-// other module (Music/AfterDark/Acquisition/Pipeline) screens exist yet.
+// Welcome, /people (#660), /people/:id (#661), and the /settings/*
+// admin area (#596). No other module (Music/AfterDark/Acquisition/Pipeline)
+// screens exist yet.
 // See docs/design/frontend-stack.md.
 const router = createBrowserRouter([
   {
@@ -22,6 +24,7 @@ const router = createBrowserRouter([
     children: [
       { path: '/', element: <Welcome /> },
       { path: '/people', element: <People /> },
+      { path: '/people/:id', element: <PersonDetail /> },
       {
         path: '/settings',
         element: <SettingsLayout />,
