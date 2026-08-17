@@ -1,6 +1,10 @@
-import { fireEvent, render, screen } from '@testing-library/react'
+import { createRouterTransport } from '@connectrpc/connect'
+import { TransportProvider } from '@connectrpc/connect-query'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { describe, expect, it, vi } from 'vitest'
+import { PersonService } from '../gen/purser/domain/v1/person_pb'
 import { usePeopleList } from '../hooks/usePeopleList'
 import { usePersonImages } from '../hooks/usePersonImages'
 import { People } from './People'
@@ -8,15 +12,23 @@ import { People } from './People'
 // People navigates via useNavigate(), which throws outside a Router
 // context — every render needs one. A /people/:id route is present so a
 // navigation assertion can check the resulting location's rendered output
-// instead of reaching into the router's internals.
-function renderPeople() {
+// instead of reaching into the router's internals. TransportProvider/
+// QueryClientProvider wrap every render (not just the Add-Person tests)
+// since PersonDialog (#663) mounts unconditionally once opened and its
+// mutation hooks require both contexts to exist.
+function renderPeople(mockTransport: ReturnType<typeof createRouterTransport> = createRouterTransport(() => {})) {
+  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   render(
-    <MemoryRouter initialEntries={['/people']}>
-      <Routes>
-        <Route path="/people" element={<People />} />
-        <Route path="/people/:id" element={<div>Person detail page</div>} />
-      </Routes>
-    </MemoryRouter>,
+    <TransportProvider transport={mockTransport}>
+      <QueryClientProvider client={queryClient}>
+        <MemoryRouter initialEntries={['/people']}>
+          <Routes>
+            <Route path="/people" element={<People />} />
+            <Route path="/people/:id" element={<div>Person detail page</div>} />
+          </Routes>
+        </MemoryRouter>
+      </QueryClientProvider>
+    </TransportProvider>,
   )
 }
 
@@ -58,13 +70,36 @@ function loaded(people: { id: string; name: string; monitored: boolean }[], hasN
 }
 
 describe('People', () => {
-  it('shows the empty-library state with a disabled Add Person action when nothing exists', () => {
+  it('shows the empty-library state with an enabled Add Person action when nothing exists', () => {
     mockUsePeopleList.mockReturnValue(loaded([]))
 
     renderPeople()
 
     expect(screen.getByText('No people yet')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Add Person' })).toBeDisabled()
+    // Two "Add Person" affordances exist on an empty library: the header
+    // button (always present) and the EmptyState action — both open the
+    // same PersonDialog.
+    for (const button of screen.getAllByRole('button', { name: 'Add Person' })) {
+      expect(button).toBeEnabled()
+    }
+  })
+
+  it('opens PersonDialog from the header button, creates the person, and navigates to their detail page', async () => {
+    mockUsePeopleList.mockReturnValue(loaded([{ id: 'p1', name: 'Jane Doe', monitored: true }]))
+    const mockTransport = createRouterTransport(router => {
+      router.service(PersonService, {
+        createPerson: req => ({ person: { ...req.person!, id: 'p2' } }),
+      })
+    })
+
+    renderPeople(mockTransport)
+    fireEvent.click(screen.getByRole('button', { name: 'Add Person' }))
+    expect(screen.getByRole('dialog', { name: 'Add Person' })).toBeInTheDocument()
+
+    fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'New Person' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+
+    await waitFor(() => expect(screen.getByText('Person detail page')).toBeInTheDocument())
   })
 
   it('renders a PersonCard grid for a loaded page', () => {
@@ -104,7 +139,9 @@ describe('People', () => {
     fireEvent.click(screen.getByRole('switch', { name: 'Monitored only' }))
 
     expect(screen.getByText('No matches')).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Add Person' })).not.toBeInTheDocument()
+    // A zero-results EmptyState has no action of its own — only the
+    // always-present header button remains.
+    expect(screen.getAllByRole('button', { name: 'Add Person' })).toHaveLength(1)
   })
 
   it('calls fetchNextPage from Load more without unmounting the existing grid', () => {

@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { EmptyState } from '../components/EmptyState'
 import { PersonCard } from '../components/PersonCard'
+import { PersonDialog } from '../components/PersonDialog'
 import { Toggle } from '../components/Toggle'
 import { usePeopleList } from '../hooks/usePeopleList'
 import { usePersonImages } from '../hooks/usePersonImages'
@@ -25,6 +26,7 @@ export function People() {
   const [searchInput, setSearchInput] = useState('')
   const [name, setName] = useState('')
   const [monitoredOnly, setMonitoredOnly] = useState(false)
+  const [addDialogOpen, setAddDialogOpen] = useState(false)
 
   useEffect(() => {
     const timer = setTimeout(() => setName(searchInput.trim()), SEARCH_DEBOUNCE_MS)
@@ -75,6 +77,15 @@ export function People() {
           </label>
 
           <Toggle label="Monitored only" checked={monitoredOnly} onChange={setMonitoredOnly} />
+
+          <button
+            type="button"
+            onClick={() => setAddDialogOpen(true)}
+            className="flex h-9 items-center gap-2 rounded-lg bg-accent-system px-4 text-body font-medium text-bg hover:opacity-90"
+          >
+            <UserPlus size={16} />
+            Add Person
+          </button>
         </div>
       </div>
 
@@ -89,7 +100,7 @@ export function People() {
           icon={UserPlus}
           title="No people yet"
           description="Add a person to start building your People library."
-          action={{ label: 'Add Person', disabled: true }}
+          action={{ label: 'Add Person', onClick: () => setAddDialogOpen(true) }}
         />
       )}
 
@@ -141,6 +152,17 @@ export function People() {
             {isFetchingNextPage ? 'Loading…' : 'Load more'}
           </button>
         </div>
+      )}
+
+      {addDialogOpen && (
+        <PersonDialog
+          mode="create"
+          onClose={() => setAddDialogOpen(false)}
+          onSaved={person => {
+            setAddDialogOpen(false)
+            navigate(`/people/${person.id}`)
+          }}
+        />
       )}
     </div>
   )

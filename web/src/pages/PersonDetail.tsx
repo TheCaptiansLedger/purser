@@ -1,5 +1,5 @@
 import { useQuery } from '@connectrpc/connect-query'
-import { Camera, Images, User } from 'lucide-react'
+import { Camera, Images, Pencil, User } from 'lucide-react'
 import { useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { timestampDate } from '@bufbuild/protobuf/wkt'
@@ -8,6 +8,7 @@ import { ChooseArtworkDialog } from '../components/ChooseArtworkDialog'
 import { ImageGallery } from '../components/ImageGallery'
 import { ImageLightbox } from '../components/ImageLightbox'
 import { PersonAppearances } from '../components/PersonAppearances'
+import { PersonDialog } from '../components/PersonDialog'
 import { Toggle } from '../components/Toggle'
 import { MonitorMode } from '../gen/purser/domain/v1/common_pb'
 import { getSelectedImage } from '../gen/purser/domain/v1/image-ImageService_connectquery'
@@ -46,6 +47,7 @@ export function PersonDetail() {
   const [lightboxOpen, setLightboxOpen] = useState(false)
   const [artworkDialogOpen, setArtworkDialogOpen] = useState(false)
   const [galleryOpen, setGalleryOpen] = useState(false)
+  const [editDialogOpen, setEditDialogOpen] = useState(false)
 
   // Doherty threshold — see docs/design/ux-principles.md#feedback--system-status.
   // A local Connect round trip resolves well under 400ms; a loading
@@ -146,7 +148,18 @@ export function PersonDetail() {
         </div>
 
         <div className="flex flex-1 flex-col gap-4">
-          <h1 className="text-headline text-text">{person.name}</h1>
+          <div className="flex items-center gap-2">
+            <h1 className="text-headline text-text">{person.name}</h1>
+            <button
+              type="button"
+              onClick={() => setEditDialogOpen(true)}
+              aria-label="Edit person"
+              title="Edit person"
+              className="rounded-lg p-1.5 text-text-secondary hover:bg-surface-raised hover:text-text"
+            >
+              <Pencil size={16} />
+            </button>
+          </div>
 
           <Toggle
             label="Monitored"
@@ -192,6 +205,18 @@ export function PersonDetail() {
           imageType="photo"
           onClose={() => setGalleryOpen(false)}
           onChange={() => void selectedImageQuery.refetch()}
+        />
+      )}
+
+      {editDialogOpen && (
+        <PersonDialog
+          mode="edit"
+          person={person}
+          onClose={() => setEditDialogOpen(false)}
+          onSaved={() => {
+            setEditDialogOpen(false)
+            void personQuery.refetch()
+          }}
         />
       )}
     </div>

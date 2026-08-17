@@ -201,6 +201,35 @@ describe('PersonDetail — photo attach and lightbox', () => {
   })
 })
 
+describe('PersonDetail — edit', () => {
+  it('opens PersonDialog pre-filled, submits the touched field, and refetches the page', async () => {
+    let name = basePerson.name
+    const mockTransport = createRouterTransport(router => {
+      router.service(PersonService, {
+        getPerson: () => ({ person: { ...basePerson, name } }),
+        updatePerson: req => {
+          expect(req.updateMask?.paths).toEqual(['name'])
+          name = req.person!.name
+          return { person: { ...basePerson, name } }
+        },
+      })
+      router.service(ImageService, { getSelectedImage: noSelectedImage() })
+      registerNoAppearances(router)
+    })
+
+    renderPersonDetail(mockTransport)
+    await waitFor(() => expect(screen.getByText('Stevie Nicks')).toBeInTheDocument())
+
+    fireEvent.click(screen.getByRole('button', { name: 'Edit person' }))
+    expect(screen.getByLabelText('Name')).toHaveValue('Stevie Nicks')
+
+    fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Stephanie Nicks' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+
+    await waitFor(() => expect(screen.getByText('Stephanie Nicks')).toBeInTheDocument())
+  })
+})
+
 describe('PersonDetail — manage photos', () => {
   it('opens the gallery, switches the current photo, and reflects the change on the page', async () => {
     let selectedImageId = 'image-old'
