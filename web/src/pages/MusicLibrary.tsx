@@ -1,6 +1,8 @@
 import type { JsonObject } from '@bufbuild/protobuf'
-import { Music, Search, SearchX } from 'lucide-react'
+import { Music, Plus, Search, SearchX } from 'lucide-react'
 import { useMemo, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
+import { AddArtistDialog } from '../components/AddArtistDialog'
 import { ArtistCard } from '../components/ArtistCard'
 import { EmptyState } from '../components/EmptyState'
 import { Toggle } from '../components/Toggle'
@@ -29,9 +31,16 @@ function genreOf(metadata: JsonObject | undefined): string | undefined {
 //
 // No ownership ring (#670) and no click-through to Artist Detail (#671
 // isn't built yet) — both explicitly out of this issue's scope.
+//
+// The "Add Artist" button (#665) opens AddArtistDialog and navigates to
+// the resulting artist's detail route on success — that route has no
+// page behind it yet (Artist Detail is #666/#667/#668), so it's a dead
+// link until those land, a deliberate call rather than an oversight.
 export function MusicLibrary() {
+  const navigate = useNavigate()
   const [search, setSearch] = useState('')
   const [monitoredOnly, setMonitoredOnly] = useState(false)
+  const [addArtistOpen, setAddArtistOpen] = useState(false)
 
   const { data, isPending, isError, error, hasNextPage, isFetchingNextPage, fetchNextPage } =
     useArtistLibraryEntries()
@@ -85,8 +94,27 @@ export function MusicLibrary() {
           </label>
 
           <Toggle label="Monitored only" checked={monitoredOnly} onChange={setMonitoredOnly} />
+
+          <button
+            type="button"
+            onClick={() => setAddArtistOpen(true)}
+            className="flex h-9 items-center gap-1.5 rounded-lg bg-accent-system px-4 text-body font-medium text-bg hover:opacity-90"
+          >
+            <Plus size={16} aria-hidden="true" />
+            Add Artist
+          </button>
         </div>
       </div>
+
+      {addArtistOpen && (
+        <AddArtistDialog
+          onClose={() => setAddArtistOpen(false)}
+          onAdded={entry => {
+            setAddArtistOpen(false)
+            navigate(`/music/artists/${entry.id}`)
+          }}
+        />
+      )}
 
       {isError && (
         <p className="mt-6 text-body text-status-failure">
