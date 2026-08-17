@@ -148,6 +148,23 @@ export interface PersonRef {
   imageId?: string
 }
 
+// LibraryEntryRef is the minimal identity shape ArtistCard (#664) needs —
+// not the full purser.domain.v1.LibraryEntry message, same PersonRef
+// precedent from #657/#225. genre is read straight off
+// LibraryEntry.Metadata["genre"] (a plain string when present, populated
+// at Add-Artist time by #665) — resolving it out of the wire Struct is
+// the caller's job, not ArtistCard's. imageId is a resolved
+// purser.domain.v1.Image.id (owner_type="library_entry", image_type=
+// "poster", per docs/technical/music-web-ui.md) for GET
+// /media/images/{id}.
+export interface LibraryEntryRef {
+  id: string
+  name: string
+  monitored: boolean
+  genre?: string
+  imageId?: string
+}
+
 // CacheStats mirrors the subset of purser.cache.v1.CacheStats the Cache
 // tab (#617) actually renders (name/items/bytes/hits/misses). The wire
 // message also carries sets/deletes/evictions — left off this type per

@@ -18,6 +18,7 @@ describe('Sidebar', () => {
     renderSidebar({ collapsed: false })
     expect(screen.getByRole('link', { name: 'Welcome' })).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'People' })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Music' })).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Settings' })).toBeInTheDocument()
   })
 
@@ -25,7 +26,7 @@ describe('Sidebar', () => {
     renderSidebar({ collapsed: true })
     expect(screen.queryByText('Welcome')).not.toBeInTheDocument()
     expect(screen.queryByText('Settings')).not.toBeInTheDocument()
-    expect(screen.getAllByRole('link')).toHaveLength(3)
+    expect(screen.getAllByRole('link')).toHaveLength(4)
   })
 
   it('calls onCollapsedChange when the toggle is clicked', () => {
