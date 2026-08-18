@@ -1,0 +1,197 @@
+import { useQuery } from '@connectrpc/connect-query'
+import { Camera, Disc3, Images, Maximize2 } from 'lucide-react'
+import { useState } from 'react'
+import { useParams } from 'react-router-dom'
+import { ChooseArtworkDialog } from '../components/ChooseArtworkDialog'
+import { Hero } from '../components/Hero'
+import { ImageGallery } from '../components/ImageGallery'
+import { ImageLightbox } from '../components/ImageLightbox'
+import { getGroup } from '../gen/purser/domain/v1/group-GroupService_connectquery'
+import { getSelectedImage } from '../gen/purser/domain/v1/image-ImageService_connectquery'
+import { listMusicReleases } from '../gen/purser/music/v1/release-MusicReleaseService_connectquery'
+import { useGroupTags } from '../hooks/useGroupTags'
+
+const RELEASES_PAGE_SIZE = 50
+
+// AlbumDetail — the Album (Release Group) Detail page shell (#673):
+// GroupService.GetGroup, a Hero (#658) with no backdrop (no artwork
+// source for one yet — unlike Artist Detail's fanart.tv backdrop) and
+// facts=[year, track count]. Editions strip (#674), Add Edition (#675),
+// tracklist (#676), Set default edition (#677), and the metadata editor
+// (#681) are separate, later issues — this page only reads the default
+// edition (MusicReleaseService.ListMusicReleases, same
+// `isDefault ?? [0]` fallback useDiscography already established) to
+// know which edition owns the cover art and to report its track count.
+//
+// Cover art attaches to the default edition, not the Group itself, per
+// ADR 0021's "Cover art: Image... owned by the release" — ownerType=
+// "music_release" (same "poster" imageType convention library_entry/
+// group covers already use), through #656's ChooseArtworkDialog/
+// ImageGallery and viewed via #655's ImageLightbox. Upload-only: no
+// provider wires a release-cover candidate yet, unlike Artist Detail's
+// fanart.tv poster/backdrop. A Group with zero editions has nothing to
+// own the image, so the cover art controls are hidden rather than
+// pointed at a release that doesn't exist.
+//
+// Genre/mood chips — TagAssignmentService.ListTagAssignments(entity_type
+// =GROUP) + TagService.GetTag per assignment (see useGroupTags), scope=
+// metadata per ADR 0021. An album with zero tag assignments renders no
+// chip row at all, not an empty placeholder chip (#673's own acceptance
+// criterion).
+export function AlbumDetail() {
+  const { id = '' } = useParams<{ id: string }>()
+  const groupQuery = useQuery(getGroup, { id }, { enabled: !!id })
+  const releasesQuery = useQuery(
+    listMusicReleases,
+    { pageSize: RELEASES_PAGE_SIZE, pageToken: '', groupId: id, libraryEntryId: '' },
+    { enabled: !!id },
+  )
+  const tagsQuery = useGroupTags(id)
+
+  const [coverLightboxOpen, setCoverLightboxOpen] = useState(false)
+  const [coverDialogOpen, setCoverDialogOpen] = useState(false)
+  const [coverGalleryOpen, setCoverGalleryOpen] = useState(false)
+
+  const releases = releasesQuery.data?.musicReleases ?? []
+  const defaultRelease = releases.find(release => release.isDefault) ?? releases[0]
+
+  const coverQuery = useQuery(
+    getSelectedImage,
+    { ownerType: 'music_release', ownerId: defaultRelease?.id ?? '', imageType: 'poster' },
+    { enabled: !!defaultRelease?.id, retry: false },
+  )
+
+  // Doherty threshold — see docs/design/ux-principles.md#feedback--system-status.
+  if (groupQuery.isPending) {
+    return null
+  }
+
+  if (groupQuery.isError) {
+    return (
+      <p className="mx-6 mt-10 text-body text-status-failure" role="alert">
+        Couldn't load this album ({groupQuery.error.message}).
+      </p>
+    )
+  }
+
+  const group = groupQuery.data.group
+  if (!group) {
+    return (
+      <p className="mx-6 mt-10 text-body text-status-failure" role="alert">
+        Album not found.
+      </p>
+    )
+  }
+
+  const coverImageId = coverQuery.data?.image?.id
+  const coverSrc = coverImageId ? `/media/images/${coverImageId}` : undefined
+
+  const facts = [
+    group.year > 0 ? String(group.year) : undefined,
+    defaultRelease && defaultRelease.trackCount > 0
+      ? `${defaultRelease.trackCount} track${defaultRelease.trackCount === 1 ? '' : 's'}`
+      : undefined,
+  ].filter((fact): fact is string => !!fact)
+
+  return (
+    <div className="px-6 py-10 md:px-8">
+      <Hero title={group.title} facts={facts} />
+
+      <div className="mt-6 flex flex-col gap-6 sm:flex-row sm:items-start">
+        <div className="flex flex-col items-center gap-2 sm:w-48 shrink-0">
+          {coverSrc ? (
+            <button
+              type="button"
+              onClick={() => setCoverLightboxOpen(true)}
+              aria-label={`View ${group.title}'s cover art`}
+              className="aspect-square w-full overflow-hidden rounded-xl border border-border"
+            >
+              <img src={coverSrc} alt={group.title} className="h-full w-full object-cover" />
+            </button>
+          ) : (
+            <div
+              aria-hidden="true"
+              className="flex aspect-square w-full items-center justify-center rounded-xl border border-border bg-surface-raised text-text-secondary"
+            >
+              <Disc3 size={40} />
+            </div>
+          )}
+
+          {defaultRelease && (
+            <div className="flex items-center gap-1">
+              <button
+                type="button"
+                onClick={() => setCoverDialogOpen(true)}
+                className="flex h-8 items-center gap-2 rounded-lg px-3 text-label font-medium text-text-secondary hover:bg-surface-raised hover:text-text"
+              >
+                <Camera size={14} />
+                {coverSrc ? 'Change cover' : 'Add cover'}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setCoverGalleryOpen(true)}
+                aria-label="Manage cover art"
+                title="Manage cover art"
+                className="flex h-8 w-8 items-center justify-center rounded-lg text-text-secondary hover:bg-surface-raised hover:text-text"
+              >
+                <Images size={14} />
+              </button>
+
+              {coverSrc && (
+                <button
+                  type="button"
+                  onClick={() => setCoverLightboxOpen(true)}
+                  aria-label="View cover art full-screen"
+                  title="View cover art full-screen"
+                  className="flex h-8 w-8 items-center justify-center rounded-lg text-text-secondary hover:bg-surface-raised hover:text-text"
+                >
+                  <Maximize2 size={14} />
+                </button>
+              )}
+            </div>
+          )}
+        </div>
+
+        {tagsQuery.tags.length > 0 && (
+          <div className="flex flex-1 flex-wrap items-start gap-2">
+            {tagsQuery.tags.map(tag => (
+              <span
+                key={tag.id}
+                className="rounded-md border border-border bg-surface-raised px-2 py-1 text-label text-text-secondary"
+              >
+                {tag.value}
+              </span>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {coverLightboxOpen && coverSrc && (
+        <ImageLightbox src={coverSrc} alt={group.title} onClose={() => setCoverLightboxOpen(false)} />
+      )}
+
+      {coverDialogOpen && defaultRelease && (
+        <ChooseArtworkDialog
+          title={`${coverSrc ? 'Change' : 'Add'} cover`}
+          ownerType="music_release"
+          ownerId={defaultRelease.id}
+          imageType="poster"
+          onClose={() => setCoverDialogOpen(false)}
+          onAttached={() => void coverQuery.refetch()}
+        />
+      )}
+
+      {coverGalleryOpen && defaultRelease && (
+        <ImageGallery
+          title="Manage cover art"
+          ownerType="music_release"
+          ownerId={defaultRelease.id}
+          imageType="poster"
+          onClose={() => setCoverGalleryOpen(false)}
+          onChange={() => void coverQuery.refetch()}
+        />
+      )}
+    </div>
+  )
+}

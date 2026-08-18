@@ -1,7 +1,7 @@
 import { useQuery } from '@connectrpc/connect-query'
 import { Camera, Disc3, Images, Maximize2, Music, Plus, Users } from 'lucide-react'
 import { useState } from 'react'
-import { useParams } from 'react-router-dom'
+import { Link, useParams } from 'react-router-dom'
 import { AddAlbumDialog } from '../components/AddAlbumDialog'
 import { AlbumCard } from '../components/AlbumCard'
 import { ChooseArtworkDialog } from '../components/ChooseArtworkDialog'
@@ -83,9 +83,10 @@ const TAB_ITEMS: { id: ArtistDetailTab; label: string }[] = [
 // poster/backdrop buttons above); "Add Manually" opens ManualAlbumDialog
 // for an album MusicBrainz doesn't have — a plain CreateGroup, no
 // ExternalID (nothing to dedupe against without an external identity).
-// Unlike Add Artist, picking a result never navigates — there is no
-// Album Detail page yet (#673) — both paths just close their dialog and
-// refetch this tab's own grid.
+// Unlike Add Artist, picking a result never navigates — both paths just
+// close their dialog and refetch this tab's own grid; the new album is
+// reached afterward the same way any other one is, by clicking its
+// AlbumCard through to Album Detail (#673).
 //
 // Members tab (#668): EntryPersonService.ListEntryPeople(library_entry_id)
 // — see useArtistMembers — rendered as two headed PersonCard (#657) grids,
@@ -379,7 +380,9 @@ export function ArtistDetail() {
               {discography.albums.length > 0 && (
                 <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8">
                   {discography.albums.map(album => (
-                    <AlbumCard key={album.id} album={{ ...album, imageId: albumImagesByGroupId[album.id] }} />
+                    <Link key={album.id} to={`/music/albums/${album.id}`} className="rounded-lg hover:bg-surface-raised">
+                      <AlbumCard album={{ ...album, imageId: albumImagesByGroupId[album.id] }} />
+                    </Link>
                   ))}
                 </div>
               )}

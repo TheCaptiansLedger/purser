@@ -12,7 +12,9 @@ export interface AlbumCardProps {
 // (#659) driven by the default edition's derived status (see
 // useDiscography). Same no-click-behavior precedent as
 // ArtistCard/PersonCard/Card — this component only renders; the caller
-// wraps it for navigation once Album Detail (#673) exists.
+// wraps it for navigation, same as ArtistCard's Link wrap in
+// MusicLibrary — see ArtistDetail's Discography tab, which links each
+// card to Album Detail (#673).
 //
 // A Group with zero MusicRelease rows (album.status undefined) renders a
 // defined "No edition selected" badge rather than a missing/blank one —

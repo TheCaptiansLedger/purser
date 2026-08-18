@@ -549,6 +549,9 @@ describe('ArtistDetail — Discography tab', () => {
     expect(await screen.findByText('Rumours')).toBeInTheDocument()
     expect(screen.getByText('1977')).toBeInTheDocument()
     expect(screen.getByText('Imported')).toBeInTheDocument()
+    // AlbumCard's own doc comment: the caller wraps it for navigation —
+    // see Album Detail (#673).
+    expect(screen.getByRole('link', { name: /Rumours/ })).toHaveAttribute('href', '/music/albums/group-1')
   })
 
   it('falls back to the first returned edition when none is marked default', async () => {
