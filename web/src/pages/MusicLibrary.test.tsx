@@ -4,22 +4,28 @@ import { describe, expect, it, vi } from 'vitest'
 import type { LibraryEntry } from '../gen/purser/domain/v1/library_entry_pb'
 import { useArtistLibraryEntries } from '../hooks/useArtistLibraryEntries'
 import { useLibraryEntryImages } from '../hooks/useLibraryEntryImages'
+import { useLibraryOwnership } from '../hooks/useLibraryOwnership'
 import { MusicLibrary } from './MusicLibrary'
 import { AddArtistDialog, type AddArtistDialogProps } from '../components/AddArtistDialog'
 
 // Page-level test: composition only, per ADR 0004 — useArtistLibraryEntries'
 // own wire behavior is tested in useArtistLibraryEntries.test.tsx,
 // useLibraryEntryImages' own fan-out in useLibraryEntryImages.test.tsx,
+// useLibraryOwnership's own fan-out in useLibraryOwnership.test.tsx,
 // ArtistCard's own rendering in ArtistCard.test.tsx, AddArtistDialog's own
-// search/select/error behavior in AddArtistDialog.test.tsx. All three are
-// mocked directly so every state is reachable deterministically and this
-// page doesn't need a mocked transport of its own.
+// search/select/error behavior in AddArtistDialog.test.tsx. All are mocked
+// directly so every state is reachable deterministically and this page
+// doesn't need a mocked transport of its own.
 vi.mock('../hooks/useArtistLibraryEntries')
 const mockUseArtistLibraryEntries = vi.mocked(useArtistLibraryEntries)
 
 vi.mock('../hooks/useLibraryEntryImages')
 const mockUseLibraryEntryImages = vi.mocked(useLibraryEntryImages)
 mockUseLibraryEntryImages.mockReturnValue({})
+
+vi.mock('../hooks/useLibraryOwnership')
+const mockUseLibraryOwnership = vi.mocked(useLibraryOwnership)
+mockUseLibraryOwnership.mockReturnValue({})
 
 vi.mock('../components/AddArtistDialog')
 const mockAddArtistDialog = vi.mocked(AddArtistDialog)
@@ -195,6 +201,15 @@ describe('MusicLibrary', () => {
 
     expect(screen.getByText('Artist detail page')).toBeInTheDocument()
     expect(screen.queryByText('Add Artist dialog open')).not.toBeInTheDocument()
+  })
+
+  it("passes each artist's own useLibraryOwnership result into its ArtistCard", () => {
+    mockUseArtistLibraryEntries.mockReturnValue(loaded([{ id: 'a1', name: 'Fleetwood Mac', monitored: true }]))
+    mockUseLibraryOwnership.mockReturnValue({ a1: { owned: 4, total: 7 } })
+
+    renderMusicLibrary()
+
+    expect(screen.getByRole('img', { name: '4 of 7 albums owned' })).toBeInTheDocument()
   })
 
   it('links each card to its Artist Detail route', () => {

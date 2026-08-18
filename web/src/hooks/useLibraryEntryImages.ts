@@ -9,8 +9,8 @@ import { getSelectedImage } from '../gen/purser/domain/v1/image-ImageService_con
 // (owner_type="library_entry", owner_id, image_type="poster") call per
 // artist on the loaded page — the same documented, bounded per-page
 // fan-out docs/technical/music-web-ui.md accepts for this screen (the
-// Discography-ownership fan-out is a separate, larger one this story
-// deliberately doesn't build — see #664/#670).
+// Discography-ownership fan-out is a separate, larger one — see
+// useLibraryOwnership, #670).
 //
 // Returns a libraryEntryId -> imageId map, omitting entries with no
 // image so ArtistCard's imageId prop stays undefined (its own

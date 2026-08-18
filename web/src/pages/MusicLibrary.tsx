@@ -8,6 +8,7 @@ import { EmptyState } from '../components/EmptyState'
 import { Toggle } from '../components/Toggle'
 import { useArtistLibraryEntries } from '../hooks/useArtistLibraryEntries'
 import { useLibraryEntryImages } from '../hooks/useLibraryEntryImages'
+import { useLibraryOwnership } from '../hooks/useLibraryOwnership'
 import type { LibraryEntryRef } from '../types'
 
 // genreOf reads LibraryEntry.Metadata["genre"] directly — populated at
@@ -29,10 +30,14 @@ function genreOf(metadata: JsonObject | undefined): string | undefined {
 // useArtistLibraryEntries), same accepted-limitation precedent the
 // People index page (#660) set for its own monitored-only filter.
 //
-// No ownership ring (#670) — out of this issue's scope. Each card links
-// to its Artist Detail route (#666) via a plain <Link>; ArtistCard itself
-// has no nested interactive element (unlike PersonCard's photo button),
-// so this needs none of People.tsx's click-target-detection workaround.
+// Each card's ownership ring (#670) is a per-page fan-out via
+// useLibraryOwnership — GroupService.ListGroups + per-group
+// MusicReleaseService.ListMusicReleases, scoped to the visible artists on
+// this page, never the whole library (see docs/technical/music-web-ui.md).
+// Each card links to its Artist Detail route (#666) via a plain <Link>;
+// ArtistCard itself has no nested interactive element (unlike
+// PersonCard's photo button), so this needs none of People.tsx's
+// click-target-detection workaround.
 //
 // The "Add Artist" button (#665) opens AddArtistDialog and navigates to
 // the resulting artist's detail route (#666) on success.
@@ -67,6 +72,7 @@ export function MusicLibrary() {
 
   const artistIds = useMemo(() => visibleArtists.map(artist => artist.id), [visibleArtists])
   const imagesByArtistId = useLibraryEntryImages(artistIds)
+  const ownershipByArtistId = useLibraryOwnership(artistIds)
 
   const isEmptyLibrary = !isPending && !isError && artists.length === 0 && query === '' && !monitoredOnly
   const isZeroResults = !isPending && !isError && artists.length > 0 && visibleArtists.length === 0
@@ -142,7 +148,10 @@ export function MusicLibrary() {
         <div className="mt-6 grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8 2xl:grid-cols-10">
           {visibleArtists.map(artist => (
             <Link key={artist.id} to={`/music/artists/${artist.id}`} className="rounded-lg hover:bg-surface-raised">
-              <ArtistCard artist={{ ...artist, imageId: imagesByArtistId[artist.id] }} />
+              <ArtistCard
+                artist={{ ...artist, imageId: imagesByArtistId[artist.id] }}
+                ownership={ownershipByArtistId[artist.id]}
+              />
             </Link>
           ))}
         </div>

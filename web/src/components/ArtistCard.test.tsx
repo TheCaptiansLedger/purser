@@ -28,4 +28,22 @@ describe('ArtistCard', () => {
     expect(screen.getByText('No Genre')).toBeInTheDocument()
     expect(container.querySelector('.text-text-secondary.truncate')).not.toBeInTheDocument()
   })
+
+  it('renders the ownership ring (#670) alongside the monitored dot when given one', () => {
+    render(
+      <ArtistCard
+        artist={{ id: 'a4', name: 'Steely Dan', monitored: true }}
+        ownership={{ owned: 4, total: 7 }}
+      />,
+    )
+
+    expect(screen.getByRole('img', { name: '4 of 7 albums owned' })).toBeInTheDocument()
+    expect(screen.getByRole('img', { name: 'Monitored' })).toBeInTheDocument()
+  })
+
+  it('renders no ownership ring at all when no ownership prop is given', () => {
+    render(<ArtistCard artist={{ id: 'a5', name: 'No Ownership Data', monitored: true }} />)
+
+    expect(screen.queryByText(/\d+\/\d+/)).not.toBeInTheDocument()
+  })
 })
