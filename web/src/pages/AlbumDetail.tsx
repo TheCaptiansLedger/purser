@@ -1,27 +1,48 @@
-import { useQuery } from '@connectrpc/connect-query'
+import { useMutation, useQuery } from '@connectrpc/connect-query'
 import { Camera, Disc3, Images, Maximize2 } from 'lucide-react'
 import { useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { ChooseArtworkDialog } from '../components/ChooseArtworkDialog'
+import { EditionsStrip } from '../components/EditionsStrip'
 import { Hero } from '../components/Hero'
 import { ImageGallery } from '../components/ImageGallery'
 import { ImageLightbox } from '../components/ImageLightbox'
 import { getGroup } from '../gen/purser/domain/v1/group-GroupService_connectquery'
 import { getSelectedImage } from '../gen/purser/domain/v1/image-ImageService_connectquery'
-import { listMusicReleases } from '../gen/purser/music/v1/release-MusicReleaseService_connectquery'
+import {
+  listMusicReleases,
+  updateMusicRelease,
+} from '../gen/purser/music/v1/release-MusicReleaseService_connectquery'
+import type { Release } from '../gen/purser/music/v1/release_pb'
 import { useGroupTags } from '../hooks/useGroupTags'
+import { useReleaseTracks } from '../hooks/useReleaseTracks'
 
 const RELEASES_PAGE_SIZE = 50
 
 // AlbumDetail — the Album (Release Group) Detail page shell (#673):
 // GroupService.GetGroup, a Hero (#658) with no backdrop (no artwork
 // source for one yet — unlike Artist Detail's fanart.tv backdrop) and
-// facts=[year, track count]. Editions strip (#674), Add Edition (#675),
-// tracklist (#676), Set default edition (#677), and the metadata editor
-// (#681) are separate, later issues — this page only reads the default
-// edition (MusicReleaseService.ListMusicReleases, same
-// `isDefault ?? [0]` fallback useDiscography already established) to
-// know which edition owns the cover art and to report its track count.
+// facts=[year, track count]. Add Edition (#675), Set default edition
+// (#677), and the metadata editor (#681) are separate, later issues —
+// this page reads the default edition (MusicReleaseService
+// .ListMusicReleases, same `isDefault ?? [0]` fallback useDiscography
+// already established) to know which edition owns the cover art and to
+// report its track count in the Hero facts, independent of whichever
+// edition is selected in the strip below.
+//
+// Editions strip (#674): selecting a card updates selectedReleaseId
+// (optimistic local mirror pattern, same `x ?? entry.x` shape
+// ArtistDetail's `monitored` state uses, defaulting to the default
+// edition), which drives useReleaseTracks — the actual live consumer
+// #674's acceptance criterion requires (not a visual-only tab). #676
+// replaces the plain track-count line below the strip with the real
+// per-track rows/status badges/play icon/Add-track UI; this page's job
+// is only to prove the selection is wired to a query, not to build that
+// UI itself. Per-edition Monitored toggles call UpdateMusicRelease
+// (field-mask [monitored]) with the same optimistic-write/rollback shape
+// as ArtistDetail's handleMonitorToggle, keyed per release since several
+// cards can be mid-toggle at once. IsDefault's star is read-only here —
+// reassigning it is #677.
 //
 // Cover art attaches to the default edition, not the Group itself, per
 // ADR 0021's "Cover art: Image... owned by the release" — ownerType=
@@ -47,19 +68,34 @@ export function AlbumDetail() {
     { enabled: !!id },
   )
   const tagsQuery = useGroupTags(id)
+  const updateReleaseMutation = useMutation(updateMusicRelease)
 
   const [coverLightboxOpen, setCoverLightboxOpen] = useState(false)
   const [coverDialogOpen, setCoverDialogOpen] = useState(false)
   const [coverGalleryOpen, setCoverGalleryOpen] = useState(false)
+  // Optimistic local mirrors — same `x ?? entry.x` pattern ArtistDetail's
+  // `monitored` state uses. monitoredOverrides is keyed per release id
+  // since the strip can have several cards mid-toggle at once, unlike
+  // ArtistDetail's single LibraryEntry-level toggle.
+  const [selectedReleaseId, setSelectedReleaseId] = useState<string | undefined>(undefined)
+  const [monitoredOverrides, setMonitoredOverrides] = useState<Record<string, boolean>>({})
+  const [pendingReleaseId, setPendingReleaseId] = useState<string | undefined>(undefined)
 
   const releases = releasesQuery.data?.musicReleases ?? []
   const defaultRelease = releases.find(release => release.isDefault) ?? releases[0]
+  const activeReleaseId = selectedReleaseId ?? defaultRelease?.id ?? ''
 
   const coverQuery = useQuery(
     getSelectedImage,
     { ownerType: 'music_release', ownerId: defaultRelease?.id ?? '', imageType: 'poster' },
     { enabled: !!defaultRelease?.id, retry: false },
   )
+
+  // The Editions strip's (#674) live consumer — proves selecting an
+  // edition actually drives a query rather than being a visual-only tab.
+  // #676 replaces the plain count this page renders with the real
+  // tracklist UI built on top of this same hook.
+  const tracksQuery = useReleaseTracks(activeReleaseId)
 
   // Doherty threshold — see docs/design/ux-principles.md#feedback--system-status.
   if (groupQuery.isPending) {
@@ -92,6 +128,24 @@ export function AlbumDetail() {
       ? `${defaultRelease.trackCount} track${defaultRelease.trackCount === 1 ? '' : 's'}`
       : undefined,
   ].filter((fact): fact is string => !!fact)
+
+  function handleToggleMonitored(release: Release, next: boolean) {
+    const previous = monitoredOverrides[release.id] ?? release.monitored
+    setMonitoredOverrides(overrides => ({ ...overrides, [release.id]: next }))
+    setPendingReleaseId(release.id)
+    updateReleaseMutation.mutate(
+      { musicRelease: { id: release.id, monitored: next }, updateMask: { paths: ['monitored'] } },
+      {
+        onSuccess: response =>
+          setMonitoredOverrides(overrides => ({
+            ...overrides,
+            [release.id]: response.musicRelease?.monitored ?? next,
+          })),
+        onError: () => setMonitoredOverrides(overrides => ({ ...overrides, [release.id]: previous })),
+        onSettled: () => setPendingReleaseId(undefined),
+      },
+    )
+  }
 
   return (
     <div className="px-6 py-10 md:px-8">
@@ -166,6 +220,29 @@ export function AlbumDetail() {
           </div>
         )}
       </div>
+
+      {releases.length > 0 && (
+        <div className="mt-8">
+          <EditionsStrip
+            releases={releases}
+            selectedId={activeReleaseId}
+            onSelect={setSelectedReleaseId}
+            onToggleMonitored={handleToggleMonitored}
+            monitoredOverrides={monitoredOverrides}
+            pendingReleaseId={pendingReleaseId}
+          />
+
+          {/* Placeholder tracklist consumer — #676 replaces this with the
+              real per-track rows/status badges/play icon. This line only
+              proves selecting an edition above drives a query, per #674's
+              acceptance criterion. */}
+          {!tracksQuery.isPending && (
+            <p className="mt-4 text-label text-text-secondary">
+              {tracksQuery.tracks.length} track{tracksQuery.tracks.length === 1 ? '' : 's'} in this edition
+            </p>
+          )}
+        </div>
+      )}
 
       {coverLightboxOpen && coverSrc && (
         <ImageLightbox src={coverSrc} alt={group.title} onClose={() => setCoverLightboxOpen(false)} />

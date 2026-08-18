@@ -176,4 +176,83 @@ describe('AlbumDetail', () => {
     fireEvent.click(coverButton)
     expect(screen.getByRole('dialog', { name: 'Rumours' })).toBeInTheDocument()
   })
+
+  it('selecting an edition in the strip re-queries that edition\'s tracks (#674)', async () => {
+    const requestedReleaseIds: string[] = []
+    const mockTransport = createRouterTransport(router => {
+      router.service(GroupService, { getGroup: () => ({ group: baseGroup }) })
+      router.service(MusicReleaseService, {
+        listMusicReleases: () => ({
+          musicReleases: [
+            { id: 'rel-1', groupId: 'group-1', title: '1977 Original', isDefault: false, status: ReleaseStatus.STUB },
+            { id: 'rel-2', groupId: 'group-1', title: '2004 Remaster', isDefault: true, status: ReleaseStatus.IMPORTED },
+          ],
+        }),
+        listMusicReleaseTracks: request => {
+          requestedReleaseIds.push(request.releaseId)
+          return { tracks: request.releaseId === 'rel-1' ? [{ id: 't1' }, { id: 't2' }] : [{ id: 't3' }] }
+        },
+      })
+      router.service(ImageService, { getSelectedImage: noSelectedImage() })
+      registerNoTags(router)
+    })
+
+    renderAlbumDetail(mockTransport)
+
+    expect(await screen.findByText('1 track in this edition')).toBeInTheDocument()
+    expect(requestedReleaseIds).toContain('rel-2')
+
+    fireEvent.click(screen.getByText('1977 Original'))
+
+    expect(await screen.findByText('2 tracks in this edition')).toBeInTheDocument()
+    expect(requestedReleaseIds).toContain('rel-1')
+  })
+
+  it('toggles Monitored on a single edition via UpdateMusicRelease(field_mask=[monitored])', async () => {
+    let updateRequest: { id?: string; monitored?: boolean; paths?: string[] } | undefined
+    const mockTransport = createRouterTransport(router => {
+      router.service(GroupService, { getGroup: () => ({ group: baseGroup }) })
+      router.service(MusicReleaseService, {
+        listMusicReleases: () => ({
+          musicReleases: [
+            { id: 'rel-1', groupId: 'group-1', title: '1977 Original', isDefault: true, monitored: false, status: ReleaseStatus.STUB },
+          ],
+        }),
+        listMusicReleaseTracks: () => ({ tracks: [] }),
+        updateMusicRelease: request => {
+          updateRequest = {
+            id: request.musicRelease?.id,
+            monitored: request.musicRelease?.monitored,
+            paths: request.updateMask?.paths,
+          }
+          return { musicRelease: request.musicRelease }
+        },
+      })
+      router.service(ImageService, { getSelectedImage: noSelectedImage() })
+      registerNoTags(router)
+    })
+
+    renderAlbumDetail(mockTransport)
+
+    const toggle = await screen.findByRole('switch', { name: 'Monitored' })
+    expect(toggle).toHaveAttribute('aria-checked', 'false')
+
+    fireEvent.click(toggle)
+
+    await waitFor(() => expect(toggle).toHaveAttribute('aria-checked', 'true'))
+    expect(updateRequest).toEqual({ id: 'rel-1', monitored: true, paths: ['monitored'] })
+  })
+
+  it('hides the Editions strip entirely for a Group with zero editions', async () => {
+    const mockTransport = createRouterTransport(router => {
+      router.service(GroupService, { getGroup: () => ({ group: baseGroup }) })
+      registerNoReleases(router)
+      registerNoTags(router)
+    })
+
+    renderAlbumDetail(mockTransport)
+
+    expect(await screen.findByRole('heading', { name: 'Rumours' })).toBeInTheDocument()
+    expect(screen.queryByRole('tablist', { name: 'Editions' })).not.toBeInTheDocument()
+  })
 })

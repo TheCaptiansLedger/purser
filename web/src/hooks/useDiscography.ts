@@ -17,7 +17,9 @@ const RELEASES_PAGE_SIZE = 50
 // union MusicReleaseStatusBadge (#659) takes — RELEASE_STATUS_UNSPECIFIED
 // has no case here because Release.Status is a required, validated oneof
 // server-side (same reasoning as types/index.ts's ReleaseStatus comment).
-function statusFromProto(status: ProtoReleaseStatus): ReleaseStatus | undefined {
+// Exported so other Release-reading call sites (EditionsStrip, #674) reuse
+// this mapping instead of re-deriving it.
+export function statusFromProto(status: ProtoReleaseStatus): ReleaseStatus | undefined {
   switch (status) {
     case ProtoReleaseStatus.STUB:
       return 'stub'
