@@ -43,7 +43,9 @@ function statusFromProto(status: ProtoReleaseStatus): ReleaseStatus | undefined 
 // useQueries + connect-query's createQueryOptions is the same bounded
 // per-parent fan-out useLibraryEntriesByIds/usePersonImages already
 // established — plain useQuery can't be called in a loop.
-export function useDiscography(libraryEntryId: string): { albums: GroupRef[]; isPending: boolean } {
+export function useDiscography(
+  libraryEntryId: string,
+): { albums: GroupRef[]; isPending: boolean; refetch: () => void } {
   const transport = useTransport()
 
   const groupsQuery = useQuery(
@@ -79,5 +81,10 @@ export function useDiscography(libraryEntryId: string): { albums: GroupRef[]; is
   return {
     albums,
     isPending: groupsQuery.isPending || releaseResults.some(result => result.isPending),
+    // refetch — used by Add Album (#669) to bring the newly created Group
+    // into view without navigating away: unlike Add Artist, there is no
+    // Album Detail page yet (#673), so "done" means the new AlbumCard
+    // just appears in this grid.
+    refetch: () => void groupsQuery.refetch(),
   }
 }

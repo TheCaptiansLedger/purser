@@ -1,14 +1,17 @@
 import type { JsonObject } from '@bufbuild/protobuf'
 import { useQuery } from '@connectrpc/connect-query'
-import { Camera, Disc3, Images, Maximize2, Music, Users } from 'lucide-react'
+import { Camera, Disc3, Images, Maximize2, Music, Plus, Users } from 'lucide-react'
 import { useState } from 'react'
 import { useParams } from 'react-router-dom'
+import { AddAlbumDialog } from '../components/AddAlbumDialog'
 import { AlbumCard } from '../components/AlbumCard'
 import { ChooseArtworkDialog } from '../components/ChooseArtworkDialog'
+import { DropdownMenu } from '../components/DropdownMenu'
 import { EmptyState } from '../components/EmptyState'
 import { Hero } from '../components/Hero'
 import { ImageGallery } from '../components/ImageGallery'
 import { ImageLightbox } from '../components/ImageLightbox'
+import { ManualAlbumDialog } from '../components/ManualAlbumDialog'
 import { PersonCard } from '../components/PersonCard'
 import { Toggle } from '../components/Toggle'
 import { MonitorMode } from '../gen/purser/domain/v1/common_pb'
@@ -72,6 +75,16 @@ function aliasesField(metadata: JsonObject | undefined): string[] {
 // Group with zero MusicRelease rows renders AlbumCard's own defined "No
 // edition selected" badge rather than crashing on a missing default.
 //
+// "Add Album" (#669) is a DropdownMenu with two sources: "Search
+// MusicBrainz" opens AddAlbumDialog, disabled until provider.mbid is
+// known (ListReleaseGroupsForArtist has no non-MBID fallback, unlike the
+// poster/backdrop buttons above); "Add Manually" opens ManualAlbumDialog
+// for an album MusicBrainz doesn't have — a plain CreateGroup, no
+// ExternalID (nothing to dedupe against without an external identity).
+// Unlike Add Artist, picking a result never navigates — there is no
+// Album Detail page yet (#673) — both paths just close their dialog and
+// refetch this tab's own grid.
+//
 // Members tab (#668): EntryPersonService.ListEntryPeople(library_entry_id)
 // — see useArtistMembers — rendered as two headed PersonCard (#657) grids,
 // "Current members" and "Former members". "Former" is per-artist (a
@@ -110,6 +123,8 @@ export function ArtistDetail() {
   const [backdropDialogOpen, setBackdropDialogOpen] = useState(false)
   const [backdropGalleryOpen, setBackdropGalleryOpen] = useState(false)
   const [activeTab, setActiveTab] = useState<ArtistDetailTab>('discography')
+  const [addAlbumOpen, setAddAlbumOpen] = useState(false)
+  const [manualAlbumOpen, setManualAlbumOpen] = useState(false)
 
   // Doherty threshold — see docs/design/ux-principles.md#feedback--system-status.
   if (entryQuery.isPending) {
@@ -319,6 +334,27 @@ export function ArtistDetail() {
         <div role="tabpanel" className="mt-6">
           {activeTab === 'discography' && (
             <>
+              <div className="mb-4 flex justify-end">
+                <DropdownMenu
+                  label="Add Album"
+                  trigger={
+                    <>
+                      <Plus size={16} aria-hidden="true" />
+                      Add Album
+                    </>
+                  }
+                  triggerClassName="flex h-9 items-center gap-1.5 rounded-lg bg-accent-system px-4 text-body font-medium text-bg hover:opacity-90"
+                  items={[
+                    {
+                      label: 'Search MusicBrainz',
+                      onSelect: () => setAddAlbumOpen(true),
+                      disabled: !provider.mbid,
+                    },
+                    { label: 'Add Manually', onSelect: () => setManualAlbumOpen(true) },
+                  ]}
+                />
+              </div>
+
               {!discography.isPending && discography.albums.length === 0 && (
                 <EmptyState
                   icon={Disc3}
@@ -438,6 +474,29 @@ export function ArtistDetail() {
           imageType="backdrop"
           onClose={() => setBackdropGalleryOpen(false)}
           onChange={() => void backdropQuery.refetch()}
+        />
+      )}
+
+      {addAlbumOpen && provider.mbid && (
+        <AddAlbumDialog
+          artistId={id}
+          artistMbid={provider.mbid}
+          onClose={() => setAddAlbumOpen(false)}
+          onAdded={() => {
+            setAddAlbumOpen(false)
+            discography.refetch()
+          }}
+        />
+      )}
+
+      {manualAlbumOpen && (
+        <ManualAlbumDialog
+          artistId={id}
+          onClose={() => setManualAlbumOpen(false)}
+          onAdded={() => {
+            setManualAlbumOpen(false)
+            discography.refetch()
+          }}
         />
       )}
     </div>

@@ -15,6 +15,7 @@ import { ImageService } from '../gen/purser/domain/v1/image_pb'
 import { LibraryEntryService } from '../gen/purser/domain/v1/library_entry_pb'
 import { PersonService } from '../gen/purser/domain/v1/person_pb'
 import { FanartTVService } from '../gen/purser/music/v1/fanarttv_pb'
+import { MusicBrainzService } from '../gen/purser/music/v1/musicbrainz_search_pb'
 import { MusicReleaseService, ReleaseStatus } from '../gen/purser/music/v1/release_pb'
 import { TheAudioDBService } from '../gen/purser/music/v1/theaudiodb_pb'
 import { ArtistDetail } from './ArtistDetail'
@@ -425,6 +426,102 @@ describe('ArtistDetail — Discography tab', () => {
     await waitFor(() => expect(screen.getByRole('heading', { name: 'Fleetwood Mac' })).toBeInTheDocument())
 
     expect(await screen.findByText('No albums yet')).toBeInTheDocument()
+    // No mbz ExternalID row (registerNoProviderData) means no known MBID
+    // to browse a discography by — ListReleaseGroupsForArtist has no
+    // non-MBID fallback, unlike the poster/backdrop buttons. "Add
+    // Manually" has no such dependency and stays enabled.
+    fireEvent.click(screen.getByRole('button', { name: 'Add Album' }))
+    expect(screen.getByRole('menuitem', { name: 'Search MusicBrainz' })).toBeDisabled()
+    expect(screen.getByRole('menuitem', { name: 'Add Manually' })).toBeEnabled()
+  })
+
+  it('adds an album via Add Album → Search MusicBrainz and refreshes the grid with it, without navigating away', async () => {
+    const mockTransport = createRouterTransport(router => {
+      router.service(LibraryEntryService, { getLibraryEntry: () => ({ libraryEntry: baseEntry }) })
+      router.service(ExternalIDService, {
+        getExternalID: () => ({ externalId: { value: 'mbid-1' } }),
+        getExternalIDByValue: () => {
+          throw new ConnectError('not found', Code.NotFound)
+        },
+        createExternalID: req => ({ externalId: { entityId: req.externalId!.entityId } }),
+      })
+      router.service(FanartTVService, {
+        lookupArtist: () => {
+          throw new ConnectError('not found', Code.NotFound)
+        },
+      })
+      router.service(TheAudioDBService, {
+        lookupArtist: () => {
+          throw new ConnectError('not found', Code.NotFound)
+        },
+      })
+      router.service(MusicBrainzService, {
+        listReleaseGroupsForArtist: req => {
+          expect(req.artistMbid).toBe('mbid-1')
+          return { releaseGroups: [{ mbid: 'rg-1', title: 'Rumours', primaryType: 'Album' }] }
+        },
+      })
+      registerNoImages(router)
+      registerNoMembers(router)
+
+      let groupsAdded = false
+      router.service(GroupService, {
+        listGroups: () => ({ groups: groupsAdded ? [{ id: 'group-1', title: 'Rumours', year: 0 }] : [] }),
+        createGroup: req => {
+          expect(req.group?.libraryEntryId).toBe('artist-1')
+          groupsAdded = true
+          return { group: { id: 'group-1', title: 'Rumours' } }
+        },
+      })
+      router.service(MusicReleaseService, { listMusicReleases: () => ({ musicReleases: [] }) })
+    })
+
+    renderArtistDetail(mockTransport)
+    await waitFor(() => expect(screen.getByRole('heading', { name: 'Fleetwood Mac' })).toBeInTheDocument())
+
+    expect(await screen.findByText('No albums yet')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Add Album' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Search MusicBrainz' }))
+    fireEvent.click(await screen.findByRole('button', { name: /Rumours/ }))
+
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Add Album' })).not.toBeInTheDocument())
+    expect(await screen.findByText('Rumours')).toBeInTheDocument()
+  })
+
+  it('adds an album via Add Album → Add Manually and refreshes the grid with it', async () => {
+    const mockTransport = createRouterTransport(router => {
+      router.service(LibraryEntryService, { getLibraryEntry: () => ({ libraryEntry: baseEntry }) })
+      registerNoProviderData(router)
+      registerNoImages(router)
+      registerNoMembers(router)
+
+      let groupsAdded = false
+      router.service(GroupService, {
+        listGroups: () => ({ groups: groupsAdded ? [{ id: 'group-1', title: 'Live Aid Bootleg' }] : [] }),
+        createGroup: req => {
+          expect(req.group?.libraryEntryId).toBe('artist-1')
+          expect(req.group?.title).toBe('Live Aid Bootleg')
+          groupsAdded = true
+          return { group: { id: 'group-1', title: 'Live Aid Bootleg' } }
+        },
+      })
+      router.service(MusicReleaseService, { listMusicReleases: () => ({ musicReleases: [] }) })
+    })
+
+    renderArtistDetail(mockTransport)
+    await waitFor(() => expect(screen.getByRole('heading', { name: 'Fleetwood Mac' })).toBeInTheDocument())
+
+    expect(await screen.findByText('No albums yet')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Add Album' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Add Manually' }))
+
+    fireEvent.change(screen.getByLabelText('Title'), { target: { value: 'Live Aid Bootleg' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Add' }))
+
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Add Album Manually' })).not.toBeInTheDocument())
+    expect(await screen.findByText('Live Aid Bootleg')).toBeInTheDocument()
   })
 
   it("badges an album with its default edition's status", async () => {
