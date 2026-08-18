@@ -9,7 +9,7 @@ require (
 	github.com/charmbracelet/bubbletea v1.3.10
 	github.com/charmbracelet/lipgloss v1.1.0
 	github.com/corona10/goimagehash v1.1.0
-	github.com/dgraph-io/badger/v4 v4.9.4
+	github.com/dgraph-io/badger/v4 v4.9.6
 	github.com/disintegration/imaging v1.6.2
 	github.com/fsnotify/fsnotify v1.10.1
 	github.com/go-playground/validator/v10 v10.30.3
