@@ -22,7 +22,7 @@
     "react-router-dom": "^7.18.2"
   },
   "devDependencies": {
-    "@bufbuild/protoc-gen-es": "^2.13.0",
+    "@bufbuild/protoc-gen-es": "^2.14.0",
     "@connectrpc/connect": "^2.1.2",
     "@connectrpc/protoc-gen-connect-query": "^2.3.1",
     "@tailwindcss/vite": "^4.3.3",
