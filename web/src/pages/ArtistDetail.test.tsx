@@ -5,12 +5,15 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { describe, expect, it } from 'vitest'
+import { timestampFromDate } from '@bufbuild/protobuf/wkt'
 import { MonitorMode } from '../gen/purser/domain/v1/common_pb'
+import { EntryPersonService } from '../gen/purser/domain/v1/entry_person_pb'
 import { ExternalIDService } from '../gen/purser/domain/v1/external_id_pb'
 import { GroupService } from '../gen/purser/domain/v1/group_pb'
 import { ImageBlobService } from '../gen/purser/domain/v1/image_blob_pb'
 import { ImageService } from '../gen/purser/domain/v1/image_pb'
 import { LibraryEntryService } from '../gen/purser/domain/v1/library_entry_pb'
+import { PersonService } from '../gen/purser/domain/v1/person_pb'
 import { FanartTVService } from '../gen/purser/music/v1/fanarttv_pb'
 import { MusicReleaseService, ReleaseStatus } from '../gen/purser/music/v1/release_pb'
 import { TheAudioDBService } from '../gen/purser/music/v1/theaudiodb_pb'
@@ -89,6 +92,14 @@ function registerNoAlbums(router: ConnectRouter) {
   router.service(GroupService, { listGroups: () => ({ groups: [] }) })
 }
 
+// registerNoMembers — every test not specifically exercising the Members
+// tab registers this so useArtistMembers' unconditional ListEntryPeople
+// call resolves to an empty page rather than hitting an unregistered
+// service, same precedent registerNoAlbums already set for useDiscography.
+function registerNoMembers(router: ConnectRouter) {
+  router.service(EntryPersonService, { listEntryPeople: () => ({ entryPeople: [] }) })
+}
+
 describe('ArtistDetail — load', () => {
   it('renders the Hero and facts sidebar from GetLibraryEntry', async () => {
     const mockTransport = createRouterTransport(router => {
@@ -96,6 +107,7 @@ describe('ArtistDetail — load', () => {
       registerNoProviderData(router)
       registerNoImages(router)
       registerNoAlbums(router)
+      registerNoMembers(router)
     })
 
     renderArtistDetail(mockTransport)
@@ -123,6 +135,7 @@ describe('ArtistDetail — load', () => {
       registerNoProviderData(router)
       registerNoImages(router)
       registerNoAlbums(router)
+      registerNoMembers(router)
     })
 
     renderArtistDetail(mockTransport)
@@ -141,6 +154,7 @@ describe('ArtistDetail — load', () => {
         },
       })
       registerNoAlbums(router)
+      registerNoMembers(router)
     })
 
     renderArtistDetail(mockTransport)
@@ -154,6 +168,7 @@ describe('ArtistDetail — load', () => {
       registerNoProviderData(router)
       registerNoImages(router)
       registerNoAlbums(router)
+      registerNoMembers(router)
     })
 
     renderArtistDetail(mockTransport)
@@ -179,6 +194,7 @@ describe('ArtistDetail — load', () => {
       })
       registerNoImages(router)
       registerNoAlbums(router)
+      registerNoMembers(router)
     })
 
     renderArtistDetail(mockTransport)
@@ -205,6 +221,7 @@ describe('ArtistDetail — monitor toggle round-trip', () => {
       registerNoProviderData(router)
       registerNoImages(router)
       registerNoAlbums(router)
+      registerNoMembers(router)
     })
 
     renderArtistDetail(mockTransport)
@@ -231,6 +248,7 @@ describe('ArtistDetail — monitor toggle round-trip', () => {
       registerNoProviderData(router)
       registerNoImages(router)
       registerNoAlbums(router)
+      registerNoMembers(router)
     })
 
     renderArtistDetail(mockTransport)
@@ -272,6 +290,7 @@ describe('ArtistDetail — poster attach and lightbox', () => {
       })
       registerNoProviderData(router)
       registerNoAlbums(router)
+      registerNoMembers(router)
     })
 
     renderArtistDetail(mockTransport)
@@ -327,6 +346,7 @@ describe('ArtistDetail — backdrop attach from a fanart.tv candidate', () => {
         }),
       })
       registerNoAlbums(router)
+      registerNoMembers(router)
     })
 
     renderArtistDetail(mockTransport)
@@ -377,6 +397,7 @@ describe('ArtistDetail — poster attach from a fanart.tv candidate', () => {
         }),
       })
       registerNoAlbums(router)
+      registerNoMembers(router)
     })
 
     renderArtistDetail(mockTransport)
@@ -397,6 +418,7 @@ describe('ArtistDetail — Discography tab', () => {
       registerNoProviderData(router)
       registerNoImages(router)
       registerNoAlbums(router)
+      registerNoMembers(router)
     })
 
     renderArtistDetail(mockTransport)
@@ -421,6 +443,7 @@ describe('ArtistDetail — Discography tab', () => {
           ],
         }),
       })
+      registerNoMembers(router)
     })
 
     renderArtistDetail(mockTransport)
@@ -444,6 +467,7 @@ describe('ArtistDetail — Discography tab', () => {
           musicReleases: [{ id: 'rel-1', groupId: 'group-1', isDefault: false, status: ReleaseStatus.STUB }],
         }),
       })
+      registerNoMembers(router)
     })
 
     renderArtistDetail(mockTransport)
@@ -462,6 +486,7 @@ describe('ArtistDetail — Discography tab', () => {
         listGroups: () => ({ groups: [{ id: 'group-1', title: 'Unreleased Sessions', year: 0 }] }),
       })
       router.service(MusicReleaseService, { listMusicReleases: () => ({ musicReleases: [] }) })
+      registerNoMembers(router)
     })
 
     renderArtistDetail(mockTransport)
@@ -469,5 +494,106 @@ describe('ArtistDetail — Discography tab', () => {
 
     expect(await screen.findByText('Unreleased Sessions')).toBeInTheDocument()
     expect(screen.getByText('No edition selected')).toBeInTheDocument()
+  })
+})
+
+describe('ArtistDetail — Members tab', () => {
+  it('shows an empty state when the artist has no members', async () => {
+    const mockTransport = createRouterTransport(router => {
+      router.service(LibraryEntryService, { getLibraryEntry: () => ({ libraryEntry: baseEntry }) })
+      registerNoProviderData(router)
+      registerNoImages(router)
+      registerNoAlbums(router)
+      registerNoMembers(router)
+    })
+
+    renderArtistDetail(mockTransport)
+    await waitFor(() => expect(screen.getByRole('heading', { name: 'Fleetwood Mac' })).toBeInTheDocument())
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Members' }))
+
+    expect(await screen.findByText('No members yet')).toBeInTheDocument()
+  })
+
+  it('splits current and former members into separate sections, with era shown in the role chip', async () => {
+    const mockTransport = createRouterTransport(router => {
+      router.service(LibraryEntryService, { getLibraryEntry: () => ({ libraryEntry: baseEntry }) })
+      registerNoProviderData(router)
+      registerNoImages(router)
+      registerNoAlbums(router)
+      router.service(EntryPersonService, {
+        listEntryPeople: () => ({
+          entryPeople: [
+            {
+              libraryEntryId: 'artist-1',
+              personId: 'person-1',
+              role: 'vocalist',
+              startDate: timestampFromDate(new Date('1975-01-01')),
+            },
+            {
+              libraryEntryId: 'artist-1',
+              personId: 'person-2',
+              role: 'guitarist',
+              startDate: timestampFromDate(new Date('1975-01-01')),
+              endDate: timestampFromDate(new Date('1987-01-01')),
+            },
+          ],
+        }),
+      })
+      router.service(PersonService, {
+        getPerson: req => {
+          const names: Record<string, string> = { 'person-1': 'Stevie Nicks', 'person-2': 'Lindsey Buckingham' }
+          return { person: { id: req.id, name: names[req.id] } }
+        },
+      })
+    })
+
+    renderArtistDetail(mockTransport)
+    await waitFor(() => expect(screen.getByRole('heading', { name: 'Fleetwood Mac' })).toBeInTheDocument())
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Members' }))
+
+    expect(await screen.findByText('Current members')).toBeInTheDocument()
+    expect(screen.getByText('Stevie Nicks')).toBeInTheDocument()
+    expect(screen.getByText('vocalist (since 1975)')).toBeInTheDocument()
+
+    expect(screen.getByText('Former members')).toBeInTheDocument()
+    expect(screen.getByText('Lindsey Buckingham')).toBeInTheDocument()
+    expect(screen.getByText('guitarist (1975–1987)')).toBeInTheDocument()
+  })
+
+  it('treats a person with any still-open role on this entry as current, even if another role of theirs already ended', async () => {
+    const mockTransport = createRouterTransport(router => {
+      router.service(LibraryEntryService, { getLibraryEntry: () => ({ libraryEntry: baseEntry }) })
+      registerNoProviderData(router)
+      registerNoImages(router)
+      registerNoAlbums(router)
+      router.service(EntryPersonService, {
+        listEntryPeople: () => ({
+          entryPeople: [
+            {
+              libraryEntryId: 'artist-1',
+              personId: 'person-1',
+              role: 'guitarist',
+              startDate: timestampFromDate(new Date('1968-01-01')),
+              endDate: timestampFromDate(new Date('1980-01-01')),
+            },
+            { libraryEntryId: 'artist-1', personId: 'person-1', role: 'producer' },
+          ],
+        }),
+      })
+      router.service(PersonService, { getPerson: () => ({ person: { id: 'person-1', name: 'Peter Green' } }) })
+    })
+
+    renderArtistDetail(mockTransport)
+    await waitFor(() => expect(screen.getByRole('heading', { name: 'Fleetwood Mac' })).toBeInTheDocument())
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Members' }))
+
+    expect(await screen.findByText('Current members')).toBeInTheDocument()
+    expect(screen.getByText('Peter Green')).toBeInTheDocument()
+    expect(screen.getByText('guitarist (1968–1980)')).toBeInTheDocument()
+    expect(screen.getByText('producer')).toBeInTheDocument()
+    expect(screen.queryByText('Former members')).not.toBeInTheDocument()
   })
 })

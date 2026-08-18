@@ -1,6 +1,6 @@
 import type { JsonObject } from '@bufbuild/protobuf'
 import { useQuery } from '@connectrpc/connect-query'
-import { Camera, Disc3, Images, Maximize2, Music } from 'lucide-react'
+import { Camera, Disc3, Images, Maximize2, Music, Users } from 'lucide-react'
 import { useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { AlbumCard } from '../components/AlbumCard'
@@ -9,22 +9,26 @@ import { EmptyState } from '../components/EmptyState'
 import { Hero } from '../components/Hero'
 import { ImageGallery } from '../components/ImageGallery'
 import { ImageLightbox } from '../components/ImageLightbox'
+import { PersonCard } from '../components/PersonCard'
 import { Toggle } from '../components/Toggle'
 import { MonitorMode } from '../gen/purser/domain/v1/common_pb'
 import { getSelectedImage } from '../gen/purser/domain/v1/image-ImageService_connectquery'
+import { useArtistMembers } from '../hooks/useArtistMembers'
 import { useArtistProviderData } from '../hooks/useArtistProviderData'
 import { useDiscography } from '../hooks/useDiscography'
 import { useGroupImages } from '../hooks/useGroupImages'
 import { useLibraryEntry, useUpdateLibraryEntryMutation } from '../hooks/useLibraryEntry'
 
 // ArtistDetailTab — a local, state-driven tab registry (not route-based:
-// unlike SettingsLayout's separately-routed tabs, #668's future "Members"
-// tab lives on this same /music/artists/:id route). Discography (#667)
-// is the only working tab today; #668 extends this exact array/union
-// rather than introducing a second tab mechanism.
-type ArtistDetailTab = 'discography'
+// unlike SettingsLayout's separately-routed tabs). Discography (#667) and
+// Members (#668) share this one array/union rather than introducing a
+// second tab mechanism.
+type ArtistDetailTab = 'discography' | 'members'
 
-const TAB_ITEMS: { id: ArtistDetailTab; label: string }[] = [{ id: 'discography', label: 'Discography' }]
+const TAB_ITEMS: { id: ArtistDetailTab; label: string }[] = [
+  { id: 'discography', label: 'Discography' },
+  { id: 'members', label: 'Members' },
+]
 
 function stringField(metadata: JsonObject | undefined, key: string): string | undefined {
   const value = metadata?.[key]
@@ -67,6 +71,15 @@ function aliasesField(metadata: JsonObject | undefined): string[] {
 // useDiscography — rendered as an AlbumCard (#658 Card config) grid. A
 // Group with zero MusicRelease rows renders AlbumCard's own defined "No
 // edition selected" badge rather than crashing on a missing default.
+//
+// Members tab (#668): EntryPersonService.ListEntryPeople(library_entry_id)
+// — see useArtistMembers — rendered as two headed PersonCard (#657) grids,
+// "Current members" and "Former members". "Former" is per-artist (a
+// person can be current here and former on a different entry): a person
+// lands in Former only when every role row they hold on *this* entry
+// carries an EndDate. Each role chip carries its own era suffix
+// (StartDate/EndDate) rather than PersonCard growing a dedicated field —
+// see useArtistMembers.
 export function ArtistDetail() {
   const { id = '' } = useParams<{ id: string }>()
   const entryQuery = useLibraryEntry(id)
@@ -74,6 +87,7 @@ export function ArtistDetail() {
   const provider = useArtistProviderData(id)
   const discography = useDiscography(id)
   const albumImagesByGroupId = useGroupImages(discography.albums.map(album => album.id))
+  const members = useArtistMembers(id)
 
   const posterQuery = useQuery(
     getSelectedImage,
@@ -157,6 +171,9 @@ export function ArtistDetail() {
   const isni = stringField(metadata, 'isni')
   const officialUrl = stringField(metadata, 'official_url')
   const wikipediaUrl = stringField(metadata, 'wikipedia_url')
+
+  const currentMembers = members.members.filter(member => !member.former)
+  const formerMembers = members.members.filter(member => member.former)
 
   const facts = [
     artistType,
@@ -315,6 +332,54 @@ export function ArtistDetail() {
                   {discography.albums.map(album => (
                     <AlbumCard key={album.id} album={{ ...album, imageId: albumImagesByGroupId[album.id] }} />
                   ))}
+                </div>
+              )}
+            </>
+          )}
+
+          {activeTab === 'members' && (
+            <>
+              {members.isError && (
+                <p className="text-body text-status-failure" role="alert">
+                  Couldn't load members.
+                </p>
+              )}
+
+              {!members.isPending && !members.isError && members.members.length === 0 && (
+                <EmptyState
+                  icon={Users}
+                  title="No members yet"
+                  description="Band members added to this artist will show up here."
+                />
+              )}
+
+              {currentMembers.length > 0 && (
+                <div className="flex flex-col gap-3">
+                  <h2 className="text-title-md font-semibold text-text">Current members</h2>
+                  <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8">
+                    {currentMembers.map(member => (
+                      <PersonCard
+                        key={member.personId}
+                        person={{ id: member.personId, name: member.name, imageId: member.imageId }}
+                        roles={member.roleLabels}
+                      />
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {formerMembers.length > 0 && (
+                <div className="mt-6 flex flex-col gap-3">
+                  <h2 className="text-title-md font-semibold text-text">Former members</h2>
+                  <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8">
+                    {formerMembers.map(member => (
+                      <PersonCard
+                        key={member.personId}
+                        person={{ id: member.personId, name: member.name, imageId: member.imageId }}
+                        roles={member.roleLabels}
+                      />
+                    ))}
+                  </div>
                 </div>
               )}
             </>

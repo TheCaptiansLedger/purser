@@ -1,5 +1,6 @@
 import { createRouterTransport, ConnectError, Code } from '@connectrpc/connect'
 import { TransportProvider } from '@connectrpc/connect-query'
+import { timestampDate } from '@bufbuild/protobuf/wkt'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { renderHook, act } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
@@ -408,6 +409,124 @@ describe('useAddArtist', () => {
     // No attributes on the relation falls back to a non-empty Role —
     // domain.EntryPerson.Validate requires one.
     expect(linkedEntryPeople).toContainEqual({ personId: 'person-Neal Doughty', role: 'Member' })
+  })
+
+  it('Group artist, a member with multiple non-contiguous MusicBrainz stints in the same role: merges into one still-active EntryPerson row', async () => {
+    // Regression for the Whitesnake/David Coverdale bug: MusicBrainz
+    // models a rejoined member as separate begin/end/ended relation
+    // edges per stint (here: 1978-1991, 1994-1994, 2002-present). Before
+    // mergeMemberPeriods, each edge triggered its own CreateEntryPerson
+    // call; all three share the same (mbid, role) key, so the second and
+    // third calls collided on EntryPerson's identity key and were
+    // silently dropped by the AlreadyExists catch below — including the
+    // still-open 2002-present stint, leaving Coverdale looking like he
+    // left in 1991 and never came back.
+    let createPersonCalls = 0
+    const linkedEntryPeople: { personId: string; role: string; startYear?: number; endYear?: number }[] = []
+
+    const mockTransport = createRouterTransport(router => {
+      router.service(ExternalIDService, {
+        getExternalIDByValue: () => {
+          throw new ConnectError('not found', Code.NotFound)
+        },
+        createExternalID: req => ({ externalId: { entityId: req.externalId!.entityId } }),
+      })
+      router.service(LibraryEntryService, {
+        createLibraryEntry: () => ({ libraryEntry: { id: 'artist-1', name: 'Whitesnake' } }),
+      })
+      router.service(PersonService, {
+        createPerson: req => {
+          createPersonCalls += 1
+          return { person: { id: 'person-coverdale', name: req.person!.name } }
+        },
+      })
+      router.service(EntryPersonService, {
+        createEntryPerson: req => {
+          linkedEntryPeople.push({
+            personId: req.entryPerson!.personId,
+            role: req.entryPerson!.role,
+            startYear: req.entryPerson!.startDate && timestampDate(req.entryPerson!.startDate).getUTCFullYear(),
+            endYear: req.entryPerson!.endDate && timestampDate(req.entryPerson!.endDate).getUTCFullYear(),
+          })
+          return { entryPerson: req.entryPerson }
+        },
+      })
+      tadbMiss(router)
+      router.service(MusicBrainzService, {
+        getArtist: () => ({
+          artist: { mbid: 'mbid-1', name: 'Whitesnake' },
+          isnis: [],
+          officialUrl: '',
+          wikipediaUrl: '',
+          members: [
+            { mbid: 'member-coverdale', name: 'David Coverdale', attributes: ['lead vocals', 'original'], begin: '1978', end: '1991', ended: true },
+            { mbid: 'member-coverdale', name: 'David Coverdale', attributes: ['lead vocals', 'original'], begin: '1994', end: '1994', ended: true },
+            { mbid: 'member-coverdale', name: 'David Coverdale', attributes: ['lead vocals', 'original'], begin: '2002', end: '', ended: false },
+          ],
+        }),
+      })
+    })
+
+    const { result } = renderHook(() => useAddArtist(), { wrapper: wrapper(mockTransport) })
+
+    await act(async () => {
+      await result.current.addArtist({ ...groupCandidate, name: 'Whitesnake' })
+    })
+
+    expect(createPersonCalls).toBe(1)
+    expect(linkedEntryPeople).toEqual([
+      { personId: 'person-coverdale', role: 'lead vocals, original', startYear: 1978, endYear: undefined },
+    ])
+  })
+
+  it('Group artist, a member whose every MusicBrainz stint in a role has already ended: merges into one row spanning the earliest begin to the latest end', async () => {
+    const linkedEntryPeople: { role: string; startYear?: number; endYear?: number }[] = []
+
+    const mockTransport = createRouterTransport(router => {
+      router.service(ExternalIDService, {
+        getExternalIDByValue: () => {
+          throw new ConnectError('not found', Code.NotFound)
+        },
+        createExternalID: req => ({ externalId: { entityId: req.externalId!.entityId } }),
+      })
+      router.service(LibraryEntryService, {
+        createLibraryEntry: () => ({ libraryEntry: { id: 'artist-1', name: 'Whitesnake' } }),
+      })
+      router.service(PersonService, {
+        createPerson: req => ({ person: { id: 'person-guitarist', name: req.person!.name } }),
+      })
+      router.service(EntryPersonService, {
+        createEntryPerson: req => {
+          linkedEntryPeople.push({
+            role: req.entryPerson!.role,
+            startYear: req.entryPerson!.startDate && timestampDate(req.entryPerson!.startDate).getUTCFullYear(),
+            endYear: req.entryPerson!.endDate && timestampDate(req.entryPerson!.endDate).getUTCFullYear(),
+          })
+          return { entryPerson: req.entryPerson }
+        },
+      })
+      tadbMiss(router)
+      router.service(MusicBrainzService, {
+        getArtist: () => ({
+          artist: { mbid: 'mbid-1', name: 'Whitesnake' },
+          isnis: [],
+          officialUrl: '',
+          wikipediaUrl: '',
+          members: [
+            { mbid: 'member-guitarist', name: 'Old Guitarist', attributes: ['electric guitar'], begin: '1984', end: '1987', ended: true },
+            { mbid: 'member-guitarist', name: 'Old Guitarist', attributes: ['electric guitar'], begin: '1980', end: '1982', ended: true },
+          ],
+        }),
+      })
+    })
+
+    const { result } = renderHook(() => useAddArtist(), { wrapper: wrapper(mockTransport) })
+
+    await act(async () => {
+      await result.current.addArtist({ ...groupCandidate, name: 'Whitesnake' })
+    })
+
+    expect(linkedEntryPeople).toEqual([{ role: 'electric guitar', startYear: 1980, endYear: 1987 }])
   })
 
   it('Group artist, member already linked as a Person: reuses the existing Person, never re-creates it', async () => {
