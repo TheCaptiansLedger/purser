@@ -24,6 +24,13 @@ export interface DropdownMenuProps {
 // no keyboard arrow-key roving (not needed by its first consumer, Add
 // Album's source picker, #669) — extend it if a second consumer needs
 // more, per ADR 0002's YAGNI-leaning OCP.
+//
+// The root wrapper is `inline-flex h-full`, not a plain `inline-block`,
+// so the trigger button stretches to fill it — needed when this trigger
+// is one segment of a taller composite control (EditActionButton, #671)
+// rather than the whole visible button; a caller that sets its own
+// explicit height on `triggerClassName` (Add Album's picker) is
+// unaffected, since an explicit height overrides flex stretch.
 export function DropdownMenu({ label, items, trigger, triggerClassName }: DropdownMenuProps) {
   const [open, setOpen] = useState(false)
   const rootRef = useRef<HTMLDivElement>(null)
@@ -48,7 +55,7 @@ export function DropdownMenu({ label, items, trigger, triggerClassName }: Dropdo
   }, [open])
 
   return (
-    <div ref={rootRef} className="relative inline-block">
+    <div ref={rootRef} className="relative inline-flex h-full">
       <button
         type="button"
         aria-haspopup="menu"

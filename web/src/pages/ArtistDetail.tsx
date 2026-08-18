@@ -1,4 +1,3 @@
-import type { JsonObject } from '@bufbuild/protobuf'
 import { useQuery } from '@connectrpc/connect-query'
 import { Camera, Disc3, Images, Maximize2, Music, Plus, Users } from 'lucide-react'
 import { useState } from 'react'
@@ -7,12 +6,14 @@ import { AddAlbumDialog } from '../components/AddAlbumDialog'
 import { AlbumCard } from '../components/AlbumCard'
 import { ChooseArtworkDialog } from '../components/ChooseArtworkDialog'
 import { DropdownMenu } from '../components/DropdownMenu'
+import { EditActionButton } from '../components/EditActionButton'
 import { EmptyState } from '../components/EmptyState'
 import { Hero } from '../components/Hero'
 import { ImageGallery } from '../components/ImageGallery'
 import { ImageLightbox } from '../components/ImageLightbox'
 import { ManualAlbumDialog } from '../components/ManualAlbumDialog'
 import { PersonCard } from '../components/PersonCard'
+import { RefreshArtistMetadataDialog } from '../components/RefreshArtistMetadataDialog'
 import { Toggle } from '../components/Toggle'
 import { MonitorMode } from '../gen/purser/domain/v1/common_pb'
 import { getSelectedImage } from '../gen/purser/domain/v1/image-ImageService_connectquery'
@@ -21,6 +22,7 @@ import { useArtistProviderData } from '../hooks/useArtistProviderData'
 import { useDiscography } from '../hooks/useDiscography'
 import { useGroupImages } from '../hooks/useGroupImages'
 import { useLibraryEntry, useUpdateLibraryEntryMutation } from '../hooks/useLibraryEntry'
+import { aliasesField, stringField } from '../lib/metadataFields'
 
 // ArtistDetailTab — a local, state-driven tab registry (not route-based:
 // unlike SettingsLayout's separately-routed tabs). Discography (#667) and
@@ -32,16 +34,6 @@ const TAB_ITEMS: { id: ArtistDetailTab; label: string }[] = [
   { id: 'discography', label: 'Discography' },
   { id: 'members', label: 'Members' },
 ]
-
-function stringField(metadata: JsonObject | undefined, key: string): string | undefined {
-  const value = metadata?.[key]
-  return typeof value === 'string' && value !== '' ? value : undefined
-}
-
-function aliasesField(metadata: JsonObject | undefined): string[] {
-  const value = metadata?.aliases
-  return Array.isArray(value) ? value.filter((entry): entry is string => typeof entry === 'string') : []
-}
 
 // ArtistDetail — the Artist Detail page shell (#666). LibraryEntryService
 // .GetLibraryEntry, a Hero (#658) whose backdrop comes from fanart.tv's
@@ -68,6 +60,16 @@ function aliasesField(metadata: JsonObject | undefined): string[] {
 // that section simply being absent (see useArtistProviderData) — this
 // page never errors out over missing provider data, only over a missing
 // LibraryEntry itself.
+//
+// EditActionButton (#671, module-wide "Edit ▾" convention per ADR 0004's
+// `EditButton` vocabulary entry) sits in the Hero actions row: its primary
+// "Edit" segment is disabled until #681 builds Artist's manual field
+// editor; its chevron opens a provider-action menu, currently one entry —
+// "Refresh from MusicBrainz" — disabled until provider.mbid is known
+// (same gating "Add Album"'s MusicBrainz source uses), which opens
+// RefreshArtistMetadataDialog. The dialog owns its own GetArtist(mbid)
+// call and diff/apply logic (useRefreshArtistMetadata) — this page only
+// refetches the LibraryEntry once the dialog reports a successful update.
 //
 // Discography tab (#667): GroupService.ListGroups(library_entry_id), then
 // per group MusicReleaseService.ListMusicReleases(group_id) — see
@@ -125,6 +127,7 @@ export function ArtistDetail() {
   const [activeTab, setActiveTab] = useState<ArtistDetailTab>('discography')
   const [addAlbumOpen, setAddAlbumOpen] = useState(false)
   const [manualAlbumOpen, setManualAlbumOpen] = useState(false)
+  const [refreshMetadataOpen, setRefreshMetadataOpen] = useState(false)
 
   // Doherty threshold — see docs/design/ux-principles.md#feedback--system-status.
   if (entryQuery.isPending) {
@@ -211,6 +214,16 @@ export function ArtistDetail() {
               checked={isMonitored}
               onChange={handleMonitorToggle}
               disabled={updateMutation.isPending}
+            />
+            <EditActionButton
+              editDisabledReason="Manual editing isn't available yet"
+              items={[
+                {
+                  label: 'Refresh from MusicBrainz',
+                  onSelect: () => setRefreshMetadataOpen(true),
+                  disabled: !provider.mbid,
+                },
+              ]}
             />
             <button
               type="button"
@@ -496,6 +509,18 @@ export function ArtistDetail() {
           onAdded={() => {
             setManualAlbumOpen(false)
             discography.refetch()
+          }}
+        />
+      )}
+
+      {refreshMetadataOpen && provider.mbid && (
+        <RefreshArtistMetadataDialog
+          entry={entry}
+          mbid={provider.mbid}
+          onClose={() => setRefreshMetadataOpen(false)}
+          onUpdated={() => {
+            setRefreshMetadataOpen(false)
+            entryQuery.refetch()
           }}
         />
       )}

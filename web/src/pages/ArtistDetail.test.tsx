@@ -694,3 +694,78 @@ describe('ArtistDetail — Members tab', () => {
     expect(screen.queryByText('Former members')).not.toBeInTheDocument()
   })
 })
+
+describe('ArtistDetail — Edit action / Refresh from MusicBrainz', () => {
+  it('disables the primary Edit segment (no manual editor yet, #681) and the menu item when the artist has no known mbid', async () => {
+    const mockTransport = createRouterTransport(router => {
+      router.service(LibraryEntryService, { getLibraryEntry: () => ({ libraryEntry: baseEntry }) })
+      registerNoProviderData(router)
+      registerNoImages(router)
+      registerNoAlbums(router)
+      registerNoMembers(router)
+    })
+
+    renderArtistDetail(mockTransport)
+    await waitFor(() => expect(screen.getByRole('heading', { name: 'Fleetwood Mac' })).toBeInTheDocument())
+
+    expect(screen.getByRole('button', { name: 'Edit' })).toBeDisabled()
+
+    fireEvent.click(screen.getByRole('button', { name: 'More edit actions' }))
+    expect(screen.getByRole('menuitem', { name: 'Refresh from MusicBrainz' })).toBeDisabled()
+  })
+
+  it('opens the diff dialog and refetches the artist once the update is confirmed', async () => {
+    let name = 'Fleetwood Mac'
+    const mockTransport = createRouterTransport(router => {
+      router.service(LibraryEntryService, {
+        getLibraryEntry: () => ({ libraryEntry: { ...baseEntry, name } }),
+        updateLibraryEntry: req => {
+          expect(req.updateMask?.paths).toEqual(['name'])
+          name = req.libraryEntry!.name!
+          return { libraryEntry: { ...baseEntry, name } }
+        },
+      })
+      router.service(ExternalIDService, { getExternalID: () => ({ externalId: { value: 'mbid-1' } }) })
+      router.service(FanartTVService, {
+        lookupArtist: () => {
+          throw new ConnectError('not found', Code.NotFound)
+        },
+      })
+      router.service(TheAudioDBService, {
+        lookupArtist: () => {
+          throw new ConnectError('not found', Code.NotFound)
+        },
+      })
+      router.service(MusicBrainzService, {
+        getArtist: () => ({
+          artist: {
+            mbid: 'mbid-1',
+            name: 'Fleetwood Mac (reunion)',
+            sortName: 'Fleetwood Mac',
+            type: 'Group',
+            country: 'GB',
+            lifeSpanBegin: '1967',
+            aliases: ['FM'],
+          },
+          isnis: ['0000000123456789'],
+          officialUrl: 'https://fleetwoodmac.com/',
+          wikipediaUrl: 'https://en.wikipedia.org/wiki/Fleetwood_Mac',
+        }),
+      })
+      registerNoImages(router)
+      registerNoAlbums(router)
+      registerNoMembers(router)
+    })
+
+    renderArtistDetail(mockTransport)
+    await waitFor(() => expect(screen.getByRole('heading', { name: 'Fleetwood Mac' })).toBeInTheDocument())
+
+    fireEvent.click(screen.getByRole('button', { name: 'More edit actions' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Refresh from MusicBrainz' }))
+
+    await waitFor(() => expect(screen.getByText('Fleetwood Mac (reunion)')).toBeInTheDocument())
+    fireEvent.click(screen.getByRole('button', { name: 'Confirm' }))
+
+    await waitFor(() => expect(screen.getByRole('heading', { name: 'Fleetwood Mac (reunion)' })).toBeInTheDocument())
+  })
+})
