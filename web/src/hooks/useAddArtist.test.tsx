@@ -5,7 +5,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { renderHook, act } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 import type { ReactNode } from 'react'
-import { MonitorMode } from '../gen/purser/domain/v1/common_pb'
+import { EntityType, MonitorMode } from '../gen/purser/domain/v1/common_pb'
 import { EntryPersonService } from '../gen/purser/domain/v1/entry_person_pb'
 import { ExternalIDService } from '../gen/purser/domain/v1/external_id_pb'
 import { LibraryEntryService } from '../gen/purser/domain/v1/library_entry_pb'
@@ -572,14 +572,63 @@ describe('useAddArtist', () => {
     expect(createPersonCalled).toBe(false)
   })
 
-  it('Person (solo) artist with relations data present: never creates band-member Person/EntryPerson rows', async () => {
-    let createPersonCalled = false
-    let createEntryPersonCalled = false
-    const soloCandidate: MusicBrainzArtist = { ...groupCandidate, type: 'Person' }
+  it('Person (solo) artist: get-or-creates a Person keyed on its own mbid and links it via CreateEntryPerson(role=self)', async () => {
+    const soloCandidate: MusicBrainzArtist = { ...groupCandidate, type: 'Person', name: 'Stevie Nicks', sortName: 'Nicks, Stevie' }
+    let linkedEntryPerson: { libraryEntryId: string; personId: string; role: string } | undefined
 
     const mockTransport = createRouterTransport(router => {
       router.service(ExternalIDService, {
-        getExternalIDByValue: () => {
+        getExternalIDByValue: req => {
+          // Both the LIBRARY_ENTRY and PERSON lookups key on the same
+          // mbid — ADR 0026's (EntityType, Source, Value) uniqueness is
+          // what keeps these from colliding.
+          expect(req.value).toBe('mbid-1')
+          throw new ConnectError('not found', Code.NotFound)
+        },
+        createExternalID: req => ({ externalId: { entityId: req.externalId!.entityId } }),
+      })
+      router.service(LibraryEntryService, {
+        createLibraryEntry: () => ({ libraryEntry: { id: 'artist-1', name: 'Stevie Nicks' } }),
+      })
+      router.service(PersonService, {
+        createPerson: req => {
+          expect(req.person?.name).toBe('Stevie Nicks')
+          expect(req.person?.sortName).toBe('Nicks, Stevie')
+          return { person: { id: 'person-nicks', name: req.person!.name } }
+        },
+      })
+      router.service(EntryPersonService, {
+        createEntryPerson: req => {
+          linkedEntryPerson = {
+            libraryEntryId: req.entryPerson!.libraryEntryId,
+            personId: req.entryPerson!.personId,
+            role: req.entryPerson!.role,
+          }
+          return { entryPerson: req.entryPerson }
+        },
+      })
+      tadbMiss(router)
+      mbzRelationsMiss(router)
+    })
+
+    const { result } = renderHook(() => useAddArtist(), { wrapper: wrapper(mockTransport) })
+
+    await act(async () => {
+      await result.current.addArtist(soloCandidate)
+    })
+
+    expect(linkedEntryPerson).toEqual({ libraryEntryId: 'artist-1', personId: 'person-nicks', role: 'self' })
+  })
+
+  it('Person (solo) artist, already linked: reuses the existing Person, never re-creates it', async () => {
+    const soloCandidate: MusicBrainzArtist = { ...groupCandidate, type: 'Person', name: 'Stevie Nicks' }
+    let createPersonCalled = false
+    let linkedPersonId: string | undefined
+
+    const mockTransport = createRouterTransport(router => {
+      router.service(ExternalIDService, {
+        getExternalIDByValue: req => {
+          if (req.entityType === EntityType.PERSON) return { externalId: { entityId: 'existing-person-1' } }
           throw new ConnectError('not found', Code.NotFound)
         },
         createExternalID: req => ({ externalId: { entityId: req.externalId!.entityId } }),
@@ -594,17 +643,54 @@ describe('useAddArtist', () => {
         },
       })
       router.service(EntryPersonService, {
-        createEntryPerson: () => {
-          createEntryPersonCalled = true
-          return { entryPerson: {} }
+        createEntryPerson: req => {
+          linkedPersonId = req.entryPerson!.personId
+          return { entryPerson: req.entryPerson }
+        },
+      })
+      tadbMiss(router)
+      mbzRelationsMiss(router)
+    })
+
+    const { result } = renderHook(() => useAddArtist(), { wrapper: wrapper(mockTransport) })
+
+    await act(async () => {
+      await result.current.addArtist(soloCandidate)
+    })
+
+    expect(createPersonCalled).toBe(false)
+    expect(linkedPersonId).toBe('existing-person-1')
+  })
+
+  it('Person (solo) artist with relations data present: still never triggers Group-only member-linking', async () => {
+    const soloCandidate: MusicBrainzArtist = { ...groupCandidate, type: 'Person', name: 'Stevie Nicks' }
+    const linkedRoles: string[] = []
+
+    const mockTransport = createRouterTransport(router => {
+      router.service(ExternalIDService, {
+        getExternalIDByValue: () => {
+          throw new ConnectError('not found', Code.NotFound)
+        },
+        createExternalID: req => ({ externalId: { entityId: req.externalId!.entityId } }),
+      })
+      router.service(LibraryEntryService, {
+        createLibraryEntry: () => ({ libraryEntry: { id: 'artist-1', name: 'Stevie Nicks' } }),
+      })
+      router.service(PersonService, {
+        createPerson: req => ({ person: { id: `person-${req.person!.name}`, name: req.person!.name } }),
+      })
+      router.service(EntryPersonService, {
+        createEntryPerson: req => {
+          linkedRoles.push(req.entryPerson!.role)
+          return { entryPerson: req.entryPerson }
         },
       })
       tadbMiss(router)
       router.service(MusicBrainzService, {
         // A MusicBrainz "member of band" edge would never actually appear
         // on a solo Person's own relations, but if one somehow did, a
-        // Type=="Person" candidate must still never trigger member
-        // creation — that's #672's own human-driven linking step.
+        // Type=="Person" candidate must still never trigger the
+        // Group-only member-linking loop — only its own role="self" link.
         getArtist: () => ({
           artist: { mbid: 'mbid-1', name: 'Stevie Nicks' },
           isnis: [],
@@ -621,8 +707,7 @@ describe('useAddArtist', () => {
       await result.current.addArtist(soloCandidate)
     })
 
-    expect(createPersonCalled).toBe(false)
-    expect(createEntryPersonCalled).toBe(false)
+    expect(linkedRoles).toEqual(['self'])
   })
 
   // Acceptance criterion: two callers importing the same MBID at once
