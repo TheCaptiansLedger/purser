@@ -109,6 +109,54 @@ describe('EditionsStrip', () => {
     expect(screen.getByRole('switch', { name: 'Monitored' })).toBeDisabled()
   })
 
+  it('sets a non-default edition as default without also re-selecting it (#677)', () => {
+    const onSelect = vi.fn()
+    const onSetDefault = vi.fn()
+    render(
+      <EditionsStrip
+        releases={[stub, imported]}
+        selectedId="rel-2"
+        onSelect={onSelect}
+        onToggleMonitored={vi.fn()}
+        onSetDefault={onSetDefault}
+      />,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Set 1975 Original Pressing as default edition' }))
+
+    expect(onSetDefault).toHaveBeenCalledWith(stub)
+    expect(onSelect).not.toHaveBeenCalled()
+  })
+
+  it('renders no set-default control on the already-default edition', () => {
+    render(
+      <EditionsStrip
+        releases={[imported]}
+        selectedId="rel-2"
+        onSelect={vi.fn()}
+        onToggleMonitored={vi.fn()}
+        onSetDefault={vi.fn()}
+      />,
+    )
+
+    expect(screen.queryByRole('button', { name: /Set .* as default edition/ })).not.toBeInTheDocument()
+  })
+
+  it('disables the set-default control for the edition whose reassignment is in flight', () => {
+    render(
+      <EditionsStrip
+        releases={[stub]}
+        selectedId="rel-2"
+        onSelect={vi.fn()}
+        onToggleMonitored={vi.fn()}
+        onSetDefault={vi.fn()}
+        settingDefaultReleaseId="rel-1"
+      />,
+    )
+
+    expect(screen.getByRole('button', { name: 'Set 1975 Original Pressing as default edition' })).toBeDisabled()
+  })
+
   it('renders nothing for a Group with zero editions', () => {
     const { container } = render(
       <EditionsStrip releases={[]} selectedId="" onSelect={vi.fn()} onToggleMonitored={vi.fn()} />,

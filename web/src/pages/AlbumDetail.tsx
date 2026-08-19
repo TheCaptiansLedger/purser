@@ -31,9 +31,9 @@ const RELEASES_PAGE_SIZE = 50
 // AlbumDetail — the Album (Release Group) Detail page shell (#673):
 // GroupService.GetGroup, a Hero (#658) with no backdrop (no artwork
 // source for one yet — unlike Artist Detail's fanart.tv backdrop) and
-// facts=[year, track count]. Set default edition (#677) and the metadata
-// editor (#681) are separate, later issues — this page reads the default
-// edition (MusicReleaseService.ListMusicReleases, same `isDefault ?? [0]`
+// facts=[year, track count]. The metadata editor (#681) is a separate,
+// later issue — this page reads the default edition
+// (MusicReleaseService.ListMusicReleases, same `isDefault ?? [0]`
 // fallback useDiscography already established) to know which edition owns
 // the cover art and to report its track count in the Hero facts,
 // independent of whichever edition is selected in the strip below.
@@ -60,8 +60,21 @@ const RELEASES_PAGE_SIZE = 50
 // Monitored toggles call UpdateMusicRelease
 // (field-mask [monitored]) with the same optimistic-write/rollback shape
 // as ArtistDetail's handleMonitorToggle, keyed per release since several
-// cards can be mid-toggle at once. IsDefault's star is read-only here —
-// reassigning it is #677.
+// cards can be mid-toggle at once.
+//
+// Set default edition (#677): two sequential UpdateMusicRelease calls
+// (field-mask [is_default]) — unset the current default, then set the
+// chosen one — since MusicRelease rows have no cross-row atomicity (same
+// reasoning #680's bulk-monitor story accepts) and the server does no
+// auto-unset of its own (confirmed against music_release_convert.go).
+// Only the second call's failure gets the specific "No default edition is
+// currently set" copy the issue calls for, because that's the only case
+// where it's actually true — the first call already went through, so the
+// old default really is gone. A first-call failure leaves the old default
+// untouched, so it gets a distinct message rather than falsely claiming
+// no default exists. Both cases refetch is skipped on failure (nothing
+// changed to reflect) and offer the same Retry action, which just
+// re-invokes handleSetDefault for the same release.
 //
 // Cover art attaches to the default edition, not the Group itself, per
 // ADR 0021's "Cover art: Image... owned by the release" — ownerType=
@@ -107,6 +120,10 @@ export function AlbumDetail() {
   const [selectedReleaseId, setSelectedReleaseId] = useState<string | undefined>(undefined)
   const [monitoredOverrides, setMonitoredOverrides] = useState<Record<string, boolean>>({})
   const [pendingReleaseId, setPendingReleaseId] = useState<string | undefined>(undefined)
+  const [settingDefaultReleaseId, setSettingDefaultReleaseId] = useState<string | undefined>(undefined)
+  const [defaultAssignError, setDefaultAssignError] = useState<{ releaseId: string; noDefault: boolean } | null>(
+    null,
+  )
 
   const releases = releasesQuery.data?.musicReleases ?? []
   const defaultRelease = releases.find(release => release.isDefault) ?? releases[0]
@@ -172,6 +189,37 @@ export function AlbumDetail() {
         onSettled: () => setPendingReleaseId(undefined),
       },
     )
+  }
+
+  async function handleSetDefault(release: Release) {
+    setDefaultAssignError(null)
+    setSettingDefaultReleaseId(release.id)
+
+    const currentDefault = releases.find(r => r.isDefault)
+    if (currentDefault && currentDefault.id !== release.id) {
+      try {
+        await updateReleaseMutation.mutateAsync({
+          musicRelease: { id: currentDefault.id, isDefault: false },
+          updateMask: { paths: ['is_default'] },
+        })
+      } catch {
+        setSettingDefaultReleaseId(undefined)
+        setDefaultAssignError({ releaseId: release.id, noDefault: false })
+        return
+      }
+    }
+
+    try {
+      await updateReleaseMutation.mutateAsync({
+        musicRelease: { id: release.id, isDefault: true },
+        updateMask: { paths: ['is_default'] },
+      })
+      releasesQuery.refetch()
+    } catch {
+      setDefaultAssignError({ releaseId: release.id, noDefault: true })
+    } finally {
+      setSettingDefaultReleaseId(undefined)
+    }
   }
 
   return (
@@ -274,6 +322,29 @@ export function AlbumDetail() {
           <EmptyState icon={Disc3} title="No editions yet" description="Editions added to this album will show up here." />
         )}
 
+        {defaultAssignError && (
+          <div
+            role="alert"
+            className="mb-4 flex items-center justify-between gap-3 rounded-lg border border-status-failure/40 bg-surface-raised px-4 py-3 text-body text-status-failure"
+          >
+            <span>
+              {defaultAssignError.noDefault
+                ? 'No default edition is currently set.'
+                : "Couldn't set that edition as default."}
+            </span>
+            <button
+              type="button"
+              onClick={() => {
+                const target = releases.find(r => r.id === defaultAssignError.releaseId)
+                if (target) handleSetDefault(target)
+              }}
+              className="shrink-0 rounded-lg px-3 py-1 text-label font-medium text-status-failure hover:bg-status-failure/10"
+            >
+              Retry
+            </button>
+          </div>
+        )}
+
         {releases.length > 0 && (
           <>
             <EditionsStrip
@@ -283,6 +354,8 @@ export function AlbumDetail() {
               onToggleMonitored={handleToggleMonitored}
               monitoredOverrides={monitoredOverrides}
               pendingReleaseId={pendingReleaseId}
+              onSetDefault={handleSetDefault}
+              settingDefaultReleaseId={settingDefaultReleaseId}
             />
 
             <Tracklist

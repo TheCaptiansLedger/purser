@@ -272,6 +272,110 @@ describe('AlbumDetail', () => {
     expect(updateRequest).toEqual({ id: 'rel-1', monitored: true, paths: ['monitored'] })
   })
 
+  it('sets a new default edition via two sequential UpdateMusicRelease calls (#677)', async () => {
+    const updateRequests: { id?: string; isDefault?: boolean; paths?: string[] }[] = []
+    const mockTransport = createRouterTransport(router => {
+      router.service(GroupService, { getGroup: () => ({ group: baseGroup }) })
+      router.service(MusicReleaseService, {
+        listMusicReleases: () => ({
+          musicReleases: [
+            { id: 'rel-1', groupId: 'group-1', title: '1977 Original', isDefault: false, status: ReleaseStatus.STUB },
+            { id: 'rel-2', groupId: 'group-1', title: '2004 Remaster', isDefault: true, status: ReleaseStatus.IMPORTED },
+          ],
+        }),
+        listMusicReleaseTracks: () => ({ tracks: [] }),
+        updateMusicRelease: request => {
+          updateRequests.push({
+            id: request.musicRelease?.id,
+            isDefault: request.musicRelease?.isDefault,
+            paths: request.updateMask?.paths,
+          })
+          return { musicRelease: request.musicRelease }
+        },
+      })
+      router.service(ImageService, { getSelectedImage: noSelectedImage() })
+      registerNoTags(router)
+      registerNoProviderMbid(router)
+    })
+
+    renderAlbumDetail(mockTransport)
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Set 1977 Original as default edition' }))
+
+    await waitFor(() =>
+      expect(updateRequests).toEqual([
+        { id: 'rel-2', isDefault: false, paths: ['is_default'] },
+        { id: 'rel-1', isDefault: true, paths: ['is_default'] },
+      ]),
+    )
+  })
+
+  it('surfaces "No default edition is currently set" and retries when the second call fails (#677)', async () => {
+    let failSecondCall = true
+    const mockTransport = createRouterTransport(router => {
+      router.service(GroupService, { getGroup: () => ({ group: baseGroup }) })
+      router.service(MusicReleaseService, {
+        listMusicReleases: () => ({
+          musicReleases: [
+            { id: 'rel-1', groupId: 'group-1', title: '1977 Original', isDefault: false, status: ReleaseStatus.STUB },
+            { id: 'rel-2', groupId: 'group-1', title: '2004 Remaster', isDefault: true, status: ReleaseStatus.IMPORTED },
+          ],
+        }),
+        listMusicReleaseTracks: () => ({ tracks: [] }),
+        updateMusicRelease: request => {
+          if (request.musicRelease?.isDefault && failSecondCall) {
+            throw new ConnectError('boom', Code.Internal)
+          }
+          return { musicRelease: request.musicRelease }
+        },
+      })
+      router.service(ImageService, { getSelectedImage: noSelectedImage() })
+      registerNoTags(router)
+      registerNoProviderMbid(router)
+    })
+
+    renderAlbumDetail(mockTransport)
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Set 1977 Original as default edition' }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('No default edition is currently set.')
+
+    failSecondCall = false
+    fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
+
+    await waitFor(() => expect(screen.queryByRole('alert')).not.toBeInTheDocument())
+  })
+
+  it('surfaces a distinct message when unsetting the current default fails (#677)', async () => {
+    const mockTransport = createRouterTransport(router => {
+      router.service(GroupService, { getGroup: () => ({ group: baseGroup }) })
+      router.service(MusicReleaseService, {
+        listMusicReleases: () => ({
+          musicReleases: [
+            { id: 'rel-1', groupId: 'group-1', title: '1977 Original', isDefault: false, status: ReleaseStatus.STUB },
+            { id: 'rel-2', groupId: 'group-1', title: '2004 Remaster', isDefault: true, status: ReleaseStatus.IMPORTED },
+          ],
+        }),
+        listMusicReleaseTracks: () => ({ tracks: [] }),
+        updateMusicRelease: request => {
+          if (request.musicRelease?.isDefault === false) {
+            throw new ConnectError('boom', Code.Internal)
+          }
+          return { musicRelease: request.musicRelease }
+        },
+      })
+      router.service(ImageService, { getSelectedImage: noSelectedImage() })
+      registerNoTags(router)
+      registerNoProviderMbid(router)
+    })
+
+    renderAlbumDetail(mockTransport)
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Set 1977 Original as default edition' }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent("Couldn't set that edition as default.")
+  })
+
   it('hides the Editions strip entirely for a Group with zero editions', async () => {
     const mockTransport = createRouterTransport(router => {
       router.service(GroupService, { getGroup: () => ({ group: baseGroup }) })

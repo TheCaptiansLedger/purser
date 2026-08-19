@@ -15,6 +15,11 @@ export interface EditionsStripProps {
   // that page's single LibraryEntry-level toggle.
   monitoredOverrides?: Record<string, boolean>
   pendingReleaseId?: string
+  // onSetDefault (#677) — reassigning IsDefault, absent on a card that's
+  // already the default (nothing to do there). Optional so callers that
+  // still want the read-only star (existing tests) keep working unchanged.
+  onSetDefault?: (release: Release) => void
+  settingDefaultReleaseId?: string
 }
 
 // EditionsStrip — Album Detail's Editions strip (#674): a Group's
@@ -24,13 +29,20 @@ export interface EditionsStripProps {
 // props-in/callbacks-out shape as AlbumCard/PersonCard: no query of its
 // own.
 //
-// IsDefault renders as a Star, read-only in this story — reassigning the
-// default edition is #677, a separate story, so it carries no onClick.
-// Per the style guide's iconography rule (no color-only signaling), the
-// star is present only on the default edition rather than an
-// outline/filled pair on every card, plus a visually-hidden label —
-// presence/absence itself communicates the state, same precedent #676's
-// disabled-play-icon spec uses.
+// IsDefault renders as a Star. Per the style guide's iconography rule (no
+// color-only signaling), the filled star is present only on the default
+// edition rather than an outline/filled pair on every card, plus a
+// visually-hidden label — presence/absence itself communicates the
+// state, same precedent #676's disabled-play-icon spec uses.
+//
+// Reassigning the default edition (#677): a non-default card renders an
+// outline-star button in the same spot instead, labeled "Set as default
+// edition." It stops propagation (same reason the Monitored toggle does)
+// and disables itself while its own release is the one mid-request —
+// settingDefaultReleaseId mirrors pendingReleaseId's per-release keying,
+// since this strip can have only one Set-default request in flight at a
+// time (AlbumDetail serializes the two UpdateMusicRelease calls) but
+// still needs to know which card that is.
 //
 // The Monitored toggle sits inside each card but stops propagation of its
 // click so tapping it never also re-selects the edition underneath it.
@@ -41,6 +53,8 @@ export function EditionsStrip({
   onToggleMonitored,
   monitoredOverrides = {},
   pendingReleaseId,
+  onSetDefault,
+  settingDefaultReleaseId,
 }: EditionsStripProps) {
   if (releases.length === 0) {
     return null
@@ -78,6 +92,22 @@ export function EditionsStrip({
                   <Star size={12} className="fill-status-warning" aria-hidden="true" />
                   <span className="sr-only">Default edition</span>
                 </span>
+              )}
+
+              {!release.isDefault && onSetDefault && (
+                <button
+                  type="button"
+                  aria-label={`Set ${release.title} as default edition`}
+                  title="Set as default edition"
+                  disabled={settingDefaultReleaseId === release.id}
+                  onClick={event => {
+                    event.stopPropagation()
+                    onSetDefault(release)
+                  }}
+                  className="flex shrink-0 items-center text-text-secondary hover:text-status-warning disabled:opacity-50"
+                >
+                  <Star size={12} aria-hidden="true" />
+                </button>
               )}
             </div>
 
