@@ -160,6 +160,23 @@ func (f *fakeMusicReleaseRepository) ListTracksByRelease(_ context.Context, rele
 	return tracks, "", nil
 }
 
+// CreateTrack implements ports.MusicReleaseRepository, mirroring the real
+// adapter's GroupID/LibraryEntryID/Metadata["release_id"] stamping.
+func (f *fakeMusicReleaseRepository) CreateTrack(_ context.Context, releaseID string, track *domain.Item) error {
+	rel, ok := f.byID[releaseID]
+	if !ok {
+		return ports.ErrNotFound
+	}
+	track.GroupID = rel.GroupID
+	track.LibraryEntryID = rel.LibraryEntryID
+	if track.Metadata == nil {
+		track.Metadata = map[string]any{}
+	}
+	track.Metadata["release_id"] = releaseID
+	f.tracksByRelease[releaseID] = append(f.tracksByRelease[releaseID], track)
+	return nil
+}
+
 func validRelease(id string) *musicdomain.Release {
 	return &musicdomain.Release{
 		ID:             id,
@@ -426,4 +443,71 @@ func TestMusicReleaseService_ListTracksByRelease(t *testing.T) {
 	if _, _, err := svc.ListTracksByRelease(context.Background(), "missing", 10, ""); !errors.Is(err, ports.ErrNotFound) {
 		t.Fatalf("ListTracksByRelease on missing release returned %v, want ErrNotFound", err)
 	}
+}
+
+func TestMusicReleaseService_CreateTrack(t *testing.T) {
+	t.Run("valid track is persisted with Status=missing, never wanted", func(t *testing.T) {
+		repo := newFakeMusicReleaseRepository()
+		svc := service.NewMusicReleaseService(repo)
+
+		created, err := svc.Create(context.Background(), validRelease("r1"))
+		if err != nil {
+			t.Fatalf("Create returned error: %v", err)
+		}
+
+		track, err := svc.CreateTrack(context.Background(), created.ID, "Come On Eileen", "3", 1, 258, "")
+		if err != nil {
+			t.Fatalf("CreateTrack returned error: %v", err)
+		}
+		if track.ID == "" {
+			t.Fatalf("CreateTrack returned an empty ID, want a server-generated one")
+		}
+		if track.Title != "Come On Eileen" || track.Sequence != "3" || track.RuntimeSeconds != 258 {
+			t.Fatalf("CreateTrack returned %+v, want title/sequence/runtime to match the request", track)
+		}
+		if track.Status != domain.ItemStatusMissing {
+			t.Fatalf("CreateTrack returned Status=%q, want %q (never wanted)", track.Status, domain.ItemStatusMissing)
+		}
+		if track.GroupID != "group1" || track.LibraryEntryID != "entry1" {
+			t.Fatalf("CreateTrack returned GroupID=%q LibraryEntryID=%q, want group1/entry1 (from the release)", track.GroupID, track.LibraryEntryID)
+		}
+		if track.Metadata["disc_number"] != 1 {
+			t.Fatalf("CreateTrack returned Metadata[disc_number]=%v, want 1", track.Metadata["disc_number"])
+		}
+
+		roundTripped, _, err := svc.ListTracksByRelease(context.Background(), created.ID, 10, "")
+		if err != nil {
+			t.Fatalf("ListTracksByRelease returned error: %v", err)
+		}
+		if len(roundTripped) != 1 || roundTripped[0].ID != track.ID {
+			t.Fatalf("ListTracksByRelease returned %v, want exactly the created track", roundTripped)
+		}
+	})
+
+	t.Run("an unknown release returns ErrNotFound", func(t *testing.T) {
+		repo := newFakeMusicReleaseRepository()
+		svc := service.NewMusicReleaseService(repo)
+
+		if _, err := svc.CreateTrack(context.Background(), "missing", "Track", "1", 1, 0, ""); !errors.Is(err, ports.ErrNotFound) {
+			t.Fatalf("CreateTrack on missing release returned %v, want ErrNotFound", err)
+		}
+	})
+
+	t.Run("an empty title is rejected before touching the repository", func(t *testing.T) {
+		repo := newFakeMusicReleaseRepository()
+		svc := service.NewMusicReleaseService(repo)
+
+		created, err := svc.Create(context.Background(), validRelease("r1"))
+		if err != nil {
+			t.Fatalf("Create returned error: %v", err)
+		}
+
+		var verr *domain.ValidationError
+		if _, err := svc.CreateTrack(context.Background(), created.ID, "", "1", 1, 0, ""); !errors.As(err, &verr) {
+			t.Fatalf("CreateTrack with an empty title returned %v, want *domain.ValidationError", err)
+		}
+		if tracks := repo.tracksByRelease[created.ID]; len(tracks) != 0 {
+			t.Fatalf("CreateTrack with an empty title still wrote a track: %v", tracks)
+		}
+	})
 }

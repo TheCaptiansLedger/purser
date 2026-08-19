@@ -57,6 +57,9 @@ const (
 	// MusicReleaseServiceListMusicReleaseTracksProcedure is the fully-qualified name of the
 	// MusicReleaseService's ListMusicReleaseTracks RPC.
 	MusicReleaseServiceListMusicReleaseTracksProcedure = "/purser.music.v1.MusicReleaseService/ListMusicReleaseTracks"
+	// MusicReleaseServiceCreateMusicReleaseTrackProcedure is the fully-qualified name of the
+	// MusicReleaseService's CreateMusicReleaseTrack RPC.
+	MusicReleaseServiceCreateMusicReleaseTrackProcedure = "/purser.music.v1.MusicReleaseService/CreateMusicReleaseTrack"
 	// MusicReleaseServiceGetMusicReleaseDeletionImpactProcedure is the fully-qualified name of the
 	// MusicReleaseService's GetMusicReleaseDeletionImpact RPC.
 	MusicReleaseServiceGetMusicReleaseDeletionImpactProcedure = "/purser.music.v1.MusicReleaseService/GetMusicReleaseDeletionImpact"
@@ -72,6 +75,10 @@ type MusicReleaseServiceClient interface {
 	DeleteMusicRelease(context.Context, *connect.Request[v1.DeleteMusicReleaseRequest]) (*connect.Response[v1.DeleteMusicReleaseResponse], error)
 	ListMusicReleases(context.Context, *connect.Request[v1.ListMusicReleasesRequest]) (*connect.Response[v1.ListMusicReleasesResponse], error)
 	ListMusicReleaseTracks(context.Context, *connect.Request[v1.ListMusicReleaseTracksRequest]) (*connect.Response[v1.ListMusicReleaseTracksResponse], error)
+	// CreateMusicReleaseTrack adds one track to a release, per
+	// docs/adr/0021-music-domain-model.md. The only track-write entry point —
+	// outside the disk-scan pipeline, nothing else creates one.
+	CreateMusicReleaseTrack(context.Context, *connect.Request[v1.CreateMusicReleaseTrackRequest]) (*connect.Response[v1.CreateMusicReleaseTrackResponse], error)
 	// GetMusicReleaseDeletionImpact reports what references this Release
 	// before Delete is called — see
 	// docs/adr/0015-deletion-impact-and-composing-services.md.
@@ -137,6 +144,12 @@ func NewMusicReleaseServiceClient(httpClient connect.HTTPClient, baseURL string,
 			connect.WithSchema(musicReleaseServiceMethods.ByName("ListMusicReleaseTracks")),
 			connect.WithClientOptions(opts...),
 		),
+		createMusicReleaseTrack: connect.NewClient[v1.CreateMusicReleaseTrackRequest, v1.CreateMusicReleaseTrackResponse](
+			httpClient,
+			baseURL+MusicReleaseServiceCreateMusicReleaseTrackProcedure,
+			connect.WithSchema(musicReleaseServiceMethods.ByName("CreateMusicReleaseTrack")),
+			connect.WithClientOptions(opts...),
+		),
 		getMusicReleaseDeletionImpact: connect.NewClient[v1.GetMusicReleaseDeletionImpactRequest, v1.GetMusicReleaseDeletionImpactResponse](
 			httpClient,
 			baseURL+MusicReleaseServiceGetMusicReleaseDeletionImpactProcedure,
@@ -156,6 +169,7 @@ type musicReleaseServiceClient struct {
 	deleteMusicRelease            *connect.Client[v1.DeleteMusicReleaseRequest, v1.DeleteMusicReleaseResponse]
 	listMusicReleases             *connect.Client[v1.ListMusicReleasesRequest, v1.ListMusicReleasesResponse]
 	listMusicReleaseTracks        *connect.Client[v1.ListMusicReleaseTracksRequest, v1.ListMusicReleaseTracksResponse]
+	createMusicReleaseTrack       *connect.Client[v1.CreateMusicReleaseTrackRequest, v1.CreateMusicReleaseTrackResponse]
 	getMusicReleaseDeletionImpact *connect.Client[v1.GetMusicReleaseDeletionImpactRequest, v1.GetMusicReleaseDeletionImpactResponse]
 }
 
@@ -199,6 +213,11 @@ func (c *musicReleaseServiceClient) ListMusicReleaseTracks(ctx context.Context, 
 	return c.listMusicReleaseTracks.CallUnary(ctx, req)
 }
 
+// CreateMusicReleaseTrack calls purser.music.v1.MusicReleaseService.CreateMusicReleaseTrack.
+func (c *musicReleaseServiceClient) CreateMusicReleaseTrack(ctx context.Context, req *connect.Request[v1.CreateMusicReleaseTrackRequest]) (*connect.Response[v1.CreateMusicReleaseTrackResponse], error) {
+	return c.createMusicReleaseTrack.CallUnary(ctx, req)
+}
+
 // GetMusicReleaseDeletionImpact calls
 // purser.music.v1.MusicReleaseService.GetMusicReleaseDeletionImpact.
 func (c *musicReleaseServiceClient) GetMusicReleaseDeletionImpact(ctx context.Context, req *connect.Request[v1.GetMusicReleaseDeletionImpactRequest]) (*connect.Response[v1.GetMusicReleaseDeletionImpactResponse], error) {
@@ -216,6 +235,10 @@ type MusicReleaseServiceHandler interface {
 	DeleteMusicRelease(context.Context, *connect.Request[v1.DeleteMusicReleaseRequest]) (*connect.Response[v1.DeleteMusicReleaseResponse], error)
 	ListMusicReleases(context.Context, *connect.Request[v1.ListMusicReleasesRequest]) (*connect.Response[v1.ListMusicReleasesResponse], error)
 	ListMusicReleaseTracks(context.Context, *connect.Request[v1.ListMusicReleaseTracksRequest]) (*connect.Response[v1.ListMusicReleaseTracksResponse], error)
+	// CreateMusicReleaseTrack adds one track to a release, per
+	// docs/adr/0021-music-domain-model.md. The only track-write entry point —
+	// outside the disk-scan pipeline, nothing else creates one.
+	CreateMusicReleaseTrack(context.Context, *connect.Request[v1.CreateMusicReleaseTrackRequest]) (*connect.Response[v1.CreateMusicReleaseTrackResponse], error)
 	// GetMusicReleaseDeletionImpact reports what references this Release
 	// before Delete is called — see
 	// docs/adr/0015-deletion-impact-and-composing-services.md.
@@ -277,6 +300,12 @@ func NewMusicReleaseServiceHandler(svc MusicReleaseServiceHandler, opts ...conne
 		connect.WithSchema(musicReleaseServiceMethods.ByName("ListMusicReleaseTracks")),
 		connect.WithHandlerOptions(opts...),
 	)
+	musicReleaseServiceCreateMusicReleaseTrackHandler := connect.NewUnaryHandler(
+		MusicReleaseServiceCreateMusicReleaseTrackProcedure,
+		svc.CreateMusicReleaseTrack,
+		connect.WithSchema(musicReleaseServiceMethods.ByName("CreateMusicReleaseTrack")),
+		connect.WithHandlerOptions(opts...),
+	)
 	musicReleaseServiceGetMusicReleaseDeletionImpactHandler := connect.NewUnaryHandler(
 		MusicReleaseServiceGetMusicReleaseDeletionImpactProcedure,
 		svc.GetMusicReleaseDeletionImpact,
@@ -301,6 +330,8 @@ func NewMusicReleaseServiceHandler(svc MusicReleaseServiceHandler, opts ...conne
 			musicReleaseServiceListMusicReleasesHandler.ServeHTTP(w, r)
 		case MusicReleaseServiceListMusicReleaseTracksProcedure:
 			musicReleaseServiceListMusicReleaseTracksHandler.ServeHTTP(w, r)
+		case MusicReleaseServiceCreateMusicReleaseTrackProcedure:
+			musicReleaseServiceCreateMusicReleaseTrackHandler.ServeHTTP(w, r)
 		case MusicReleaseServiceGetMusicReleaseDeletionImpactProcedure:
 			musicReleaseServiceGetMusicReleaseDeletionImpactHandler.ServeHTTP(w, r)
 		default:
@@ -342,6 +373,10 @@ func (UnimplementedMusicReleaseServiceHandler) ListMusicReleases(context.Context
 
 func (UnimplementedMusicReleaseServiceHandler) ListMusicReleaseTracks(context.Context, *connect.Request[v1.ListMusicReleaseTracksRequest]) (*connect.Response[v1.ListMusicReleaseTracksResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("purser.music.v1.MusicReleaseService.ListMusicReleaseTracks is not implemented"))
+}
+
+func (UnimplementedMusicReleaseServiceHandler) CreateMusicReleaseTrack(context.Context, *connect.Request[v1.CreateMusicReleaseTrackRequest]) (*connect.Response[v1.CreateMusicReleaseTrackResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("purser.music.v1.MusicReleaseService.CreateMusicReleaseTrack is not implemented"))
 }
 
 func (UnimplementedMusicReleaseServiceHandler) GetMusicReleaseDeletionImpact(context.Context, *connect.Request[v1.GetMusicReleaseDeletionImpactRequest]) (*connect.Response[v1.GetMusicReleaseDeletionImpactResponse], error) {

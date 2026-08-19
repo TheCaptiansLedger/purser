@@ -11,6 +11,7 @@ import (
 	"connectrpc.com/connect"
 	"google.golang.org/protobuf/types/known/fieldmaskpb"
 
+	domainv1 "purser/gen/go/purser/domain/v1"
 	musicv1 "purser/gen/go/purser/music/v1"
 	apiconnect "purser/internal/api/connect"
 )
@@ -25,6 +26,7 @@ type fakeMusicReleaseService struct {
 	updateErr       error
 	listErr         error
 	listTracksErr   error
+	createTrackErr  error
 }
 
 func newFakeMusicReleaseService() *fakeMusicReleaseService {
@@ -128,6 +130,29 @@ func (f *fakeMusicReleaseService) ListTracksByRelease(_ context.Context, release
 		return nil, "", ports.ErrNotFound
 	}
 	return f.tracksByRelease[releaseID], "", nil
+}
+
+func (f *fakeMusicReleaseService) CreateTrack(_ context.Context, releaseID, title, number string, mediumNumber, runtimeSeconds int, mbid string) (*domain.Item, error) {
+	if f.createTrackErr != nil {
+		return nil, f.createTrackErr
+	}
+	rel, ok := f.byID[releaseID]
+	if !ok {
+		return nil, ports.ErrNotFound
+	}
+	track := &domain.Item{
+		ID:             "server-generated-track-id",
+		ContentType:    domain.ContentTypeMusic,
+		LibraryEntryID: rel.LibraryEntryID,
+		GroupID:        rel.GroupID,
+		Title:          title,
+		Sequence:       number,
+		RuntimeSeconds: runtimeSeconds,
+		Status:         domain.ItemStatusMissing,
+		Metadata:       map[string]any{"disc_number": mediumNumber, "release_id": releaseID, "mbid": mbid},
+	}
+	f.tracksByRelease[releaseID] = append(f.tracksByRelease[releaseID], track)
+	return track, nil
 }
 
 func validProtoMusicRelease() *musicv1.Release {
@@ -398,6 +423,39 @@ func TestMusicReleaseHandler_ListMusicReleaseTracks(t *testing.T) {
 		_, err := h.ListMusicReleaseTracks(context.Background(), connect.NewRequest(&musicv1.ListMusicReleaseTracksRequest{ReleaseId: "missing"}))
 		if connect.CodeOf(err) != connect.CodeNotFound {
 			t.Fatalf("ListMusicReleaseTracks on unknown release returned code %v, want %v", connect.CodeOf(err), connect.CodeNotFound)
+		}
+	})
+}
+
+func TestMusicReleaseHandler_CreateMusicReleaseTrack(t *testing.T) {
+	t.Run("valid request creates and returns the track", func(t *testing.T) {
+		svc := newFakeMusicReleaseService()
+		h := apiconnect.NewMusicReleaseHandler(svc, newFakeEntityDeletionService(), nil)
+		svc.byID["r1"] = &music.Release{ID: "r1", GroupID: "group1", LibraryEntryID: "entry1"}
+
+		res, err := h.CreateMusicReleaseTrack(context.Background(), connect.NewRequest(&musicv1.CreateMusicReleaseTrackRequest{
+			ReleaseId:      "r1",
+			Title:          "Come On Eileen",
+			Number:         "3",
+			MediumNumber:   1,
+			RuntimeSeconds: 258,
+		}))
+		if err != nil {
+			t.Fatalf("CreateMusicReleaseTrack returned error: %v", err)
+		}
+		track := res.Msg.GetTrack()
+		if track.GetTitle() != "Come On Eileen" || track.GetSequence() != "3" || track.GetStatus() != domainv1.ItemStatus_ITEM_STATUS_MISSING {
+			t.Fatalf("CreateMusicReleaseTrack returned %+v, want title/sequence/status=missing", track)
+		}
+	})
+
+	t.Run("unknown release maps to CodeNotFound", func(t *testing.T) {
+		svc := newFakeMusicReleaseService()
+		h := apiconnect.NewMusicReleaseHandler(svc, newFakeEntityDeletionService(), nil)
+
+		_, err := h.CreateMusicReleaseTrack(context.Background(), connect.NewRequest(&musicv1.CreateMusicReleaseTrackRequest{ReleaseId: "missing", Title: "Track"}))
+		if connect.CodeOf(err) != connect.CodeNotFound {
+			t.Fatalf("CreateMusicReleaseTrack on unknown release returned code %v, want %v", connect.CodeOf(err), connect.CodeNotFound)
 		}
 	})
 }

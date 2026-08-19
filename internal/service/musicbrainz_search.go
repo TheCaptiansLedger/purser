@@ -60,3 +60,11 @@ func (s *MusicBrainzSearch) ListReleaseGroupsForArtist(ctx context.Context, arti
 func (s *MusicBrainzSearch) GetArtist(ctx context.Context, mbid string) (*ports.Artist, error) {
 	return s.mb.LookupArtist(ctx, mbid)
 }
+
+// GetRelease looks up one release by MBID, including its full track
+// listing — a thin passthrough to ports.MusicBrainzClient.LookupRelease.
+// Like GetArtist, an unknown MBID is an error: LookupRelease returns
+// ports.ErrNotFound, which the caller maps to CodeNotFound.
+func (s *MusicBrainzSearch) GetRelease(ctx context.Context, mbid string) (*ports.Release, error) {
+	return s.mb.LookupRelease(ctx, mbid)
+}

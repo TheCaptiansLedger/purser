@@ -45,6 +45,15 @@ export const listMusicReleases = MusicReleaseService.method.listMusicReleases;
 export const listMusicReleaseTracks = MusicReleaseService.method.listMusicReleaseTracks;
 
 /**
+ * CreateMusicReleaseTrack adds one track to a release, per
+ * docs/adr/0021-music-domain-model.md. The only track-write entry point —
+ * outside the disk-scan pipeline, nothing else creates one.
+ *
+ * @generated from rpc purser.music.v1.MusicReleaseService.CreateMusicReleaseTrack
+ */
+export const createMusicReleaseTrack = MusicReleaseService.method.createMusicReleaseTrack;
+
+/**
  * GetMusicReleaseDeletionImpact reports what references this Release
  * before Delete is called — see
  * docs/adr/0015-deletion-impact-and-composing-services.md.

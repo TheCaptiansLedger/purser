@@ -150,6 +150,48 @@ message ListMusicBrainzReleasesResponse {
   repeated MusicBrainzRelease releases = 1;
 }
 
+// MusicBrainzTrack is one track entry on a MusicBrainzMedium — populated
+// only by GetRelease, which is the one RPC in this service that fetches a
+// release's full track listing (see ports.MusicBrainzClient.LookupRelease).
+message MusicBrainzTrack {
+  int32 position = 1;
+  string number = 2;
+  string title = 3;
+  int32 length_ms = 4;
+  // recording_mbid is Track.Recording.ID when a recording is linked, else
+  // "" — a track with no linked recording is rare but real MusicBrainz
+  // data.
+  string recording_mbid = 5;
+}
+
+// MusicBrainzMedium is one disc/side of a release, with its full tracklist
+// — see MusicBrainzTrack.
+message MusicBrainzMedium {
+  int32 position = 1;
+  string format = 2;
+  repeated MusicBrainzTrack tracks = 3;
+}
+
+// GetMusicBrainzReleaseRequest looks up one release by MBID, including its
+// full track listing — the one RPC in this service that goes beyond the
+// browse-list MusicBrainzRelease summary all the others return. Used by
+// the Add Track UI's "Populate from MusicBrainz" path
+// (docs/adr/0021-music-domain-model.md).
+message GetMusicBrainzReleaseRequest {
+  string mbid = 1;
+}
+
+// GetMusicBrainzReleaseResponse reuses the existing MusicBrainzRelease
+// summary message for release unchanged (the same "reuse the summary,
+// add relation-only fields flat on the response" shape
+// GetMusicBrainzArtistResponse already establishes for artist) and adds
+// media, the full per-disc tracklist ListReleasesForReleaseGroup's own
+// MusicBrainzRelease deliberately omits.
+message GetMusicBrainzReleaseResponse {
+  MusicBrainzRelease release = 1;
+  repeated MusicBrainzMedium media = 2;
+}
+
 // MusicBrainzService exposes internal/adapters/musicbrainz's read-only
 // search/browse capability directly — these RPCs already existed as
 // ports.MusicBrainzClient methods (SearchReleaseGroups,
@@ -177,4 +219,8 @@ service MusicBrainzService {
   rpc SearchArtists(SearchMusicBrainzArtistsRequest) returns (SearchMusicBrainzArtistsResponse);
   rpc ListReleaseGroupsForArtist(ListMusicBrainzArtistReleaseGroupsRequest) returns (ListMusicBrainzArtistReleaseGroupsResponse);
   rpc GetArtist(GetMusicBrainzArtistRequest) returns (GetMusicBrainzArtistResponse);
+  // GetRelease looks up one release by MBID including its full track
+  // listing — see GetMusicBrainzReleaseResponse's own doc comment. The
+  // Add Track UI's "Populate from MusicBrainz" entry point.
+  rpc GetRelease(GetMusicBrainzReleaseRequest) returns (GetMusicBrainzReleaseResponse);
 }

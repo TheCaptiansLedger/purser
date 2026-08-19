@@ -24,6 +24,7 @@ type musicReleaseService interface {
 	ListByGroup(ctx context.Context, groupID string, pageSize int, pageToken string) ([]*music.Release, string, error)
 	ListByEntry(ctx context.Context, libraryEntryID string, pageSize int, pageToken string) ([]*music.Release, string, error)
 	ListTracksByRelease(ctx context.Context, releaseID string, pageSize int, pageToken string) ([]*domain.Item, string, error)
+	CreateTrack(ctx context.Context, releaseID, title, number string, mediumNumber, runtimeSeconds int, mbid string) (*domain.Item, error)
 }
 
 // MusicReleaseHandler implements
@@ -160,4 +161,24 @@ func (h *MusicReleaseHandler) ListMusicReleaseTracks(ctx context.Context, req *c
 		return nil, mapError(ctx, h.logger, err)
 	}
 	return connect.NewResponse(&musicv1.ListMusicReleaseTracksResponse{Tracks: itemsToProto(tracks), NextPageToken: next}), nil
+}
+
+// CreateMusicReleaseTrack implements
+// musicv1connect.MusicReleaseServiceHandler — the only track-write entry
+// point outside the disk-scan pipeline. See
+// docs/adr/0021-music-domain-model.md.
+func (h *MusicReleaseHandler) CreateMusicReleaseTrack(ctx context.Context, req *connect.Request[musicv1.CreateMusicReleaseTrackRequest]) (*connect.Response[musicv1.CreateMusicReleaseTrackResponse], error) {
+	track, err := h.svc.CreateTrack(
+		ctx,
+		req.Msg.GetReleaseId(),
+		req.Msg.GetTitle(),
+		req.Msg.GetNumber(),
+		int(req.Msg.GetMediumNumber()),
+		int(req.Msg.GetRuntimeSeconds()),
+		req.Msg.GetMbid(),
+	)
+	if err != nil {
+		return nil, mapError(ctx, h.logger, err)
+	}
+	return connect.NewResponse(&musicv1.CreateMusicReleaseTrackResponse{Track: itemToProto(track)}), nil
 }

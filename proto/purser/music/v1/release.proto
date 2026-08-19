@@ -139,6 +139,31 @@ message ListMusicReleaseTracksResponse {
   string next_page_token = 2;
 }
 
+// CreateMusicReleaseTrackRequest adds one track to release_id, per
+// docs/adr/0021-music-domain-model.md's Track mapping. The created track
+// always starts Status=missing — never wanted — matching
+// buildTrackItem's existing pipeline-scan convention
+// (internal/adapters/pipeline/music/persister.go) exactly.
+message CreateMusicReleaseTrackRequest {
+  string release_id = 1;
+  string title = 2;
+  // number is the track-number string, e.g. "3" or "A2" — mirrors
+  // MusicBrainzTrack.number, not a bare position int.
+  string number = 3;
+  // medium_number is the 1-based disc/side.
+  int32 medium_number = 4;
+  int32 runtime_seconds = 5;
+  // mbid is the recording MBID, empty for a hand-entered track. Accepted
+  // on the wire for the MusicBrainz-populate caller but not yet persisted
+  // anywhere server-side — see internal/service/music_release.go's
+  // CreateTrack doc comment.
+  string mbid = 6;
+}
+
+message CreateMusicReleaseTrackResponse {
+  purser.domain.v1.Item track = 1;
+}
+
 // MusicReleaseService owns exactly one entity — Release — per
 // docs/adr/0011-api-design.md's SRP-per-entity rule. ListByGroup/ListByEntry
 // are exposed as optional filters on ListMusicReleases, the same pattern
@@ -158,6 +183,10 @@ service MusicReleaseService {
   rpc DeleteMusicRelease(DeleteMusicReleaseRequest) returns (DeleteMusicReleaseResponse);
   rpc ListMusicReleases(ListMusicReleasesRequest) returns (ListMusicReleasesResponse);
   rpc ListMusicReleaseTracks(ListMusicReleaseTracksRequest) returns (ListMusicReleaseTracksResponse);
+  // CreateMusicReleaseTrack adds one track to a release, per
+  // docs/adr/0021-music-domain-model.md. The only track-write entry point —
+  // outside the disk-scan pipeline, nothing else creates one.
+  rpc CreateMusicReleaseTrack(CreateMusicReleaseTrackRequest) returns (CreateMusicReleaseTrackResponse);
   // GetMusicReleaseDeletionImpact reports what references this Release
   // before Delete is called — see
   // docs/adr/0015-deletion-impact-and-composing-services.md.

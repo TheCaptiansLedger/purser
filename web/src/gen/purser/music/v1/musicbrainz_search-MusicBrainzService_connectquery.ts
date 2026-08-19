@@ -28,3 +28,12 @@ export const listReleaseGroupsForArtist = MusicBrainzService.method.listReleaseG
  * @generated from rpc purser.music.v1.MusicBrainzService.GetArtist
  */
 export const getArtist = MusicBrainzService.method.getArtist;
+
+/**
+ * GetRelease looks up one release by MBID including its full track
+ * listing — see GetMusicBrainzReleaseResponse's own doc comment. The
+ * Add Track UI's "Populate from MusicBrainz" entry point.
+ *
+ * @generated from rpc purser.music.v1.MusicBrainzService.GetRelease
+ */
+export const getRelease = MusicBrainzService.method.getRelease;

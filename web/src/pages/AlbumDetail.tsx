@@ -11,6 +11,7 @@ import { Hero } from '../components/Hero'
 import { ImageGallery } from '../components/ImageGallery'
 import { ImageLightbox } from '../components/ImageLightbox'
 import { ManualEditionDialog } from '../components/ManualEditionDialog'
+import { Tracklist } from '../components/Tracklist'
 import { EntityType } from '../gen/purser/domain/v1/common_pb'
 import { getExternalID } from '../gen/purser/domain/v1/external_id-ExternalIDService_connectquery'
 import { getGroup } from '../gen/purser/domain/v1/group-GroupService_connectquery'
@@ -53,12 +54,10 @@ const RELEASES_PAGE_SIZE = 50
 // Editions strip (#674): selecting a card updates selectedReleaseId
 // (optimistic local mirror pattern, same `x ?? entry.x` shape
 // ArtistDetail's `monitored` state uses, defaulting to the default
-// edition), which drives useReleaseTracks — the actual live consumer
-// #674's acceptance criterion requires (not a visual-only tab). #676
-// replaces the plain track-count line below the strip with the real
-// per-track rows/status badges/play icon/Add-track UI; this page's job
-// is only to prove the selection is wired to a query, not to build that
-// UI itself. Per-edition Monitored toggles call UpdateMusicRelease
+// edition), which drives useReleaseTracks, rendered via Tracklist (#676) —
+// per-track rows/status badges/play icon plus the Add track (manual +
+// Populate from MusicBrainz)/Delete write path #721/#720 added. Per-edition
+// Monitored toggles call UpdateMusicRelease
 // (field-mask [monitored]) with the same optimistic-write/rollback shape
 // as ArtistDetail's handleMonitorToggle, keyed per release since several
 // cards can be mid-toggle at once. IsDefault's star is read-only here —
@@ -112,6 +111,7 @@ export function AlbumDetail() {
   const releases = releasesQuery.data?.musicReleases ?? []
   const defaultRelease = releases.find(release => release.isDefault) ?? releases[0]
   const activeReleaseId = selectedReleaseId ?? defaultRelease?.id ?? ''
+  const activeRelease = releases.find(release => release.id === activeReleaseId)
 
   const coverQuery = useQuery(
     getSelectedImage,
@@ -121,8 +121,7 @@ export function AlbumDetail() {
 
   // The Editions strip's (#674) live consumer — proves selecting an
   // edition actually drives a query rather than being a visual-only tab.
-  // #676 replaces the plain count this page renders with the real
-  // tracklist UI built on top of this same hook.
+  // Tracklist (#676) is the real UI built on top of this same hook.
   const tracksQuery = useReleaseTracks(activeReleaseId)
 
   // Doherty threshold — see docs/design/ux-principles.md#feedback--system-status.
@@ -286,15 +285,13 @@ export function AlbumDetail() {
               pendingReleaseId={pendingReleaseId}
             />
 
-            {/* Placeholder tracklist consumer — #676 replaces this with the
-                real per-track rows/status badges/play icon. This line only
-                proves selecting an edition above drives a query, per #674's
-                acceptance criterion. */}
-            {!tracksQuery.isPending && (
-              <p className="mt-4 text-label text-text-secondary">
-                {tracksQuery.tracks.length} track{tracksQuery.tracks.length === 1 ? '' : 's'} in this edition
-              </p>
-            )}
+            <Tracklist
+              releaseId={activeReleaseId}
+              mbid={activeRelease?.mbid ?? ''}
+              tracks={tracksQuery.tracks}
+              isPending={tracksQuery.isPending}
+              refetch={() => void tracksQuery.refetch()}
+            />
           </>
         )}
       </div>

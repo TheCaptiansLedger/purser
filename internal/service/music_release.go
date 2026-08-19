@@ -92,3 +92,51 @@ func (s *MusicReleaseService) ListByEntry(ctx context.Context, libraryEntryID st
 func (s *MusicReleaseService) ListTracksByRelease(ctx context.Context, releaseID string, pageSize int, pageToken string) ([]*domain.Item, string, error) {
 	return s.repo.ListTracksByRelease(ctx, releaseID, pageSize, pageToken)
 }
+
+// CreateTrack adds one track to releaseID — the only track-write entry
+// point outside the disk-scan pipeline (see
+// docs/adr/0021-music-domain-model.md). number is the track-number string
+// (e.g. "3" or "A2", mirroring MusicBrainzTrack.number), assigned to
+// Item.Sequence — the same convention buildTrackItem
+// (internal/adapters/pipeline/music/persister.go) already uses. The
+// created track always starts Status=missing, never wanted, matching
+// buildTrackItem's convention exactly. mbid (recording MBID, empty for a
+// hand-entered track) is accepted for the MusicBrainz-populate caller but
+// not yet persisted anywhere — linking it via
+// ExternalID(item, mbz_recording, mbid) is real scope beyond a single-port
+// service and is left for a follow-up rather than built speculatively
+// here.
+func (s *MusicReleaseService) CreateTrack(ctx context.Context, releaseID, title, number string, mediumNumber, runtimeSeconds int, mbid string) (*domain.Item, error) {
+	_ = mbid
+
+	// GroupID/LibraryEntryID come from releaseID, resolved up front so
+	// Validate can run before the write — the same "validate before
+	// persist" shape every other Create in this file follows.
+	// repo.CreateTrack independently re-resolves and re-stamps them too
+	// (its own port contract, robust against any other caller), so this
+	// isn't the only place they're set — just the earliest one Validate
+	// can see.
+	rel, err := s.repo.Get(ctx, releaseID)
+	if err != nil {
+		return nil, err
+	}
+
+	track := &domain.Item{
+		ID:             domain.NewID(),
+		ContentType:    domain.ContentTypeMusic,
+		LibraryEntryID: rel.LibraryEntryID,
+		GroupID:        rel.GroupID,
+		Title:          title,
+		Sequence:       number,
+		RuntimeSeconds: runtimeSeconds,
+		Status:         domain.ItemStatusMissing,
+		Metadata:       map[string]any{"disc_number": mediumNumber, "release_id": releaseID},
+	}
+	if err := track.Validate(); err != nil {
+		return nil, err
+	}
+	if err := s.repo.CreateTrack(ctx, releaseID, track); err != nil {
+		return nil, err
+	}
+	return track, nil
+}

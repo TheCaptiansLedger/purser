@@ -19,6 +19,7 @@ type musicBrainzSearchService interface {
 	SearchArtists(ctx context.Context, query string) ([]ports.Artist, error)
 	ListReleaseGroupsForArtist(ctx context.Context, artistMBID string) ([]ports.ReleaseGroup, error)
 	GetArtist(ctx context.Context, mbid string) (*ports.Artist, error)
+	GetRelease(ctx context.Context, mbid string) (*ports.Release, error)
 }
 
 // MusicBrainzSearchHandler implements musicv1connect.MusicBrainzServiceHandler
@@ -107,6 +108,48 @@ func (h *MusicBrainzSearchHandler) GetArtist(ctx context.Context, req *connect.R
 		WikipediaUrl: wikipediaURL,
 		Members:      membersFromRelations(a.Relations),
 	}), nil
+}
+
+// GetRelease implements musicv1connect.MusicBrainzServiceHandler — the one
+// RPC in this service that returns a release's full track listing (see
+// GetMusicBrainzReleaseResponse's own doc comment). Read-only passthrough
+// per ADR 0027: no ranking, no persistence.
+func (h *MusicBrainzSearchHandler) GetRelease(ctx context.Context, req *connect.Request[musicv1.GetMusicBrainzReleaseRequest]) (*connect.Response[musicv1.GetMusicBrainzReleaseResponse], error) {
+	r, err := h.svc.GetRelease(ctx, req.Msg.GetMbid())
+	if err != nil {
+		return nil, mapError(ctx, h.logger, err)
+	}
+	media := make([]*musicv1.MusicBrainzMedium, len(r.Media))
+	for i, m := range r.Media {
+		media[i] = mediumToProto(m)
+	}
+	return connect.NewResponse(&musicv1.GetMusicBrainzReleaseResponse{
+		Release: releaseToProto(*r),
+		Media:   media,
+	}), nil
+}
+
+// mediumToProto maps ports.Medium (and its own Tracks) to its wire shape.
+func mediumToProto(m ports.Medium) *musicv1.MusicBrainzMedium {
+	tracks := make([]*musicv1.MusicBrainzTrack, len(m.Tracks))
+	for i, t := range m.Tracks {
+		var recordingMBID string
+		if t.Recording != nil {
+			recordingMBID = t.Recording.ID
+		}
+		tracks[i] = &musicv1.MusicBrainzTrack{
+			Position:      int32(t.Position), //nolint:gosec // a track's position on a medium is never remotely close to overflowing int32
+			Number:        t.Number,
+			Title:         t.Title,
+			LengthMs:      int32(t.Length), //nolint:gosec // a track's length in ms is never remotely close to overflowing int32
+			RecordingMbid: recordingMBID,
+		}
+	}
+	return &musicv1.MusicBrainzMedium{
+		Position: int32(m.Position), //nolint:gosec // a medium's position on a release is never remotely close to overflowing int32
+		Format:   m.Format,
+		Tracks:   tracks,
+	}
 }
 
 // artistLinksFromRelations pulls the official-homepage and Wikipedia URLs

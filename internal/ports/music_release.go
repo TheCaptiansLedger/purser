@@ -34,4 +34,14 @@ type MusicReleaseRepository interface {
 	// specific pressing/edition. Returns ports.ErrNotFound if releaseID
 	// doesn't exist.
 	ListTracksByRelease(ctx context.Context, releaseID string, pageSize int, pageToken string) (tracks []*domain.Item, nextPageToken string, err error)
+
+	// CreateTrack persists track as a kernel Item, GroupID and
+	// Metadata["release_id"] populated from releaseID — see this port's own
+	// ListTracksByRelease doc comment for why this linkage lives here and
+	// not on ports.ItemRepository. track.ID must already be set by the
+	// caller (ports.MusicReleaseRepository callers assign IDs the same way
+	// every other kernel Create does, per
+	// docs/adr/0020-server-generated-kernel-entity-ids.md). Returns
+	// ports.ErrNotFound if releaseID doesn't exist.
+	CreateTrack(ctx context.Context, releaseID string, track *domain.Item) error
 }

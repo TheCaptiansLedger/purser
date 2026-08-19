@@ -211,7 +211,12 @@ describe('AlbumDetail', () => {
         }),
         listMusicReleaseTracks: request => {
           requestedReleaseIds.push(request.releaseId)
-          return { tracks: request.releaseId === 'rel-1' ? [{ id: 't1' }, { id: 't2' }] : [{ id: 't3' }] }
+          return {
+            tracks:
+              request.releaseId === 'rel-1'
+                ? [{ id: 't1', title: 'Second Hand News' }, { id: 't2', title: 'Dreams' }]
+                : [{ id: 't3', title: 'Go Your Own Way' }],
+          }
         },
       })
       router.service(ImageService, { getSelectedImage: noSelectedImage() })
@@ -221,12 +226,13 @@ describe('AlbumDetail', () => {
 
     renderAlbumDetail(mockTransport)
 
-    expect(await screen.findByText('1 track in this edition')).toBeInTheDocument()
+    expect(await screen.findByText('Go Your Own Way')).toBeInTheDocument()
     expect(requestedReleaseIds).toContain('rel-2')
 
     fireEvent.click(screen.getByText('1977 Original'))
 
-    expect(await screen.findByText('2 tracks in this edition')).toBeInTheDocument()
+    expect(await screen.findByText('Second Hand News')).toBeInTheDocument()
+    expect(await screen.findByText('Dreams')).toBeInTheDocument()
     expect(requestedReleaseIds).toContain('rel-1')
   })
 

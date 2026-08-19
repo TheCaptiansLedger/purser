@@ -32,6 +32,10 @@ type fakeMusicBrainzSearchService struct {
 	gotMBID      string
 	returnArtist *ports.Artist
 	artistErr    error
+
+	gotReleaseMBID string
+	returnRelease  *ports.Release
+	releaseErr     error
 }
 
 func (f *fakeMusicBrainzSearchService) SearchReleaseGroups(_ context.Context, artistName, albumName string) ([]ports.ReleaseGroup, error) {
@@ -72,6 +76,14 @@ func (f *fakeMusicBrainzSearchService) GetArtist(_ context.Context, mbid string)
 		return nil, f.artistErr
 	}
 	return f.returnArtist, nil
+}
+
+func (f *fakeMusicBrainzSearchService) GetRelease(_ context.Context, mbid string) (*ports.Release, error) {
+	f.gotReleaseMBID = mbid
+	if f.releaseErr != nil {
+		return nil, f.releaseErr
+	}
+	return f.returnRelease, nil
 }
 
 func TestMusicBrainzSearchHandler_SearchReleaseGroups(t *testing.T) {
@@ -364,6 +376,72 @@ func TestMusicBrainzSearchHandler_GetArtist(t *testing.T) {
 		_, err := h.GetArtist(context.Background(), connect.NewRequest(&musicv1.GetMusicBrainzArtistRequest{Mbid: "artist-1"}))
 		if connect.CodeOf(err) != connect.CodeInternal {
 			t.Fatalf("GetArtist with an unmapped error returned code %v, want %v", connect.CodeOf(err), connect.CodeInternal)
+		}
+	})
+}
+
+func TestMusicBrainzSearchHandler_GetRelease(t *testing.T) {
+	t.Run("a multi-medium release returns the summary plus every disc's tracklist", func(t *testing.T) {
+		svc := &fakeMusicBrainzSearchService{returnRelease: &ports.Release{
+			ID: "release-1", Title: "Greatest Hits", Country: "US", Date: "1994", Status: "Official",
+			Media: []ports.Medium{
+				{
+					Position: 1, Format: "CD", TrackCount: 2,
+					Tracks: []ports.Track{
+						{Position: 1, Number: "1", Title: "Roll with the Changes", Length: 245000, Recording: &ports.Recording{ID: "rec-1"}},
+						{Position: 2, Number: "2", Title: "Keep on Loving You", Length: 210000}, // no linked recording
+					},
+				},
+				{
+					Position: 2, Format: "CD", TrackCount: 1,
+					Tracks: []ports.Track{
+						{Position: 1, Number: "1", Title: "Can't Fight This Feeling", Length: 300000, Recording: &ports.Recording{ID: "rec-3"}},
+					},
+				},
+			},
+		}}
+		h := apiconnect.NewMusicBrainzSearchHandler(svc, nil)
+
+		res, err := h.GetRelease(context.Background(), connect.NewRequest(&musicv1.GetMusicBrainzReleaseRequest{Mbid: "release-1"}))
+		if err != nil {
+			t.Fatalf("GetRelease returned error: %v", err)
+		}
+		if svc.gotReleaseMBID != "release-1" {
+			t.Errorf("GetRelease passed mbid=%q, want release-1", svc.gotReleaseMBID)
+		}
+
+		release := res.Msg.GetRelease()
+		if release.GetMbid() != "release-1" || release.GetTitle() != "Greatest Hits" || release.GetMediumCount() != 2 || release.GetTrackCount() != 3 {
+			t.Errorf("Release = %+v, want mbid/title/medium_count=2/track_count=3 to match the fake's release", release)
+		}
+
+		media := res.Msg.GetMedia()
+		if len(media) != 2 {
+			t.Fatalf("Media = %d entries, want 2", len(media))
+		}
+		if len(media[0].GetTracks()) != 2 || len(media[1].GetTracks()) != 1 {
+			t.Fatalf("Media track counts = [%d %d], want [2 1]", len(media[0].GetTracks()), len(media[1].GetTracks()))
+		}
+
+		t1 := media[0].GetTracks()[0]
+		if t1.GetTitle() != "Roll with the Changes" || t1.GetNumber() != "1" || t1.GetLengthMs() != 245000 || t1.GetRecordingMbid() != "rec-1" {
+			t.Errorf("Media[0].Tracks[0] = %+v, want a match for the fake's first track", t1)
+		}
+
+		// No linked recording — recording_mbid must be "", not a panic.
+		t2 := media[0].GetTracks()[1]
+		if t2.GetRecordingMbid() != "" {
+			t.Errorf("Media[0].Tracks[1].RecordingMbid = %q, want empty (no linked recording)", t2.GetRecordingMbid())
+		}
+	})
+
+	t.Run("unknown mbid maps to CodeNotFound", func(t *testing.T) {
+		svc := &fakeMusicBrainzSearchService{releaseErr: ports.ErrNotFound}
+		h := apiconnect.NewMusicBrainzSearchHandler(svc, nil)
+
+		_, err := h.GetRelease(context.Background(), connect.NewRequest(&musicv1.GetMusicBrainzReleaseRequest{Mbid: "unknown-mbid"}))
+		if connect.CodeOf(err) != connect.CodeNotFound {
+			t.Fatalf("GetRelease with an unknown mbid returned code %v, want %v", connect.CodeOf(err), connect.CodeNotFound)
 		}
 	})
 }

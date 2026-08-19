@@ -11,6 +11,7 @@ import (
 	"purser/internal/domain/music"
 	"purser/internal/ports"
 	"purser/internal/ports/musicreleasetest"
+	"purser/internal/service"
 	"testing"
 
 	dsbadger "purser/internal/adapters/datastore/badger"
@@ -85,6 +86,106 @@ func testListTracksByRelease(t *testing.T, ds datastore.Datastore) {
 
 	if _, _, err := releases.ListTracksByRelease(ctx, "missing", 10, ""); !errors.Is(err, ports.ErrNotFound) {
 		t.Fatalf("ListTracksByRelease(missing) returned %v, want ErrNotFound", err)
+	}
+}
+
+// TestRepository_CreateTrack exercises CreateTrack against both backends —
+// the created track must round-trip through ListTracksByRelease and (since
+// CreateTrack writes directly into the shared "item" collection, not
+// through ports.ItemRepository) must also be visible to
+// ports.ItemRepository.List, proving its Document.Index entry really does
+// match internal/adapters/store/item's own indexOf shape.
+func TestRepository_CreateTrack_Badger(t *testing.T) {
+	testCreateTrack(t, newBadgerDatastore(t))
+}
+
+func TestRepository_CreateTrack_SQL(t *testing.T) {
+	testCreateTrack(t, newSQLDatastore(t))
+}
+
+func testCreateTrack(t *testing.T, ds datastore.Datastore) {
+	t.Helper()
+	releases := newRepository(t, ds)
+	items := newItemRepository(t, ds)
+	ctx := context.Background()
+
+	rel := &music.Release{ID: "rel1", GroupID: "group1", LibraryEntryID: "entry1", Title: "Release", Status: music.ReleaseStatusStub}
+	mustCreateRelease(t, releases, rel)
+
+	track := &domain.Item{ID: "track1", ContentType: domain.ContentTypeMusic, Title: "Track 1", Sequence: "1", Status: domain.ItemStatusMissing}
+	if err := releases.CreateTrack(ctx, "rel1", track); err != nil {
+		t.Fatalf("CreateTrack returned error: %v", err)
+	}
+	if track.GroupID != "group1" || track.LibraryEntryID != "entry1" {
+		t.Fatalf("CreateTrack left GroupID=%q LibraryEntryID=%q, want group1/entry1", track.GroupID, track.LibraryEntryID)
+	}
+	if got := track.Metadata["release_id"]; got != "rel1" {
+		t.Fatalf("CreateTrack left Metadata[release_id]=%v, want rel1", got)
+	}
+
+	got, _, err := releases.ListTracksByRelease(ctx, "rel1", 10, "")
+	if err != nil {
+		t.Fatalf("ListTracksByRelease returned error: %v", err)
+	}
+	if len(got) != 1 || got[0].ID != "track1" {
+		t.Fatalf("ListTracksByRelease returned %v, want exactly track1", got)
+	}
+
+	// Proves the raw itemCollection write's Document.Index matches
+	// internal/adapters/store/item's own indexOf — a drift here would make
+	// tracks created through this path invisible to ItemRepository.List.
+	viaItemRepo, _, err := items.List(ctx, "entry1", string(domain.ContentTypeMusic), "group1", domain.ItemStatusMissing, 10, "")
+	if err != nil {
+		t.Fatalf("ItemRepository.List returned error: %v", err)
+	}
+	if len(viaItemRepo) != 1 || viaItemRepo[0].ID != "track1" {
+		t.Fatalf("ItemRepository.List returned %v, want exactly track1", viaItemRepo)
+	}
+
+	if err := releases.CreateTrack(ctx, "missing", &domain.Item{ID: "track2", ContentType: domain.ContentTypeMusic, Title: "Track 2", Status: domain.ItemStatusMissing}); !errors.Is(err, ports.ErrNotFound) {
+		t.Fatalf("CreateTrack(missing release) returned %v, want ErrNotFound", err)
+	}
+}
+
+// TestMusicReleaseDeletionService_Delete_DetachesCreateTrackTrack exercises
+// internal/service.MusicReleaseDeletionService.Delete — the same
+// composing-deletion code GroupDeletionService's own cascade delegates to
+// for its per-release Unlink-delete — against real store adapters and a
+// track created through CreateTrack, not internal/adapters/pipeline/music's
+// buildTrackItem. Per docs/adr/0021-music-domain-model.md's Track ↔
+// Release linkage section and #721's own acceptance criteria, a
+// manually-/MusicBrainz-populated track must be indistinguishable in shape
+// from a pipeline-scanned one — this proves the deletion cascade can't
+// tell the difference.
+func TestMusicReleaseDeletionService_Delete_DetachesCreateTrackTrack(t *testing.T) {
+	ds := newBadgerDatastore(t)
+	releases := newRepository(t, ds)
+	items := newItemRepository(t, ds)
+	ctx := context.Background()
+
+	rel := &music.Release{ID: "rel1", GroupID: "group1", LibraryEntryID: "entry1", Title: "Release", Status: music.ReleaseStatusStub}
+	mustCreateRelease(t, releases, rel)
+
+	track := &domain.Item{ID: "track1", ContentType: domain.ContentTypeMusic, Title: "Track 1", Sequence: "1", Status: domain.ItemStatusMissing}
+	if err := releases.CreateTrack(ctx, "rel1", track); err != nil {
+		t.Fatalf("CreateTrack returned error: %v", err)
+	}
+
+	deletion := service.NewMusicReleaseDeletionService(releases, items)
+	if err := deletion.Delete(ctx, "rel1", false); err != nil {
+		t.Fatalf("Delete returned error: %v", err)
+	}
+
+	got, err := items.Get(ctx, "track1")
+	if err != nil {
+		t.Fatalf("items.Get(track1) returned error: %v", err)
+	}
+	if _, stillLinked := got.Metadata["release_id"]; stillLinked {
+		t.Fatalf("track1.Metadata[release_id] still set after Delete, want cleared (Unlink)")
+	}
+
+	if _, err := releases.Get(ctx, "rel1"); !errors.Is(err, ports.ErrNotFound) {
+		t.Fatalf("releases.Get(rel1) after Delete returned %v, want ErrNotFound", err)
 	}
 }
 

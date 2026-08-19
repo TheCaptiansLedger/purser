@@ -418,6 +418,68 @@ func (r *Repository) ListTracksByRelease(ctx context.Context, releaseID string, 
 	return paginateItems(matches, pageSize, pageToken)
 }
 
+// CreateTrack implements ports.MusicReleaseRepository. It resolves
+// releaseID's GroupID/LibraryEntryID, stamps them plus
+// Metadata["release_id"] onto track, and writes track directly into the
+// shared itemCollection — the same collection ListTracksByRelease already
+// reads from — rather than through ports.ItemRepository, per
+// docs/adr/0021-music-domain-model.md's "Track ↔ Release linkage" section.
+// track.ID must already be assigned by the caller. Returns
+// ports.ErrNotFound if releaseID doesn't exist, or ports.ErrConflict if
+// track.ID already exists.
+func (r *Repository) CreateTrack(ctx context.Context, releaseID string, track *domain.Item) error {
+	ctx, span := r.tracer.Start(ctx, "music_release_repository.create_track", trace.WithAttributes(
+		attribute.String("music_release.id", releaseID), attribute.String("item.id", track.ID),
+	))
+	defer span.End()
+
+	rel, err := r.Get(ctx, releaseID)
+	if err != nil {
+		return err
+	}
+
+	track.GroupID = rel.GroupID
+	track.LibraryEntryID = rel.LibraryEntryID
+	if track.Metadata == nil {
+		track.Metadata = map[string]any{}
+	}
+	track.Metadata["release_id"] = releaseID
+
+	data, err := json.Marshal(track)
+	if err != nil {
+		return fmt.Errorf("adapters/store/music: marshal track %s: %w", track.ID, err)
+	}
+
+	if err := r.ds.Create(ctx, datastore.Document{
+		Collection: itemCollection,
+		ID:         track.ID,
+		Data:       data,
+		Index:      itemIndexOf(track),
+	}); err != nil {
+		return err
+	}
+
+	r.logger.DebugContext(ctx, "music release track created", "music_release.id", releaseID, "item.id", track.ID)
+	return nil
+}
+
+// itemIndexOf mirrors internal/adapters/store/item's own indexOf exactly —
+// duplicated here, not imported (that function is unexported), because
+// CreateTrack writes directly into the shared "item" collection instead of
+// going through ports.ItemRepository. Keep this in sync with
+// internal/adapters/store/item/item.go's indexOf if that shape ever
+// changes — a drift here would make tracks created through this path
+// invisible to ItemRepository.List's library_entry_id/content_type/status
+// filters.
+func itemIndexOf(i *domain.Item) map[string]string {
+	return map[string]string{
+		"library_entry_id": i.LibraryEntryID,
+		"content_type":     string(i.ContentType),
+		"group_id":         i.GroupID,
+		"status":           string(i.Status),
+	}
+}
+
 // releaseIDOf reads Item.Metadata["release_id"] as a string, or "" if
 // absent — Metadata is map[string]any (a google.protobuf.Struct on the
 // wire), so a missing key or a non-string value both read as "".
