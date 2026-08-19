@@ -1,4 +1,4 @@
-import { ChevronLeft, ChevronRight, Home, Music, Settings, Users } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Heart, Home, Music, Settings, Users } from 'lucide-react'
 import { NavLink } from 'react-router-dom'
 import type { LucideIcon } from 'lucide-react'
 
@@ -22,6 +22,7 @@ const NAV_ITEMS: NavItem[] = [
   { to: '/', label: 'Welcome', icon: Home },
   { to: '/people', label: 'People', icon: Users },
   { to: '/music', label: 'Music', icon: Music },
+  { to: '/music/wanted', label: 'Wanted', icon: Heart },
   { to: '/settings', label: 'Settings', icon: Settings },
 ]
 

@@ -9,6 +9,7 @@ import { PersonDetail } from './pages/PersonDetail'
 import { MusicLibrary } from './pages/MusicLibrary'
 import { ArtistDetail } from './pages/ArtistDetail'
 import { AlbumDetail } from './pages/AlbumDetail'
+import { WantedBoard } from './pages/WantedBoard'
 import { SettingsLayout } from './pages/settings/SettingsLayout'
 import { ConfigTab } from './pages/settings/ConfigTab'
 import { JobsTab } from './pages/settings/JobsTab'
@@ -18,10 +19,10 @@ import { CacheTab } from './pages/settings/CacheTab'
 const queryClient = new QueryClient()
 
 // Welcome, /people (#660), /people/:id (#661), /music (#664),
-// /music/artists/:id (#666), /music/albums/:id (#673), and the
-// /settings/* admin area (#596). No other module (AfterDark/Acquisition/
-// Pipeline) or other Music screen (Wanted board) exists yet.
-// See docs/design/frontend-stack.md.
+// /music/artists/:id (#666), /music/albums/:id (#673), /music/wanted
+// (#678), and the /settings/* admin area (#596). No other module
+// (AfterDark/Acquisition/Pipeline) exists yet. See
+// docs/design/frontend-stack.md.
 const router = createBrowserRouter([
   {
     element: <Layout />,
@@ -32,6 +33,7 @@ const router = createBrowserRouter([
       { path: '/music', element: <MusicLibrary /> },
       { path: '/music/artists/:id', element: <ArtistDetail /> },
       { path: '/music/albums/:id', element: <AlbumDetail /> },
+      { path: '/music/wanted', element: <WantedBoard /> },
       {
         path: '/settings',
         element: <SettingsLayout />,
