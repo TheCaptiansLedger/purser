@@ -208,9 +208,10 @@ func releaseToProto(r ports.Release) *musicv1.MusicBrainzRelease {
 		format = r.Media[0].Format
 	}
 
-	var label string
+	var label, catalogNumber string
 	if len(r.LabelInfo) > 0 {
 		label = r.LabelInfo[0].Label.Name
+		catalogNumber = r.LabelInfo[0].CatalogNumber
 	}
 
 	names := make([]string, 0, len(r.ArtistCredit))
@@ -233,5 +234,6 @@ func releaseToProto(r ports.Release) *musicv1.MusicBrainzRelease {
 		TrackCount:        int32(trackCount),  //nolint:gosec // same — a release's total track count
 		ArtistCreditNames: names,
 		Label:             label,
+		CatalogNumber:     catalogNumber,
 	}
 }

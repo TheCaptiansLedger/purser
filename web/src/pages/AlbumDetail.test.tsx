@@ -1,15 +1,17 @@
-import { ConnectError, Code, createRouterTransport } from '@connectrpc/connect'
+import { ConnectError, Code, createRouterTransport, type ConnectRouter } from '@connectrpc/connect'
 import { TransportProvider } from '@connectrpc/connect-query'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { describe, expect, it } from 'vitest'
 import { EntityType } from '../gen/purser/domain/v1/common_pb'
+import { ExternalIDService } from '../gen/purser/domain/v1/external_id_pb'
 import { GroupService } from '../gen/purser/domain/v1/group_pb'
 import { ImageBlobService } from '../gen/purser/domain/v1/image_blob_pb'
 import { ImageService } from '../gen/purser/domain/v1/image_pb'
 import { TagService } from '../gen/purser/domain/v1/tag_pb'
 import { TagAssignmentService } from '../gen/purser/domain/v1/tag_assignment_pb'
+import { MusicBrainzService } from '../gen/purser/music/v1/musicbrainz_search_pb'
 import { MusicReleaseService, ReleaseStatus } from '../gen/purser/music/v1/release_pb'
 import { AlbumDetail } from './AlbumDetail'
 
@@ -47,6 +49,19 @@ function registerNoReleases(router: import('@connectrpc/connect').ConnectRouter)
   router.service(MusicReleaseService, { listMusicReleases: () => ({ musicReleases: [] }) })
 }
 
+// registerNoProviderMbid — the mbz ExternalID lookup 404s, so the Add
+// Edition dropdown's "Search MusicBrainz" item stays disabled; every test
+// not specifically exercising Add Edition (#675) uses this to stay
+// focused on what it asserts, same registerNoProviderData precedent
+// ArtistDetail.test.tsx already set for useArtistProviderData.
+function registerNoProviderMbid(router: ConnectRouter) {
+  router.service(ExternalIDService, {
+    getExternalID: () => {
+      throw new ConnectError('not found', Code.NotFound)
+    },
+  })
+}
+
 describe('AlbumDetail', () => {
   it("renders the Group's title and Hero facts from the default edition", async () => {
     const mockTransport = createRouterTransport(router => {
@@ -61,6 +76,7 @@ describe('AlbumDetail', () => {
       })
       router.service(ImageService, { getSelectedImage: noSelectedImage() })
       registerNoTags(router)
+      registerNoProviderMbid(router)
     })
 
     renderAlbumDetail(mockTransport)
@@ -75,6 +91,7 @@ describe('AlbumDetail', () => {
       router.service(GroupService, { getGroup: () => ({ group: undefined }) })
       registerNoReleases(router)
       registerNoTags(router)
+      registerNoProviderMbid(router)
     })
 
     renderAlbumDetail(mockTransport)
@@ -88,6 +105,7 @@ describe('AlbumDetail', () => {
       registerNoReleases(router)
       router.service(ImageService, { getSelectedImage: noSelectedImage() })
       registerNoTags(router)
+      registerNoProviderMbid(router)
     })
 
     renderAlbumDetail(mockTransport)
@@ -109,6 +127,7 @@ describe('AlbumDetail', () => {
         },
       })
       router.service(TagService, { getTag: () => ({ tag: { id: 'tag-1', key: 'genre', value: 'Rock' } }) })
+      registerNoProviderMbid(router)
     })
 
     renderAlbumDetail(mockTransport)
@@ -121,6 +140,7 @@ describe('AlbumDetail', () => {
       router.service(GroupService, { getGroup: () => ({ group: baseGroup }) })
       registerNoReleases(router)
       registerNoTags(router)
+      registerNoProviderMbid(router)
     })
 
     renderAlbumDetail(mockTransport)
@@ -160,6 +180,7 @@ describe('AlbumDetail', () => {
         }),
       })
       registerNoTags(router)
+      registerNoProviderMbid(router)
     })
 
     renderAlbumDetail(mockTransport)
@@ -195,6 +216,7 @@ describe('AlbumDetail', () => {
       })
       router.service(ImageService, { getSelectedImage: noSelectedImage() })
       registerNoTags(router)
+      registerNoProviderMbid(router)
     })
 
     renderAlbumDetail(mockTransport)
@@ -230,6 +252,7 @@ describe('AlbumDetail', () => {
       })
       router.service(ImageService, { getSelectedImage: noSelectedImage() })
       registerNoTags(router)
+      registerNoProviderMbid(router)
     })
 
     renderAlbumDetail(mockTransport)
@@ -248,11 +271,84 @@ describe('AlbumDetail', () => {
       router.service(GroupService, { getGroup: () => ({ group: baseGroup }) })
       registerNoReleases(router)
       registerNoTags(router)
+      registerNoProviderMbid(router)
     })
 
     renderAlbumDetail(mockTransport)
 
     expect(await screen.findByRole('heading', { name: 'Rumours' })).toBeInTheDocument()
     expect(screen.queryByRole('tablist', { name: 'Editions' })).not.toBeInTheDocument()
+    expect(screen.getByText('No editions yet')).toBeInTheDocument()
+  })
+
+  it('disables "Search MusicBrainz" until the release group\'s mbz ExternalID is known (#675)', async () => {
+    const mockTransport = createRouterTransport(router => {
+      router.service(GroupService, { getGroup: () => ({ group: baseGroup }) })
+      registerNoReleases(router)
+      registerNoTags(router)
+      registerNoProviderMbid(router)
+    })
+
+    renderAlbumDetail(mockTransport)
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Add Edition' }))
+    expect(screen.getByRole('menuitem', { name: 'Search MusicBrainz' })).toBeDisabled()
+  })
+
+  it('adds a MusicBrainz-sourced edition via AddEditionDialog and refreshes the strip (#675)', async () => {
+    const mockTransport = createRouterTransport(router => {
+      router.service(GroupService, { getGroup: () => ({ group: baseGroup }) })
+      router.service(ExternalIDService, { getExternalID: () => ({ externalId: { value: 'rg-mbid-1' } }) })
+      router.service(MusicBrainzService, {
+        listReleasesForReleaseGroup: req => {
+          expect(req.releaseGroupMbid).toBe('rg-mbid-1')
+          return { releases: [{ mbid: 'release-mbid-1', title: '1977 Original' }] }
+        },
+      })
+      router.service(MusicReleaseService, {
+        listMusicReleases: () => ({ musicReleases: [] }),
+        createMusicRelease: req => {
+          expect(req.musicRelease?.groupId).toBe('group-1')
+          expect(req.musicRelease?.libraryEntryId).toBe('artist-1')
+          return { musicRelease: { ...req.musicRelease!, id: 'rel-new' } }
+        },
+      })
+      registerNoTags(router)
+    })
+
+    renderAlbumDetail(mockTransport)
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Add Edition' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Search MusicBrainz' }))
+
+    fireEvent.click(await screen.findByRole('button', { name: /1977 Original/ }))
+
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Add Edition' })).not.toBeInTheDocument())
+  })
+
+  it('adds a manually-entered edition via ManualEditionDialog with no mbid field (#675)', async () => {
+    const mockTransport = createRouterTransport(router => {
+      router.service(GroupService, { getGroup: () => ({ group: baseGroup }) })
+      router.service(MusicReleaseService, {
+        listMusicReleases: () => ({ musicReleases: [] }),
+        createMusicRelease: req => {
+          expect(req.musicRelease?.title).toBe('Live Bootleg')
+          expect(req.musicRelease?.mbid).toBe('')
+          return { musicRelease: { ...req.musicRelease!, id: 'rel-new' } }
+        },
+      })
+      registerNoTags(router)
+      registerNoProviderMbid(router)
+    })
+
+    renderAlbumDetail(mockTransport)
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Add Edition' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Add Manually' }))
+
+    fireEvent.change(await screen.findByLabelText('Title'), { target: { value: 'Live Bootleg' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Add' }))
+
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Add Edition Manually' })).not.toBeInTheDocument())
   })
 })

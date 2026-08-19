@@ -1,12 +1,18 @@
 import { useMutation, useQuery } from '@connectrpc/connect-query'
-import { Camera, Disc3, Images, Maximize2 } from 'lucide-react'
+import { Camera, Disc3, Images, Maximize2, Plus } from 'lucide-react'
 import { useState } from 'react'
 import { useParams } from 'react-router-dom'
+import { AddEditionDialog } from '../components/AddEditionDialog'
 import { ChooseArtworkDialog } from '../components/ChooseArtworkDialog'
+import { DropdownMenu } from '../components/DropdownMenu'
 import { EditionsStrip } from '../components/EditionsStrip'
+import { EmptyState } from '../components/EmptyState'
 import { Hero } from '../components/Hero'
 import { ImageGallery } from '../components/ImageGallery'
 import { ImageLightbox } from '../components/ImageLightbox'
+import { ManualEditionDialog } from '../components/ManualEditionDialog'
+import { EntityType } from '../gen/purser/domain/v1/common_pb'
+import { getExternalID } from '../gen/purser/domain/v1/external_id-ExternalIDService_connectquery'
 import { getGroup } from '../gen/purser/domain/v1/group-GroupService_connectquery'
 import { getSelectedImage } from '../gen/purser/domain/v1/image-ImageService_connectquery'
 import {
@@ -17,18 +23,32 @@ import type { Release } from '../gen/purser/music/v1/release_pb'
 import { useGroupTags } from '../hooks/useGroupTags'
 import { useReleaseTracks } from '../hooks/useReleaseTracks'
 
+const MBZ_SOURCE = 'mbz'
+
 const RELEASES_PAGE_SIZE = 50
 
 // AlbumDetail — the Album (Release Group) Detail page shell (#673):
 // GroupService.GetGroup, a Hero (#658) with no backdrop (no artwork
 // source for one yet — unlike Artist Detail's fanart.tv backdrop) and
-// facts=[year, track count]. Add Edition (#675), Set default edition
-// (#677), and the metadata editor (#681) are separate, later issues —
-// this page reads the default edition (MusicReleaseService
-// .ListMusicReleases, same `isDefault ?? [0]` fallback useDiscography
-// already established) to know which edition owns the cover art and to
-// report its track count in the Hero facts, independent of whichever
-// edition is selected in the strip below.
+// facts=[year, track count]. Set default edition (#677) and the metadata
+// editor (#681) are separate, later issues — this page reads the default
+// edition (MusicReleaseService.ListMusicReleases, same `isDefault ?? [0]`
+// fallback useDiscography already established) to know which edition owns
+// the cover art and to report its track count in the Hero facts,
+// independent of whichever edition is selected in the strip below.
+//
+// Add Edition (#675) is the same two-source DropdownMenu shape #669
+// established for Add Album, sitting above the strip: "Search
+// MusicBrainz" opens AddEditionDialog (disabled until the release
+// group's own `mbz` ExternalID is known — ExternalIDService
+// .GetExternalID(GROUP, id, "mbz"), same ArtistDetail/provider.mbid
+// pattern), "Add Manually" opens ManualEditionDialog. Both dialogs call
+// MusicReleaseService.CreateMusicRelease directly — no get-or-create
+// composition needed client-side, since a non-empty MBID already runs
+// the server-side get-or-create branch (MusicReleaseRepository.Create,
+// ADR 0021's own MBID-on-the-row exception to the shared ExternalID
+// pattern). A zero-editions album renders an EmptyState with the same
+// dropdown rather than hiding it, so the first edition can be added.
 //
 // Editions strip (#674): selecting a card updates selectedReleaseId
 // (optimistic local mirror pattern, same `x ?? entry.x` shape
@@ -69,10 +89,18 @@ export function AlbumDetail() {
   )
   const tagsQuery = useGroupTags(id)
   const updateReleaseMutation = useMutation(updateMusicRelease)
+  const releaseGroupMbidQuery = useQuery(
+    getExternalID,
+    { entityType: EntityType.GROUP, entityId: id, source: MBZ_SOURCE },
+    { enabled: !!id, retry: false },
+  )
+  const releaseGroupMbid = releaseGroupMbidQuery.data?.externalId?.value
 
   const [coverLightboxOpen, setCoverLightboxOpen] = useState(false)
   const [coverDialogOpen, setCoverDialogOpen] = useState(false)
   const [coverGalleryOpen, setCoverGalleryOpen] = useState(false)
+  const [addEditionOpen, setAddEditionOpen] = useState(false)
+  const [manualEditionOpen, setManualEditionOpen] = useState(false)
   // Optimistic local mirrors — same `x ?? entry.x` pattern ArtistDetail's
   // `monitored` state uses. monitoredOverrides is keyed per release id
   // since the strip can have several cards mid-toggle at once, unlike
@@ -221,28 +249,55 @@ export function AlbumDetail() {
         )}
       </div>
 
-      {releases.length > 0 && (
-        <div className="mt-8">
-          <EditionsStrip
-            releases={releases}
-            selectedId={activeReleaseId}
-            onSelect={setSelectedReleaseId}
-            onToggleMonitored={handleToggleMonitored}
-            monitoredOverrides={monitoredOverrides}
-            pendingReleaseId={pendingReleaseId}
+      <div className="mt-8">
+        <div className="mb-4 flex justify-end">
+          <DropdownMenu
+            label="Add Edition"
+            trigger={
+              <>
+                <Plus size={16} aria-hidden="true" />
+                Add Edition
+              </>
+            }
+            triggerClassName="flex h-9 items-center gap-1.5 rounded-lg bg-accent-system px-4 text-body font-medium text-bg hover:opacity-90"
+            items={[
+              {
+                label: 'Search MusicBrainz',
+                onSelect: () => setAddEditionOpen(true),
+                disabled: !releaseGroupMbid,
+              },
+              { label: 'Add Manually', onSelect: () => setManualEditionOpen(true) },
+            ]}
           />
-
-          {/* Placeholder tracklist consumer — #676 replaces this with the
-              real per-track rows/status badges/play icon. This line only
-              proves selecting an edition above drives a query, per #674's
-              acceptance criterion. */}
-          {!tracksQuery.isPending && (
-            <p className="mt-4 text-label text-text-secondary">
-              {tracksQuery.tracks.length} track{tracksQuery.tracks.length === 1 ? '' : 's'} in this edition
-            </p>
-          )}
         </div>
-      )}
+
+        {releases.length === 0 && (
+          <EmptyState icon={Disc3} title="No editions yet" description="Editions added to this album will show up here." />
+        )}
+
+        {releases.length > 0 && (
+          <>
+            <EditionsStrip
+              releases={releases}
+              selectedId={activeReleaseId}
+              onSelect={setSelectedReleaseId}
+              onToggleMonitored={handleToggleMonitored}
+              monitoredOverrides={monitoredOverrides}
+              pendingReleaseId={pendingReleaseId}
+            />
+
+            {/* Placeholder tracklist consumer — #676 replaces this with the
+                real per-track rows/status badges/play icon. This line only
+                proves selecting an edition above drives a query, per #674's
+                acceptance criterion. */}
+            {!tracksQuery.isPending && (
+              <p className="mt-4 text-label text-text-secondary">
+                {tracksQuery.tracks.length} track{tracksQuery.tracks.length === 1 ? '' : 's'} in this edition
+              </p>
+            )}
+          </>
+        )}
+      </div>
 
       {coverLightboxOpen && coverSrc && (
         <ImageLightbox src={coverSrc} alt={group.title} onClose={() => setCoverLightboxOpen(false)} />
@@ -267,6 +322,33 @@ export function AlbumDetail() {
           imageType="poster"
           onClose={() => setCoverGalleryOpen(false)}
           onChange={() => void coverQuery.refetch()}
+        />
+      )}
+
+      {addEditionOpen && releaseGroupMbid && (
+        <AddEditionDialog
+          groupId={id}
+          libraryEntryId={group.libraryEntryId}
+          releaseGroupMbid={releaseGroupMbid}
+          onClose={() => setAddEditionOpen(false)}
+          onAdded={release => {
+            setAddEditionOpen(false)
+            setSelectedReleaseId(release.id)
+            releasesQuery.refetch()
+          }}
+        />
+      )}
+
+      {manualEditionOpen && (
+        <ManualEditionDialog
+          groupId={id}
+          libraryEntryId={group.libraryEntryId}
+          onClose={() => setManualEditionOpen(false)}
+          onAdded={release => {
+            setManualEditionOpen(false)
+            setSelectedReleaseId(release.id)
+            releasesQuery.refetch()
+          }}
         />
       )}
     </div>

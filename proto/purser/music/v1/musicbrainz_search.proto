@@ -42,6 +42,7 @@ message MusicBrainzRelease {
   int32 track_count = 10;
   repeated string artist_credit_names = 11;
   string label = 12;
+  string catalog_number = 13;
 }
 
 // MusicBrainzArtist is MusicBrainz's artist DTO — the identity anchor for a

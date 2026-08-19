@@ -117,7 +117,7 @@ func TestMusicBrainzSearchHandler_ListReleasesForReleaseGroup(t *testing.T) {
 			{
 				ID: "release-1", Title: "Hi Infidelity", Country: "US", Date: "2000-11-21", Barcode: "075992599720",
 				ArtistCredit: []ports.ArtistCredit{{Name: "REO Speedwagon"}},
-				LabelInfo:    []ports.LabelInfo{{Label: ports.Label{Name: "Epic"}}},
+				LabelInfo:    []ports.LabelInfo{{Label: ports.Label{Name: "Epic"}, CatalogNumber: "E2 85369"}},
 				Media: []ports.Medium{{
 					// TrackCount, not len(Tracks) — regression coverage for
 					// the real bug found live against the API:
@@ -151,6 +151,9 @@ func TestMusicBrainzSearchHandler_ListReleasesForReleaseGroup(t *testing.T) {
 		}
 		if got.GetLabel() != "Epic" {
 			t.Errorf("Label = %q, want Epic", got.GetLabel())
+		}
+		if got.GetCatalogNumber() != "E2 85369" {
+			t.Errorf("CatalogNumber = %q, want E2 85369", got.GetCatalogNumber())
 		}
 		if svc.gotReleaseGroupMBID != "rg-1" {
 			t.Errorf("ListReleasesForReleaseGroup passed release_group_mbid=%q, want rg-1", svc.gotReleaseGroupMBID)

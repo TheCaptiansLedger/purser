@@ -135,6 +135,7 @@ type MusicBrainzRelease struct {
 	TrackCount        int32                  `protobuf:"varint,10,opt,name=track_count,json=trackCount,proto3" json:"track_count,omitempty"`
 	ArtistCreditNames []string               `protobuf:"bytes,11,rep,name=artist_credit_names,json=artistCreditNames,proto3" json:"artist_credit_names,omitempty"`
 	Label             string                 `protobuf:"bytes,12,opt,name=label,proto3" json:"label,omitempty"`
+	CatalogNumber     string                 `protobuf:"bytes,13,opt,name=catalog_number,json=catalogNumber,proto3" json:"catalog_number,omitempty"`
 	unknownFields     protoimpl.UnknownFields
 	sizeCache         protoimpl.SizeCache
 }
@@ -249,6 +250,13 @@ func (x *MusicBrainzRelease) GetArtistCreditNames() []string {
 func (x *MusicBrainzRelease) GetLabel() string {
 	if x != nil {
 		return x.Label
+	}
+	return ""
+}
+
+func (x *MusicBrainzRelease) GetCatalogNumber() string {
+	if x != nil {
+		return x.CatalogNumber
 	}
 	return ""
 }
@@ -975,7 +983,7 @@ const file_purser_music_v1_musicbrainz_search_proto_rawDesc = "" +
 	"\x0edisambiguation\x18\x03 \x01(\tR\x0edisambiguation\x12!\n" +
 	"\fprimary_type\x18\x04 \x01(\tR\vprimaryType\x12'\n" +
 	"\x0fsecondary_types\x18\x05 \x03(\tR\x0esecondaryTypes\x12,\n" +
-	"\x12first_release_date\x18\x06 \x01(\tR\x10firstReleaseDate\"\xe8\x02\n" +
+	"\x12first_release_date\x18\x06 \x01(\tR\x10firstReleaseDate\"\x8f\x03\n" +
 	"\x12MusicBrainzRelease\x12\x12\n" +
 	"\x04mbid\x18\x01 \x01(\tR\x04mbid\x12\x14\n" +
 	"\x05title\x18\x02 \x01(\tR\x05title\x12&\n" +
@@ -990,7 +998,8 @@ const file_purser_music_v1_musicbrainz_search_proto_rawDesc = "" +
 	" \x01(\x05R\n" +
 	"trackCount\x12.\n" +
 	"\x13artist_credit_names\x18\v \x03(\tR\x11artistCreditNames\x12\x14\n" +
-	"\x05label\x18\f \x01(\tR\x05label\"\x94\x02\n" +
+	"\x05label\x18\f \x01(\tR\x05label\x12%\n" +
+	"\x0ecatalog_number\x18\r \x01(\tR\rcatalogNumber\"\x94\x02\n" +
 	"\x11MusicBrainzArtist\x12\x12\n" +
 	"\x04mbid\x18\x01 \x01(\tR\x04mbid\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x1b\n" +
