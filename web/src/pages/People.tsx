@@ -1,11 +1,17 @@
-import { Search, SearchX, UserPlus } from 'lucide-react'
+import { useMutation } from '@connectrpc/connect-query'
+import { CheckSquare, Search, SearchX, UserPlus } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { BulkDeleteDialog } from '../components/BulkDeleteDialog'
 import { EmptyState } from '../components/EmptyState'
 import { PersonCard } from '../components/PersonCard'
 import { PersonDialog } from '../components/PersonDialog'
+import { SelectableTile } from '../components/SelectableTile'
+import { SelectionToolbar } from '../components/SelectionToolbar'
 import { Toggle } from '../components/Toggle'
+import { bulkDeletePeople } from '../gen/purser/domain/v1/person-PersonService_connectquery'
 import { usePeopleList } from '../hooks/usePeopleList'
+import { usePersonDeletionImpacts } from '../hooks/usePersonDeletionImpacts'
 import { usePersonImages } from '../hooks/usePersonImages'
 
 // SEARCH_DEBOUNCE_MS keeps ListPeople(name=query) (#653) from firing on
@@ -21,19 +27,32 @@ const SEARCH_DEBOUNCE_MS = 300
 // loaded page client-side only, a real limitation accepted at this
 // scale — a future issue adds a server-side filter the same way #653
 // added name, if it becomes a problem).
+//
+// Bulk delete: "Select" swaps every card's click-target-detection div for
+// SelectableTile's toggle-button one (via onNavigate/ariaLabel — a plain
+// <Link> wrap isn't valid here since PersonCard's photo is itself a
+// nested button, same reason the non-select-mode path below never used
+// <Link> either), exposing a SelectionToolbar; its "Delete" opens
+// BulkDeleteDialog against usePersonDeletionImpacts(selectedIds) and
+// BulkDeletePeople — see docs/adr/0015/0016. Person never blocks a delete
+// (internal/service/person_deletion.go), so the dialog's cascade checkbox
+// never actually appears here, same as the Discography tab's Group case.
 export function People() {
   const navigate = useNavigate()
   const [searchInput, setSearchInput] = useState('')
   const [name, setName] = useState('')
   const [monitoredOnly, setMonitoredOnly] = useState(false)
   const [addDialogOpen, setAddDialogOpen] = useState(false)
+  const [selectMode, setSelectMode] = useState(false)
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false)
 
   useEffect(() => {
     const timer = setTimeout(() => setName(searchInput.trim()), SEARCH_DEBOUNCE_MS)
     return () => clearTimeout(timer)
   }, [searchInput])
 
-  const { data, isPending, isError, error, hasNextPage, isFetchingNextPage, fetchNextPage } =
+  const { data, isPending, isError, error, hasNextPage, isFetchingNextPage, fetchNextPage, refetch } =
     usePeopleList(name)
 
   const people = useMemo(() => data?.pages.flatMap(page => page.people) ?? [], [data])
@@ -53,6 +72,40 @@ export function People() {
   const isEmptyLibrary = !isPending && !isError && people.length === 0 && name === '' && !monitoredOnly
   const isZeroResults = !isPending && !isError && people.length > 0 && visiblePeople.length === 0
   const isZeroSearchResults = !isPending && !isError && people.length === 0 && (name !== '' || monitoredOnly)
+
+  const selectedIdList = useMemo(() => Array.from(selectedIds), [selectedIds])
+  const impact = usePersonDeletionImpacts(bulkDeleteOpen ? selectedIdList : [])
+  const bulkDeleteMutation = useMutation(bulkDeletePeople)
+
+  function toggleSelected(id: string) {
+    setSelectedIds(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) {
+        next.delete(id)
+      } else {
+        next.add(id)
+      }
+      return next
+    })
+  }
+
+  function exitSelectMode() {
+    setSelectMode(false)
+    setSelectedIds(new Set())
+  }
+
+  function handleBulkDelete(cascade: boolean) {
+    bulkDeleteMutation.mutate(
+      { ids: selectedIdList, cascade },
+      {
+        onSuccess: () => {
+          setBulkDeleteOpen(false)
+          exitSelectMode()
+          void refetch()
+        },
+      },
+    )
+  }
 
   return (
     <div className="px-6 py-10 md:px-8">
@@ -80,6 +133,15 @@ export function People() {
 
           <button
             type="button"
+            onClick={() => setSelectMode(true)}
+            className="flex h-9 items-center gap-1.5 rounded-lg border border-border px-4 text-body font-medium text-text hover:bg-surface-raised"
+          >
+            <CheckSquare size={16} aria-hidden="true" />
+            Select
+          </button>
+
+          <button
+            type="button"
             onClick={() => setAddDialogOpen(true)}
             className="flex h-9 items-center gap-2 rounded-lg bg-accent-system px-4 text-body font-medium text-bg hover:opacity-90"
           >
@@ -88,6 +150,27 @@ export function People() {
           </button>
         </div>
       </div>
+
+      {selectMode && (
+        <SelectionToolbar
+          count={selectedIds.size}
+          entityLabelPlural="people"
+          onDelete={() => setBulkDeleteOpen(true)}
+          onCancel={exitSelectMode}
+        />
+      )}
+
+      {bulkDeleteOpen && (
+        <BulkDeleteDialog
+          entityLabelPlural="people"
+          count={selectedIds.size}
+          impact={impact}
+          onDelete={handleBulkDelete}
+          isDeleting={bulkDeleteMutation.isPending}
+          deleteError={bulkDeleteMutation.isError ? `Couldn't delete these people (${bulkDeleteMutation.error.message}).` : undefined}
+          onClose={() => setBulkDeleteOpen(false)}
+        />
+      )}
 
       {isError && (
         <p className="mt-6 text-body text-status-failure">
@@ -115,28 +198,16 @@ export function People() {
       {visiblePeople.length > 0 && (
         <div className="mt-6 grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8 2xl:grid-cols-10">
           {visiblePeople.map(person => (
-            // A plain clickable div, not <Link>, because PersonCard's photo
-            // is itself a <button> (opens the lightbox) — nesting a button
-            // inside an anchor is invalid HTML. role="link"/tabIndex/Enter
-            // keeps it keyboard-reachable; a click that lands on the photo
-            // button is left alone so the lightbox still opens instead of
-            // navigating (checked via closest('button')).
-            <div
+            <SelectableTile
               key={person.id}
-              role="link"
-              tabIndex={0}
-              aria-label={`View ${person.name}`}
-              onClick={e => {
-                if ((e.target as HTMLElement).closest('button')) return
-                navigate(`/people/${person.id}`)
-              }}
-              onKeyDown={e => {
-                if (e.key === 'Enter') navigate(`/people/${person.id}`)
-              }}
-              className="cursor-pointer rounded-lg hover:bg-surface-raised"
+              selectMode={selectMode}
+              selected={selectedIds.has(person.id)}
+              onToggle={() => toggleSelected(person.id)}
+              onNavigate={() => navigate(`/people/${person.id}`)}
+              ariaLabel={`View ${person.name}`}
             >
               <PersonCard person={{ id: person.id, name: person.name, imageId: imagesByPersonId[person.id] }} />
-            </div>
+            </SelectableTile>
           ))}
         </div>
       )}

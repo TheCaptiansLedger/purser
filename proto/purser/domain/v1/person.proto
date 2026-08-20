@@ -91,6 +91,19 @@ message GetPersonDeletionImpactResponse {
   repeated DeletionImpactRow impacts = 1;
 }
 
+// BulkDeletePeople is one of the bulk-delete endpoints named by
+// docs/adr/0016-bulk-operations.md — needed by the People index page's
+// multi-select bulk-delete UI action, not a blanket bulk rollout.
+message BulkDeletePeopleRequest {
+  repeated string ids = 1;
+  // cascade has no effect for Person today, same as DeletePersonRequest.cascade
+  // — present for API-shape consistency with every other bulk-delete
+  // endpoint. See docs/adr/0015-deletion-impact-and-composing-services.md.
+  bool cascade = 2;
+}
+
+message BulkDeletePeopleResponse {}
+
 message ListPeopleRequest {
   int32 page_size = 1;
   string page_token = 2;
@@ -116,4 +129,7 @@ service PersonService {
   // Delete is called — see
   // docs/adr/0015-deletion-impact-and-composing-services.md.
   rpc GetPersonDeletionImpact(GetPersonDeletionImpactRequest) returns (GetPersonDeletionImpactResponse);
+  // BulkDeletePeople removes every Person in ids atomically — see
+  // docs/adr/0016-bulk-operations.md.
+  rpc BulkDeletePeople(BulkDeletePeopleRequest) returns (BulkDeletePeopleResponse);
 }

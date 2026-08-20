@@ -75,6 +75,11 @@ func (r *Repository) Delete(ctx context.Context, id string) error {
 	return r.inner.Delete(ctx, id)
 }
 
+// DeleteBatch implements ports.PersonRepository.
+func (r *Repository) DeleteBatch(ctx context.Context, ids []string) error {
+	return r.inner.DeleteBatch(ctx, ids)
+}
+
 // List implements ports.PersonRepository. An empty name is the fast,
 // unfiltered path (one indexed page scan). A non-empty name is a
 // case-insensitive substring match against Person.Name: since that can't

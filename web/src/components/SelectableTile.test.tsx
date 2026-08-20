@@ -53,4 +53,38 @@ describe('SelectableTile', () => {
 
     expect(screen.getByRole('button', { pressed: true })).toBeInTheDocument()
   })
+
+  it('onNavigate mode: navigates on a plain click but not on a click landing on a nested button (PersonCard-shaped)', () => {
+    const onNavigate = vi.fn()
+    render(
+      <SelectableTile
+        selectMode={false}
+        selected={false}
+        onToggle={vi.fn()}
+        onNavigate={onNavigate}
+        ariaLabel="View Stevie Nicks"
+      >
+        <span>Stevie Nicks</span>
+        <button type="button">View photo</button>
+      </SelectableTile>,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'View photo' }))
+    expect(onNavigate).not.toHaveBeenCalled()
+
+    fireEvent.click(screen.getByText('Stevie Nicks'))
+    expect(onNavigate).toHaveBeenCalledOnce()
+  })
+
+  it('onNavigate mode: select mode still swaps in the toggle button, not the click-target div', () => {
+    const onToggle = vi.fn()
+    render(
+      <SelectableTile selectMode selected={false} onToggle={onToggle} onNavigate={vi.fn()} ariaLabel="View Stevie Nicks">
+        <span>Stevie Nicks</span>
+      </SelectableTile>,
+    )
+
+    fireEvent.click(screen.getByText('Stevie Nicks'))
+    expect(onToggle).toHaveBeenCalledOnce()
+  })
 })

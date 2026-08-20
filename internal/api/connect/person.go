@@ -30,12 +30,12 @@ type personService interface {
 type PersonHandler struct {
 	domainv1connect.UnimplementedPersonServiceHandler
 	svc         personService
-	deletionSvc entityDeletionService
+	deletionSvc bulkDeletionService
 	logger      *slog.Logger
 }
 
 // NewPersonHandler constructs a PersonHandler backed by svc and deletionSvc.
-func NewPersonHandler(svc personService, deletionSvc entityDeletionService, logger *slog.Logger) *PersonHandler {
+func NewPersonHandler(svc personService, deletionSvc bulkDeletionService, logger *slog.Logger) *PersonHandler {
 	if logger == nil {
 		logger = slog.Default()
 	}
@@ -101,6 +101,14 @@ func (h *PersonHandler) GetPersonDeletionImpact(ctx context.Context, req *connec
 		return nil, mapError(ctx, h.logger, err)
 	}
 	return connect.NewResponse(&v1.GetPersonDeletionImpactResponse{Impacts: deletionImpactRowsToProto(impact.Impacts)}), nil
+}
+
+// BulkDeletePeople implements domainv1connect.PersonServiceHandler.
+func (h *PersonHandler) BulkDeletePeople(ctx context.Context, req *connect.Request[v1.BulkDeletePeopleRequest]) (*connect.Response[v1.BulkDeletePeopleResponse], error) {
+	if err := h.deletionSvc.DeleteBatch(ctx, req.Msg.GetIds(), req.Msg.GetCascade()); err != nil {
+		return nil, mapError(ctx, h.logger, err)
+	}
+	return connect.NewResponse(&v1.BulkDeletePeopleResponse{}), nil
 }
 
 // ListPeople implements domainv1connect.PersonServiceHandler.

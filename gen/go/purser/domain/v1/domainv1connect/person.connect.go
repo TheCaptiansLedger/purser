@@ -50,6 +50,9 @@ const (
 	// PersonServiceGetPersonDeletionImpactProcedure is the fully-qualified name of the PersonService's
 	// GetPersonDeletionImpact RPC.
 	PersonServiceGetPersonDeletionImpactProcedure = "/purser.domain.v1.PersonService/GetPersonDeletionImpact"
+	// PersonServiceBulkDeletePeopleProcedure is the fully-qualified name of the PersonService's
+	// BulkDeletePeople RPC.
+	PersonServiceBulkDeletePeopleProcedure = "/purser.domain.v1.PersonService/BulkDeletePeople"
 )
 
 // PersonServiceClient is a client for the purser.domain.v1.PersonService service.
@@ -63,6 +66,9 @@ type PersonServiceClient interface {
 	// Delete is called — see
 	// docs/adr/0015-deletion-impact-and-composing-services.md.
 	GetPersonDeletionImpact(context.Context, *connect.Request[v1.GetPersonDeletionImpactRequest]) (*connect.Response[v1.GetPersonDeletionImpactResponse], error)
+	// BulkDeletePeople removes every Person in ids atomically — see
+	// docs/adr/0016-bulk-operations.md.
+	BulkDeletePeople(context.Context, *connect.Request[v1.BulkDeletePeopleRequest]) (*connect.Response[v1.BulkDeletePeopleResponse], error)
 }
 
 // NewPersonServiceClient constructs a client for the purser.domain.v1.PersonService service. By
@@ -112,6 +118,12 @@ func NewPersonServiceClient(httpClient connect.HTTPClient, baseURL string, opts 
 			connect.WithSchema(personServiceMethods.ByName("GetPersonDeletionImpact")),
 			connect.WithClientOptions(opts...),
 		),
+		bulkDeletePeople: connect.NewClient[v1.BulkDeletePeopleRequest, v1.BulkDeletePeopleResponse](
+			httpClient,
+			baseURL+PersonServiceBulkDeletePeopleProcedure,
+			connect.WithSchema(personServiceMethods.ByName("BulkDeletePeople")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
@@ -123,6 +135,7 @@ type personServiceClient struct {
 	deletePerson            *connect.Client[v1.DeletePersonRequest, v1.DeletePersonResponse]
 	listPeople              *connect.Client[v1.ListPeopleRequest, v1.ListPeopleResponse]
 	getPersonDeletionImpact *connect.Client[v1.GetPersonDeletionImpactRequest, v1.GetPersonDeletionImpactResponse]
+	bulkDeletePeople        *connect.Client[v1.BulkDeletePeopleRequest, v1.BulkDeletePeopleResponse]
 }
 
 // CreatePerson calls purser.domain.v1.PersonService.CreatePerson.
@@ -155,6 +168,11 @@ func (c *personServiceClient) GetPersonDeletionImpact(ctx context.Context, req *
 	return c.getPersonDeletionImpact.CallUnary(ctx, req)
 }
 
+// BulkDeletePeople calls purser.domain.v1.PersonService.BulkDeletePeople.
+func (c *personServiceClient) BulkDeletePeople(ctx context.Context, req *connect.Request[v1.BulkDeletePeopleRequest]) (*connect.Response[v1.BulkDeletePeopleResponse], error) {
+	return c.bulkDeletePeople.CallUnary(ctx, req)
+}
+
 // PersonServiceHandler is an implementation of the purser.domain.v1.PersonService service.
 type PersonServiceHandler interface {
 	CreatePerson(context.Context, *connect.Request[v1.CreatePersonRequest]) (*connect.Response[v1.CreatePersonResponse], error)
@@ -166,6 +184,9 @@ type PersonServiceHandler interface {
 	// Delete is called — see
 	// docs/adr/0015-deletion-impact-and-composing-services.md.
 	GetPersonDeletionImpact(context.Context, *connect.Request[v1.GetPersonDeletionImpactRequest]) (*connect.Response[v1.GetPersonDeletionImpactResponse], error)
+	// BulkDeletePeople removes every Person in ids atomically — see
+	// docs/adr/0016-bulk-operations.md.
+	BulkDeletePeople(context.Context, *connect.Request[v1.BulkDeletePeopleRequest]) (*connect.Response[v1.BulkDeletePeopleResponse], error)
 }
 
 // NewPersonServiceHandler builds an HTTP handler from the service implementation. It returns the
@@ -211,6 +232,12 @@ func NewPersonServiceHandler(svc PersonServiceHandler, opts ...connect.HandlerOp
 		connect.WithSchema(personServiceMethods.ByName("GetPersonDeletionImpact")),
 		connect.WithHandlerOptions(opts...),
 	)
+	personServiceBulkDeletePeopleHandler := connect.NewUnaryHandler(
+		PersonServiceBulkDeletePeopleProcedure,
+		svc.BulkDeletePeople,
+		connect.WithSchema(personServiceMethods.ByName("BulkDeletePeople")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/purser.domain.v1.PersonService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case PersonServiceCreatePersonProcedure:
@@ -225,6 +252,8 @@ func NewPersonServiceHandler(svc PersonServiceHandler, opts ...connect.HandlerOp
 			personServiceListPeopleHandler.ServeHTTP(w, r)
 		case PersonServiceGetPersonDeletionImpactProcedure:
 			personServiceGetPersonDeletionImpactHandler.ServeHTTP(w, r)
+		case PersonServiceBulkDeletePeopleProcedure:
+			personServiceBulkDeletePeopleHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -256,4 +285,8 @@ func (UnimplementedPersonServiceHandler) ListPeople(context.Context, *connect.Re
 
 func (UnimplementedPersonServiceHandler) GetPersonDeletionImpact(context.Context, *connect.Request[v1.GetPersonDeletionImpactRequest]) (*connect.Response[v1.GetPersonDeletionImpactResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("purser.domain.v1.PersonService.GetPersonDeletionImpact is not implemented"))
+}
+
+func (UnimplementedPersonServiceHandler) BulkDeletePeople(context.Context, *connect.Request[v1.BulkDeletePeopleRequest]) (*connect.Response[v1.BulkDeletePeopleResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("purser.domain.v1.PersonService.BulkDeletePeople is not implemented"))
 }

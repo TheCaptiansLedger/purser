@@ -135,6 +135,43 @@ func (s *PersonDeletionService) Delete(ctx context.Context, id string, _ bool) e
 	return s.people.Delete(ctx, id)
 }
 
+// DeleteBatch removes every Person in ids, all-or-nothing — see
+// docs/adr/0016-bulk-operations.md. Every id must exist before any Person
+// row is mutated; the final row removal itself is one atomic
+// ports.PersonRepository.DeleteBatch call, not a loop of single-row
+// deletes. cascade is accepted for API-shape consistency but unused: like
+// Delete, Person never blocks a delete.
+func (s *PersonDeletionService) DeleteBatch(ctx context.Context, ids []string, _ bool) error {
+	for _, id := range ids {
+		if _, err := s.people.Get(ctx, id); err != nil {
+			return err
+		}
+	}
+
+	for _, id := range ids {
+		if err := s.unlinkEntryPeople(ctx, id); err != nil {
+			return err
+		}
+		if err := s.unlinkItemPeople(ctx, id); err != nil {
+			return err
+		}
+		if err := s.unlinkExternalIDs(ctx, id); err != nil {
+			return err
+		}
+		if err := s.unlinkImages(ctx, id); err != nil {
+			return err
+		}
+		if err := s.unlinkTagAssignments(ctx, id); err != nil {
+			return err
+		}
+		if err := s.unlinkPerformerProfile(ctx, id); err != nil {
+			return err
+		}
+	}
+
+	return s.people.DeleteBatch(ctx, ids)
+}
+
 func (s *PersonDeletionService) unlinkEntryPeople(ctx context.Context, personID string) error {
 	rows, err := s.drainEntryPeople(ctx, personID)
 	if err != nil {

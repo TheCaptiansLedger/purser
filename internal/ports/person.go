@@ -21,4 +21,10 @@ type PersonRepository interface {
 	Update(ctx context.Context, person *domain.Person) error
 	Delete(ctx context.Context, id string) error
 	List(ctx context.Context, name string, pageSize int, pageToken string) (people []*domain.Person, nextPageToken string, err error)
+
+	// DeleteBatch removes every Person whose ID is in ids, atomically — all
+	// succeed or none do. Person is one of the entities ADR 0016 names for a
+	// real bulk-delete UI use case (the People index page); most entities
+	// never need this.
+	DeleteBatch(ctx context.Context, ids []string) error
 }

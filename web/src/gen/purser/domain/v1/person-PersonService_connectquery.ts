@@ -37,3 +37,11 @@ export const listPeople = PersonService.method.listPeople;
  * @generated from rpc purser.domain.v1.PersonService.GetPersonDeletionImpact
  */
 export const getPersonDeletionImpact = PersonService.method.getPersonDeletionImpact;
+
+/**
+ * BulkDeletePeople removes every Person in ids atomically — see
+ * docs/adr/0016-bulk-operations.md.
+ *
+ * @generated from rpc purser.domain.v1.PersonService.BulkDeletePeople
+ */
+export const bulkDeletePeople = PersonService.method.bulkDeletePeople;

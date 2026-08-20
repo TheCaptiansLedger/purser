@@ -1,13 +1,14 @@
 import { useQuery } from '@connectrpc/connect-query'
-import { Camera, Images, Pencil, User } from 'lucide-react'
+import { Camera, Images, Pencil, Trash2, User } from 'lucide-react'
 import { useState } from 'react'
-import { useParams } from 'react-router-dom'
+import { useNavigate, useParams } from 'react-router-dom'
 import { timestampDate } from '@bufbuild/protobuf/wkt'
 import type { Timestamp } from '@bufbuild/protobuf/wkt'
 import { ChooseArtworkDialog } from '../components/ChooseArtworkDialog'
 import { ImageGallery } from '../components/ImageGallery'
 import { ImageLightbox } from '../components/ImageLightbox'
 import { PersonAppearances } from '../components/PersonAppearances'
+import { PersonDeleteDialog } from '../components/PersonDeleteDialog'
 import { PersonDialog } from '../components/PersonDialog'
 import { Toggle } from '../components/Toggle'
 import { MonitorMode } from '../gen/purser/domain/v1/common_pb'
@@ -30,8 +31,15 @@ function formatDate(timestamp: Timestamp | undefined): string | undefined {
 // provider lookup RPC for a Person photo, so no candidates are passed.
 // #662's PersonAppearances renders the "Appears as" cross-module list
 // below the facts panel.
+//
+// The trash-icon button next to Edit opens PersonDeleteDialog — the
+// generic DeletePerson RPC, gated by GetPersonDeletionImpact per ADR
+// 0015, same pattern TrackDeleteDialog set. Person never blocks a delete
+// (internal/service/person_deletion.go), so this is always a confirm,
+// never a hard stop; navigates back to the People index on success.
 export function PersonDetail() {
   const { id = '' } = useParams<{ id: string }>()
+  const navigate = useNavigate()
   const personQuery = usePerson(id)
   const updatePersonMutation = useUpdatePersonMutation()
   const selectedImageQuery = useQuery(
@@ -48,6 +56,7 @@ export function PersonDetail() {
   const [artworkDialogOpen, setArtworkDialogOpen] = useState(false)
   const [galleryOpen, setGalleryOpen] = useState(false)
   const [editDialogOpen, setEditDialogOpen] = useState(false)
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
 
   // Doherty threshold — see docs/design/ux-principles.md#feedback--system-status.
   // A local Connect round trip resolves well under 400ms; a loading
@@ -159,6 +168,15 @@ export function PersonDetail() {
             >
               <Pencil size={16} />
             </button>
+            <button
+              type="button"
+              onClick={() => setDeleteDialogOpen(true)}
+              aria-label="Delete person"
+              title="Delete person"
+              className="rounded-lg p-1.5 text-text-secondary hover:bg-surface-raised hover:text-status-failure"
+            >
+              <Trash2 size={16} />
+            </button>
           </div>
 
           <Toggle
@@ -217,6 +235,15 @@ export function PersonDetail() {
             setEditDialogOpen(false)
             void personQuery.refetch()
           }}
+        />
+      )}
+
+      {deleteDialogOpen && (
+        <PersonDeleteDialog
+          personId={id}
+          personName={person.name}
+          onClose={() => setDeleteDialogOpen(false)}
+          onDeleted={() => navigate('/people')}
         />
       )}
     </div>

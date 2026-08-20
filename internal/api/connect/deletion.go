@@ -17,10 +17,9 @@ type entityDeletionService interface {
 }
 
 // bulkDeletionService is entityDeletionService plus DeleteBatch — the
-// interface ItemHandler, TagHandler, GroupHandler, and LibraryEntryHandler
-// depend on, since those are the entities with a bulk-delete endpoint per
-// docs/adr/0016-bulk-operations.md. Person stays on the narrower
-// entityDeletionService.
+// interface ItemHandler, TagHandler, GroupHandler, LibraryEntryHandler, and
+// PersonHandler depend on, since those are the entities with a bulk-delete
+// endpoint per docs/adr/0016-bulk-operations.md.
 type bulkDeletionService interface {
 	entityDeletionService
 	DeleteBatch(ctx context.Context, ids []string, cascade bool) error

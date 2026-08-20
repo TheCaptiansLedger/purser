@@ -230,6 +230,48 @@ describe('PersonDetail — edit', () => {
   })
 })
 
+describe('PersonDetail — delete', () => {
+  it('opens PersonDeleteDialog from the trash button and navigates to the People index on success', async () => {
+    let deletedId: string | undefined
+    const mockTransport = createRouterTransport(router => {
+      router.service(PersonService, {
+        getPerson: () => ({ person: basePerson }),
+        getPersonDeletionImpact: () => ({ impacts: [] }),
+        deletePerson: req => {
+          deletedId = req.id
+          return {}
+        },
+      })
+      router.service(ImageService, { getSelectedImage: noSelectedImage() })
+      registerNoAppearances(router)
+    })
+
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    render(
+      <TransportProvider transport={mockTransport}>
+        <QueryClientProvider client={queryClient}>
+          <MemoryRouter initialEntries={['/people/person-1']}>
+            <Routes>
+              <Route path="/people/:id" element={<PersonDetail />} />
+              <Route path="/people" element={<div>People index page</div>} />
+            </Routes>
+          </MemoryRouter>
+        </QueryClientProvider>
+      </TransportProvider>,
+    )
+    await waitFor(() => expect(screen.getByText('Stevie Nicks')).toBeInTheDocument())
+
+    fireEvent.click(screen.getByRole('button', { name: 'Delete person' }))
+    expect(screen.getByRole('dialog', { name: 'Delete "Stevie Nicks"?' })).toBeInTheDocument()
+
+    await screen.findByText('Nothing else references this person.')
+    fireEvent.click(screen.getByRole('button', { name: 'Delete' }))
+
+    await waitFor(() => expect(screen.getByText('People index page')).toBeInTheDocument())
+    expect(deletedId).toBe('person-1')
+  })
+})
+
 describe('PersonDetail — manage photos', () => {
   it('opens the gallery, switches the current photo, and reflects the change on the page', async () => {
     let selectedImageId = 'image-old'

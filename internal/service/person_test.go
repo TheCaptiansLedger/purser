@@ -65,6 +65,18 @@ func (f *fakePersonRepository) Delete(_ context.Context, id string) error {
 	return nil
 }
 
+func (f *fakePersonRepository) DeleteBatch(_ context.Context, ids []string) error {
+	for _, id := range ids {
+		if _, ok := f.byID[id]; !ok {
+			return ports.ErrNotFound
+		}
+	}
+	for _, id := range ids {
+		delete(f.byID, id)
+	}
+	return nil
+}
+
 func (f *fakePersonRepository) List(_ context.Context, name string, _ int, _ string) ([]*domain.Person, string, error) {
 	f.gotName = name
 	people := make([]*domain.Person, 0, len(f.byID))

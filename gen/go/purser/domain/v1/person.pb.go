@@ -698,6 +698,100 @@ func (x *GetPersonDeletionImpactResponse) GetImpacts() []*DeletionImpactRow {
 	return nil
 }
 
+// BulkDeletePeople is one of the bulk-delete endpoints named by
+// docs/adr/0016-bulk-operations.md — needed by the People index page's
+// multi-select bulk-delete UI action, not a blanket bulk rollout.
+type BulkDeletePeopleRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	Ids   []string               `protobuf:"bytes,1,rep,name=ids,proto3" json:"ids,omitempty"`
+	// cascade has no effect for Person today, same as DeletePersonRequest.cascade
+	// — present for API-shape consistency with every other bulk-delete
+	// endpoint. See docs/adr/0015-deletion-impact-and-composing-services.md.
+	Cascade       bool `protobuf:"varint,2,opt,name=cascade,proto3" json:"cascade,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *BulkDeletePeopleRequest) Reset() {
+	*x = BulkDeletePeopleRequest{}
+	mi := &file_purser_domain_v1_person_proto_msgTypes[11]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *BulkDeletePeopleRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*BulkDeletePeopleRequest) ProtoMessage() {}
+
+func (x *BulkDeletePeopleRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_purser_domain_v1_person_proto_msgTypes[11]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use BulkDeletePeopleRequest.ProtoReflect.Descriptor instead.
+func (*BulkDeletePeopleRequest) Descriptor() ([]byte, []int) {
+	return file_purser_domain_v1_person_proto_rawDescGZIP(), []int{11}
+}
+
+func (x *BulkDeletePeopleRequest) GetIds() []string {
+	if x != nil {
+		return x.Ids
+	}
+	return nil
+}
+
+func (x *BulkDeletePeopleRequest) GetCascade() bool {
+	if x != nil {
+		return x.Cascade
+	}
+	return false
+}
+
+type BulkDeletePeopleResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *BulkDeletePeopleResponse) Reset() {
+	*x = BulkDeletePeopleResponse{}
+	mi := &file_purser_domain_v1_person_proto_msgTypes[12]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *BulkDeletePeopleResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*BulkDeletePeopleResponse) ProtoMessage() {}
+
+func (x *BulkDeletePeopleResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_purser_domain_v1_person_proto_msgTypes[12]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use BulkDeletePeopleResponse.ProtoReflect.Descriptor instead.
+func (*BulkDeletePeopleResponse) Descriptor() ([]byte, []int) {
+	return file_purser_domain_v1_person_proto_rawDescGZIP(), []int{12}
+}
+
 type ListPeopleRequest struct {
 	state     protoimpl.MessageState `protogen:"open.v1"`
 	PageSize  int32                  `protobuf:"varint,1,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
@@ -711,7 +805,7 @@ type ListPeopleRequest struct {
 
 func (x *ListPeopleRequest) Reset() {
 	*x = ListPeopleRequest{}
-	mi := &file_purser_domain_v1_person_proto_msgTypes[11]
+	mi := &file_purser_domain_v1_person_proto_msgTypes[13]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -723,7 +817,7 @@ func (x *ListPeopleRequest) String() string {
 func (*ListPeopleRequest) ProtoMessage() {}
 
 func (x *ListPeopleRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_purser_domain_v1_person_proto_msgTypes[11]
+	mi := &file_purser_domain_v1_person_proto_msgTypes[13]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -736,7 +830,7 @@ func (x *ListPeopleRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListPeopleRequest.ProtoReflect.Descriptor instead.
 func (*ListPeopleRequest) Descriptor() ([]byte, []int) {
-	return file_purser_domain_v1_person_proto_rawDescGZIP(), []int{11}
+	return file_purser_domain_v1_person_proto_rawDescGZIP(), []int{13}
 }
 
 func (x *ListPeopleRequest) GetPageSize() int32 {
@@ -770,7 +864,7 @@ type ListPeopleResponse struct {
 
 func (x *ListPeopleResponse) Reset() {
 	*x = ListPeopleResponse{}
-	mi := &file_purser_domain_v1_person_proto_msgTypes[12]
+	mi := &file_purser_domain_v1_person_proto_msgTypes[14]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -782,7 +876,7 @@ func (x *ListPeopleResponse) String() string {
 func (*ListPeopleResponse) ProtoMessage() {}
 
 func (x *ListPeopleResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_purser_domain_v1_person_proto_msgTypes[12]
+	mi := &file_purser_domain_v1_person_proto_msgTypes[14]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -795,7 +889,7 @@ func (x *ListPeopleResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListPeopleResponse.ProtoReflect.Descriptor instead.
 func (*ListPeopleResponse) Descriptor() ([]byte, []int) {
-	return file_purser_domain_v1_person_proto_rawDescGZIP(), []int{12}
+	return file_purser_domain_v1_person_proto_rawDescGZIP(), []int{14}
 }
 
 func (x *ListPeopleResponse) GetPeople() []*Person {
@@ -857,7 +951,11 @@ const file_purser_domain_v1_person_proto_rawDesc = "" +
 	"\x1eGetPersonDeletionImpactRequest\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\"`\n" +
 	"\x1fGetPersonDeletionImpactResponse\x12=\n" +
-	"\aimpacts\x18\x01 \x03(\v2#.purser.domain.v1.DeletionImpactRowR\aimpacts\"c\n" +
+	"\aimpacts\x18\x01 \x03(\v2#.purser.domain.v1.DeletionImpactRowR\aimpacts\"E\n" +
+	"\x17BulkDeletePeopleRequest\x12\x10\n" +
+	"\x03ids\x18\x01 \x03(\tR\x03ids\x12\x18\n" +
+	"\acascade\x18\x02 \x01(\bR\acascade\"\x1a\n" +
+	"\x18BulkDeletePeopleResponse\"c\n" +
 	"\x11ListPeopleRequest\x12\x1b\n" +
 	"\tpage_size\x18\x01 \x01(\x05R\bpageSize\x12\x1d\n" +
 	"\n" +
@@ -874,7 +972,7 @@ const file_purser_domain_v1_person_proto_rawDesc = "" +
 	"\x19GENDER_TRANSGENDER_FEMALE\x10\x04\x12\x13\n" +
 	"\x0fGENDER_INTERSEX\x10\x05\x12\x15\n" +
 	"\x11GENDER_NON_BINARY\x10\x06\x12\x12\n" +
-	"\x0eGENDER_UNKNOWN\x10\a2\xdb\x04\n" +
+	"\x0eGENDER_UNKNOWN\x10\a2\xc6\x05\n" +
 	"\rPersonService\x12]\n" +
 	"\fCreatePerson\x12%.purser.domain.v1.CreatePersonRequest\x1a&.purser.domain.v1.CreatePersonResponse\x12T\n" +
 	"\tGetPerson\x12\".purser.domain.v1.GetPersonRequest\x1a#.purser.domain.v1.GetPersonResponse\x12]\n" +
@@ -882,7 +980,8 @@ const file_purser_domain_v1_person_proto_rawDesc = "" +
 	"\fDeletePerson\x12%.purser.domain.v1.DeletePersonRequest\x1a&.purser.domain.v1.DeletePersonResponse\x12W\n" +
 	"\n" +
 	"ListPeople\x12#.purser.domain.v1.ListPeopleRequest\x1a$.purser.domain.v1.ListPeopleResponse\x12~\n" +
-	"\x17GetPersonDeletionImpact\x120.purser.domain.v1.GetPersonDeletionImpactRequest\x1a1.purser.domain.v1.GetPersonDeletionImpactResponseB)Z'purser/gen/go/purser/domain/v1;domainv1b\x06proto3"
+	"\x17GetPersonDeletionImpact\x120.purser.domain.v1.GetPersonDeletionImpactRequest\x1a1.purser.domain.v1.GetPersonDeletionImpactResponse\x12i\n" +
+	"\x10BulkDeletePeople\x12).purser.domain.v1.BulkDeletePeopleRequest\x1a*.purser.domain.v1.BulkDeletePeopleResponseB)Z'purser/gen/go/purser/domain/v1;domainv1b\x06proto3"
 
 var (
 	file_purser_domain_v1_person_proto_rawDescOnce sync.Once
@@ -897,7 +996,7 @@ func file_purser_domain_v1_person_proto_rawDescGZIP() []byte {
 }
 
 var file_purser_domain_v1_person_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_purser_domain_v1_person_proto_msgTypes = make([]protoimpl.MessageInfo, 13)
+var file_purser_domain_v1_person_proto_msgTypes = make([]protoimpl.MessageInfo, 15)
 var file_purser_domain_v1_person_proto_goTypes = []any{
 	(Gender)(0),                             // 0: purser.domain.v1.Gender
 	(*Person)(nil),                          // 1: purser.domain.v1.Person
@@ -911,42 +1010,46 @@ var file_purser_domain_v1_person_proto_goTypes = []any{
 	(*DeletePersonResponse)(nil),            // 9: purser.domain.v1.DeletePersonResponse
 	(*GetPersonDeletionImpactRequest)(nil),  // 10: purser.domain.v1.GetPersonDeletionImpactRequest
 	(*GetPersonDeletionImpactResponse)(nil), // 11: purser.domain.v1.GetPersonDeletionImpactResponse
-	(*ListPeopleRequest)(nil),               // 12: purser.domain.v1.ListPeopleRequest
-	(*ListPeopleResponse)(nil),              // 13: purser.domain.v1.ListPeopleResponse
-	(*timestamppb.Timestamp)(nil),           // 14: google.protobuf.Timestamp
-	(MonitorMode)(0),                        // 15: purser.domain.v1.MonitorMode
-	(*fieldmaskpb.FieldMask)(nil),           // 16: google.protobuf.FieldMask
-	(*DeletionImpactRow)(nil),               // 17: purser.domain.v1.DeletionImpactRow
+	(*BulkDeletePeopleRequest)(nil),         // 12: purser.domain.v1.BulkDeletePeopleRequest
+	(*BulkDeletePeopleResponse)(nil),        // 13: purser.domain.v1.BulkDeletePeopleResponse
+	(*ListPeopleRequest)(nil),               // 14: purser.domain.v1.ListPeopleRequest
+	(*ListPeopleResponse)(nil),              // 15: purser.domain.v1.ListPeopleResponse
+	(*timestamppb.Timestamp)(nil),           // 16: google.protobuf.Timestamp
+	(MonitorMode)(0),                        // 17: purser.domain.v1.MonitorMode
+	(*fieldmaskpb.FieldMask)(nil),           // 18: google.protobuf.FieldMask
+	(*DeletionImpactRow)(nil),               // 19: purser.domain.v1.DeletionImpactRow
 }
 var file_purser_domain_v1_person_proto_depIdxs = []int32{
 	0,  // 0: purser.domain.v1.Person.gender:type_name -> purser.domain.v1.Gender
-	14, // 1: purser.domain.v1.Person.birth_date:type_name -> google.protobuf.Timestamp
-	14, // 2: purser.domain.v1.Person.death_date:type_name -> google.protobuf.Timestamp
-	15, // 3: purser.domain.v1.Person.monitor_mode:type_name -> purser.domain.v1.MonitorMode
-	14, // 4: purser.domain.v1.Person.added_at:type_name -> google.protobuf.Timestamp
-	14, // 5: purser.domain.v1.Person.updated_at:type_name -> google.protobuf.Timestamp
+	16, // 1: purser.domain.v1.Person.birth_date:type_name -> google.protobuf.Timestamp
+	16, // 2: purser.domain.v1.Person.death_date:type_name -> google.protobuf.Timestamp
+	17, // 3: purser.domain.v1.Person.monitor_mode:type_name -> purser.domain.v1.MonitorMode
+	16, // 4: purser.domain.v1.Person.added_at:type_name -> google.protobuf.Timestamp
+	16, // 5: purser.domain.v1.Person.updated_at:type_name -> google.protobuf.Timestamp
 	1,  // 6: purser.domain.v1.CreatePersonRequest.person:type_name -> purser.domain.v1.Person
 	1,  // 7: purser.domain.v1.CreatePersonResponse.person:type_name -> purser.domain.v1.Person
 	1,  // 8: purser.domain.v1.GetPersonResponse.person:type_name -> purser.domain.v1.Person
 	1,  // 9: purser.domain.v1.UpdatePersonRequest.person:type_name -> purser.domain.v1.Person
-	16, // 10: purser.domain.v1.UpdatePersonRequest.update_mask:type_name -> google.protobuf.FieldMask
+	18, // 10: purser.domain.v1.UpdatePersonRequest.update_mask:type_name -> google.protobuf.FieldMask
 	1,  // 11: purser.domain.v1.UpdatePersonResponse.person:type_name -> purser.domain.v1.Person
-	17, // 12: purser.domain.v1.GetPersonDeletionImpactResponse.impacts:type_name -> purser.domain.v1.DeletionImpactRow
+	19, // 12: purser.domain.v1.GetPersonDeletionImpactResponse.impacts:type_name -> purser.domain.v1.DeletionImpactRow
 	1,  // 13: purser.domain.v1.ListPeopleResponse.people:type_name -> purser.domain.v1.Person
 	2,  // 14: purser.domain.v1.PersonService.CreatePerson:input_type -> purser.domain.v1.CreatePersonRequest
 	4,  // 15: purser.domain.v1.PersonService.GetPerson:input_type -> purser.domain.v1.GetPersonRequest
 	6,  // 16: purser.domain.v1.PersonService.UpdatePerson:input_type -> purser.domain.v1.UpdatePersonRequest
 	8,  // 17: purser.domain.v1.PersonService.DeletePerson:input_type -> purser.domain.v1.DeletePersonRequest
-	12, // 18: purser.domain.v1.PersonService.ListPeople:input_type -> purser.domain.v1.ListPeopleRequest
+	14, // 18: purser.domain.v1.PersonService.ListPeople:input_type -> purser.domain.v1.ListPeopleRequest
 	10, // 19: purser.domain.v1.PersonService.GetPersonDeletionImpact:input_type -> purser.domain.v1.GetPersonDeletionImpactRequest
-	3,  // 20: purser.domain.v1.PersonService.CreatePerson:output_type -> purser.domain.v1.CreatePersonResponse
-	5,  // 21: purser.domain.v1.PersonService.GetPerson:output_type -> purser.domain.v1.GetPersonResponse
-	7,  // 22: purser.domain.v1.PersonService.UpdatePerson:output_type -> purser.domain.v1.UpdatePersonResponse
-	9,  // 23: purser.domain.v1.PersonService.DeletePerson:output_type -> purser.domain.v1.DeletePersonResponse
-	13, // 24: purser.domain.v1.PersonService.ListPeople:output_type -> purser.domain.v1.ListPeopleResponse
-	11, // 25: purser.domain.v1.PersonService.GetPersonDeletionImpact:output_type -> purser.domain.v1.GetPersonDeletionImpactResponse
-	20, // [20:26] is the sub-list for method output_type
-	14, // [14:20] is the sub-list for method input_type
+	12, // 20: purser.domain.v1.PersonService.BulkDeletePeople:input_type -> purser.domain.v1.BulkDeletePeopleRequest
+	3,  // 21: purser.domain.v1.PersonService.CreatePerson:output_type -> purser.domain.v1.CreatePersonResponse
+	5,  // 22: purser.domain.v1.PersonService.GetPerson:output_type -> purser.domain.v1.GetPersonResponse
+	7,  // 23: purser.domain.v1.PersonService.UpdatePerson:output_type -> purser.domain.v1.UpdatePersonResponse
+	9,  // 24: purser.domain.v1.PersonService.DeletePerson:output_type -> purser.domain.v1.DeletePersonResponse
+	15, // 25: purser.domain.v1.PersonService.ListPeople:output_type -> purser.domain.v1.ListPeopleResponse
+	11, // 26: purser.domain.v1.PersonService.GetPersonDeletionImpact:output_type -> purser.domain.v1.GetPersonDeletionImpactResponse
+	13, // 27: purser.domain.v1.PersonService.BulkDeletePeople:output_type -> purser.domain.v1.BulkDeletePeopleResponse
+	21, // [21:28] is the sub-list for method output_type
+	14, // [14:21] is the sub-list for method input_type
 	14, // [14:14] is the sub-list for extension type_name
 	14, // [14:14] is the sub-list for extension extendee
 	0,  // [0:14] is the sub-list for field type_name
@@ -964,7 +1067,7 @@ func file_purser_domain_v1_person_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_purser_domain_v1_person_proto_rawDesc), len(file_purser_domain_v1_person_proto_rawDesc)),
 			NumEnums:      1,
-			NumMessages:   13,
+			NumMessages:   15,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

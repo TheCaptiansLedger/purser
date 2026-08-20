@@ -14,7 +14,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file purser/domain/v1/person.proto.
  */
 export const file_purser_domain_v1_person: GenFile = /*@__PURE__*/
-  fileDesc("Ch1wdXJzZXIvZG9tYWluL3YxL3BlcnNvbi5wcm90bxIQcHVyc2VyLmRvbWFpbi52MSKvAwoGUGVyc29uEgoKAmlkGAEgASgJEgwKBG5hbWUYAiABKAkSEQoJc29ydF9uYW1lGAMgASgJEg8KB2FsaWFzZXMYBCADKAkSKAoGZ2VuZGVyGAUgASgOMhgucHVyc2VyLmRvbWFpbi52MS5HZW5kZXISEAoIcHJvbm91bnMYBiABKAkSLgoKYmlydGhfZGF0ZRgHIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASLgoKZGVhdGhfZGF0ZRgIIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASEwoLbmF0aW9uYWxpdHkYCSABKAkSEAoIb3ZlcnZpZXcYCiABKAkSEQoJbW9uaXRvcmVkGAsgASgIEjMKDG1vbml0b3JfbW9kZRgMIAEoDjIdLnB1cnNlci5kb21haW4udjEuTW9uaXRvck1vZGUSLAoIYWRkZWRfYXQYDSABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEi4KCnVwZGF0ZWRfYXQYDiABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wIj8KE0NyZWF0ZVBlcnNvblJlcXVlc3QSKAoGcGVyc29uGAEgASgLMhgucHVyc2VyLmRvbWFpbi52MS5QZXJzb24iQAoUQ3JlYXRlUGVyc29uUmVzcG9uc2USKAoGcGVyc29uGAEgASgLMhgucHVyc2VyLmRvbWFpbi52MS5QZXJzb24iHgoQR2V0UGVyc29uUmVxdWVzdBIKCgJpZBgBIAEoCSI9ChFHZXRQZXJzb25SZXNwb25zZRIoCgZwZXJzb24YASABKAsyGC5wdXJzZXIuZG9tYWluLnYxLlBlcnNvbiJwChNVcGRhdGVQZXJzb25SZXF1ZXN0EigKBnBlcnNvbhgBIAEoCzIYLnB1cnNlci5kb21haW4udjEuUGVyc29uEi8KC3VwZGF0ZV9tYXNrGAIgASgLMhouZ29vZ2xlLnByb3RvYnVmLkZpZWxkTWFzayJAChRVcGRhdGVQZXJzb25SZXNwb25zZRIoCgZwZXJzb24YASABKAsyGC5wdXJzZXIuZG9tYWluLnYxLlBlcnNvbiIyChNEZWxldGVQZXJzb25SZXF1ZXN0EgoKAmlkGAEgASgJEg8KB2Nhc2NhZGUYAiABKAgiFgoURGVsZXRlUGVyc29uUmVzcG9uc2UiLAoeR2V0UGVyc29uRGVsZXRpb25JbXBhY3RSZXF1ZXN0EgoKAmlkGAEgASgJIlcKH0dldFBlcnNvbkRlbGV0aW9uSW1wYWN0UmVzcG9uc2USNAoHaW1wYWN0cxgBIAMoCzIjLnB1cnNlci5kb21haW4udjEuRGVsZXRpb25JbXBhY3RSb3ciSAoRTGlzdFBlb3BsZVJlcXVlc3QSEQoJcGFnZV9zaXplGAEgASgFEhIKCnBhZ2VfdG9rZW4YAiABKAkSDAoEbmFtZRgDIAEoCSJXChJMaXN0UGVvcGxlUmVzcG9uc2USKAoGcGVvcGxlGAEgAygLMhgucHVyc2VyLmRvbWFpbi52MS5QZXJzb24SFwoPbmV4dF9wYWdlX3Rva2VuGAIgASgJKsABCgZHZW5kZXISFgoSR0VOREVSX1VOU1BFQ0lGSUVEEAASDwoLR0VOREVSX01BTEUQARIRCg1HRU5ERVJfRkVNQUxFEAISGwoXR0VOREVSX1RSQU5TR0VOREVSX01BTEUQAxIdChlHRU5ERVJfVFJBTlNHRU5ERVJfRkVNQUxFEAQSEwoPR0VOREVSX0lOVEVSU0VYEAUSFQoRR0VOREVSX05PTl9CSU5BUlkQBhISCg5HRU5ERVJfVU5LTk9XThAHMtsECg1QZXJzb25TZXJ2aWNlEl0KDENyZWF0ZVBlcnNvbhIlLnB1cnNlci5kb21haW4udjEuQ3JlYXRlUGVyc29uUmVxdWVzdBomLnB1cnNlci5kb21haW4udjEuQ3JlYXRlUGVyc29uUmVzcG9uc2USVAoJR2V0UGVyc29uEiIucHVyc2VyLmRvbWFpbi52MS5HZXRQZXJzb25SZXF1ZXN0GiMucHVyc2VyLmRvbWFpbi52MS5HZXRQZXJzb25SZXNwb25zZRJdCgxVcGRhdGVQZXJzb24SJS5wdXJzZXIuZG9tYWluLnYxLlVwZGF0ZVBlcnNvblJlcXVlc3QaJi5wdXJzZXIuZG9tYWluLnYxLlVwZGF0ZVBlcnNvblJlc3BvbnNlEl0KDERlbGV0ZVBlcnNvbhIlLnB1cnNlci5kb21haW4udjEuRGVsZXRlUGVyc29uUmVxdWVzdBomLnB1cnNlci5kb21haW4udjEuRGVsZXRlUGVyc29uUmVzcG9uc2USVwoKTGlzdFBlb3BsZRIjLnB1cnNlci5kb21haW4udjEuTGlzdFBlb3BsZVJlcXVlc3QaJC5wdXJzZXIuZG9tYWluLnYxLkxpc3RQZW9wbGVSZXNwb25zZRJ+ChdHZXRQZXJzb25EZWxldGlvbkltcGFjdBIwLnB1cnNlci5kb21haW4udjEuR2V0UGVyc29uRGVsZXRpb25JbXBhY3RSZXF1ZXN0GjEucHVyc2VyLmRvbWFpbi52MS5HZXRQZXJzb25EZWxldGlvbkltcGFjdFJlc3BvbnNlQilaJ3B1cnNlci9nZW4vZ28vcHVyc2VyL2RvbWFpbi92MTtkb21haW52MWIGcHJvdG8z", [file_google_protobuf_field_mask, file_google_protobuf_timestamp, file_purser_domain_v1_common]);
+  fileDesc("Ch1wdXJzZXIvZG9tYWluL3YxL3BlcnNvbi5wcm90bxIQcHVyc2VyLmRvbWFpbi52MSKvAwoGUGVyc29uEgoKAmlkGAEgASgJEgwKBG5hbWUYAiABKAkSEQoJc29ydF9uYW1lGAMgASgJEg8KB2FsaWFzZXMYBCADKAkSKAoGZ2VuZGVyGAUgASgOMhgucHVyc2VyLmRvbWFpbi52MS5HZW5kZXISEAoIcHJvbm91bnMYBiABKAkSLgoKYmlydGhfZGF0ZRgHIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASLgoKZGVhdGhfZGF0ZRgIIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASEwoLbmF0aW9uYWxpdHkYCSABKAkSEAoIb3ZlcnZpZXcYCiABKAkSEQoJbW9uaXRvcmVkGAsgASgIEjMKDG1vbml0b3JfbW9kZRgMIAEoDjIdLnB1cnNlci5kb21haW4udjEuTW9uaXRvck1vZGUSLAoIYWRkZWRfYXQYDSABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEi4KCnVwZGF0ZWRfYXQYDiABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wIj8KE0NyZWF0ZVBlcnNvblJlcXVlc3QSKAoGcGVyc29uGAEgASgLMhgucHVyc2VyLmRvbWFpbi52MS5QZXJzb24iQAoUQ3JlYXRlUGVyc29uUmVzcG9uc2USKAoGcGVyc29uGAEgASgLMhgucHVyc2VyLmRvbWFpbi52MS5QZXJzb24iHgoQR2V0UGVyc29uUmVxdWVzdBIKCgJpZBgBIAEoCSI9ChFHZXRQZXJzb25SZXNwb25zZRIoCgZwZXJzb24YASABKAsyGC5wdXJzZXIuZG9tYWluLnYxLlBlcnNvbiJwChNVcGRhdGVQZXJzb25SZXF1ZXN0EigKBnBlcnNvbhgBIAEoCzIYLnB1cnNlci5kb21haW4udjEuUGVyc29uEi8KC3VwZGF0ZV9tYXNrGAIgASgLMhouZ29vZ2xlLnByb3RvYnVmLkZpZWxkTWFzayJAChRVcGRhdGVQZXJzb25SZXNwb25zZRIoCgZwZXJzb24YASABKAsyGC5wdXJzZXIuZG9tYWluLnYxLlBlcnNvbiIyChNEZWxldGVQZXJzb25SZXF1ZXN0EgoKAmlkGAEgASgJEg8KB2Nhc2NhZGUYAiABKAgiFgoURGVsZXRlUGVyc29uUmVzcG9uc2UiLAoeR2V0UGVyc29uRGVsZXRpb25JbXBhY3RSZXF1ZXN0EgoKAmlkGAEgASgJIlcKH0dldFBlcnNvbkRlbGV0aW9uSW1wYWN0UmVzcG9uc2USNAoHaW1wYWN0cxgBIAMoCzIjLnB1cnNlci5kb21haW4udjEuRGVsZXRpb25JbXBhY3RSb3ciNwoXQnVsa0RlbGV0ZVBlb3BsZVJlcXVlc3QSCwoDaWRzGAEgAygJEg8KB2Nhc2NhZGUYAiABKAgiGgoYQnVsa0RlbGV0ZVBlb3BsZVJlc3BvbnNlIkgKEUxpc3RQZW9wbGVSZXF1ZXN0EhEKCXBhZ2Vfc2l6ZRgBIAEoBRISCgpwYWdlX3Rva2VuGAIgASgJEgwKBG5hbWUYAyABKAkiVwoSTGlzdFBlb3BsZVJlc3BvbnNlEigKBnBlb3BsZRgBIAMoCzIYLnB1cnNlci5kb21haW4udjEuUGVyc29uEhcKD25leHRfcGFnZV90b2tlbhgCIAEoCSrAAQoGR2VuZGVyEhYKEkdFTkRFUl9VTlNQRUNJRklFRBAAEg8KC0dFTkRFUl9NQUxFEAESEQoNR0VOREVSX0ZFTUFMRRACEhsKF0dFTkRFUl9UUkFOU0dFTkRFUl9NQUxFEAMSHQoZR0VOREVSX1RSQU5TR0VOREVSX0ZFTUFMRRAEEhMKD0dFTkRFUl9JTlRFUlNFWBAFEhUKEUdFTkRFUl9OT05fQklOQVJZEAYSEgoOR0VOREVSX1VOS05PV04QBzLGBQoNUGVyc29uU2VydmljZRJdCgxDcmVhdGVQZXJzb24SJS5wdXJzZXIuZG9tYWluLnYxLkNyZWF0ZVBlcnNvblJlcXVlc3QaJi5wdXJzZXIuZG9tYWluLnYxLkNyZWF0ZVBlcnNvblJlc3BvbnNlElQKCUdldFBlcnNvbhIiLnB1cnNlci5kb21haW4udjEuR2V0UGVyc29uUmVxdWVzdBojLnB1cnNlci5kb21haW4udjEuR2V0UGVyc29uUmVzcG9uc2USXQoMVXBkYXRlUGVyc29uEiUucHVyc2VyLmRvbWFpbi52MS5VcGRhdGVQZXJzb25SZXF1ZXN0GiYucHVyc2VyLmRvbWFpbi52MS5VcGRhdGVQZXJzb25SZXNwb25zZRJdCgxEZWxldGVQZXJzb24SJS5wdXJzZXIuZG9tYWluLnYxLkRlbGV0ZVBlcnNvblJlcXVlc3QaJi5wdXJzZXIuZG9tYWluLnYxLkRlbGV0ZVBlcnNvblJlc3BvbnNlElcKCkxpc3RQZW9wbGUSIy5wdXJzZXIuZG9tYWluLnYxLkxpc3RQZW9wbGVSZXF1ZXN0GiQucHVyc2VyLmRvbWFpbi52MS5MaXN0UGVvcGxlUmVzcG9uc2USfgoXR2V0UGVyc29uRGVsZXRpb25JbXBhY3QSMC5wdXJzZXIuZG9tYWluLnYxLkdldFBlcnNvbkRlbGV0aW9uSW1wYWN0UmVxdWVzdBoxLnB1cnNlci5kb21haW4udjEuR2V0UGVyc29uRGVsZXRpb25JbXBhY3RSZXNwb25zZRJpChBCdWxrRGVsZXRlUGVvcGxlEikucHVyc2VyLmRvbWFpbi52MS5CdWxrRGVsZXRlUGVvcGxlUmVxdWVzdBoqLnB1cnNlci5kb21haW4udjEuQnVsa0RlbGV0ZVBlb3BsZVJlc3BvbnNlQilaJ3B1cnNlci9nZW4vZ28vcHVyc2VyL2RvbWFpbi92MTtkb21haW52MWIGcHJvdG8z", [file_google_protobuf_field_mask, file_google_protobuf_timestamp, file_purser_domain_v1_common]);
 
 /**
  * Person is the wire shape of internal/domain.Person. Field-for-field
@@ -290,6 +290,49 @@ export const GetPersonDeletionImpactResponseSchema: GenMessage<GetPersonDeletion
   messageDesc(file_purser_domain_v1_person, 10);
 
 /**
+ * BulkDeletePeople is one of the bulk-delete endpoints named by
+ * docs/adr/0016-bulk-operations.md — needed by the People index page's
+ * multi-select bulk-delete UI action, not a blanket bulk rollout.
+ *
+ * @generated from message purser.domain.v1.BulkDeletePeopleRequest
+ */
+export type BulkDeletePeopleRequest = Message<"purser.domain.v1.BulkDeletePeopleRequest"> & {
+  /**
+   * @generated from field: repeated string ids = 1;
+   */
+  ids: string[];
+
+  /**
+   * cascade has no effect for Person today, same as DeletePersonRequest.cascade
+   * — present for API-shape consistency with every other bulk-delete
+   * endpoint. See docs/adr/0015-deletion-impact-and-composing-services.md.
+   *
+   * @generated from field: bool cascade = 2;
+   */
+  cascade: boolean;
+};
+
+/**
+ * Describes the message purser.domain.v1.BulkDeletePeopleRequest.
+ * Use `create(BulkDeletePeopleRequestSchema)` to create a new message.
+ */
+export const BulkDeletePeopleRequestSchema: GenMessage<BulkDeletePeopleRequest> = /*@__PURE__*/
+  messageDesc(file_purser_domain_v1_person, 11);
+
+/**
+ * @generated from message purser.domain.v1.BulkDeletePeopleResponse
+ */
+export type BulkDeletePeopleResponse = Message<"purser.domain.v1.BulkDeletePeopleResponse"> & {
+};
+
+/**
+ * Describes the message purser.domain.v1.BulkDeletePeopleResponse.
+ * Use `create(BulkDeletePeopleResponseSchema)` to create a new message.
+ */
+export const BulkDeletePeopleResponseSchema: GenMessage<BulkDeletePeopleResponse> = /*@__PURE__*/
+  messageDesc(file_purser_domain_v1_person, 12);
+
+/**
  * @generated from message purser.domain.v1.ListPeopleRequest
  */
 export type ListPeopleRequest = Message<"purser.domain.v1.ListPeopleRequest"> & {
@@ -317,7 +360,7 @@ export type ListPeopleRequest = Message<"purser.domain.v1.ListPeopleRequest"> & 
  * Use `create(ListPeopleRequestSchema)` to create a new message.
  */
 export const ListPeopleRequestSchema: GenMessage<ListPeopleRequest> = /*@__PURE__*/
-  messageDesc(file_purser_domain_v1_person, 11);
+  messageDesc(file_purser_domain_v1_person, 13);
 
 /**
  * @generated from message purser.domain.v1.ListPeopleResponse
@@ -339,7 +382,7 @@ export type ListPeopleResponse = Message<"purser.domain.v1.ListPeopleResponse"> 
  * Use `create(ListPeopleResponseSchema)` to create a new message.
  */
 export const ListPeopleResponseSchema: GenMessage<ListPeopleResponse> = /*@__PURE__*/
-  messageDesc(file_purser_domain_v1_person, 12);
+  messageDesc(file_purser_domain_v1_person, 14);
 
 /**
  * Gender mirrors internal/domain.Gender exactly. GENDER_UNSPECIFIED means
@@ -455,6 +498,17 @@ export const PersonService: GenService<{
     methodKind: "unary";
     input: typeof GetPersonDeletionImpactRequestSchema;
     output: typeof GetPersonDeletionImpactResponseSchema;
+  },
+  /**
+   * BulkDeletePeople removes every Person in ids atomically — see
+   * docs/adr/0016-bulk-operations.md.
+   *
+   * @generated from rpc purser.domain.v1.PersonService.BulkDeletePeople
+   */
+  bulkDeletePeople: {
+    methodKind: "unary";
+    input: typeof BulkDeletePeopleRequestSchema;
+    output: typeof BulkDeletePeopleResponseSchema;
   },
 }> = /*@__PURE__*/
   serviceDesc(file_purser_domain_v1_person, 0);

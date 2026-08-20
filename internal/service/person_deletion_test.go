@@ -11,8 +11,9 @@ import (
 )
 
 type deletionFakePersonRepository struct {
-	byID      map[string]*domain.Person
-	deleteErr error
+	byID           map[string]*domain.Person
+	deleteErr      error
+	deleteBatchErr error
 }
 
 func (f *deletionFakePersonRepository) Create(_ context.Context, p *domain.Person) error {
@@ -46,6 +47,21 @@ func (f *deletionFakePersonRepository) Delete(_ context.Context, id string) erro
 
 func (f *deletionFakePersonRepository) List(context.Context, string, int, string) ([]*domain.Person, string, error) {
 	return nil, "", nil
+}
+
+func (f *deletionFakePersonRepository) DeleteBatch(_ context.Context, ids []string) error {
+	if f.deleteBatchErr != nil {
+		return f.deleteBatchErr
+	}
+	for _, id := range ids {
+		if _, ok := f.byID[id]; !ok {
+			return ports.ErrNotFound
+		}
+	}
+	for _, id := range ids {
+		delete(f.byID, id)
+	}
+	return nil
 }
 
 type deletionFakeEntryPersonRepository struct {
@@ -340,6 +356,95 @@ func TestPersonDeletionService_Delete_PropagatesPortErrors(t *testing.T) {
 		people.deleteErr = errBoom
 		if err := svc.Delete(context.Background(), "p1", false); !errors.Is(err, errBoom) {
 			t.Fatalf("Delete returned %v, want errBoom", err)
+		}
+	})
+}
+
+func newPersonDeletionBatchFixture() (
+	*service.PersonDeletionService,
+	*deletionFakePersonRepository,
+	*deletionFakeEntryPersonRepository,
+) {
+	people := &deletionFakePersonRepository{byID: map[string]*domain.Person{
+		"p1": {ID: "p1"},
+		"p2": {ID: "p2"},
+		"p3": {ID: "p3"},
+	}}
+	entryPeople := &deletionFakeEntryPersonRepository{rows: []*domain.EntryPerson{
+		{LibraryEntryID: "e1", PersonID: "p1", Role: "member"},
+		{LibraryEntryID: "e1", PersonID: "p2", Role: "member"},
+		{LibraryEntryID: "e1", PersonID: "p3", Role: "member"},
+	}}
+	itemPeople := &deletionFakeItemPersonRepository{}
+	externalIDs := &deletionFakeExternalIDRepository{}
+	images := &deletionFakeImageRepository{byID: map[string]*domain.Image{}}
+	tagAssignments := &deletionFakeTagAssignmentRepository{}
+	profiles := &browseFakePerformerProfileRepository{byID: map[string]*afterdark.PerformerProfile{}}
+
+	svc := service.NewPersonDeletionService(people, entryPeople, itemPeople, externalIDs, images, tagAssignments, profiles)
+	return svc, people, entryPeople
+}
+
+func TestPersonDeletionService_DeleteBatch(t *testing.T) {
+	svc, people, entryPeople := newPersonDeletionBatchFixture()
+
+	if err := svc.DeleteBatch(context.Background(), []string{"p1", "p2"}, false); err != nil {
+		t.Fatalf("DeleteBatch returned error: %v", err)
+	}
+
+	if _, err := people.Get(context.Background(), "p1"); !errors.Is(err, ports.ErrNotFound) {
+		t.Fatal("DeleteBatch did not remove p1")
+	}
+	if _, err := people.Get(context.Background(), "p2"); !errors.Is(err, ports.ErrNotFound) {
+		t.Fatal("DeleteBatch did not remove p2")
+	}
+	if _, err := people.Get(context.Background(), "p3"); err != nil {
+		t.Fatalf("DeleteBatch removed p3, which wasn't in the batch: %v", err)
+	}
+
+	remaining, _, err := entryPeople.List(context.Background(), "", "", 0, "")
+	if err != nil {
+		t.Fatalf("entryPeople.List returned error: %v", err)
+	}
+	if len(remaining) != 1 || remaining[0].PersonID != "p3" {
+		t.Fatalf("DeleteBatch left EntryPerson rows %v, want only p3's", remaining)
+	}
+}
+
+func TestPersonDeletionService_DeleteBatch_MissingIDFailsWithoutSideEffects(t *testing.T) {
+	svc, people, entryPeople := newPersonDeletionBatchFixture()
+
+	err := svc.DeleteBatch(context.Background(), []string{"p1", "missing", "p2"}, false)
+	if !errors.Is(err, ports.ErrNotFound) {
+		t.Fatalf("DeleteBatch with a missing id returned %v, want ErrNotFound", err)
+	}
+
+	if _, err := people.Get(context.Background(), "p1"); err != nil {
+		t.Fatalf("DeleteBatch removed p1 despite failing: %v", err)
+	}
+	remaining, _, err := entryPeople.List(context.Background(), "", "", 0, "")
+	if err != nil {
+		t.Fatalf("entryPeople.List returned error: %v", err)
+	}
+	if len(remaining) != 3 {
+		t.Fatalf("DeleteBatch unlinked EntryPerson rows despite failing: %v", remaining)
+	}
+}
+
+func TestPersonDeletionService_DeleteBatch_PropagatesPortErrors(t *testing.T) {
+	t.Run("people DeleteBatch error propagates", func(t *testing.T) {
+		svc, people, _ := newPersonDeletionBatchFixture()
+		people.deleteBatchErr = errBoom
+		if err := svc.DeleteBatch(context.Background(), []string{"p1", "p2"}, false); !errors.Is(err, errBoom) {
+			t.Fatalf("DeleteBatch returned %v, want errBoom", err)
+		}
+	})
+
+	t.Run("entryPeople Delete error propagates", func(t *testing.T) {
+		svc, _, entryPeople := newPersonDeletionBatchFixture()
+		entryPeople.deleteErr = errBoom
+		if err := svc.DeleteBatch(context.Background(), []string{"p1", "p2"}, false); !errors.Is(err, errBoom) {
+			t.Fatalf("DeleteBatch returned %v, want errBoom", err)
 		}
 	})
 }

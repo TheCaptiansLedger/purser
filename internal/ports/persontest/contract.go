@@ -39,6 +39,8 @@ func TestPersonRepository(t *testing.T, newRepo NewRepositoryFunc) {
 	t.Run("list with a name filter that matches nothing returns no results", func(t *testing.T) { testListNameFilterNoMatch(t, newRepo) })
 	t.Run("list with an empty name filter is unfiltered", func(t *testing.T) { testListNameFilterEmptyIsUnfiltered(t, newRepo) })
 	t.Run("list with a name filter is case-insensitive", func(t *testing.T) { testListNameFilterCaseInsensitive(t, newRepo) })
+	t.Run("delete batch removes every person atomically", func(t *testing.T) { testDeleteBatch(t, newRepo) })
+	t.Run("delete batch with one missing id rolls back the whole batch", func(t *testing.T) { testDeleteBatchRollsBackOnMissing(t, newRepo) })
 }
 
 func mustCreate(t *testing.T, r ports.PersonRepository, p *domain.Person) {
@@ -232,6 +234,41 @@ func testListNameFilterCaseInsensitive(t *testing.T, newRepo NewRepositoryFunc) 
 	}
 	if len(people) != 1 || people[0].ID != "p1" {
 		t.Fatalf("List with name filter %q returned %v, want only p1", "nicks", people)
+	}
+}
+
+func testDeleteBatch(t *testing.T, newRepo NewRepositoryFunc) {
+	r := newRepo(t)
+	mustCreate(t, r, samplePerson("p1"))
+	mustCreate(t, r, samplePerson("p2"))
+	mustCreate(t, r, samplePerson("p3"))
+
+	if err := r.DeleteBatch(context.Background(), []string{"p1", "p2"}); err != nil {
+		t.Fatalf("DeleteBatch returned error: %v", err)
+	}
+
+	if _, err := r.Get(context.Background(), "p1"); !errors.Is(err, ports.ErrNotFound) {
+		t.Fatalf("Get after DeleteBatch for p1 returned %v, want ErrNotFound", err)
+	}
+	if _, err := r.Get(context.Background(), "p2"); !errors.Is(err, ports.ErrNotFound) {
+		t.Fatalf("Get after DeleteBatch for p2 returned %v, want ErrNotFound", err)
+	}
+	if _, err := r.Get(context.Background(), "p3"); err != nil {
+		t.Fatalf("DeleteBatch removed p3, which wasn't in the batch: %v", err)
+	}
+}
+
+func testDeleteBatchRollsBackOnMissing(t *testing.T, newRepo NewRepositoryFunc) {
+	r := newRepo(t)
+	mustCreate(t, r, samplePerson("p1"))
+
+	err := r.DeleteBatch(context.Background(), []string{"p1", "missing"})
+	if !errors.Is(err, ports.ErrNotFound) {
+		t.Fatalf("DeleteBatch with a missing id returned %v, want ErrNotFound", err)
+	}
+
+	if _, err := r.Get(context.Background(), "p1"); err != nil {
+		t.Fatalf("DeleteBatch removed p1 despite rolling back: %v", err)
 	}
 }
 
