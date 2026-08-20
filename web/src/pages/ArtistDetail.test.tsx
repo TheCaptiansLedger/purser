@@ -2,7 +2,7 @@ import type { ConnectRouter } from '@connectrpc/connect'
 import { ConnectError, Code, createRouterTransport } from '@connectrpc/connect'
 import { TransportProvider } from '@connectrpc/connect-query'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { describe, expect, it } from 'vitest'
 import { timestampFromDate } from '@bufbuild/protobuf/wkt'
@@ -594,6 +594,88 @@ describe('ArtistDetail — Discography tab', () => {
 
     expect(await screen.findByText('Unreleased Sessions')).toBeInTheDocument()
     expect(screen.getByText('No edition selected')).toBeInTheDocument()
+  })
+})
+
+describe('ArtistDetail — Discography bulk delete (#679)', () => {
+  function renderWithTwoAlbums(mockTransport: ReturnType<typeof createRouterTransport>) {
+    renderArtistDetail(mockTransport)
+    return waitFor(() => expect(screen.getByRole('heading', { name: 'Fleetwood Mac' })).toBeInTheDocument())
+  }
+
+  it('Select swaps AlbumCard navigation for toggle-selection, tracked by the SelectionToolbar', async () => {
+    const mockTransport = createRouterTransport(router => {
+      router.service(LibraryEntryService, { getLibraryEntry: () => ({ libraryEntry: baseEntry }) })
+      registerNoProviderData(router)
+      registerNoImages(router)
+      registerNoMembers(router)
+      router.service(GroupService, {
+        listGroups: () => ({
+          groups: [
+            { id: 'group-1', title: 'Rumours', year: 1977 },
+            { id: 'group-2', title: 'Tusk', year: 1979 },
+          ],
+        }),
+      })
+      router.service(MusicReleaseService, { listMusicReleases: () => ({ musicReleases: [] }) })
+    })
+
+    await renderWithTwoAlbums(mockTransport)
+    expect(await screen.findByText('Rumours')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Select' }))
+    expect(screen.getByText('0 albums selected')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByText('Rumours'))
+    expect(screen.getByText('1 albums selected')).toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: /Rumours/ })).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
+    expect(screen.queryByText('1 albums selected')).not.toBeInTheDocument()
+  })
+
+  it('confirming BulkDeleteDialog calls BulkDeleteGroups with the selected ids, then refreshes the grid', async () => {
+    let bulkDeleteRequest: { ids: string[]; cascade: boolean } | undefined
+    const mockTransport = createRouterTransport(router => {
+      router.service(LibraryEntryService, { getLibraryEntry: () => ({ libraryEntry: baseEntry }) })
+      registerNoProviderData(router)
+      registerNoImages(router)
+      registerNoMembers(router)
+
+      let deleted = false
+      router.service(GroupService, {
+        listGroups: () => ({
+          groups: deleted ? [] : [{ id: 'group-1', title: 'Rumours', year: 1977 }],
+        }),
+        getGroupDeletionImpact: () => ({
+          impacts: [{ kind: 'item', label: 'Items (will be detached, not deleted)', count: 2, blocking: false }],
+        }),
+        bulkDeleteGroups: request => {
+          bulkDeleteRequest = { ids: request.ids, cascade: request.cascade }
+          deleted = true
+          return {}
+        },
+      })
+      router.service(MusicReleaseService, { listMusicReleases: () => ({ musicReleases: [] }) })
+    })
+
+    await renderWithTwoAlbums(mockTransport)
+    expect(await screen.findByText('Rumours')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Select' }))
+    fireEvent.click(screen.getByText('Rumours'))
+    fireEvent.click(screen.getByRole('button', { name: 'Delete' }))
+
+    expect(await screen.findByText('Items (will be detached, not deleted)')).toBeInTheDocument()
+    // Group never blocks a delete (group_deletion.go) — no cascade
+    // checkbox to opt into.
+    expect(screen.queryByRole('checkbox')).not.toBeInTheDocument()
+
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Delete' }))
+
+    await waitFor(() => expect(bulkDeleteRequest).toEqual({ ids: ['group-1'], cascade: false }))
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    await waitFor(() => expect(screen.getByText('No albums yet')).toBeInTheDocument())
   })
 })
 

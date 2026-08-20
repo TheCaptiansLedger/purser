@@ -1,9 +1,10 @@
-import { useQuery } from '@connectrpc/connect-query'
-import { Camera, Disc3, Images, Maximize2, Music, Plus, Users } from 'lucide-react'
-import { useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { useMutation, useQuery } from '@connectrpc/connect-query'
+import { Camera, CheckSquare, Disc3, Images, Maximize2, Music, Plus, Users } from 'lucide-react'
+import { useMemo, useState } from 'react'
+import { useParams } from 'react-router-dom'
 import { AddAlbumDialog } from '../components/AddAlbumDialog'
 import { AlbumCard } from '../components/AlbumCard'
+import { BulkDeleteDialog } from '../components/BulkDeleteDialog'
 import { ChooseArtworkDialog } from '../components/ChooseArtworkDialog'
 import { DropdownMenu } from '../components/DropdownMenu'
 import { EditActionButton } from '../components/EditActionButton'
@@ -14,12 +15,16 @@ import { ImageLightbox } from '../components/ImageLightbox'
 import { ManualAlbumDialog } from '../components/ManualAlbumDialog'
 import { PersonCard } from '../components/PersonCard'
 import { RefreshArtistMetadataDialog } from '../components/RefreshArtistMetadataDialog'
+import { SelectableTile } from '../components/SelectableTile'
+import { SelectionToolbar } from '../components/SelectionToolbar'
 import { Toggle } from '../components/Toggle'
 import { MonitorMode } from '../gen/purser/domain/v1/common_pb'
+import { bulkDeleteGroups } from '../gen/purser/domain/v1/group-GroupService_connectquery'
 import { getSelectedImage } from '../gen/purser/domain/v1/image-ImageService_connectquery'
 import { useArtistMembers } from '../hooks/useArtistMembers'
 import { useArtistProviderData } from '../hooks/useArtistProviderData'
 import { useDiscography } from '../hooks/useDiscography'
+import { useGroupDeletionImpacts } from '../hooks/useGroupDeletionImpacts'
 import { useGroupImages } from '../hooks/useGroupImages'
 import { useLibraryEntry, useUpdateLibraryEntryMutation } from '../hooks/useLibraryEntry'
 import { aliasesField, stringField } from '../lib/metadataFields'
@@ -88,6 +93,15 @@ const TAB_ITEMS: { id: ArtistDetailTab; label: string }[] = [
 // reached afterward the same way any other one is, by clicking its
 // AlbumCard through to Album Detail (#673).
 //
+// Bulk delete (#679): "Select" swaps the grid's <Link> wrap for
+// SelectableTile's toggle-button one, exposing a SelectionToolbar; its
+// "Delete" opens BulkDeleteDialog against
+// useGroupDeletionImpacts(selectedAlbumIds) and BulkDeleteGroups — see
+// docs/adr/0015/0016. Group never blocks a delete
+// (internal/service/group_deletion.go), so unlike the Library grid's
+// artist delete, the dialog's cascade checkbox never actually appears
+// here.
+//
 // Members tab (#668): EntryPersonService.ListEntryPeople(library_entry_id)
 // — see useArtistMembers — rendered as two headed PersonCard (#657) grids,
 // "Current members" and "Former members". "Former" is per-artist (a
@@ -129,6 +143,43 @@ export function ArtistDetail() {
   const [addAlbumOpen, setAddAlbumOpen] = useState(false)
   const [manualAlbumOpen, setManualAlbumOpen] = useState(false)
   const [refreshMetadataOpen, setRefreshMetadataOpen] = useState(false)
+  const [selectMode, setSelectMode] = useState(false)
+  const [selectedAlbumIds, setSelectedAlbumIds] = useState<Set<string>>(new Set())
+  const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false)
+
+  const selectedAlbumIdList = useMemo(() => Array.from(selectedAlbumIds), [selectedAlbumIds])
+  const albumImpact = useGroupDeletionImpacts(bulkDeleteOpen ? selectedAlbumIdList : [])
+  const bulkDeleteAlbumsMutation = useMutation(bulkDeleteGroups)
+
+  function toggleAlbumSelected(albumId: string) {
+    setSelectedAlbumIds(prev => {
+      const next = new Set(prev)
+      if (next.has(albumId)) {
+        next.delete(albumId)
+      } else {
+        next.add(albumId)
+      }
+      return next
+    })
+  }
+
+  function exitAlbumSelectMode() {
+    setSelectMode(false)
+    setSelectedAlbumIds(new Set())
+  }
+
+  function handleBulkDeleteAlbums(cascade: boolean) {
+    bulkDeleteAlbumsMutation.mutate(
+      { ids: selectedAlbumIdList, cascade },
+      {
+        onSuccess: () => {
+          setBulkDeleteOpen(false)
+          exitAlbumSelectMode()
+          discography.refetch()
+        },
+      },
+    )
+  }
 
   // Doherty threshold — see docs/design/ux-principles.md#feedback--system-status.
   if (entryQuery.isPending) {
@@ -348,7 +399,16 @@ export function ArtistDetail() {
         <div role="tabpanel" className="mt-6">
           {activeTab === 'discography' && (
             <>
-              <div className="mb-4 flex justify-end">
+              <div className="mb-4 flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setSelectMode(true)}
+                  className="flex h-9 items-center gap-1.5 rounded-lg border border-border px-4 text-body font-medium text-text hover:bg-surface-raised"
+                >
+                  <CheckSquare size={16} aria-hidden="true" />
+                  Select
+                </button>
+
                 <DropdownMenu
                   label="Add Album"
                   trigger={
@@ -369,6 +429,15 @@ export function ArtistDetail() {
                 />
               </div>
 
+              {selectMode && (
+                <SelectionToolbar
+                  count={selectedAlbumIds.size}
+                  entityLabelPlural="albums"
+                  onDelete={() => setBulkDeleteOpen(true)}
+                  onCancel={exitAlbumSelectMode}
+                />
+              )}
+
               {!discography.isPending && discography.albums.length === 0 && (
                 <EmptyState
                   icon={Disc3}
@@ -378,13 +447,35 @@ export function ArtistDetail() {
               )}
 
               {discography.albums.length > 0 && (
-                <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8">
+                <div className="mt-4 grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8">
                   {discography.albums.map(album => (
-                    <Link key={album.id} to={`/music/albums/${album.id}`} className="rounded-lg hover:bg-surface-raised">
+                    <SelectableTile
+                      key={album.id}
+                      to={`/music/albums/${album.id}`}
+                      selectMode={selectMode}
+                      selected={selectedAlbumIds.has(album.id)}
+                      onToggle={() => toggleAlbumSelected(album.id)}
+                    >
                       <AlbumCard album={{ ...album, imageId: albumImagesByGroupId[album.id] }} />
-                    </Link>
+                    </SelectableTile>
                   ))}
                 </div>
+              )}
+
+              {bulkDeleteOpen && (
+                <BulkDeleteDialog
+                  entityLabelPlural="albums"
+                  count={selectedAlbumIds.size}
+                  impact={albumImpact}
+                  onDelete={handleBulkDeleteAlbums}
+                  isDeleting={bulkDeleteAlbumsMutation.isPending}
+                  deleteError={
+                    bulkDeleteAlbumsMutation.isError
+                      ? `Couldn't delete these albums (${bulkDeleteAlbumsMutation.error.message}).`
+                      : undefined
+                  }
+                  onClose={() => setBulkDeleteOpen(false)}
+                />
               )}
             </>
           )}

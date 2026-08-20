@@ -1,8 +1,13 @@
-import { fireEvent, render, screen } from '@testing-library/react'
+import { createRouterTransport } from '@connectrpc/connect'
+import { TransportProvider } from '@connectrpc/connect-query'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { describe, expect, it, vi } from 'vitest'
 import type { LibraryEntry } from '../gen/purser/domain/v1/library_entry_pb'
+import { LibraryEntryService } from '../gen/purser/domain/v1/library_entry_pb'
 import { useArtistLibraryEntries } from '../hooks/useArtistLibraryEntries'
+import { useLibraryEntryDeletionImpacts } from '../hooks/useLibraryEntryDeletionImpacts'
 import { useLibraryEntryImages } from '../hooks/useLibraryEntryImages'
 import { useLibraryOwnership } from '../hooks/useLibraryOwnership'
 import { MusicLibrary } from './MusicLibrary'
@@ -12,10 +17,15 @@ import { AddArtistDialog, type AddArtistDialogProps } from '../components/AddArt
 // own wire behavior is tested in useArtistLibraryEntries.test.tsx,
 // useLibraryEntryImages' own fan-out in useLibraryEntryImages.test.tsx,
 // useLibraryOwnership's own fan-out in useLibraryOwnership.test.tsx,
+// useLibraryEntryDeletionImpacts' own fan-out in its own test,
 // ArtistCard's own rendering in ArtistCard.test.tsx, AddArtistDialog's own
-// search/select/error behavior in AddArtistDialog.test.tsx. All are mocked
-// directly so every state is reachable deterministically and this page
-// doesn't need a mocked transport of its own.
+// search/select/error behavior in AddArtistDialog.test.tsx,
+// BulkDeleteDialog's own blocking/cascade logic in its own test. All are
+// mocked directly so every state is reachable deterministically. The one
+// exception is BulkDeleteLibraryEntries itself (#679): that RPC call is
+// exercised through a real mocked transport, since the point of this
+// page's bulk-delete tests is proving MusicLibrary wires the right
+// selected ids/cascade flag through, not just that some mock fired.
 vi.mock('../hooks/useArtistLibraryEntries')
 const mockUseArtistLibraryEntries = vi.mocked(useArtistLibraryEntries)
 
@@ -26,6 +36,10 @@ mockUseLibraryEntryImages.mockReturnValue({})
 vi.mock('../hooks/useLibraryOwnership')
 const mockUseLibraryOwnership = vi.mocked(useLibraryOwnership)
 mockUseLibraryOwnership.mockReturnValue({})
+
+vi.mock('../hooks/useLibraryEntryDeletionImpacts')
+const mockUseLibraryEntryDeletionImpacts = vi.mocked(useLibraryEntryDeletionImpacts)
+mockUseLibraryEntryDeletionImpacts.mockReturnValue({ isPending: false, rows: [] })
 
 vi.mock('../components/AddArtistDialog')
 const mockAddArtistDialog = vi.mocked(AddArtistDialog)
@@ -44,14 +58,19 @@ mockAddArtistDialog.mockImplementation(({ onClose, onAdded }: AddArtistDialogPro
   </div>
 ))
 
-function renderMusicLibrary() {
+function renderMusicLibrary(mockTransport: ReturnType<typeof createRouterTransport> = createRouterTransport(() => {})) {
+  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   render(
-    <MemoryRouter initialEntries={['/music']}>
-      <Routes>
-        <Route path="/music" element={<MusicLibrary />} />
-        <Route path="/music/artists/:id" element={<div>Artist detail page</div>} />
-      </Routes>
-    </MemoryRouter>,
+    <TransportProvider transport={mockTransport}>
+      <QueryClientProvider client={queryClient}>
+        <MemoryRouter initialEntries={['/music']}>
+          <Routes>
+            <Route path="/music" element={<MusicLibrary />} />
+            <Route path="/music/artists/:id" element={<div>Artist detail page</div>} />
+          </Routes>
+        </MemoryRouter>
+      </QueryClientProvider>
+    </TransportProvider>,
   )
 }
 
@@ -64,6 +83,7 @@ function pending() {
     hasNextPage: false,
     isFetchingNextPage: false,
     fetchNextPage: vi.fn(),
+    refetch: vi.fn(),
   } as unknown as ReturnType<typeof useArtistLibraryEntries>
 }
 
@@ -79,6 +99,7 @@ function loaded(
     hasNextPage,
     isFetchingNextPage: false,
     fetchNextPage: vi.fn(),
+    refetch: vi.fn(),
   } as unknown as ReturnType<typeof useArtistLibraryEntries>
 }
 
@@ -219,5 +240,68 @@ describe('MusicLibrary', () => {
     fireEvent.click(screen.getByText('Fleetwood Mac'))
 
     expect(screen.getByText('Artist detail page')).toBeInTheDocument()
+  })
+
+  describe('bulk delete (#679)', () => {
+    it('Select swaps card navigation for toggle-selection, tracked by the SelectionToolbar', () => {
+      mockUseArtistLibraryEntries.mockReturnValue(
+        loaded([
+          { id: 'a1', name: 'Fleetwood Mac', monitored: true },
+          { id: 'a2', name: 'Steely Dan', monitored: true },
+        ]),
+      )
+
+      renderMusicLibrary()
+      fireEvent.click(screen.getByRole('button', { name: 'Select' }))
+      expect(screen.getByText('0 artists selected')).toBeInTheDocument()
+
+      fireEvent.click(screen.getByText('Fleetwood Mac'))
+      expect(screen.getByText('1 artists selected')).toBeInTheDocument()
+      expect(screen.queryByText('Artist detail page')).not.toBeInTheDocument()
+
+      fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
+      expect(screen.queryByText('1 artists selected')).not.toBeInTheDocument()
+    })
+
+    it('opens BulkDeleteDialog from Delete, showing the aggregated impact', () => {
+      mockUseArtistLibraryEntries.mockReturnValue(loaded([{ id: 'a1', name: 'Fleetwood Mac', monitored: true }]))
+      mockUseLibraryEntryDeletionImpacts.mockReturnValue({
+        isPending: false,
+        rows: [{ kind: 'group', label: 'Groups', count: 3, blocking: true }],
+      })
+
+      renderMusicLibrary()
+      fireEvent.click(screen.getByRole('button', { name: 'Select' }))
+      fireEvent.click(screen.getByText('Fleetwood Mac'))
+      fireEvent.click(screen.getByRole('button', { name: 'Delete' }))
+
+      expect(screen.getByRole('dialog', { name: 'Delete 1 artists?' })).toBeInTheDocument()
+      expect(screen.getByText('Groups')).toBeInTheDocument()
+    })
+
+    it('confirming the dialog calls BulkDeleteLibraryEntries with the selected ids and cascade, then exits select mode', async () => {
+      mockUseArtistLibraryEntries.mockReturnValue(loaded([{ id: 'a1', name: 'Fleetwood Mac', monitored: true }]))
+      mockUseLibraryEntryDeletionImpacts.mockReturnValue({ isPending: false, rows: [] })
+
+      let bulkDeleteRequest: { ids: string[]; cascade: boolean } | undefined
+      const mockTransport = createRouterTransport(router => {
+        router.service(LibraryEntryService, {
+          bulkDeleteLibraryEntries: request => {
+            bulkDeleteRequest = { ids: request.ids, cascade: request.cascade }
+            return {}
+          },
+        })
+      })
+
+      renderMusicLibrary(mockTransport)
+      fireEvent.click(screen.getByRole('button', { name: 'Select' }))
+      fireEvent.click(screen.getByText('Fleetwood Mac'))
+      fireEvent.click(screen.getByRole('button', { name: 'Delete' }))
+      fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Delete' }))
+
+      await waitFor(() => expect(bulkDeleteRequest).toEqual({ ids: ['a1'], cascade: false }))
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+      expect(screen.queryByText('1 artists selected')).not.toBeInTheDocument()
+    })
   })
 })

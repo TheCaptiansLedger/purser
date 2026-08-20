@@ -1,12 +1,18 @@
+import { useMutation } from '@connectrpc/connect-query'
 import type { JsonObject } from '@bufbuild/protobuf'
-import { Music, Plus, Search, SearchX } from 'lucide-react'
+import { CheckSquare, Music, Plus, Search, SearchX } from 'lucide-react'
 import { useMemo, useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 import { AddArtistDialog } from '../components/AddArtistDialog'
 import { ArtistCard } from '../components/ArtistCard'
+import { BulkDeleteDialog } from '../components/BulkDeleteDialog'
 import { EmptyState } from '../components/EmptyState'
+import { SelectableTile } from '../components/SelectableTile'
+import { SelectionToolbar } from '../components/SelectionToolbar'
 import { Toggle } from '../components/Toggle'
+import { bulkDeleteLibraryEntries } from '../gen/purser/domain/v1/library_entry-LibraryEntryService_connectquery'
 import { useArtistLibraryEntries } from '../hooks/useArtistLibraryEntries'
+import { useLibraryEntryDeletionImpacts } from '../hooks/useLibraryEntryDeletionImpacts'
 import { useLibraryEntryImages } from '../hooks/useLibraryEntryImages'
 import { useLibraryOwnership } from '../hooks/useLibraryOwnership'
 import type { LibraryEntryRef } from '../types'
@@ -41,13 +47,25 @@ function genreOf(metadata: JsonObject | undefined): string | undefined {
 //
 // The "Add Artist" button (#665) opens AddArtistDialog and navigates to
 // the resulting artist's detail route (#666) on success.
+//
+// Bulk delete (#679): "Select" swaps every card's <Link> wrap for
+// SelectableTile's toggle-button one, exposing a SelectionToolbar; its
+// "Delete" opens BulkDeleteDialog against
+// useLibraryEntryDeletionImpacts(selectedIds) and BulkDeleteLibraryEntries
+// — see docs/adr/0015/0016. A LibraryEntry with Groups/Items is a
+// blocking referrer (internal/service/library_entry_deletion.go), so the
+// dialog's cascade checkbox is what lets a delete that includes such an
+// artist go through at all.
 export function MusicLibrary() {
   const navigate = useNavigate()
   const [search, setSearch] = useState('')
   const [monitoredOnly, setMonitoredOnly] = useState(false)
   const [addArtistOpen, setAddArtistOpen] = useState(false)
+  const [selectMode, setSelectMode] = useState(false)
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false)
 
-  const { data, isPending, isError, error, hasNextPage, isFetchingNextPage, fetchNextPage } =
+  const { data, isPending, isError, error, hasNextPage, isFetchingNextPage, fetchNextPage, refetch } =
     useArtistLibraryEntries()
 
   const artists: LibraryEntryRef[] = useMemo(
@@ -77,6 +95,40 @@ export function MusicLibrary() {
   const isEmptyLibrary = !isPending && !isError && artists.length === 0 && query === '' && !monitoredOnly
   const isZeroResults = !isPending && !isError && artists.length > 0 && visibleArtists.length === 0
 
+  const selectedIdList = useMemo(() => Array.from(selectedIds), [selectedIds])
+  const impact = useLibraryEntryDeletionImpacts(bulkDeleteOpen ? selectedIdList : [])
+  const bulkDeleteMutation = useMutation(bulkDeleteLibraryEntries)
+
+  function toggleSelected(id: string) {
+    setSelectedIds(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) {
+        next.delete(id)
+      } else {
+        next.add(id)
+      }
+      return next
+    })
+  }
+
+  function exitSelectMode() {
+    setSelectMode(false)
+    setSelectedIds(new Set())
+  }
+
+  function handleBulkDelete(cascade: boolean) {
+    bulkDeleteMutation.mutate(
+      { ids: selectedIdList, cascade },
+      {
+        onSuccess: () => {
+          setBulkDeleteOpen(false)
+          exitSelectMode()
+          void refetch()
+        },
+      },
+    )
+  }
+
   return (
     <div className="px-6 py-10 md:px-8">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -103,6 +155,15 @@ export function MusicLibrary() {
 
           <button
             type="button"
+            onClick={() => setSelectMode(true)}
+            className="flex h-9 items-center gap-1.5 rounded-lg border border-border px-4 text-body font-medium text-text hover:bg-surface-raised"
+          >
+            <CheckSquare size={16} aria-hidden="true" />
+            Select
+          </button>
+
+          <button
+            type="button"
             onClick={() => setAddArtistOpen(true)}
             className="flex h-9 items-center gap-1.5 rounded-lg bg-accent-system px-4 text-body font-medium text-bg hover:opacity-90"
           >
@@ -112,6 +173,15 @@ export function MusicLibrary() {
         </div>
       </div>
 
+      {selectMode && (
+        <SelectionToolbar
+          count={selectedIds.size}
+          entityLabelPlural="artists"
+          onDelete={() => setBulkDeleteOpen(true)}
+          onCancel={exitSelectMode}
+        />
+      )}
+
       {addArtistOpen && (
         <AddArtistDialog
           onClose={() => setAddArtistOpen(false)}
@@ -119,6 +189,19 @@ export function MusicLibrary() {
             setAddArtistOpen(false)
             navigate(`/music/artists/${entry.id}`)
           }}
+        />
+      )}
+
+      {bulkDeleteOpen && (
+        <BulkDeleteDialog
+          entityLabelPlural="artists"
+          count={selectedIds.size}
+          impact={impact}
+          cascadeLabel="Also delete their albums and tracks"
+          onDelete={handleBulkDelete}
+          isDeleting={bulkDeleteMutation.isPending}
+          deleteError={bulkDeleteMutation.isError ? `Couldn't delete these artists (${bulkDeleteMutation.error.message}).` : undefined}
+          onClose={() => setBulkDeleteOpen(false)}
         />
       )}
 
@@ -147,12 +230,18 @@ export function MusicLibrary() {
       {visibleArtists.length > 0 && (
         <div className="mt-6 grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8 2xl:grid-cols-10">
           {visibleArtists.map(artist => (
-            <Link key={artist.id} to={`/music/artists/${artist.id}`} className="rounded-lg hover:bg-surface-raised">
+            <SelectableTile
+              key={artist.id}
+              to={`/music/artists/${artist.id}`}
+              selectMode={selectMode}
+              selected={selectedIds.has(artist.id)}
+              onToggle={() => toggleSelected(artist.id)}
+            >
               <ArtistCard
                 artist={{ ...artist, imageId: imagesByArtistId[artist.id] }}
                 ownership={ownershipByArtistId[artist.id]}
               />
-            </Link>
+            </SelectableTile>
           ))}
         </div>
       )}
