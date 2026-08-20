@@ -858,7 +858,7 @@ describe('ArtistDetail — Members tab', () => {
 })
 
 describe('ArtistDetail — Edit action / Refresh from MusicBrainz', () => {
-  it('disables the primary Edit segment (no manual editor yet, #681) and the menu item when the artist has no known mbid', async () => {
+  it('opens EditArtistDialog from the primary Edit segment, and disables the menu item when the artist has no known mbid', async () => {
     const mockTransport = createRouterTransport(router => {
       router.service(LibraryEntryService, { getLibraryEntry: () => ({ libraryEntry: baseEntry }) })
       registerNoProviderData(router)
@@ -870,7 +870,9 @@ describe('ArtistDetail — Edit action / Refresh from MusicBrainz', () => {
     renderArtistDetail(mockTransport)
     await waitFor(() => expect(screen.getByRole('heading', { name: 'Fleetwood Mac' })).toBeInTheDocument())
 
-    expect(screen.getByRole('button', { name: 'Edit' })).toBeDisabled()
+    fireEvent.click(screen.getByRole('button', { name: 'Edit' }))
+    expect(screen.getByRole('dialog', { name: 'Edit Artist' })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
 
     fireEvent.click(screen.getByRole('button', { name: 'More edit actions' }))
     expect(screen.getByRole('menuitem', { name: 'Refresh from MusicBrainz' })).toBeDisabled()

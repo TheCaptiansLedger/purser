@@ -9,11 +9,12 @@ import { BulkDeleteDialog } from '../components/BulkDeleteDialog'
 import { ChooseArtworkDialog } from '../components/ChooseArtworkDialog'
 import { DropdownMenu } from '../components/DropdownMenu'
 import { EditActionButton } from '../components/EditActionButton'
+import { EditArtistDialog } from '../components/EditArtistDialog'
 import { EmptyState } from '../components/EmptyState'
+import { GroupDialog } from '../components/GroupDialog'
 import { Hero } from '../components/Hero'
 import { ImageGallery } from '../components/ImageGallery'
 import { ImageLightbox } from '../components/ImageLightbox'
-import { ManualAlbumDialog } from '../components/ManualAlbumDialog'
 import { PersonCard } from '../components/PersonCard'
 import { RefreshArtistMetadataDialog } from '../components/RefreshArtistMetadataDialog'
 import { SelectableTile } from '../components/SelectableTile'
@@ -69,13 +70,14 @@ const TAB_ITEMS: { id: ArtistDetailTab; label: string }[] = [
 //
 // EditActionButton (#671, module-wide "Edit ▾" convention per ADR 0004's
 // `EditButton` vocabulary entry) sits in the Hero actions row: its primary
-// "Edit" segment is disabled until #681 builds Artist's manual field
-// editor; its chevron opens a provider-action menu, currently one entry —
-// "Refresh from MusicBrainz" — disabled until provider.mbid is known
-// (same gating "Add Album"'s MusicBrainz source uses), which opens
-// RefreshArtistMetadataDialog. The dialog owns its own GetArtist(mbid)
-// call and diff/apply logic (useRefreshArtistMetadata) — this page only
-// refetches the LibraryEntry once the dialog reports a successful update.
+// "Edit" segment opens EditArtistDialog (#681 — name/sort_name/overview
+// plus the identity-fact Metadata keys), its chevron opens a provider-
+// action menu, currently one entry — "Refresh from MusicBrainz" —
+// disabled until provider.mbid is known (same gating "Add Album"'s
+// MusicBrainz source uses), which opens RefreshArtistMetadataDialog. That
+// dialog owns its own GetArtist(mbid) call and diff/apply logic
+// (useRefreshArtistMetadata) — this page only refetches the LibraryEntry
+// once either dialog reports a successful update.
 //
 // Discography tab (#667): GroupService.ListGroups(library_entry_id), then
 // per group MusicReleaseService.ListMusicReleases(group_id) — see
@@ -86,9 +88,9 @@ const TAB_ITEMS: { id: ArtistDetailTab; label: string }[] = [
 // "Add Album" (#669) is a DropdownMenu with two sources: "Search
 // MusicBrainz" opens AddAlbumDialog, disabled until provider.mbid is
 // known (ListReleaseGroupsForArtist has no non-MBID fallback, unlike the
-// poster/backdrop buttons above); "Add Manually" opens ManualAlbumDialog
-// for an album MusicBrainz doesn't have — a plain CreateGroup, no
-// ExternalID (nothing to dedupe against without an external identity).
+// poster/backdrop buttons above); "Add Manually" opens GroupDialog in
+// create mode for an album MusicBrainz doesn't have — a plain CreateGroup,
+// no ExternalID (nothing to dedupe against without an external identity).
 // Unlike Add Artist, picking a result never navigates — both paths just
 // close their dialog and refetch this tab's own grid; the new album is
 // reached afterward the same way any other one is, by clicking its
@@ -151,6 +153,7 @@ export function ArtistDetail() {
   const [addAlbumOpen, setAddAlbumOpen] = useState(false)
   const [manualAlbumOpen, setManualAlbumOpen] = useState(false)
   const [refreshMetadataOpen, setRefreshMetadataOpen] = useState(false)
+  const [editArtistOpen, setEditArtistOpen] = useState(false)
   const [selectMode, setSelectMode] = useState(false)
   const [selectedAlbumIds, setSelectedAlbumIds] = useState<Set<string>>(new Set())
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false)
@@ -300,7 +303,7 @@ export function ArtistDetail() {
               disabled={updateMutation.isPending}
             />
             <EditActionButton
-              editDisabledReason="Manual editing isn't available yet"
+              onEdit={() => setEditArtistOpen(true)}
               items={[
                 {
                   label: 'Refresh from MusicBrainz',
@@ -634,10 +637,11 @@ export function ArtistDetail() {
       )}
 
       {manualAlbumOpen && (
-        <ManualAlbumDialog
+        <GroupDialog
+          mode="create"
           artistId={id}
           onClose={() => setManualAlbumOpen(false)}
-          onAdded={() => {
+          onSaved={() => {
             setManualAlbumOpen(false)
             discography.refetch()
           }}
@@ -651,6 +655,17 @@ export function ArtistDetail() {
           onClose={() => setRefreshMetadataOpen(false)}
           onUpdated={() => {
             setRefreshMetadataOpen(false)
+            entryQuery.refetch()
+          }}
+        />
+      )}
+
+      {editArtistOpen && (
+        <EditArtistDialog
+          entry={entry}
+          onClose={() => setEditArtistOpen(false)}
+          onSaved={() => {
+            setEditArtistOpen(false)
             entryQuery.refetch()
           }}
         />

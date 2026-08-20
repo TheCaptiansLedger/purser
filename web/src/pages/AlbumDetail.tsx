@@ -5,8 +5,10 @@ import { useParams } from 'react-router-dom'
 import { AddEditionDialog } from '../components/AddEditionDialog'
 import { ChooseArtworkDialog } from '../components/ChooseArtworkDialog'
 import { DropdownMenu } from '../components/DropdownMenu'
+import { EditActionButton } from '../components/EditActionButton'
 import { EditionsStrip } from '../components/EditionsStrip'
 import { EmptyState } from '../components/EmptyState'
+import { GroupDialog } from '../components/GroupDialog'
 import { Hero } from '../components/Hero'
 import { ImageGallery } from '../components/ImageGallery'
 import { ImageLightbox } from '../components/ImageLightbox'
@@ -31,12 +33,18 @@ const RELEASES_PAGE_SIZE = 50
 // AlbumDetail — the Album (Release Group) Detail page shell (#673):
 // GroupService.GetGroup, a Hero (#658) with no backdrop (no artwork
 // source for one yet — unlike Artist Detail's fanart.tv backdrop) and
-// facts=[year, track count]. The metadata editor (#681) is a separate,
-// later issue — this page reads the default edition
+// facts=[year, track count]. This page reads the default edition
 // (MusicReleaseService.ListMusicReleases, same `isDefault ?? [0]`
 // fallback useDiscography already established) to know which edition owns
 // the cover art and to report its track count in the Hero facts,
 // independent of whichever edition is selected in the strip below.
+//
+// EditActionButton (#681, same module-wide "Edit ▾" convention
+// ArtistDetail's own instance set up under #671) sits in the Hero actions
+// row: its primary "Edit" segment opens GroupDialog in edit mode
+// (title/sort_name/number/year/overview — Group has no provider-refresh
+// RPC in scope, so its chevron menu is empty rather than a second action
+// being invented for it).
 //
 // Add Edition (#675) is the same two-source DropdownMenu shape #669
 // established for Add Album, sitting above the strip: "Search
@@ -113,6 +121,7 @@ export function AlbumDetail() {
   const [coverGalleryOpen, setCoverGalleryOpen] = useState(false)
   const [addEditionOpen, setAddEditionOpen] = useState(false)
   const [manualEditionOpen, setManualEditionOpen] = useState(false)
+  const [editAlbumOpen, setEditAlbumOpen] = useState(false)
   // Optimistic local mirrors — same `x ?? entry.x` pattern ArtistDetail's
   // `monitored` state uses. monitoredOverrides is keyed per release id
   // since the strip can have several cards mid-toggle at once, unlike
@@ -224,7 +233,11 @@ export function AlbumDetail() {
 
   return (
     <div className="px-6 py-10 md:px-8">
-      <Hero title={group.title} facts={facts} />
+      <Hero
+        title={group.title}
+        facts={facts}
+        actions={<EditActionButton onEdit={() => setEditAlbumOpen(true)} items={[]} />}
+      />
 
       <div className="mt-6 flex flex-col gap-6 sm:flex-row sm:items-start">
         <div className="flex flex-col items-center gap-2 sm:w-48 shrink-0">
@@ -418,6 +431,18 @@ export function AlbumDetail() {
             setManualEditionOpen(false)
             setSelectedReleaseId(release.id)
             releasesQuery.refetch()
+          }}
+        />
+      )}
+
+      {editAlbumOpen && (
+        <GroupDialog
+          mode="edit"
+          group={group}
+          onClose={() => setEditAlbumOpen(false)}
+          onSaved={() => {
+            setEditAlbumOpen(false)
+            groupQuery.refetch()
           }}
         />
       )}

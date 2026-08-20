@@ -37,7 +37,7 @@ export interface ManualEditionDialogProps {
 // zero-value empty string, so MusicReleaseRepository.Create's plain
 // `if rel.MBID == ""` branch runs (a plain inner.Create, never the
 // get-or-create-on-MBID branch), same "no external identity to
-// get-or-create against" reasoning ManualAlbumDialog's own doc comment
+// get-or-create against" reasoning GroupDialog's own doc comment
 // gives. Title is the only required field (music.Release.Validate());
 // status is always ReleaseStatusStub and is_default is always false —
 // never track-derived, never auto-promoted (see #675's own issue body).

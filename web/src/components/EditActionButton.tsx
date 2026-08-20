@@ -2,10 +2,9 @@ import { ChevronDown, Pencil } from 'lucide-react'
 import { DropdownMenu, type DropdownMenuItem } from './DropdownMenu'
 
 export interface EditActionButtonProps {
-  // onEdit opens the entity's manual field editor (#681 — not yet built
-  // for any entity). Omit it to render the primary segment disabled
-  // rather than wiring it to a silent no-op; every caller does this until
-  // its own entity's editor exists.
+  // onEdit opens the entity's manual field editor (#681 — EditArtistDialog
+  // on Artist, GroupDialog in edit mode on Album). Omit it to render the
+  // primary segment disabled rather than wiring it to a silent no-op.
   onEdit?: () => void
   editDisabledReason?: string
   // items — one entry per external-provider action (#671's "Refresh from

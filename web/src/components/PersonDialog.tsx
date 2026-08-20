@@ -19,13 +19,6 @@ const GENDER_OPTIONS: { value: Gender; label: string }[] = [
   { value: Gender.UNKNOWN, label: 'Unknown' },
 ]
 
-const MONITOR_MODE_OPTIONS: { value: MonitorMode; label: string }[] = [
-  { value: MonitorMode.ALL, label: 'All' },
-  { value: MonitorMode.FUTURE, label: 'Future' },
-  { value: MonitorMode.NONE, label: 'None' },
-  { value: MonitorMode.LATEST, label: 'Latest' },
-]
-
 interface FormState {
   name: string
   sortName: string
@@ -37,14 +30,17 @@ interface FormState {
   nationality: string
   overview: string
   monitored: boolean
-  monitorMode: MonitorMode
 }
 
-// FIELD_PATHS pairs each editable field with the proto field-mask path
-// applyPersonFieldMask (internal/api/connect/person_convert.go) actually
-// switches on — kept as one array so the diffing loop in handleSubmit and
-// the mask sent to the server can never drift apart.
-const FIELD_PATHS: { key: keyof FormState; path: string }[] = [
+// FIELD_PATHS pairs each editable, non-monitor field with the proto
+// field-mask path applyPersonFieldMask (internal/api/connect/person_convert.go)
+// actually switches on — kept as one array so the diffing loop in
+// handleSubmit and the mask sent to the server can never drift apart.
+// monitored/monitor_mode are deliberately excluded per #681 — PersonDetail's
+// own Monitor toggle already owns that control, so this dialog only sets
+// monitored as a create-time default (see handleSubmit), never as an
+// edit-mode field, same split GroupDialog's own Monitored toggle uses.
+const FIELD_PATHS: { key: Exclude<keyof FormState, 'monitored'>; path: string }[] = [
   { key: 'name', path: 'name' },
   { key: 'sortName', path: 'sort_name' },
   { key: 'aliases', path: 'aliases' },
@@ -54,18 +50,17 @@ const FIELD_PATHS: { key: keyof FormState; path: string }[] = [
   { key: 'deathDate', path: 'death_date' },
   { key: 'nationality', path: 'nationality' },
   { key: 'overview', path: 'overview' },
-  { key: 'monitored', path: 'monitored' },
-  { key: 'monitorMode', path: 'monitor_mode' },
 ]
 
 function toDateInput(timestamp: Person['birthDate']): string {
   return timestamp ? timestampDate(timestamp).toISOString().slice(0, 10) : ''
 }
 
-// initialState seeds a blank form on create (Gender/MonitorMode default to
-// the domain's own explicit fallbacks — Unknown/All — rather than an
-// unselected value, since GENDER_UNSPECIFIED/MONITOR_MODE_UNSPECIFIED both
-// fail domain.Person.Validate()'s oneof check) or pre-fills every field
+// initialState seeds a blank form on create (Gender defaults to the
+// domain's own explicit fallback — Unknown — rather than an unselected
+// value, since GENDER_UNSPECIFIED fails domain.Person.Validate()'s oneof
+// check; monitored defaults true, the same sane-default-only-at-create
+// GroupDialog's own Monitored toggle uses) or pre-fills every field
 // UpdatePerson can change from the existing record on edit.
 function initialState(person?: Person): FormState {
   if (!person) {
@@ -80,7 +75,6 @@ function initialState(person?: Person): FormState {
       nationality: '',
       overview: '',
       monitored: true,
-      monitorMode: MonitorMode.ALL,
     }
   }
   return {
@@ -94,7 +88,6 @@ function initialState(person?: Person): FormState {
     nationality: person.nationality,
     overview: person.overview,
     monitored: person.monitored,
-    monitorMode: person.monitorMode,
   }
 }
 
@@ -118,7 +111,9 @@ export interface PersonDialogProps {
 // server-generated, see docs/adr/0020), edit diffs the current form
 // against the record it was pre-filled from and sends only the touched
 // fields' paths on UpdatePerson's field mask, per ADR 0011's partial-update
-// contract.
+// contract. monitored/monitor_mode are a create-time default only (#681)
+// — PersonDetail's own Monitor toggle already owns that control post-create,
+// same split GroupDialog's Monitored toggle uses.
 export function PersonDialog({ mode, person, onClose, onSaved }: PersonDialogProps) {
   const [initial] = useState(() => initialState(mode === 'edit' ? person : undefined))
   const [form, setForm] = useState<FormState>(initial)
@@ -157,12 +152,13 @@ export function PersonDialog({ mode, person, onClose, onSaved }: PersonDialogPro
       deathDate: form.deathDate ? timestampFromDate(new Date(form.deathDate)) : undefined,
       nationality: form.nationality,
       overview: form.overview,
-      monitored: form.monitored,
-      monitorMode: form.monitorMode,
     }
 
     if (mode === 'create') {
-      createMutation.mutate({ person: wire }, { onSuccess: response => response.person && onSaved(response.person) })
+      createMutation.mutate(
+        { person: { ...wire, monitored: form.monitored, monitorMode: form.monitored ? MonitorMode.ALL : MonitorMode.NONE } },
+        { onSuccess: response => response.person && onSaved(response.person) },
+      )
       return
     }
 
@@ -238,22 +234,9 @@ export function PersonDialog({ mode, person, onClose, onSaved }: PersonDialogPro
           />
         </label>
 
-        <Toggle label="Monitored" checked={form.monitored} onChange={v => update('monitored', v)} />
-
-        <label className="flex flex-col gap-1 text-body text-text">
-          <span className="text-label text-text-secondary">Monitor mode</span>
-          <select
-            value={form.monitorMode}
-            onChange={e => update('monitorMode', Number(e.target.value) as MonitorMode)}
-            className="h-9 px-3 rounded-lg bg-surface-raised border border-border text-text text-body focus:outline-none focus:border-border-hover"
-          >
-            {MONITOR_MODE_OPTIONS.map(opt => (
-              <option key={opt.value} value={opt.value}>
-                {opt.label}
-              </option>
-            ))}
-          </select>
-        </label>
+        {mode === 'create' && (
+          <Toggle label="Monitored" checked={form.monitored} onChange={v => update('monitored', v)} />
+        )}
 
         {mutation.isError && (
           <p className="text-body text-status-failure" role="alert">

@@ -114,6 +114,36 @@ describe('AlbumDetail', () => {
     expect(screen.queryByText('Rock')).not.toBeInTheDocument()
   })
 
+  it('opens GroupDialog in edit mode from the Edit action, and applies the update on save', async () => {
+    let title = 'Rumours'
+    const mockTransport = createRouterTransport(router => {
+      router.service(GroupService, {
+        getGroup: () => ({ group: { ...baseGroup, title } }),
+        updateGroup: req => {
+          expect(req.updateMask?.paths).toEqual(['title'])
+          title = req.group!.title!
+          return { group: { ...baseGroup, title } }
+        },
+      })
+      registerNoReleases(router)
+      router.service(ImageService, { getSelectedImage: noSelectedImage() })
+      registerNoTags(router)
+      registerNoProviderMbid(router)
+    })
+
+    renderAlbumDetail(mockTransport)
+    expect(await screen.findByRole('heading', { name: 'Rumours' })).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Edit' }))
+    expect(screen.getByRole('dialog', { name: 'Edit Album' })).toBeInTheDocument()
+    expect(screen.queryByText('Monitored')).not.toBeInTheDocument()
+
+    fireEvent.change(screen.getByLabelText('Title'), { target: { value: 'Rumours (Deluxe)' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+
+    await waitFor(() => expect(screen.getByRole('heading', { name: 'Rumours (Deluxe)' })).toBeInTheDocument())
+  })
+
   it('renders resolved genre/mood tags as chips', async () => {
     const mockTransport = createRouterTransport(router => {
       router.service(GroupService, { getGroup: () => ({ group: baseGroup }) })

@@ -8,7 +8,7 @@ import { ManualEditionDialog } from './ManualEditionDialog'
 
 // ADR 0004: the API layer is tested against a mocked transport, never a
 // live backend — same createRouterTransport pattern as
-// ManualAlbumDialog.test.tsx, this component's closest existing analog.
+// GroupDialog.test.tsx, this component's closest existing analog.
 function renderDialog(mockTransport: ReturnType<typeof createRouterTransport>) {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   const onClose = vi.fn()
