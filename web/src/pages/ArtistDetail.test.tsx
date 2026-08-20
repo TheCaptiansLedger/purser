@@ -857,6 +857,123 @@ describe('ArtistDetail — Members tab', () => {
   })
 })
 
+describe('ArtistDetail — Members tab write actions (#724)', () => {
+  async function openMembersTab(mockTransport: ReturnType<typeof createRouterTransport>) {
+    renderArtistDetail(mockTransport)
+    await waitFor(() => expect(screen.getByRole('heading', { name: 'Fleetwood Mac' })).toBeInTheDocument())
+    fireEvent.click(screen.getByRole('tab', { name: 'Members' }))
+  }
+
+  it('Add member → Search existing adds a row and refreshes the list, without navigating away', async () => {
+    let memberAdded = false
+    const mockTransport = createRouterTransport(router => {
+      router.service(LibraryEntryService, { getLibraryEntry: () => ({ libraryEntry: baseEntry }) })
+      registerNoProviderData(router)
+      registerNoImages(router)
+      registerNoAlbums(router)
+      router.service(EntryPersonService, {
+        listEntryPeople: () => ({
+          entryPeople: memberAdded ? [{ libraryEntryId: 'artist-1', personId: 'person-1', role: 'vocalist' }] : [],
+        }),
+        createEntryPerson: req => {
+          expect(req.entryPerson?.personId).toBe('person-1')
+          expect(req.entryPerson?.role).toBe('vocalist')
+          memberAdded = true
+          return { entryPerson: req.entryPerson }
+        },
+      })
+      router.service(PersonService, {
+        getPerson: () => ({ person: { id: 'person-1', name: 'Stevie Nicks' } }),
+        listPeople: () => ({ people: [{ id: 'person-1', name: 'Stevie Nicks' }] }),
+      })
+    })
+
+    await openMembersTab(mockTransport)
+    expect(await screen.findByText('No members yet')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Add member' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Search existing person' }))
+    fireEvent.change(screen.getByLabelText('Search people'), { target: { value: 'Stevie' } })
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Stevie Nicks' }))
+    fireEvent.change(screen.getByLabelText('Role'), { target: { value: 'vocalist' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Add' }))
+
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+    expect(await screen.findByText('Stevie Nicks')).toBeInTheDocument()
+  })
+
+  it('Edit → adding an end date moves the row from Current to Former live, no manual refresh', async () => {
+    let ended = false
+    const mockTransport = createRouterTransport(router => {
+      router.service(LibraryEntryService, { getLibraryEntry: () => ({ libraryEntry: baseEntry }) })
+      registerNoProviderData(router)
+      registerNoImages(router)
+      registerNoAlbums(router)
+      router.service(EntryPersonService, {
+        listEntryPeople: () => ({
+          entryPeople: [
+            {
+              libraryEntryId: 'artist-1',
+              personId: 'person-1',
+              role: 'vocalist',
+              startDate: timestampFromDate(new Date('1975-01-01')),
+              endDate: ended ? timestampFromDate(new Date('1987-01-01')) : undefined,
+            },
+          ],
+        }),
+        updateEntryPerson: req => {
+          expect(req.updateMask?.paths).toEqual(['end_date'])
+          ended = true
+          return { entryPerson: req.entryPerson }
+        },
+      })
+      router.service(PersonService, { getPerson: () => ({ person: { id: 'person-1', name: 'Stevie Nicks' } }) })
+    })
+
+    await openMembersTab(mockTransport)
+    expect(await screen.findByText('Current members')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: "Edit Stevie Nicks's vocalist role" }))
+    fireEvent.change(screen.getByLabelText('End date'), { target: { value: '1987-01-01' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+
+    await waitFor(() => expect(screen.getByText('Former members')).toBeInTheDocument())
+    expect(screen.queryByText('Current members')).not.toBeInTheDocument()
+  })
+
+  it('Remove → removing a person\'s only role takes them out of the grid entirely', async () => {
+    let removed = false
+    const mockTransport = createRouterTransport(router => {
+      router.service(LibraryEntryService, { getLibraryEntry: () => ({ libraryEntry: baseEntry }) })
+      registerNoProviderData(router)
+      registerNoImages(router)
+      registerNoAlbums(router)
+      router.service(EntryPersonService, {
+        listEntryPeople: () => ({
+          entryPeople: removed ? [] : [{ libraryEntryId: 'artist-1', personId: 'person-1', role: 'vocalist' }],
+        }),
+        deleteEntryPerson: req => {
+          expect(req.personId).toBe('person-1')
+          expect(req.role).toBe('vocalist')
+          removed = true
+          return {}
+        },
+      })
+      router.service(PersonService, { getPerson: () => ({ person: { id: 'person-1', name: 'Stevie Nicks' } }) })
+    })
+
+    await openMembersTab(mockTransport)
+    expect(await screen.findByText('Stevie Nicks')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: "Remove Stevie Nicks's vocalist role" }))
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Remove' }))
+
+    await waitFor(() => expect(screen.getByText('No members yet')).toBeInTheDocument())
+    expect(screen.queryByText('Stevie Nicks')).not.toBeInTheDocument()
+  })
+})
+
 describe('ArtistDetail — Edit action / Refresh from MusicBrainz', () => {
   it('opens EditArtistDialog from the primary Edit segment, and disables the menu item when the artist has no known mbid', async () => {
     const mockTransport = createRouterTransport(router => {

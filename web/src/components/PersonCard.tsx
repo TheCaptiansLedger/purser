@@ -1,7 +1,21 @@
-import { User } from 'lucide-react'
+import { Pencil, Trash2, User } from 'lucide-react'
 import { useState } from 'react'
 import type { PersonRef } from '../types'
 import { ImageLightbox } from './ImageLightbox'
+
+// PersonCardRole is one role chip. `label` is the only field the People
+// index config needs (plain display text, already formatted with any era
+// suffix); `id` and the action callbacks are #724's Artist Detail Members
+// tab addition — a chip with either callback grows small inline Edit/
+// Remove icons, keyed/labeled by `id` (the raw EntryPerson `role` string,
+// distinct from `label`'s formatted text) rather than `label` itself,
+// since two chips could otherwise share a label.
+export interface PersonCardRole {
+  label: string
+  id?: string
+  onEdit?: () => void
+  onRemove?: () => void
+}
 
 export interface PersonCardProps {
   person: PersonRef
@@ -10,14 +24,15 @@ export interface PersonCardProps {
   // Omitted entirely by the People index config; the Artist Detail
   // Members tab config passes one or more. PersonCard renders whatever
   // list it's given — no Music/People-specific meaning attached here.
-  roles?: string[]
+  roles?: PersonCardRole[]
 }
 
 // PersonCard — style-guide Component vocabulary entry, #657. Shared
-// between the People index page and the Artist Detail Members tab
-// (neither built yet); reused unmodified per ADR 0002's SRP/OCP. Accepts
-// a plain PersonRef, never the full Person interface — see PersonRef's
-// own comment in web/src/types/index.ts for why (pre-reset issue #225).
+// between the People index page and the Artist Detail Members tab, reused
+// unmodified in shape (only extended, never forked) per ADR 0002's
+// SRP/OCP. Accepts a plain PersonRef, never the full Person interface —
+// see PersonRef's own comment in web/src/types/index.ts for why
+// (pre-reset issue #225).
 //
 // Not built on the not-yet-existing Card/Hero primitives (#658) — same
 // self-contained precedent ImageLightbox set relative to Modal.
@@ -54,14 +69,39 @@ export function PersonCard({ person, roles }: PersonCardProps) {
 
       {roles && roles.length > 0 && (
         <div className="flex flex-wrap items-center justify-center gap-1">
-          {roles.map(role => (
-            <span
-              key={role}
-              className="inline-flex items-center h-5 px-1.5 rounded-sm bg-surface-raised text-label text-text-secondary"
-            >
-              {role}
-            </span>
-          ))}
+          {roles.map(role => {
+            const rowKey = role.id ?? role.label
+            return (
+              <span
+                key={rowKey}
+                className="inline-flex items-center gap-1 h-5 pl-1.5 pr-1 rounded-sm bg-surface-raised text-label text-text-secondary"
+              >
+                {role.label}
+                {role.onEdit && (
+                  <button
+                    type="button"
+                    onClick={role.onEdit}
+                    aria-label={`Edit ${person.name}'s ${rowKey} role`}
+                    title="Edit role"
+                    className="flex h-3.5 w-3.5 items-center justify-center rounded hover:text-text"
+                  >
+                    <Pencil size={10} />
+                  </button>
+                )}
+                {role.onRemove && (
+                  <button
+                    type="button"
+                    onClick={role.onRemove}
+                    aria-label={`Remove ${person.name}'s ${rowKey} role`}
+                    title="Remove"
+                    className="flex h-3.5 w-3.5 items-center justify-center rounded hover:text-status-failure"
+                  >
+                    <Trash2 size={10} />
+                  </button>
+                )}
+              </span>
+            )
+          })}
         </div>
       )}
 

@@ -10,15 +10,25 @@ import { usePersonImages } from './usePersonImages'
 // ENTRY_PEOPLE_PAGE_SIZE.
 const ARTIST_MEMBERS_PAGE_SIZE = 200
 
+// ArtistMemberRole is one EntryPerson row on this artist, resolved enough
+// for both display (label, the raw role plus era suffix — PersonAppearances'
+// own precedent, roles are never title-cased) and for #724's Edit/Remove
+// actions, which need the row's own identity fields
+// (personId/role/startDate/endDate — libraryEntryId is implied, this hook
+// is always called for exactly one) to build UpdateEntryPerson/
+// DeleteEntryPerson calls.
+export interface ArtistMemberRole {
+  role: string
+  label: string
+  startDate?: Timestamp
+  endDate?: Timestamp
+}
+
 export interface ArtistMember {
   personId: string
   name: string
   imageId?: string
-  // One label per EntryPerson row this person holds on this artist,
-  // formatted as the raw role string (PersonAppearances' own precedent —
-  // roles are never title-cased) plus an era suffix when StartDate/
-  // EndDate are present.
-  roleLabels: string[]
+  roles: ArtistMemberRole[]
   former: boolean
 }
 
@@ -35,17 +45,23 @@ function eraSuffix(startDate?: Timestamp, endDate?: Timestamp): string {
   return ''
 }
 
-// useArtistMembers — the Artist Detail Members tab's (#668) read
+// useArtistMembers — the Artist Detail Members tab's (#668, #724) read
 // composition: EntryPersonService.ListEntryPeople(library_entry_id), each
 // row resolved to its Person (usePeopleByIds) and selected photo
-// (usePersonImages), grouped by person.
+// (usePersonImages), grouped by person into one ArtistMember per person
+// carrying every role row they hold on this entry — #724's Edit/Remove
+// row list flattens `roles` back out one row per (person, role) at render
+// time; the grouping stays here only to derive `former` and to dedupe the
+// Person/image fan-out per person, not per row.
 //
 // "Former" is per-entity, not global (a person can be a current member of
 // one artist and a former member of another): a person counts as former
 // here only when every one of *their* rows on *this* library entry
 // carries an EndDate — any still-open row makes them current, even if
 // they also hold a separate, already-ended role.
-export function useArtistMembers(libraryEntryId: string): { members: ArtistMember[]; isPending: boolean; isError: boolean } {
+export function useArtistMembers(
+  libraryEntryId: string,
+): { members: ArtistMember[]; isPending: boolean; isError: boolean; refetch: () => void } {
   const entryPeopleQuery = useQuery(
     listEntryPeople,
     { libraryEntryId, personId: '', pageSize: ARTIST_MEMBERS_PAGE_SIZE, pageToken: '' },
@@ -57,21 +73,26 @@ export function useArtistMembers(libraryEntryId: string): { members: ArtistMembe
   const { peopleById, isPending: peoplePending } = usePeopleByIds(personIds)
   const imagesByPersonId = usePersonImages(personIds)
 
-  const byPerson = new Map<string, { roleLabels: string[]; former: boolean }>()
+  const byPerson = new Map<string, { roles: ArtistMemberRole[]; former: boolean }>()
   for (const row of rows) {
-    const entry = byPerson.get(row.personId) ?? { roleLabels: [], former: true }
-    entry.roleLabels.push(`${row.role}${eraSuffix(row.startDate, row.endDate)}`)
+    const entry = byPerson.get(row.personId) ?? { roles: [], former: true }
+    entry.roles.push({
+      role: row.role,
+      label: `${row.role}${eraSuffix(row.startDate, row.endDate)}`,
+      startDate: row.startDate,
+      endDate: row.endDate,
+    })
     if (!row.endDate) entry.former = false
     byPerson.set(row.personId, entry)
   }
 
   const members: ArtistMember[] = [...byPerson.entries()]
     .filter(([personId]) => peopleById[personId])
-    .map(([personId, { roleLabels, former }]) => ({
+    .map(([personId, { roles, former }]) => ({
       personId,
       name: peopleById[personId].name,
       imageId: imagesByPersonId[personId],
-      roleLabels,
+      roles,
       former,
     }))
 
@@ -79,5 +100,6 @@ export function useArtistMembers(libraryEntryId: string): { members: ArtistMembe
     members,
     isPending: entryPeopleQuery.isPending || peoplePending,
     isError: entryPeopleQuery.isError,
+    refetch: () => void entryPeopleQuery.refetch(),
   }
 }

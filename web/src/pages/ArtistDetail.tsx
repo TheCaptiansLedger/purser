@@ -3,6 +3,7 @@ import { Camera, CheckSquare, Disc3, Images, Maximize2, Music, Plus, Users } fro
 import { useMemo, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { AddAlbumDialog } from '../components/AddAlbumDialog'
+import { AddMemberDialog } from '../components/AddMemberDialog'
 import { AlbumCard } from '../components/AlbumCard'
 import { BulkActionErrors, type BulkActionError } from '../components/BulkActionErrors'
 import { BulkDeleteDialog } from '../components/BulkDeleteDialog'
@@ -10,20 +11,22 @@ import { ChooseArtworkDialog } from '../components/ChooseArtworkDialog'
 import { DropdownMenu } from '../components/DropdownMenu'
 import { EditActionButton } from '../components/EditActionButton'
 import { EditArtistDialog } from '../components/EditArtistDialog'
+import { EditMemberDialog } from '../components/EditMemberDialog'
 import { EmptyState } from '../components/EmptyState'
 import { GroupDialog } from '../components/GroupDialog'
 import { Hero } from '../components/Hero'
 import { ImageGallery } from '../components/ImageGallery'
 import { ImageLightbox } from '../components/ImageLightbox'
-import { PersonCard } from '../components/PersonCard'
+import { PersonCard, type PersonCardRole } from '../components/PersonCard'
 import { RefreshArtistMetadataDialog } from '../components/RefreshArtistMetadataDialog'
+import { RemoveMemberDialog } from '../components/RemoveMemberDialog'
 import { SelectableTile } from '../components/SelectableTile'
 import { SelectionToolbar } from '../components/SelectionToolbar'
 import { Toggle } from '../components/Toggle'
 import { MonitorMode } from '../gen/purser/domain/v1/common_pb'
 import { bulkDeleteGroups, updateGroup } from '../gen/purser/domain/v1/group-GroupService_connectquery'
 import { getSelectedImage } from '../gen/purser/domain/v1/image-ImageService_connectquery'
-import { useArtistMembers } from '../hooks/useArtistMembers'
+import { useArtistMembers, type ArtistMember } from '../hooks/useArtistMembers'
 import { useArtistProviderData } from '../hooks/useArtistProviderData'
 import { useDiscography } from '../hooks/useDiscography'
 import { useGroupDeletionImpacts } from '../hooks/useGroupDeletionImpacts'
@@ -36,6 +39,19 @@ import { aliasesField, stringField } from '../lib/metadataFields'
 // Members (#668) share this one array/union rather than introducing a
 // second tab mechanism.
 type ArtistDetailTab = 'discography' | 'members'
+
+// MemberRow is the Edit/Remove dialogs' own working set — a single
+// EntryPerson row's identity (personId + role) plus era, and the display
+// name for the confirm/dialog copy. EntryPerson's identity is
+// (library_entry_id, person_id, role), not person_id alone, so this stays
+// per-role even though the grid below renders per-person.
+interface MemberRow {
+  personId: string
+  name: string
+  role: string
+  startDate?: ArtistMember['roles'][number]['startDate']
+  endDate?: ArtistMember['roles'][number]['endDate']
+}
 
 const TAB_ITEMS: { id: ArtistDetailTab; label: string }[] = [
   { id: 'discography', label: 'Discography' },
@@ -112,14 +128,28 @@ const TAB_ITEMS: { id: ArtistDetailTab; label: string }[] = [
 // failures render via BulkActionErrors; the tab refetches once the loop
 // settles.
 //
-// Members tab (#668): EntryPersonService.ListEntryPeople(library_entry_id)
-// — see useArtistMembers — rendered as two headed PersonCard (#657) grids,
-// "Current members" and "Former members". "Former" is per-artist (a
+// Members tab (#668, #724): EntryPersonService.ListEntryPeople
+// (library_entry_id) — see useArtistMembers — rendered as two headed
+// PersonCard (#657) grids, "Current members" and "Former members", same
+// merged-card-per-person shape #668 shipped. "Former" is per-artist (a
 // person can be current here and former on a different entry): a person
 // lands in Former only when every role row they hold on *this* entry
 // carries an EndDate. Each role chip carries its own era suffix
-// (StartDate/EndDate) rather than PersonCard growing a dedicated field —
-// see useArtistMembers.
+// (StartDate/EndDate) — see useArtistMembers.
+//
+// #724 turns each chip actionable: PersonCard's `roles` now carries
+// per-chip onEdit/onRemove callbacks (PersonCardRole), keyed by the raw
+// EntryPerson `role` string rather than the chip's own formatted label,
+// since Edit/Remove act on one EntryPerson row (person_id, role), not the
+// merged card. "Add member" opens AddMemberDialog: search existing People
+// (ListPeople name filter) or create a new Person (#663's PersonDialog,
+// reused as a sequential step per this issue's own scope decision), then
+// a role/era step that calls CreateEntryPerson. A chip's Edit icon opens
+// EditMemberDialog (role/era, pre-filled); Remove opens
+// RemoveMemberDialog, a plain confirm — EntryPerson is a pure join row
+// with no referrers of its own, so no deletion-impact preview applies
+// here (ADR 0015's own scope note). All three refetch this tab's own list
+// on success.
 export function ArtistDetail() {
   const { id = '' } = useParams<{ id: string }>()
   const entryQuery = useLibraryEntry(id)
@@ -158,6 +188,9 @@ export function ArtistDetail() {
   const [selectedAlbumIds, setSelectedAlbumIds] = useState<Set<string>>(new Set())
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false)
   const [albumMonitorErrors, setAlbumMonitorErrors] = useState<BulkActionError[]>([])
+  const [addMemberOpen, setAddMemberOpen] = useState(false)
+  const [editingMemberRow, setEditingMemberRow] = useState<MemberRow | undefined>(undefined)
+  const [removingMemberRow, setRemovingMemberRow] = useState<MemberRow | undefined>(undefined)
 
   const selectedAlbumIdList = useMemo(() => Array.from(selectedAlbumIds), [selectedAlbumIds])
   const albumImpact = useGroupDeletionImpacts(bulkDeleteOpen ? selectedAlbumIdList : [])
@@ -276,6 +309,25 @@ export function ArtistDetail() {
   const isni = stringField(metadata, 'isni')
   const officialUrl = stringField(metadata, 'official_url')
   const wikipediaUrl = stringField(metadata, 'wikipedia_url')
+
+  // memberCardRoles maps one ArtistMember's roles onto PersonCard's chip
+  // shape, wiring each chip's Edit/Remove icons to that specific
+  // EntryPerson row (personId + raw role, not the merged card).
+  function memberCardRoles(member: ArtistMember): PersonCardRole[] {
+    return member.roles.map(role => ({
+      label: role.label,
+      id: role.role,
+      onEdit: () =>
+        setEditingMemberRow({
+          personId: member.personId,
+          name: member.name,
+          role: role.role,
+          startDate: role.startDate,
+          endDate: role.endDate,
+        }),
+      onRemove: () => setRemovingMemberRow({ personId: member.personId, name: member.name, role: role.role }),
+    }))
+  }
 
   const currentMembers = members.members.filter(member => !member.former)
   const formerMembers = members.members.filter(member => member.former)
@@ -522,6 +574,17 @@ export function ArtistDetail() {
 
           {activeTab === 'members' && (
             <>
+              <div className="mb-4 flex justify-end">
+                <button
+                  type="button"
+                  onClick={() => setAddMemberOpen(true)}
+                  className="flex h-9 items-center gap-1.5 rounded-lg bg-accent-system px-4 text-body font-medium text-bg hover:opacity-90"
+                >
+                  <Plus size={16} aria-hidden="true" />
+                  Add member
+                </button>
+              </div>
+
               {members.isError && (
                 <p className="text-body text-status-failure" role="alert">
                   Couldn't load members.
@@ -544,7 +607,7 @@ export function ArtistDetail() {
                       <PersonCard
                         key={member.personId}
                         person={{ id: member.personId, name: member.name, imageId: member.imageId }}
-                        roles={member.roleLabels}
+                        roles={memberCardRoles(member)}
                       />
                     ))}
                   </div>
@@ -559,7 +622,7 @@ export function ArtistDetail() {
                       <PersonCard
                         key={member.personId}
                         person={{ id: member.personId, name: member.name, imageId: member.imageId }}
-                        roles={member.roleLabels}
+                        roles={memberCardRoles(member)}
                       />
                     ))}
                   </div>
@@ -667,6 +730,47 @@ export function ArtistDetail() {
           onSaved={() => {
             setEditArtistOpen(false)
             entryQuery.refetch()
+          }}
+        />
+      )}
+
+      {addMemberOpen && (
+        <AddMemberDialog
+          libraryEntryId={id}
+          onClose={() => setAddMemberOpen(false)}
+          onAdded={() => {
+            setAddMemberOpen(false)
+            members.refetch()
+          }}
+        />
+      )}
+
+      {editingMemberRow && (
+        <EditMemberDialog
+          libraryEntryId={id}
+          personId={editingMemberRow.personId}
+          personName={editingMemberRow.name}
+          role={editingMemberRow.role}
+          startDate={editingMemberRow.startDate}
+          endDate={editingMemberRow.endDate}
+          onClose={() => setEditingMemberRow(undefined)}
+          onSaved={() => {
+            setEditingMemberRow(undefined)
+            members.refetch()
+          }}
+        />
+      )}
+
+      {removingMemberRow && (
+        <RemoveMemberDialog
+          libraryEntryId={id}
+          personId={removingMemberRow.personId}
+          personName={removingMemberRow.name}
+          role={removingMemberRow.role}
+          onClose={() => setRemovingMemberRow(undefined)}
+          onRemoved={() => {
+            setRemovingMemberRow(undefined)
+            members.refetch()
           }}
         />
       )}
