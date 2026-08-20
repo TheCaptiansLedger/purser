@@ -7,7 +7,9 @@ import { AddArtistDialog } from '../components/AddArtistDialog'
 import { ArtistCard } from '../components/ArtistCard'
 import { BulkActionErrors, type BulkActionError } from '../components/BulkActionErrors'
 import { BulkDeleteDialog } from '../components/BulkDeleteDialog'
+import { DropdownMenu } from '../components/DropdownMenu'
 import { EmptyState } from '../components/EmptyState'
+import { ManualArtistDialog } from '../components/ManualArtistDialog'
 import { SelectableTile } from '../components/SelectableTile'
 import { SelectionToolbar } from '../components/SelectionToolbar'
 import { Toggle } from '../components/Toggle'
@@ -50,8 +52,11 @@ function genreOf(metadata: JsonObject | undefined): string | undefined {
 // PersonCard's photo button), so this needs none of People.tsx's
 // click-target-detection workaround.
 //
-// The "Add Artist" button (#665) opens AddArtistDialog and navigates to
-// the resulting artist's detail route (#666) on success.
+// "Add Artist" (#665, #722) is a DropdownMenu with two sources: "Search
+// MusicBrainz" opens AddArtistDialog, "Add Manually" opens
+// ManualArtistDialog — same two-entry-point shape ArtistDetail's own "Add
+// Album" menu already established. Both navigate to the resulting
+// artist's detail route (#666) on success.
 //
 // Bulk delete (#679): "Select" swaps every card's <Link> wrap for
 // SelectableTile's toggle-button one, exposing a SelectionToolbar; its
@@ -76,6 +81,7 @@ export function MusicLibrary() {
   const [search, setSearch] = useState('')
   const [monitoredOnly, setMonitoredOnly] = useState(false)
   const [addArtistOpen, setAddArtistOpen] = useState(false)
+  const [manualArtistOpen, setManualArtistOpen] = useState(false)
   const [selectMode, setSelectMode] = useState(false)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false)
@@ -201,14 +207,20 @@ export function MusicLibrary() {
             Select
           </button>
 
-          <button
-            type="button"
-            onClick={() => setAddArtistOpen(true)}
-            className="flex h-9 items-center gap-1.5 rounded-lg bg-accent-system px-4 text-body font-medium text-bg hover:opacity-90"
-          >
-            <Plus size={16} aria-hidden="true" />
-            Add Artist
-          </button>
+          <DropdownMenu
+            label="Add Artist"
+            trigger={
+              <>
+                <Plus size={16} aria-hidden="true" />
+                Add Artist
+              </>
+            }
+            triggerClassName="flex h-9 items-center gap-1.5 rounded-lg bg-accent-system px-4 text-body font-medium text-bg hover:opacity-90"
+            items={[
+              { label: 'Search MusicBrainz', onSelect: () => setAddArtistOpen(true) },
+              { label: 'Add Manually', onSelect: () => setManualArtistOpen(true) },
+            ]}
+          />
         </div>
       </div>
 
@@ -231,6 +243,16 @@ export function MusicLibrary() {
           onClose={() => setAddArtistOpen(false)}
           onAdded={entry => {
             setAddArtistOpen(false)
+            navigate(`/music/artists/${entry.id}`)
+          }}
+        />
+      )}
+
+      {manualArtistOpen && (
+        <ManualArtistDialog
+          onClose={() => setManualArtistOpen(false)}
+          onAdded={entry => {
+            setManualArtistOpen(false)
             navigate(`/music/artists/${entry.id}`)
           }}
         />

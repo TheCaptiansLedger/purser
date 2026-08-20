@@ -12,6 +12,7 @@ import { useLibraryEntryImages } from '../hooks/useLibraryEntryImages'
 import { useLibraryOwnership } from '../hooks/useLibraryOwnership'
 import { MusicLibrary } from './MusicLibrary'
 import { AddArtistDialog, type AddArtistDialogProps } from '../components/AddArtistDialog'
+import { ManualArtistDialog, type ManualArtistDialogProps } from '../components/ManualArtistDialog'
 
 // Page-level test: composition only, per ADR 0004 — useArtistLibraryEntries'
 // own wire behavior is tested in useArtistLibraryEntries.test.tsx,
@@ -54,6 +55,23 @@ mockAddArtistDialog.mockImplementation(({ onClose, onAdded }: AddArtistDialogPro
     </button>
     <button type="button" onClick={() => onAdded({ id: 'new-artist-1' } as LibraryEntry)}>
       stub-add
+    </button>
+  </div>
+))
+
+vi.mock('../components/ManualArtistDialog')
+const mockManualArtistDialog = vi.mocked(ManualArtistDialog)
+// Same minimal stand-in shape as AddArtistDialog's mock above, so
+// MusicLibrary's own reaction to either entry point is driven the same
+// way — ManualArtistDialog's real form behavior lives in its own test.
+mockManualArtistDialog.mockImplementation(({ onClose, onAdded }: ManualArtistDialogProps) => (
+  <div>
+    <span>Manual Artist dialog open</span>
+    <button type="button" onClick={onClose}>
+      stub-manual-close
+    </button>
+    <button type="button" onClick={() => onAdded({ id: 'new-artist-2' } as LibraryEntry)}>
+      stub-manual-add
     </button>
   </div>
 ))
@@ -200,13 +218,14 @@ describe('MusicLibrary', () => {
     expect(screen.getByText(/unavailable/)).toBeInTheDocument()
   })
 
-  it('opens AddArtistDialog from the Add Artist button, and closing it dismisses the dialog', () => {
+  it('opens AddArtistDialog from Add Artist → Search MusicBrainz, and closing it dismisses the dialog', () => {
     mockUseArtistLibraryEntries.mockReturnValue(loaded([]))
 
     renderMusicLibrary()
     expect(screen.queryByText('Add Artist dialog open')).not.toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: 'Add Artist' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Search MusicBrainz' }))
     expect(screen.getByText('Add Artist dialog open')).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: 'stub-close' }))
@@ -218,10 +237,37 @@ describe('MusicLibrary', () => {
 
     renderMusicLibrary()
     fireEvent.click(screen.getByRole('button', { name: 'Add Artist' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Search MusicBrainz' }))
     fireEvent.click(screen.getByRole('button', { name: 'stub-add' }))
 
     expect(screen.getByText('Artist detail page')).toBeInTheDocument()
     expect(screen.queryByText('Add Artist dialog open')).not.toBeInTheDocument()
+  })
+
+  it('opens ManualArtistDialog from Add Artist → Add Manually, and closing it dismisses the dialog', () => {
+    mockUseArtistLibraryEntries.mockReturnValue(loaded([]))
+
+    renderMusicLibrary()
+    expect(screen.queryByText('Manual Artist dialog open')).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Add Artist' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Add Manually' }))
+    expect(screen.getByText('Manual Artist dialog open')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'stub-manual-close' }))
+    expect(screen.queryByText('Manual Artist dialog open')).not.toBeInTheDocument()
+  })
+
+  it('navigates to the new artist and closes the dialog when ManualArtistDialog reports success', () => {
+    mockUseArtistLibraryEntries.mockReturnValue(loaded([]))
+
+    renderMusicLibrary()
+    fireEvent.click(screen.getByRole('button', { name: 'Add Artist' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Add Manually' }))
+    fireEvent.click(screen.getByRole('button', { name: 'stub-manual-add' }))
+
+    expect(screen.getByText('Artist detail page')).toBeInTheDocument()
+    expect(screen.queryByText('Manual Artist dialog open')).not.toBeInTheDocument()
   })
 
   it("passes each artist's own useLibraryOwnership result into its ArtistCard", () => {
