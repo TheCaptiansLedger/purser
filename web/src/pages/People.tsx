@@ -1,11 +1,13 @@
 import { useMutation } from '@connectrpc/connect-query'
-import { CheckSquare, Search, SearchX, UserPlus } from 'lucide-react'
+import { CheckSquare, Plus, Search, SearchX, UserPlus } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { BulkDeleteDialog } from '../components/BulkDeleteDialog'
+import { DropdownMenu } from '../components/DropdownMenu'
 import { EmptyState } from '../components/EmptyState'
 import { PersonCard } from '../components/PersonCard'
 import { PersonDialog } from '../components/PersonDialog'
+import { PersonSearchDialog } from '../components/PersonSearchDialog'
 import { SelectableTile } from '../components/SelectableTile'
 import { SelectionToolbar } from '../components/SelectionToolbar'
 import { Toggle } from '../components/Toggle'
@@ -37,12 +39,20 @@ const SEARCH_DEBOUNCE_MS = 300
 // BulkDeletePeople — see docs/adr/0015/0016. Person never blocks a delete
 // (internal/service/person_deletion.go), so the dialog's cascade checkbox
 // never actually appears here, same as the Discography tab's Group case.
+//
+// "Add Person" (#663, #723) is a DropdownMenu with two sources: "Search
+// MusicBrainz" opens PersonSearchDialog (get-or-create by mbid, ADR
+// 0026), "Add Manually" opens the existing PersonDialog in create mode —
+// same two-entry-point shape Music Library's own "Add Artist" menu
+// already established (#722). Editing an existing Person stays manual
+// only, unaffected by this.
 export function People() {
   const navigate = useNavigate()
   const [searchInput, setSearchInput] = useState('')
   const [name, setName] = useState('')
   const [monitoredOnly, setMonitoredOnly] = useState(false)
   const [addDialogOpen, setAddDialogOpen] = useState(false)
+  const [searchDialogOpen, setSearchDialogOpen] = useState(false)
   const [selectMode, setSelectMode] = useState(false)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false)
@@ -140,14 +150,20 @@ export function People() {
             Select
           </button>
 
-          <button
-            type="button"
-            onClick={() => setAddDialogOpen(true)}
-            className="flex h-9 items-center gap-2 rounded-lg bg-accent-system px-4 text-body font-medium text-bg hover:opacity-90"
-          >
-            <UserPlus size={16} />
-            Add Person
-          </button>
+          <DropdownMenu
+            label="Add Person"
+            trigger={
+              <>
+                <Plus size={16} aria-hidden="true" />
+                Add Person
+              </>
+            }
+            triggerClassName="flex h-9 items-center gap-1.5 rounded-lg bg-accent-system px-4 text-body font-medium text-bg hover:opacity-90"
+            items={[
+              { label: 'Search MusicBrainz', onSelect: () => setSearchDialogOpen(true) },
+              { label: 'Add Manually', onSelect: () => setAddDialogOpen(true) },
+            ]}
+          />
         </div>
       </div>
 
@@ -183,7 +199,6 @@ export function People() {
           icon={UserPlus}
           title="No people yet"
           description="Add a person to start building your People library."
-          action={{ label: 'Add Person', onClick: () => setAddDialogOpen(true) }}
         />
       )}
 
@@ -232,6 +247,16 @@ export function People() {
           onSaved={person => {
             setAddDialogOpen(false)
             navigate(`/people/${person.id}`)
+          }}
+        />
+      )}
+
+      {searchDialogOpen && (
+        <PersonSearchDialog
+          onClose={() => setSearchDialogOpen(false)}
+          onAdded={personId => {
+            setSearchDialogOpen(false)
+            navigate(`/people/${personId}`)
           }}
         />
       )}

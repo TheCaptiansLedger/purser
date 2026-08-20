@@ -8,6 +8,7 @@ import { PersonService } from '../gen/purser/domain/v1/person_pb'
 import { usePeopleList } from '../hooks/usePeopleList'
 import { usePersonImages } from '../hooks/usePersonImages'
 import { People } from './People'
+import { PersonSearchDialog, type PersonSearchDialogProps } from '../components/PersonSearchDialog'
 
 // People navigates via useNavigate(), which throws outside a Router
 // context — every render needs one. A /people/:id route is present so a
@@ -45,6 +46,24 @@ vi.mock('../hooks/usePersonImages')
 const mockUsePersonImages = vi.mocked(usePersonImages)
 mockUsePersonImages.mockReturnValue({})
 
+// PersonSearchDialog's own search/filter/get-or-create behavior is
+// covered by PersonSearchDialog.test.tsx — same split MusicLibrary.test.tsx
+// draws around AddArtistDialog. PersonDialog (the manual path) stays
+// unmocked, per this file's existing "mounts unconditionally" note above.
+vi.mock('../components/PersonSearchDialog')
+const mockPersonSearchDialog = vi.mocked(PersonSearchDialog)
+mockPersonSearchDialog.mockImplementation(({ onClose, onAdded }: PersonSearchDialogProps) => (
+  <div>
+    <span>Person search dialog open</span>
+    <button type="button" onClick={onClose}>
+      stub-close
+    </button>
+    <button type="button" onClick={() => onAdded('new-person-1')}>
+      stub-add
+    </button>
+  </div>
+))
+
 function pending() {
   return {
     data: undefined,
@@ -78,15 +97,13 @@ describe('People', () => {
     renderPeople()
 
     expect(screen.getByText('No people yet')).toBeInTheDocument()
-    // Two "Add Person" affordances exist on an empty library: the header
-    // button (always present) and the EmptyState action — both open the
-    // same PersonDialog.
-    for (const button of screen.getAllByRole('button', { name: 'Add Person' })) {
-      expect(button).toBeEnabled()
-    }
+    // The header's "Add Person" DropdownMenu trigger is the only
+    // affordance — the EmptyState has no action of its own, same as
+    // Music Library's equivalent empty state.
+    expect(screen.getByRole('button', { name: 'Add Person' })).toBeEnabled()
   })
 
-  it('opens PersonDialog from the header button, creates the person, and navigates to their detail page', async () => {
+  it('opens PersonDialog from Add Person → Add Manually, creates the person, and navigates to their detail page', async () => {
     mockUsePeopleList.mockReturnValue(loaded([{ id: 'p1', name: 'Jane Doe', monitored: true }]))
     const mockTransport = createRouterTransport(router => {
       router.service(PersonService, {
@@ -96,12 +113,39 @@ describe('People', () => {
 
     renderPeople(mockTransport)
     fireEvent.click(screen.getByRole('button', { name: 'Add Person' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Add Manually' }))
     expect(screen.getByRole('dialog', { name: 'Add Person' })).toBeInTheDocument()
 
     fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'New Person' } })
     fireEvent.click(screen.getByRole('button', { name: 'Save' }))
 
     await waitFor(() => expect(screen.getByText('Person detail page')).toBeInTheDocument())
+  })
+
+  it('opens PersonSearchDialog from Add Person → Search MusicBrainz, and picking a result navigates', async () => {
+    mockUsePeopleList.mockReturnValue(loaded([{ id: 'p1', name: 'Jane Doe', monitored: true }]))
+
+    renderPeople()
+    expect(screen.queryByText('Person search dialog open')).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Add Person' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Search MusicBrainz' }))
+    expect(screen.getByText('Person search dialog open')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByText('stub-add'))
+
+    await waitFor(() => expect(screen.getByText('Person detail page')).toBeInTheDocument())
+  })
+
+  it('closing PersonSearchDialog dismisses it without navigating', () => {
+    mockUsePeopleList.mockReturnValue(loaded([{ id: 'p1', name: 'Jane Doe', monitored: true }]))
+
+    renderPeople()
+    fireEvent.click(screen.getByRole('button', { name: 'Add Person' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Search MusicBrainz' }))
+    fireEvent.click(screen.getByText('stub-close'))
+
+    expect(screen.queryByText('Person search dialog open')).not.toBeInTheDocument()
   })
 
   it('renders a PersonCard grid for a loaded page', () => {
