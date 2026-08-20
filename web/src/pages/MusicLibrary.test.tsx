@@ -304,4 +304,64 @@ describe('MusicLibrary', () => {
       expect(screen.queryByText('1 artists selected')).not.toBeInTheDocument()
     })
   })
+
+  describe('bulk monitor toggle (#680)', () => {
+    it('calls UpdateLibraryEntry for every selected artist and refetches on success', async () => {
+      const loadedResult = loaded([
+        { id: 'a1', name: 'Fleetwood Mac', monitored: false },
+        { id: 'a2', name: 'Steely Dan', monitored: false },
+      ])
+      mockUseArtistLibraryEntries.mockReturnValue(loadedResult)
+
+      const requestedIds: string[] = []
+      const mockTransport = createRouterTransport(router => {
+        router.service(LibraryEntryService, {
+          updateLibraryEntry: request => {
+            requestedIds.push(request.libraryEntry!.id)
+            return { libraryEntry: request.libraryEntry }
+          },
+        })
+      })
+
+      renderMusicLibrary(mockTransport)
+      fireEvent.click(screen.getByRole('button', { name: 'Select' }))
+      fireEvent.click(screen.getByText('Fleetwood Mac'))
+      fireEvent.click(screen.getByText('Steely Dan'))
+      fireEvent.click(screen.getByRole('button', { name: 'Monitor' }))
+
+      await waitFor(() => expect(requestedIds.sort()).toEqual(['a1', 'a2']))
+      await waitFor(() => expect(loadedResult.refetch).toHaveBeenCalled())
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    })
+
+    it('surfaces a per-row failure via BulkActionErrors without touching the successful row', async () => {
+      mockUseArtistLibraryEntries.mockReturnValue(
+        loaded([
+          { id: 'a1', name: 'Fleetwood Mac', monitored: false },
+          { id: 'a2', name: 'Steely Dan', monitored: false },
+        ]),
+      )
+
+      const mockTransport = createRouterTransport(router => {
+        router.service(LibraryEntryService, {
+          updateLibraryEntry: request => {
+            if (request.libraryEntry!.id === 'a2') {
+              throw new Error('boom')
+            }
+            return { libraryEntry: request.libraryEntry }
+          },
+        })
+      })
+
+      renderMusicLibrary(mockTransport)
+      fireEvent.click(screen.getByRole('button', { name: 'Select' }))
+      fireEvent.click(screen.getByText('Fleetwood Mac'))
+      fireEvent.click(screen.getByText('Steely Dan'))
+      fireEvent.click(screen.getByRole('button', { name: 'Unmonitor' }))
+
+      await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent("Couldn't update 1 item"))
+      expect(screen.getByText(/Steely Dan:/)).toBeInTheDocument()
+      expect(screen.queryByText(/Fleetwood Mac:/)).not.toBeInTheDocument()
+    })
+  })
 })

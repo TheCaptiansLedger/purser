@@ -5,12 +5,17 @@ import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { AddArtistDialog } from '../components/AddArtistDialog'
 import { ArtistCard } from '../components/ArtistCard'
+import { BulkActionErrors, type BulkActionError } from '../components/BulkActionErrors'
 import { BulkDeleteDialog } from '../components/BulkDeleteDialog'
 import { EmptyState } from '../components/EmptyState'
 import { SelectableTile } from '../components/SelectableTile'
 import { SelectionToolbar } from '../components/SelectionToolbar'
 import { Toggle } from '../components/Toggle'
-import { bulkDeleteLibraryEntries } from '../gen/purser/domain/v1/library_entry-LibraryEntryService_connectquery'
+import { MonitorMode } from '../gen/purser/domain/v1/common_pb'
+import {
+  bulkDeleteLibraryEntries,
+  updateLibraryEntry,
+} from '../gen/purser/domain/v1/library_entry-LibraryEntryService_connectquery'
 import { useArtistLibraryEntries } from '../hooks/useArtistLibraryEntries'
 import { useLibraryEntryDeletionImpacts } from '../hooks/useLibraryEntryDeletionImpacts'
 import { useLibraryEntryImages } from '../hooks/useLibraryEntryImages'
@@ -56,6 +61,16 @@ function genreOf(metadata: JsonObject | undefined): string | undefined {
 // blocking referrer (internal/service/library_entry_deletion.go), so the
 // dialog's cascade checkbox is what lets a delete that includes such an
 // artist go through at all.
+//
+// Bulk monitor toggle (#680): SelectionToolbar's Monitor/Unmonitor fire a
+// client-side Promise.allSettled loop over the existing single-row
+// UpdateLibraryEntry RPC (same [monitored, monitor_mode] field mask
+// ArtistDetail's own Monitor toggle uses) — no new bulk RPC, per ADR
+// 0016's own bar (no atomicity requirement, page-bounded selection).
+// Per-row failures are collected and rendered individually by
+// BulkActionErrors rather than one collapsed message; the grid refetches
+// once the loop settles so ArtistCard's monitored dot reflects whatever
+// actually succeeded.
 export function MusicLibrary() {
   const navigate = useNavigate()
   const [search, setSearch] = useState('')
@@ -64,6 +79,7 @@ export function MusicLibrary() {
   const [selectMode, setSelectMode] = useState(false)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false)
+  const [monitorErrors, setMonitorErrors] = useState<BulkActionError[]>([])
 
   const { data, isPending, isError, error, hasNextPage, isFetchingNextPage, fetchNextPage, refetch } =
     useArtistLibraryEntries()
@@ -98,6 +114,7 @@ export function MusicLibrary() {
   const selectedIdList = useMemo(() => Array.from(selectedIds), [selectedIds])
   const impact = useLibraryEntryDeletionImpacts(bulkDeleteOpen ? selectedIdList : [])
   const bulkDeleteMutation = useMutation(bulkDeleteLibraryEntries)
+  const updateLibraryEntryMutation = useMutation(updateLibraryEntry)
 
   function toggleSelected(id: string) {
     setSelectedIds(prev => {
@@ -114,6 +131,28 @@ export function MusicLibrary() {
   function exitSelectMode() {
     setSelectMode(false)
     setSelectedIds(new Set())
+    setMonitorErrors([])
+  }
+
+  async function handleBulkMonitor(monitored: boolean) {
+    setMonitorErrors([])
+    const targets = visibleArtists.filter(artist => selectedIds.has(artist.id))
+    const results = await Promise.allSettled(
+      targets.map(artist =>
+        updateLibraryEntryMutation.mutateAsync({
+          libraryEntry: { id: artist.id, monitored, monitorMode: monitored ? MonitorMode.ALL : MonitorMode.NONE },
+          updateMask: { paths: ['monitored', 'monitor_mode'] },
+        }),
+      ),
+    )
+    setMonitorErrors(
+      results.flatMap((result, index) =>
+        result.status === 'rejected'
+          ? [{ id: targets[index].id, label: targets[index].name, message: (result.reason as Error).message }]
+          : [],
+      ),
+    )
+    void refetch()
   }
 
   function handleBulkDelete(cascade: boolean) {
@@ -179,8 +218,13 @@ export function MusicLibrary() {
           entityLabelPlural="artists"
           onDelete={() => setBulkDeleteOpen(true)}
           onCancel={exitSelectMode}
+          onMonitor={() => void handleBulkMonitor(true)}
+          onUnmonitor={() => void handleBulkMonitor(false)}
+          isUpdatingMonitored={updateLibraryEntryMutation.isPending}
         />
       )}
+
+      {selectMode && <BulkActionErrors errors={monitorErrors} />}
 
       {addArtistOpen && (
         <AddArtistDialog

@@ -679,6 +679,83 @@ describe('ArtistDetail — Discography bulk delete (#679)', () => {
   })
 })
 
+describe('ArtistDetail — Discography bulk monitor toggle (#680)', () => {
+  function renderWithTwoAlbums(mockTransport: ReturnType<typeof createRouterTransport>) {
+    renderArtistDetail(mockTransport)
+    return waitFor(() => expect(screen.getByRole('heading', { name: 'Fleetwood Mac' })).toBeInTheDocument())
+  }
+
+  it('calls UpdateGroup for every selected album and refreshes the grid on success', async () => {
+    const requestedIds: string[] = []
+    const mockTransport = createRouterTransport(router => {
+      router.service(LibraryEntryService, { getLibraryEntry: () => ({ libraryEntry: baseEntry }) })
+      registerNoProviderData(router)
+      registerNoImages(router)
+      registerNoMembers(router)
+      router.service(GroupService, {
+        listGroups: () => ({
+          groups: [
+            { id: 'group-1', title: 'Rumours', year: 1977 },
+            { id: 'group-2', title: 'Tusk', year: 1979 },
+          ],
+        }),
+        updateGroup: request => {
+          requestedIds.push(request.group!.id)
+          return { group: request.group }
+        },
+      })
+      router.service(MusicReleaseService, { listMusicReleases: () => ({ musicReleases: [] }) })
+    })
+
+    await renderWithTwoAlbums(mockTransport)
+    expect(await screen.findByText('Rumours')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Select' }))
+    fireEvent.click(screen.getByText('Rumours'))
+    fireEvent.click(screen.getByText('Tusk'))
+    fireEvent.click(screen.getByRole('button', { name: 'Monitor' }))
+
+    await waitFor(() => expect(requestedIds.sort()).toEqual(['group-1', 'group-2']))
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+  })
+
+  it('surfaces a per-row failure via BulkActionErrors, naming the failed album', async () => {
+    const mockTransport = createRouterTransport(router => {
+      router.service(LibraryEntryService, { getLibraryEntry: () => ({ libraryEntry: baseEntry }) })
+      registerNoProviderData(router)
+      registerNoImages(router)
+      registerNoMembers(router)
+      router.service(GroupService, {
+        listGroups: () => ({
+          groups: [
+            { id: 'group-1', title: 'Rumours', year: 1977 },
+            { id: 'group-2', title: 'Tusk', year: 1979 },
+          ],
+        }),
+        updateGroup: request => {
+          if (request.group!.id === 'group-2') {
+            throw new ConnectError('boom', Code.Internal)
+          }
+          return { group: request.group }
+        },
+      })
+      router.service(MusicReleaseService, { listMusicReleases: () => ({ musicReleases: [] }) })
+    })
+
+    await renderWithTwoAlbums(mockTransport)
+    expect(await screen.findByText('Rumours')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Select' }))
+    fireEvent.click(screen.getByText('Rumours'))
+    fireEvent.click(screen.getByText('Tusk'))
+    fireEvent.click(screen.getByRole('button', { name: 'Unmonitor' }))
+
+    await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent("Couldn't update 1 item"))
+    expect(screen.getByText(/Tusk:/)).toBeInTheDocument()
+    expect(screen.queryByText(/Rumours:/)).not.toBeInTheDocument()
+  })
+})
+
 describe('ArtistDetail — Members tab', () => {
   it('shows an empty state when the artist has no members', async () => {
     const mockTransport = createRouterTransport(router => {

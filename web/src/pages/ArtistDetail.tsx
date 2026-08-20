@@ -4,6 +4,7 @@ import { useMemo, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { AddAlbumDialog } from '../components/AddAlbumDialog'
 import { AlbumCard } from '../components/AlbumCard'
+import { BulkActionErrors, type BulkActionError } from '../components/BulkActionErrors'
 import { BulkDeleteDialog } from '../components/BulkDeleteDialog'
 import { ChooseArtworkDialog } from '../components/ChooseArtworkDialog'
 import { DropdownMenu } from '../components/DropdownMenu'
@@ -19,7 +20,7 @@ import { SelectableTile } from '../components/SelectableTile'
 import { SelectionToolbar } from '../components/SelectionToolbar'
 import { Toggle } from '../components/Toggle'
 import { MonitorMode } from '../gen/purser/domain/v1/common_pb'
-import { bulkDeleteGroups } from '../gen/purser/domain/v1/group-GroupService_connectquery'
+import { bulkDeleteGroups, updateGroup } from '../gen/purser/domain/v1/group-GroupService_connectquery'
 import { getSelectedImage } from '../gen/purser/domain/v1/image-ImageService_connectquery'
 import { useArtistMembers } from '../hooks/useArtistMembers'
 import { useArtistProviderData } from '../hooks/useArtistProviderData'
@@ -102,6 +103,13 @@ const TAB_ITEMS: { id: ArtistDetailTab; label: string }[] = [
 // artist delete, the dialog's cascade checkbox never actually appears
 // here.
 //
+// Bulk monitor toggle (#680): same client-side Promise.allSettled loop as
+// the Library grid's own bulk monitor toggle, here over the existing
+// single-row UpdateGroup RPC ([monitored, monitor_mode] field mask) — see
+// MusicLibrary.tsx's own comment for the ADR 0016 justification. Per-row
+// failures render via BulkActionErrors; the tab refetches once the loop
+// settles.
+//
 // Members tab (#668): EntryPersonService.ListEntryPeople(library_entry_id)
 // — see useArtistMembers — rendered as two headed PersonCard (#657) grids,
 // "Current members" and "Former members". "Former" is per-artist (a
@@ -146,10 +154,12 @@ export function ArtistDetail() {
   const [selectMode, setSelectMode] = useState(false)
   const [selectedAlbumIds, setSelectedAlbumIds] = useState<Set<string>>(new Set())
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false)
+  const [albumMonitorErrors, setAlbumMonitorErrors] = useState<BulkActionError[]>([])
 
   const selectedAlbumIdList = useMemo(() => Array.from(selectedAlbumIds), [selectedAlbumIds])
   const albumImpact = useGroupDeletionImpacts(bulkDeleteOpen ? selectedAlbumIdList : [])
   const bulkDeleteAlbumsMutation = useMutation(bulkDeleteGroups)
+  const updateGroupMutation = useMutation(updateGroup)
 
   function toggleAlbumSelected(albumId: string) {
     setSelectedAlbumIds(prev => {
@@ -166,6 +176,28 @@ export function ArtistDetail() {
   function exitAlbumSelectMode() {
     setSelectMode(false)
     setSelectedAlbumIds(new Set())
+    setAlbumMonitorErrors([])
+  }
+
+  async function handleBulkMonitorAlbums(monitored: boolean) {
+    setAlbumMonitorErrors([])
+    const targets = discography.albums.filter(album => selectedAlbumIds.has(album.id))
+    const results = await Promise.allSettled(
+      targets.map(album =>
+        updateGroupMutation.mutateAsync({
+          group: { id: album.id, monitored, monitorMode: monitored ? MonitorMode.ALL : MonitorMode.NONE },
+          updateMask: { paths: ['monitored', 'monitor_mode'] },
+        }),
+      ),
+    )
+    setAlbumMonitorErrors(
+      results.flatMap((result, index) =>
+        result.status === 'rejected'
+          ? [{ id: targets[index].id, label: targets[index].title, message: (result.reason as Error).message }]
+          : [],
+      ),
+    )
+    discography.refetch()
   }
 
   function handleBulkDeleteAlbums(cascade: boolean) {
@@ -435,8 +467,13 @@ export function ArtistDetail() {
                   entityLabelPlural="albums"
                   onDelete={() => setBulkDeleteOpen(true)}
                   onCancel={exitAlbumSelectMode}
+                  onMonitor={() => void handleBulkMonitorAlbums(true)}
+                  onUnmonitor={() => void handleBulkMonitorAlbums(false)}
+                  isUpdatingMonitored={updateGroupMutation.isPending}
                 />
               )}
+
+              {selectMode && <BulkActionErrors errors={albumMonitorErrors} />}
 
               {!discography.isPending && discography.albums.length === 0 && (
                 <EmptyState

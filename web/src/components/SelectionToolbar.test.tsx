@@ -32,4 +32,63 @@ describe('SelectionToolbar', () => {
     expect(onDelete).toHaveBeenCalledOnce()
     expect(onCancel).toHaveBeenCalledOnce()
   })
+
+  it('renders no Monitor/Unmonitor buttons when the handlers are omitted', () => {
+    render(<SelectionToolbar count={2} entityLabelPlural="artists" onDelete={vi.fn()} onCancel={vi.fn()} />)
+
+    expect(screen.queryByRole('button', { name: 'Monitor' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Unmonitor' })).not.toBeInTheDocument()
+  })
+
+  it('renders Monitor/Unmonitor when both handlers are supplied, disabled at zero count', () => {
+    const onMonitor = vi.fn()
+    const onUnmonitor = vi.fn()
+    render(
+      <SelectionToolbar
+        count={0}
+        entityLabelPlural="artists"
+        onDelete={vi.fn()}
+        onCancel={vi.fn()}
+        onMonitor={onMonitor}
+        onUnmonitor={onUnmonitor}
+      />,
+    )
+
+    expect(screen.getByRole('button', { name: 'Monitor' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Unmonitor' })).toBeDisabled()
+  })
+
+  it('calls onMonitor/onUnmonitor, and disables both while isUpdatingMonitored', () => {
+    const onMonitor = vi.fn()
+    const onUnmonitor = vi.fn()
+    const { rerender } = render(
+      <SelectionToolbar
+        count={2}
+        entityLabelPlural="artists"
+        onDelete={vi.fn()}
+        onCancel={vi.fn()}
+        onMonitor={onMonitor}
+        onUnmonitor={onUnmonitor}
+      />,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Monitor' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Unmonitor' }))
+    expect(onMonitor).toHaveBeenCalledOnce()
+    expect(onUnmonitor).toHaveBeenCalledOnce()
+
+    rerender(
+      <SelectionToolbar
+        count={2}
+        entityLabelPlural="artists"
+        onDelete={vi.fn()}
+        onCancel={vi.fn()}
+        onMonitor={onMonitor}
+        onUnmonitor={onUnmonitor}
+        isUpdatingMonitored
+      />,
+    )
+    expect(screen.getByRole('button', { name: 'Monitor' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Unmonitor' })).toBeDisabled()
+  })
 })
