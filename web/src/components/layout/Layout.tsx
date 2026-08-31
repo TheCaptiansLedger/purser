@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { Menu } from 'lucide-react'
 import { Outlet, useLocation } from 'react-router-dom'
 import { Sidebar } from './Sidebar'
+import { PlayerProvider } from '../PlayerProvider'
 
 const SIDEBAR_KEY = 'sidebar-collapsed'
 
@@ -47,33 +48,35 @@ export function Layout() {
   }, [collapsed])
 
   return (
-    <div className="flex min-h-screen bg-bg">
-      <Sidebar collapsed={collapsed} onCollapsedChange={toggleCollapsed} mobileOpen={mobileOpen} />
+    <PlayerProvider>
+      <div className="flex min-h-screen bg-bg">
+        <Sidebar collapsed={collapsed} onCollapsedChange={toggleCollapsed} mobileOpen={mobileOpen} />
 
-      {mobileOpen && (
-        <button
-          type="button"
-          aria-label="Close navigation"
-          className="fixed inset-0 z-30 bg-black/60 md:hidden"
-          onClick={() => setMobileOpen(false)}
-        />
-      )}
-
-      <main
-        className="flex-1 min-h-screen overflow-y-auto transition-all duration-300"
-        style={{ marginLeft: 'var(--sidebar-width)' }}
-      >
-        <div className="sticky top-0 z-20 flex items-center h-12 px-4 border-b border-border bg-surface/95 backdrop-blur-xl md:hidden">
+        {mobileOpen && (
           <button
-            onClick={() => setMobileOpen(true)}
-            className="text-text-secondary hover:text-text transition-colors"
-            aria-label="Open navigation"
-          >
-            <Menu size={20} />
-          </button>
-        </div>
-        <Outlet />
-      </main>
-    </div>
+            type="button"
+            aria-label="Close navigation"
+            className="fixed inset-0 z-30 bg-black/60 md:hidden"
+            onClick={() => setMobileOpen(false)}
+          />
+        )}
+
+        <main
+          className="flex-1 min-h-screen overflow-y-auto transition-all duration-300"
+          style={{ marginLeft: 'var(--sidebar-width)' }}
+        >
+          <div className="sticky top-0 z-20 flex items-center h-12 px-4 border-b border-border bg-surface/95 backdrop-blur-xl md:hidden">
+            <button
+              onClick={() => setMobileOpen(true)}
+              className="text-text-secondary hover:text-text transition-colors"
+              aria-label="Open navigation"
+            >
+              <Menu size={20} />
+            </button>
+          </div>
+          <Outlet />
+        </main>
+      </div>
+    </PlayerProvider>
   )
 }
