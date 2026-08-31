@@ -796,6 +796,12 @@ func wireScanPipeline(
 	// serving" section.
 	mux.Handle("GET /media/images/{id}", newImageHandler(imageRepo, imageStore, logger))
 
+	// Plain, Range-capable GET for a browser <audio> element — same
+	// non-RPC category as the image handler above, but using
+	// http.ServeContent instead of io.Copy so playback can seek. See
+	// mediaaudio.go and issue #748.
+	mux.Handle("GET /media/audio/{itemId}", newAudioHandler(mediaFileRepo, logger))
+
 	// The remote-image fetcher adapter — see docs/adr/0013-image-blob-storage.md's
 	// Addendum. Provider-agnostic: shared by every module's Persister that
 	// attaches a provider-returned image URL, not AfterDark-specific.
