@@ -6,6 +6,8 @@ import (
 	"purser/internal/adapters/store"
 	"purser/internal/ports"
 	"testing"
+
+	metricnoop "go.opentelemetry.io/otel/metric/noop"
 )
 
 // filteredWidget is a trivial local type standing in for a real
@@ -22,6 +24,45 @@ func filteredWidgetID(w *filteredWidget) string { return w.ID }
 
 func filteredWidgetIndex(w *filteredWidget) map[string]string {
 	return map[string]string{"category": w.Category}
+}
+
+func TestNewFiltered_RejectsEmptyName(t *testing.T) {
+	ds := newTestDatastore(t)
+	_, err := store.NewFiltered("", "filtered_widget", ds, filteredWidgetID, filteredWidgetIndex)
+	if err == nil {
+		t.Fatal("NewFiltered with an empty name did not return an error")
+	}
+}
+
+func TestNewFiltered_RejectsEmptyCollection(t *testing.T) {
+	ds := newTestDatastore(t)
+	_, err := store.NewFiltered("test", "", ds, filteredWidgetID, filteredWidgetIndex)
+	if err == nil {
+		t.Fatal("NewFiltered with an empty collection did not return an error")
+	}
+}
+
+func TestNewFiltered_RejectsNilDatastore(t *testing.T) {
+	_, err := store.NewFiltered[filteredWidget]("test", "filtered_widget", nil, filteredWidgetID, filteredWidgetIndex)
+	if err == nil {
+		t.Fatal("NewFiltered with a nil datastore did not return an error")
+	}
+}
+
+func TestNewFiltered_RejectsNilIDFunc(t *testing.T) {
+	ds := newTestDatastore(t)
+	_, err := store.NewFiltered[filteredWidget]("test", "filtered_widget", ds, nil, filteredWidgetIndex)
+	if err == nil {
+		t.Fatal("NewFiltered with a nil idOf did not return an error")
+	}
+}
+
+func TestNewFiltered_RejectsNilIndexFunc(t *testing.T) {
+	ds := newTestDatastore(t)
+	_, err := store.NewFiltered[filteredWidget]("test", "filtered_widget", ds, filteredWidgetID, nil)
+	if err == nil {
+		t.Fatal("NewFiltered with a nil indexOf did not return an error")
+	}
 }
 
 func TestFilteredRepository_CRUDRoundTrip(t *testing.T) {
@@ -123,6 +164,98 @@ func TestFilteredRepository_UpdateBatch(t *testing.T) {
 	}
 	if len(byOldCategory) != 0 {
 		t.Fatalf("List(category=gadget) after UpdateBatch returned %d widgets, want 0 (stale index)", len(byOldCategory))
+	}
+}
+
+func TestFilteredRepository_DeleteBatch(t *testing.T) {
+	ds := newTestDatastore(t)
+	repo, err := store.NewFiltered("test", "filtered_widget", ds, filteredWidgetID, filteredWidgetIndex)
+	if err != nil {
+		t.Fatalf("NewFiltered returned error: %v", err)
+	}
+	ctx := context.Background()
+
+	w1 := &filteredWidget{ID: "w1", Name: "Widget One", Category: "gadget"}
+	w2 := &filteredWidget{ID: "w2", Name: "Widget Two", Category: "gadget"}
+	if err := repo.Create(ctx, w1); err != nil {
+		t.Fatalf("Create w1 returned error: %v", err)
+	}
+	if err := repo.Create(ctx, w2); err != nil {
+		t.Fatalf("Create w2 returned error: %v", err)
+	}
+
+	if err := repo.DeleteBatch(ctx, []string{"w1", "w2"}); err != nil {
+		t.Fatalf("DeleteBatch returned error: %v", err)
+	}
+
+	if _, err := repo.Get(ctx, "w1"); !errors.Is(err, ports.ErrNotFound) {
+		t.Fatalf("Get w1 after DeleteBatch returned %v, want ErrNotFound", err)
+	}
+	if _, err := repo.Get(ctx, "w2"); !errors.Is(err, ports.ErrNotFound) {
+		t.Fatalf("Get w2 after DeleteBatch returned %v, want ErrNotFound", err)
+	}
+}
+
+func TestFilteredRepository_DeleteBatch_RollsBackOnMissing(t *testing.T) {
+	ds := newTestDatastore(t)
+	repo, err := store.NewFiltered("test", "filtered_widget", ds, filteredWidgetID, filteredWidgetIndex)
+	if err != nil {
+		t.Fatalf("NewFiltered returned error: %v", err)
+	}
+	ctx := context.Background()
+
+	w1 := &filteredWidget{ID: "w1", Name: "Widget One", Category: "gadget"}
+	if err := repo.Create(ctx, w1); err != nil {
+		t.Fatalf("Create w1 returned error: %v", err)
+	}
+
+	err = repo.DeleteBatch(ctx, []string{"w1", "missing"})
+	if !errors.Is(err, ports.ErrNotFound) {
+		t.Fatalf("DeleteBatch with a missing id returned %v, want ErrNotFound", err)
+	}
+
+	if _, err := repo.Get(ctx, "w1"); err != nil {
+		t.Fatalf("Get w1 after a rolled-back DeleteBatch returned error: %v, want it untouched", err)
+	}
+}
+
+func TestFilteredRepository_DocumentIDAndIndexOf(t *testing.T) {
+	ds := newTestDatastore(t)
+	repo, err := store.NewFiltered("test", "filtered_widget", ds, filteredWidgetID, filteredWidgetIndex)
+	if err != nil {
+		t.Fatalf("NewFiltered returned error: %v", err)
+	}
+
+	w := &filteredWidget{ID: "w1", Name: "Widget One", Category: "gadget"}
+	if err := repo.Create(context.Background(), w); err != nil {
+		t.Fatalf("Create returned error: %v", err)
+	}
+
+	if got := repo.DocumentID(w); got != "w1" {
+		t.Fatalf("DocumentID(w) = %q, want %q", got, "w1")
+	}
+	if index := repo.IndexOf(w); index["category"] != "gadget" {
+		t.Fatalf("IndexOf(w) = %v, want category=gadget", index)
+	}
+}
+
+func TestFilteredRepository_LoggerTracerMeterProviderReturnWhatNewFilteredWasGivenViaOptions(t *testing.T) {
+	ds := newTestDatastore(t)
+	mp := metricnoop.NewMeterProvider()
+
+	repo, err := store.NewFiltered("test", "filtered_widget", ds, filteredWidgetID, filteredWidgetIndex, store.WithMeterProvider(mp))
+	if err != nil {
+		t.Fatalf("NewFiltered returned error: %v", err)
+	}
+
+	if repo.Logger() == nil {
+		t.Fatalf("Logger() returned nil")
+	}
+	if repo.Tracer() == nil {
+		t.Fatalf("Tracer() returned nil")
+	}
+	if repo.MeterProvider() != mp {
+		t.Fatalf("MeterProvider() = %v, want the mp passed to WithMeterProvider", repo.MeterProvider())
 	}
 }
 
