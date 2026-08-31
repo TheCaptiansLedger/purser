@@ -7,6 +7,7 @@ import type { Item } from '../gen/purser/domain/v1/item_pb'
 import { ItemStatus } from '../gen/purser/domain/v1/common_pb'
 import { itemStatusFromProto } from '../hooks/useReleaseTracks'
 import { useTrackMediaFilePresence } from '../hooks/useTrackMediaFilePresence'
+import { formatRuntime } from '../lib/formatRuntime'
 import { ItemStatusBadge } from './ItemStatusBadge'
 import { EmptyState } from './EmptyState'
 import { AddTrackDialog } from './AddTrackDialog'
@@ -44,13 +45,6 @@ function sequenceKeyOf(track: Item): number {
 // server-side/candidate-list ranking this codebase otherwise avoids.
 function sortedTracks(tracks: Item[]): Item[] {
   return [...tracks].sort((a, b) => discNumberOf(a) - discNumberOf(b) || sequenceKeyOf(a) - sequenceKeyOf(b))
-}
-
-function formatRuntime(seconds: number): string | undefined {
-  if (seconds <= 0) return undefined
-  const m = Math.floor(seconds / 60)
-  const s = seconds % 60
-  return `${m}:${String(s).padStart(2, '0')}`
 }
 
 // Tracklist is #676's per-edition track table: ItemStatusBadge (#659) per
