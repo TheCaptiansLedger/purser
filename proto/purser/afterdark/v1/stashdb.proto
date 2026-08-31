@@ -1,0 +1,95 @@
+syntax = "proto3";
+
+package purser.afterdark.v1;
+
+option go_package = "purser/gen/go/purser/afterdark/v1;afterdarkv1";
+
+// StashDBSite is the external site a URL belongs to, translated
+// field-for-field from ports.Site (internal/adapters/stashdb).
+message StashDBSite {
+  string id = 1;
+  string name = 2;
+  string url = 3;
+}
+
+// StashDBURL is one external link attached to a Performer, tagged with the
+// Site it belongs to — translated from ports.URL.
+message StashDBURL {
+  string url = 1;
+  StashDBSite site = 2;
+}
+
+// StashDBImage is one image StashDB has recorded for a Performer,
+// translated from ports.Image.
+message StashDBImage {
+  string id = 1;
+  string url = 2;
+  int32 width = 3;
+  int32 height = 4;
+}
+
+// StashDBPerformer is StashDB's performer DTO, translated field-for-field
+// from ports.Performer (internal/adapters/stashdb) — raw external provider
+// data, not a persisted Purser entity, per
+// docs/adr/0027-provider-independence.md's read-only-passthrough rule.
+message StashDBPerformer {
+  string id = 1;
+  string name = 2;
+  string disambiguation = 3;
+  repeated string aliases = 4;
+  string gender = 5;
+  repeated StashDBURL urls = 6;
+  string birth_date = 7;
+  string ethnicity = 8;
+  string country = 9;
+  string eye_color = 10;
+  string hair_color = 11;
+  int32 height = 12;
+  string cup_size = 13;
+  int32 band_size = 14;
+  int32 waist_size = 15;
+  int32 hip_size = 16;
+  string breast_type = 17;
+  int32 career_start_year = 18;
+  int32 career_end_year = 19;
+  repeated StashDBImage images = 20;
+  bool is_favorite = 21;
+  bool deleted = 22;
+  repeated string merged_ids = 23;
+}
+
+message LookupStashDBPerformerRequest {
+  string id = 1;
+}
+
+message LookupStashDBPerformerResponse {
+  StashDBPerformer performer = 1;
+}
+
+// SearchStashDBPerformersRequest/Response expose ports.StashDBClient's
+// free-text SearchPerformers — the path a Person with no "stashdb"
+// ExternalID row uses (#703): search by the Person's own name instead of
+// a known StashDB ID. Results are returned exactly as StashDB ordered
+// them, never re-sorted — matching every other search-shaped method in
+// this codebase (e.g. ThePornDBClient.ResolveJAVCode's own doc comment).
+message SearchStashDBPerformersRequest {
+  string term = 1;
+}
+
+message SearchStashDBPerformersResponse {
+  repeated StashDBPerformer performers = 1;
+}
+
+// StashDBService exposes internal/adapters/stashdb's read-only performer
+// lookup/search directly to a caller (web UI, CLI) — a thin, read-only
+// passthrough per docs/adr/0027-provider-independence.md. Never writes
+// anything, never calls another provider, never ranks or merges — picking
+// between this and ThePornDBService's results is the caller's job. Only
+// Performer lookup/search is exposed here: Studio/Scene/fingerprint
+// lookups stay internal to the AfterDark identification pipeline
+// (wireScanPipeline) until a real caller needs them as a manual lookup
+// RPC too.
+service StashDBService {
+  rpc LookupPerformer(LookupStashDBPerformerRequest) returns (LookupStashDBPerformerResponse);
+  rpc SearchPerformers(SearchStashDBPerformersRequest) returns (SearchStashDBPerformersResponse);
+}

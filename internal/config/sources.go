@@ -40,6 +40,7 @@ type Sources struct {
 	ThePornDB  ThePornDB  `mapstructure:"tpdb"`
 	TheAudioDB TheAudioDB `mapstructure:"theaudiodb"`
 	FanartTV   FanartTV   `mapstructure:"fanart"`
+	Wikidata   Wikidata   `mapstructure:"wikidata"`
 }
 
 // DefaultSources returns Sources' defaults.
@@ -49,5 +50,6 @@ func DefaultSources() Sources {
 		ThePornDB:  DefaultThePornDB(),
 		TheAudioDB: DefaultTheAudioDB(),
 		FanartTV:   DefaultFanartTV(),
+		Wikidata:   DefaultWikidata(),
 	}
 }

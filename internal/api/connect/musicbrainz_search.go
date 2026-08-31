@@ -100,12 +100,13 @@ func (h *MusicBrainzSearchHandler) GetArtist(ctx context.Context, req *connect.R
 	if err != nil {
 		return nil, mapError(ctx, h.logger, err)
 	}
-	officialURL, wikipediaURL := artistLinksFromRelations(a.Relations)
+	officialURL, wikipediaURL, wikidataURL := artistLinksFromRelations(a.Relations)
 	return connect.NewResponse(&musicv1.GetMusicBrainzArtistResponse{
 		Artist:       artistToProto(*a),
 		Isnis:        a.ISNIs,
 		OfficialUrl:  officialURL,
 		WikipediaUrl: wikipediaURL,
+		WikidataUrl:  wikidataURL,
 		Members:      membersFromRelations(a.Relations),
 	}), nil
 }
@@ -152,12 +153,18 @@ func mediumToProto(m ports.Medium) *musicv1.MusicBrainzMedium {
 	}
 }
 
-// artistLinksFromRelations pulls the official-homepage and Wikipedia URLs
-// out of an Artist's Relations — MusicBrainz's own relation-type
-// vocabulary ("official homepage", "wikipedia"), read-only passthrough per
-// ADR 0027. Either or both may be absent; callers treat an empty string as
-// "not offered by MusicBrainz for this artist," not an error.
-func artistLinksFromRelations(relations []ports.Relation) (officialURL, wikipediaURL string) {
+// artistLinksFromRelations pulls the official-homepage, Wikipedia, and
+// Wikidata URLs out of an Artist's Relations — MusicBrainz's own
+// relation-type vocabulary ("official homepage", "wikipedia", "wikidata",
+// confirmed live: e.g. REO Speedwagon's own url-rels include
+// "wikidata" -> "https://www.wikidata.org/wiki/Q845084"), read-only
+// passthrough per ADR 0027. Any of the three may be absent; callers treat
+// an empty string as "not offered by MusicBrainz for this artist," not an
+// error. wikidataURL feeds #703's WikidataService.LookupImage — a band
+// member is itself a MusicBrainz artist with its own relations, so this
+// same extraction resolves a Person's photo just as well as a
+// LibraryEntry's.
+func artistLinksFromRelations(relations []ports.Relation) (officialURL, wikipediaURL, wikidataURL string) {
 	for _, r := range relations {
 		if r.URL == nil {
 			continue
@@ -167,9 +174,11 @@ func artistLinksFromRelations(relations []ports.Relation) (officialURL, wikipedi
 			officialURL = r.URL.Resource
 		case "wikipedia":
 			wikipediaURL = r.URL.Resource
+		case "wikidata":
+			wikidataURL = r.URL.Resource
 		}
 	}
-	return officialURL, wikipediaURL
+	return officialURL, wikipediaURL, wikidataURL
 }
 
 // membersFromRelations pulls band-member edges ("member of band",

@@ -1,0 +1,110 @@
+syntax = "proto3";
+
+package purser.afterdark.v1;
+
+option go_package = "purser/gen/go/purser/afterdark/v1;afterdarkv1";
+
+// TPDBImage is one performer poster image ThePornDB has recorded,
+// translated field-for-field from ports.TPDBImage
+// (internal/adapters/theporndb).
+message TPDBImage {
+  int32 id = 1;
+  string url = 2;
+  int32 size = 3;
+  int32 order = 4;
+}
+
+// TPDBPerformerExtras is the nested biographical/physical-attribute bag
+// every TPDBPerformer carries, translated from ports.TPDBPerformerExtras.
+// links is a flat map keyed by external site display name ("IAFD",
+// "StashDB", ...) to that site's profile URL, same shape ports.TPDBLinks
+// already normalizes (its own custom decoder collapses ThePornDB's
+// confirmed-live "[]" empty-array quirk to an empty map, so this proto
+// field is always a real map, never that quirk leaking through).
+message TPDBPerformerExtras {
+  string gender = 1;
+  string birthday = 2;
+  int64 birthday_timestamp = 3;
+  string birthplace = 4;
+  string birthplace_code = 5;
+  string astrology = 6;
+  string ethnicity = 7;
+  string nationality = 8;
+  string hair_colour = 9;
+  string eye_colour = 10;
+  string weight = 11;
+  string height = 12;
+  string measurements = 13;
+  string cup_size = 14;
+  string tattoos = 15;
+  string piercings = 16;
+  string waist = 17;
+  string hips = 18;
+  bool fake_boobs = 19;
+  bool same_sex_only = 20;
+  int32 career_start_year = 21;
+  int32 career_end_year = 22;
+  map<string, string> links = 23;
+}
+
+// TPDBPerformer is ThePornDB's performer DTO, translated field-for-field
+// from ports.TPDBPerformer (internal/adapters/theporndb) — raw external
+// provider data, not a persisted Purser entity, per
+// docs/adr/0027-provider-independence.md's read-only-passthrough rule.
+// parent is deliberately shallow (one level, self-referential, its own
+// parent left unset) — same tradeoff ports.TPDBPerformer.Parent's own doc
+// comment states; SitePerformers is deliberately not mapped, same
+// omission that Go DTO already makes.
+message TPDBPerformer {
+  string id = 1;
+  int32 legacy_id = 2;
+  string slug = 3;
+  string name = 4;
+  string full_name = 5;
+  string disambiguation = 6;
+  string bio = 7;
+  double rating = 8;
+  bool is_parent = 9;
+  string image = 10;
+  string thumbnail = 11;
+  string face = 12;
+  repeated TPDBImage posters = 13;
+  repeated string aliases = 14;
+  TPDBPerformerExtras extras = 15;
+  TPDBPerformer parent = 16;
+}
+
+message LookupThePornDBPerformerRequest {
+  string id = 1;
+}
+
+message LookupThePornDBPerformerResponse {
+  TPDBPerformer performer = 1;
+}
+
+// SearchThePornDBPerformersRequest/Response expose
+// ports.ThePornDBClient's free-text SearchPerformers — the path a Person
+// with no "tpdb" ExternalID row uses (#703): search by the Person's own
+// name instead of a known ThePornDB UUID. Results are returned exactly as
+// ThePornDB ordered them, never re-sorted — see StashDBService's identical
+// doc comment.
+message SearchThePornDBPerformersRequest {
+  string term = 1;
+}
+
+message SearchThePornDBPerformersResponse {
+  repeated TPDBPerformer performers = 1;
+}
+
+// ThePornDBService exposes internal/adapters/theporndb's read-only
+// performer lookup/search directly to a caller (web UI, CLI) — a thin,
+// read-only passthrough per docs/adr/0027-provider-independence.md. Never
+// writes anything, never calls another provider, never ranks or merges —
+// picking between this and StashDBService's results is the caller's job.
+// Only Performer lookup/search is exposed here — see StashDBService's
+// identical doc comment for why Scene/hash/JAV lookups stay internal for
+// now.
+service ThePornDBService {
+  rpc LookupPerformer(LookupThePornDBPerformerRequest) returns (LookupThePornDBPerformerResponse);
+  rpc SearchPerformers(SearchThePornDBPerformersRequest) returns (SearchThePornDBPerformersResponse);
+}

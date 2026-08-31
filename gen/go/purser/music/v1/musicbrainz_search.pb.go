@@ -800,11 +800,14 @@ func (x *MusicBrainzArtistMember) GetEnded() bool {
 }
 
 // GetMusicBrainzArtistResponse's extra fields (isnis/official_url/
-// wikipedia_url/members) come from the same MusicBrainz relations data
-// SearchArtists' MusicBrainzArtist deliberately omits (see that message's
-// own doc comment) — GetArtist is the "caller already knows the exact
-// artist" lookup, the right place for the heavier per-artist detail
-// nothing else needs.
+// wikipedia_url/wikidata_url/members) come from the same MusicBrainz
+// relations data SearchArtists' MusicBrainzArtist deliberately omits (see
+// that message's own doc comment) — GetArtist is the "caller already
+// knows the exact artist" lookup, the right place for the heavier
+// per-artist detail nothing else needs. wikidata_url (a "wikidata"
+// url-rel, e.g. "https://www.wikidata.org/wiki/Q845084") is the join key
+// #703's WikidataService.LookupImage takes — extracted here rather than
+// making that RPC parse MusicBrainzArtistMember's relations itself.
 type GetMusicBrainzArtistResponse struct {
 	state         protoimpl.MessageState     `protogen:"open.v1"`
 	Artist        *MusicBrainzArtist         `protobuf:"bytes,1,opt,name=artist,proto3" json:"artist,omitempty"`
@@ -812,6 +815,7 @@ type GetMusicBrainzArtistResponse struct {
 	OfficialUrl   string                     `protobuf:"bytes,3,opt,name=official_url,json=officialUrl,proto3" json:"official_url,omitempty"`
 	WikipediaUrl  string                     `protobuf:"bytes,4,opt,name=wikipedia_url,json=wikipediaUrl,proto3" json:"wikipedia_url,omitempty"`
 	Members       []*MusicBrainzArtistMember `protobuf:"bytes,5,rep,name=members,proto3" json:"members,omitempty"`
+	WikidataUrl   string                     `protobuf:"bytes,6,opt,name=wikidata_url,json=wikidataUrl,proto3" json:"wikidata_url,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -879,6 +883,13 @@ func (x *GetMusicBrainzArtistResponse) GetMembers() []*MusicBrainzArtistMember {
 		return x.Members
 	}
 	return nil
+}
+
+func (x *GetMusicBrainzArtistResponse) GetWikidataUrl() string {
+	if x != nil {
+		return x.WikidataUrl
+	}
+	return ""
 }
 
 // ListMusicBrainzReleasesRequest lists every known pressing/edition of one
@@ -1287,13 +1298,14 @@ const file_purser_music_v1_musicbrainz_search_proto_rawDesc = "" +
 	"attributes\x12\x14\n" +
 	"\x05begin\x18\x04 \x01(\tR\x05begin\x12\x10\n" +
 	"\x03end\x18\x05 \x01(\tR\x03end\x12\x14\n" +
-	"\x05ended\x18\x06 \x01(\bR\x05ended\"\xfc\x01\n" +
+	"\x05ended\x18\x06 \x01(\bR\x05ended\"\x9f\x02\n" +
 	"\x1cGetMusicBrainzArtistResponse\x12:\n" +
 	"\x06artist\x18\x01 \x01(\v2\".purser.music.v1.MusicBrainzArtistR\x06artist\x12\x14\n" +
 	"\x05isnis\x18\x02 \x03(\tR\x05isnis\x12!\n" +
 	"\fofficial_url\x18\x03 \x01(\tR\vofficialUrl\x12#\n" +
 	"\rwikipedia_url\x18\x04 \x01(\tR\fwikipediaUrl\x12B\n" +
-	"\amembers\x18\x05 \x03(\v2(.purser.music.v1.MusicBrainzArtistMemberR\amembers\"N\n" +
+	"\amembers\x18\x05 \x03(\v2(.purser.music.v1.MusicBrainzArtistMemberR\amembers\x12!\n" +
+	"\fwikidata_url\x18\x06 \x01(\tR\vwikidataUrl\"N\n" +
 	"\x1eListMusicBrainzReleasesRequest\x12,\n" +
 	"\x12release_group_mbid\x18\x01 \x01(\tR\x10releaseGroupMbid\"b\n" +
 	"\x1fListMusicBrainzReleasesResponse\x12?\n" +

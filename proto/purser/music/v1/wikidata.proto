@@ -1,0 +1,35 @@
+syntax = "proto3";
+
+package purser.music.v1;
+
+option go_package = "purser/gen/go/purser/music/v1;musicv1";
+
+// WikidataImage is one Commons file resolved from an entity's P18
+// ("image") claim, translated from ports.WikidataImage
+// (internal/adapters/wikidata) — already a hotlinkable Wikimedia Commons
+// file URL, not the raw P18 filename value.
+message WikidataImage {
+  string url = 1;
+}
+
+message LookupWikidataImageRequest {
+  // url is a full wikidata.org entity URL (e.g.
+  // "https://www.wikidata.org/wiki/Q845084") — the same URL
+  // MusicBrainzService.GetArtist's own wikidata_url field already surfaces
+  // from a "wikidata" relation.
+  string url = 1;
+}
+
+message LookupWikidataImageResponse {
+  repeated WikidataImage images = 1;
+}
+
+// WikidataService exposes internal/adapters/wikidata's read-only P18
+// "image" claim lookup directly to a caller (web UI, CLI), the same shape
+// as FanartTVService/TheAudioDBService — a thin, read-only passthrough per
+// docs/adr/0027-provider-independence.md. Never writes anything, never
+// calls another provider, never ranks or merges — picking between this and
+// FanartTVService's/TheAudioDBService's results is the caller's job.
+service WikidataService {
+  rpc LookupImage(LookupWikidataImageRequest) returns (LookupWikidataImageResponse);
+}

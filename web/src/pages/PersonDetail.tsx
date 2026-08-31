@@ -14,6 +14,7 @@ import { Toggle } from '../components/Toggle'
 import { MonitorMode } from '../gen/purser/domain/v1/common_pb'
 import { getSelectedImage } from '../gen/purser/domain/v1/image-ImageService_connectquery'
 import { usePerson, useUpdatePersonMutation } from '../hooks/usePerson'
+import { usePersonProviderData } from '../hooks/usePersonProviderData'
 
 function formatDate(timestamp: Timestamp | undefined): string | undefined {
   if (!timestamp) return undefined
@@ -27,10 +28,15 @@ function formatDate(timestamp: Timestamp | undefined): string | undefined {
 // selects it — see useAttachImage), ImageGallery to see every previously
 // attached photo and switch which one is current or delete one, and
 // #655's ImageLightbox to view the current one full-screen on click.
-// Upload-only in ChooseArtworkDialog — unlike Artist/Album art there's no
-// provider lookup RPC for a Person photo, so no candidates are passed.
-// #662's PersonAppearances renders the "Appears as" cross-module list
-// below the facts panel.
+// #703's usePersonProviderData feeds ChooseArtworkDialog real provider
+// candidates — StashDB/ThePornDB and, via MusicBrainz, fanart.tv/
+// TheAudioDB/Wikidata. Each provider prefers an exact ExternalID lookup
+// when the Person already has one, and otherwise falls back to searching
+// that provider by the Person's own name — a person added by typing a
+// name (the common case) gets real candidates too, not just an
+// already-linked one. A person with no hit from any provider still falls
+// back to the upload-only path, never an error. #662's PersonAppearances
+// renders the "Appears as" cross-module list below the facts panel.
 //
 // The trash-icon button next to Edit opens PersonDeleteDialog — the
 // generic DeletePerson RPC, gated by GetPersonDeletionImpact per ADR
@@ -42,6 +48,7 @@ export function PersonDetail() {
   const navigate = useNavigate()
   const personQuery = usePerson(id)
   const updatePersonMutation = useUpdatePersonMutation()
+  const { photoCandidates } = usePersonProviderData(id, personQuery.data?.person?.name ?? '')
   const selectedImageQuery = useQuery(
     getSelectedImage,
     { ownerType: 'person', ownerId: id, imageType: 'photo' },
@@ -210,6 +217,7 @@ export function PersonDetail() {
           ownerType="person"
           ownerId={id}
           imageType="photo"
+          candidates={photoCandidates}
           onClose={() => setArtworkDialogOpen(false)}
           onAttached={() => void selectedImageQuery.refetch()}
         />

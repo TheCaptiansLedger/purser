@@ -66,6 +66,7 @@ const upToDateResponse: GetMusicBrainzArtistResponse = {
   isnis: ['0000000123456789'],
   officialUrl: 'https://reospeedwagon.com',
   wikipediaUrl: '',
+  wikidataUrl: '',
   members: [],
 }
 

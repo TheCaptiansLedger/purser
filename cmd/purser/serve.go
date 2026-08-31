@@ -26,6 +26,7 @@ import (
 	"purser/internal/adapters/stashdb"
 	"purser/internal/adapters/theaudiodb"
 	"purser/internal/adapters/theporndb"
+	"purser/internal/adapters/wikidata"
 	"purser/internal/config"
 	"purser/internal/domain"
 	"purser/internal/ports"
@@ -146,7 +147,7 @@ func runServe(ctx context.Context, configPath string) error {
 		}
 	}()
 
-	mux, watcherCloser, err := newServeMux(sigCtx, logger, ds, cfg.Pipeline, cfg.MusicBrainz, cfg.AcoustID, cfg.Sources.StashDB, cfg.Sources.ThePornDB, cfg.Sources.TheAudioDB, cfg.Sources.FanartTV, cfg.Prowlarr, cfg.QBittorrent, cfg.SABnzbd, cfg.Media, cfg.AfterDark)
+	mux, watcherCloser, err := newServeMux(sigCtx, logger, ds, cfg.Pipeline, cfg.MusicBrainz, cfg.AcoustID, cfg.Sources.StashDB, cfg.Sources.ThePornDB, cfg.Sources.TheAudioDB, cfg.Sources.FanartTV, cfg.Sources.Wikidata, cfg.Prowlarr, cfg.QBittorrent, cfg.SABnzbd, cfg.Media, cfg.AfterDark)
 	if err != nil {
 		return err
 	}
@@ -349,7 +350,7 @@ func newImageDeps(ds datastore.Datastore, mediaPath string, logger *slog.Logger)
 // Common Scan Pipeline's filesystem watcher/consumer goroutine, if one is
 // started (see wireScanPipeline); the returned io.Closer stops it during
 // shutdown and is nil when pipelineCfg.ScanRoots is empty.
-func newServeMux(ctx context.Context, logger *slog.Logger, ds datastore.Datastore, pipelineCfg config.Pipeline, mbCfg config.MusicBrainz, acoustIDCfg config.AcoustID, stashDBCfg config.StashDB, tpdbCfg config.ThePornDB, theAudioDBCfg config.TheAudioDB, fanartTVCfg config.FanartTV, prowlarrCfg config.Prowlarr, qbittorrentCfg config.QBittorrent, sabnzbdCfg config.SABnzbd, mediaCfg config.Media, afterDarkCfg config.AfterDark) (*http.ServeMux, io.Closer, error) {
+func newServeMux(ctx context.Context, logger *slog.Logger, ds datastore.Datastore, pipelineCfg config.Pipeline, mbCfg config.MusicBrainz, acoustIDCfg config.AcoustID, stashDBCfg config.StashDB, tpdbCfg config.ThePornDB, theAudioDBCfg config.TheAudioDB, fanartTVCfg config.FanartTV, wikidataCfg config.Wikidata, prowlarrCfg config.Prowlarr, qbittorrentCfg config.QBittorrent, sabnzbdCfg config.SABnzbd, mediaCfg config.Media, afterDarkCfg config.AfterDark) (*http.ServeMux, io.Closer, error) {
 	mux := http.NewServeMux()
 	interceptors := connect.WithInterceptors(apiconnect.NewLoggingInterceptor(logger))
 
@@ -357,20 +358,14 @@ func newServeMux(ctx context.Context, logger *slog.Logger, ds datastore.Datastor
 	// after PersonDeletionService's other referrer repos (entryPersonRepo,
 	// itemPersonRepo, externalIDRepo, imageRepo, tagAssignmentRepo,
 	// performerProfileRepo) exist — see
-	// docs/adr/0015-deletion-impact-and-composing-services.md.
-	personRepo, err := storeperson.New("person", ds, storeperson.WithLogger(logger))
+	// docs/adr/0015-deletion-impact-and-composing-services.md. Constructed
+	// together with libraryEntryRepo via newPersonAndLibraryEntryRepos —
+	// split out purely to keep newServeMux's cyclomatic complexity under
+	// budget, same reasoning wireScanPipeline's own extraction comment
+	// gives, no behavior difference from being inlined here.
+	personRepo, libraryEntryRepo, err := newPersonAndLibraryEntryRepos(ds, logger)
 	if err != nil {
-		return nil, nil, fmt.Errorf("cmd/purser: constructing person repository: %w", err)
-	}
-
-	// libraryEntryRepo's handler (libraryEntryHandler) is constructed
-	// further down, after LibraryEntryDeletionService's dependencies
-	// (groupRepo, itemRepo, entryPersonRepo, externalIDRepo, imageRepo,
-	// tagAssignmentRepo, groupDeletionSvc, itemDeletionSvc) all exist —
-	// see docs/adr/0015-deletion-impact-and-composing-services.md.
-	libraryEntryRepo, err := storelibraryentry.New("library_entry", ds, storelibraryentry.WithLogger(logger))
-	if err != nil {
-		return nil, nil, fmt.Errorf("cmd/purser: constructing library entry repository: %w", err)
+		return nil, nil, err
 	}
 
 	// groupRepo's handler (groupHandler) is constructed further down, after
@@ -562,14 +557,41 @@ func newServeMux(ctx context.Context, logger *slog.Logger, ds datastore.Datastor
 	fanartTVPath, fanartTVConnectHandler := musicv1connect.NewFanartTVServiceHandler(fanartTVHandler, interceptors)
 	mux.Handle(fanartTVPath, fanartTVConnectHandler)
 
+	// Wikidata: read-only Person-photo lookup RPC per #703/ADR 0027 —
+	// resolves the "wikidata" url-rel MusicBrainzService.GetArtist already
+	// surfaces to a hotlinkable Commons file URL. Same always-mounted,
+	// noop-when-disabled posture as TheAudioDB/fanart.tv above.
+	wikidataClient := newWikidataClient(wikidataCfg, logger)
+	wikidataHandler := apiconnect.NewWikidataHandler(service.NewWikidataLookup(wikidataClient), logger)
+	wikidataPath, wikidataConnectHandler := musicv1connect.NewWikidataServiceHandler(wikidataHandler, interceptors)
+	mux.Handle(wikidataPath, wikidataConnectHandler)
+
+	// StashDB/ThePornDB: read-only Person-photo lookup RPCs per #703's
+	// AfterDark-origin follow-up (ADR 0027) — the same LookupPerformer
+	// capability wireScanPipeline's AfterDark identifier already uses
+	// internally, now also exposed as a manual lookup RPC per 0027's
+	// "interactive, manual lookup surface" carve-out. Split into its own
+	// function purely to keep newServeMux's cyclomatic complexity under
+	// budget — no behavior difference from being inlined here. Clients are
+	// constructed once here (not duplicated inside wireScanPipeline) and
+	// threaded through to it below, so there is exactly one real client —
+	// and one named cache — per provider.
+	stashDBClient, tpdbClient, err := mountAfterDarkProviderLookups(mux, stashDBCfg, tpdbCfg, logger, interceptors)
+	if err != nil {
+		return nil, nil, err
+	}
+
 	// providerCaches collects every enabled provider's own named cache.Cache
 	// instance (see cacheHolder/registerCache above) as each client is
 	// constructed — here and inside wireScanPipeline, which adds its own
-	// five below. Built into a CacheRegistry once wireScanPipeline returns,
-	// which CacheService (below) reports on and flushes.
+	// three below. Built into a CacheRegistry once wireScanPipeline
+	// returns, which CacheService (below) reports on and flushes.
 	providerCaches := map[string]cache.Cache{}
 	registerCache(providerCaches, "theaudiodb", theAudioDBClient)
 	registerCache(providerCaches, "fanarttv", fanartTVClient)
+	registerCache(providerCaches, "wikidata", wikidataClient)
+	registerCache(providerCaches, "stashdb", stashDBClient)
+	registerCache(providerCaches, "theporndb", tpdbClient)
 
 	// Acquisition: IndexerService, the read-only half of #579's acquisition
 	// pipeline (search only — submission is DownloadService, wired below).
@@ -613,7 +635,7 @@ func newServeMux(ctx context.Context, logger *slog.Logger, ds datastore.Datastor
 	// Common Scan Pipeline: split into its own function purely to keep
 	// newServeMux's cyclomatic complexity under budget — no behavior
 	// difference from being inlined here. See docs/adr/0024-pipeline-core.md.
-	watcherCloser, err := wireScanPipeline(ctx, mux, ds, logger, interceptors, jobEngine, jobAdapter, itemRepo, mediaFileRepo, libraryEntryRepo, groupRepo, externalIDRepo, musicReleaseRepo, imageRepo, imageStore, personRepo, performerProfileRepo, itemPersonRepo, tagRepo, tagAssignmentRepo, pipelineCfg, mbCfg, acoustIDCfg, stashDBCfg, tpdbCfg, afterDarkCfg, providerCaches)
+	watcherCloser, err := wireScanPipeline(ctx, mux, ds, logger, interceptors, jobEngine, jobAdapter, itemRepo, mediaFileRepo, libraryEntryRepo, groupRepo, externalIDRepo, musicReleaseRepo, imageRepo, imageStore, personRepo, performerProfileRepo, itemPersonRepo, tagRepo, tagAssignmentRepo, pipelineCfg, mbCfg, acoustIDCfg, stashDBClient, tpdbClient, afterDarkCfg, providerCaches)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -646,10 +668,13 @@ func newServeMux(ctx context.Context, logger *slog.Logger, ds datastore.Datastor
 		domainv1connect.MediaFileServiceName,
 		afterdarkv1connect.PerformerProfileServiceName,
 		afterdarkv1connect.BrowseServiceName,
+		afterdarkv1connect.StashDBServiceName,
+		afterdarkv1connect.ThePornDBServiceName,
 		musicv1connect.MusicReleaseServiceName,
 		musicv1connect.MusicBrainzServiceName,
 		musicv1connect.TheAudioDBServiceName,
 		musicv1connect.FanartTVServiceName,
+		musicv1connect.WikidataServiceName,
 		acquisitionv1connect.IndexerServiceName,
 		acquisitionv1connect.DownloadServiceName,
 		jobv1connect.JobServiceName,
@@ -715,8 +740,8 @@ func wireScanPipeline(
 	pipelineCfg config.Pipeline,
 	mbCfg config.MusicBrainz,
 	acoustIDCfg config.AcoustID,
-	stashDBCfg config.StashDB,
-	tpdbCfg config.ThePornDB,
+	stashDBClient ports.StashDBClient,
+	tpdbClient ports.ThePornDBClient,
 	afterDarkCfg config.AfterDark,
 	providerCaches map[string]cache.Cache,
 ) (io.Closer, error) {
@@ -747,14 +772,13 @@ func wireScanPipeline(
 	if err != nil {
 		return nil, err
 	}
-	stashDBClient, tpdbClient, err := newAfterDarkIdentificationClients(stashDBCfg, tpdbCfg, logger)
-	if err != nil {
-		return nil, err
-	}
 	registerCache(providerCaches, "musicbrainz", mbClient)
 	registerCache(providerCaches, "acoustid", acoustIDClient)
-	registerCache(providerCaches, "stashdb", stashDBClient)
-	registerCache(providerCaches, "theporndb", tpdbClient)
+	// stashDBClient/tpdbClient are constructed once by the caller
+	// (newServeMux, which also mounts them as StashDBService/
+	// ThePornDBService for #703's manual lookup RPCs) and threaded
+	// through here so the AfterDark identifier reuses the same clients —
+	// see this function's own doc comment.
 	// Content types with no registered ports.Identifier/ports.ConfidenceScorer
 	// implementation fall back to service.NoopIdentifier/NoopConfidenceScore.
 	identifierRegistry := service.NewIdentifierRegistry(
@@ -1003,6 +1027,51 @@ func (noopAcoustIDClient) Lookup(context.Context, string, float64) ([]ports.Acou
 	return nil, ports.ErrNotFound
 }
 
+// newPersonAndLibraryEntryRepos constructs personRepo and libraryEntryRepo
+// — each entity's own handler is wired up much further down, after its
+// deletion-service dependencies exist (see
+// docs/adr/0015-deletion-impact-and-composing-services.md), but both repos
+// themselves have no dependency on anything else newServeMux builds, so
+// constructing them together here is purely a cyclomatic-complexity split,
+// not a change to when either becomes usable.
+func newPersonAndLibraryEntryRepos(ds datastore.Datastore, logger *slog.Logger) (ports.PersonRepository, ports.LibraryEntryRepository, error) {
+	personRepo, err := storeperson.New("person", ds, storeperson.WithLogger(logger))
+	if err != nil {
+		return nil, nil, fmt.Errorf("cmd/purser: constructing person repository: %w", err)
+	}
+	libraryEntryRepo, err := storelibraryentry.New("library_entry", ds, storelibraryentry.WithLogger(logger))
+	if err != nil {
+		return nil, nil, fmt.Errorf("cmd/purser: constructing library entry repository: %w", err)
+	}
+	return personRepo, libraryEntryRepo, nil
+}
+
+// mountAfterDarkProviderLookups constructs the ports.StashDBClient/
+// ports.ThePornDBClient (via newAfterDarkIdentificationClients) and mounts
+// StashDBService/ThePornDBService on mux — #703's AfterDark-origin
+// Person-photo lookup RPCs, per ADR 0027. Split out of newServeMux purely
+// to keep its cyclomatic complexity under budget, same reasoning
+// wireScanPipeline's own extraction comment gives. Returns the
+// constructed clients so the caller can thread them into
+// wireScanPipeline too — exactly one real client per provider, reused by
+// both the manual lookup RPC and the AfterDark identification pipeline.
+func mountAfterDarkProviderLookups(mux *http.ServeMux, stashDBCfg config.StashDB, tpdbCfg config.ThePornDB, logger *slog.Logger, interceptors connect.HandlerOption) (ports.StashDBClient, ports.ThePornDBClient, error) {
+	stashDBClient, tpdbClient, err := newAfterDarkIdentificationClients(stashDBCfg, tpdbCfg, logger)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	stashDBHandler := apiconnect.NewStashDBHandler(service.NewStashDBLookup(stashDBClient), logger)
+	stashDBPath, stashDBConnectHandler := afterdarkv1connect.NewStashDBServiceHandler(stashDBHandler, interceptors)
+	mux.Handle(stashDBPath, stashDBConnectHandler)
+
+	tpdbHandler := apiconnect.NewThePornDBHandler(service.NewThePornDBLookup(tpdbClient), logger)
+	tpdbPath, tpdbConnectHandler := afterdarkv1connect.NewThePornDBServiceHandler(tpdbHandler, interceptors)
+	mux.Handle(tpdbPath, tpdbConnectHandler)
+
+	return stashDBClient, tpdbClient, nil
+}
+
 // newAfterDarkIdentificationClients constructs the ports.StashDBClient and
 // ports.ThePornDBClient the AfterDark Identifier is wired with (AD5, issue
 // #559). Each is built independently: a provider with Enabled=false gets a
@@ -1157,6 +1226,31 @@ func newFanartTVClient(fanartTVCfg config.FanartTV, logger *slog.Logger) ports.F
 type noopFanartTVClient struct{}
 
 func (noopFanartTVClient) LookupArtist(context.Context, string) (*ports.FanartArtist, error) {
+	return nil, ports.ErrNotFound
+}
+
+// newWikidataClient constructs the real ports.WikidataClient when
+// wikidataCfg.Enabled, else noopWikidataClient — see newTheAudioDBClient's
+// identical convention. Unlike TheAudioDB/fanart.tv there's no API key to
+// set: Wikidata's action API requires none.
+func newWikidataClient(wikidataCfg config.Wikidata, logger *slog.Logger) ports.WikidataClient {
+	if !wikidataCfg.Enabled {
+		return noopWikidataClient{}
+	}
+	client, err := wikidata.New(wikidata.DefaultConfig(), wikidata.WithLogger(logger))
+	if err != nil {
+		logger.Error("constructing wikidata client, falling back to noop", "error", err)
+		return noopWikidataClient{}
+	}
+	return client
+}
+
+// noopWikidataClient is the ports.WikidataClient used when
+// config.Wikidata.Enabled is false — see noopTheAudioDBClient's doc
+// comment.
+type noopWikidataClient struct{}
+
+func (noopWikidataClient) LookupImage(context.Context, string) ([]ports.WikidataImage, error) {
 	return nil, ports.ErrNotFound
 }
 

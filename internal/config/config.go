@@ -137,6 +137,7 @@ func Load(v *viper.Viper, configPath string) (Config, error) {
 	v.SetDefault("sources.theaudiodb.api_key", defaults.Sources.TheAudioDB.APIKey)
 	v.SetDefault("sources.fanart.enabled", defaults.Sources.FanartTV.Enabled)
 	v.SetDefault("sources.fanart.api_key", defaults.Sources.FanartTV.APIKey)
+	v.SetDefault("sources.wikidata.enabled", defaults.Sources.Wikidata.Enabled)
 	v.SetDefault("afterdark.provider_priority", defaults.AfterDark.ProviderPriority)
 	v.SetDefault("prowlarr.enabled", defaults.Prowlarr.Enabled)
 	v.SetDefault("prowlarr.base_url", defaults.Prowlarr.BaseURL)

@@ -321,16 +321,18 @@ func TestMusicBrainzSearchHandler_GetArtist(t *testing.T) {
 
 	// Regression coverage: GetArtist is the "caller already knows the exact
 	// artist" lookup — the right place for isnis/official_url/wikipedia_url/
-	// members, the relations data SearchArtists' MusicBrainzArtist
-	// deliberately omits. See the Add Artist flow (band-member Person/
-	// EntryPerson creation) and Artist Detail's facts sidebar (ISNI, links).
-	t.Run("maps isnis, official/wikipedia links, and band members from Relations", func(t *testing.T) {
+	// wikidata_url/members, the relations data SearchArtists'
+	// MusicBrainzArtist deliberately omits. See the Add Artist flow
+	// (band-member Person/EntryPerson creation), Artist Detail's facts
+	// sidebar (ISNI, links), and #703's Person-photo Wikidata lookup.
+	t.Run("maps isnis, official/wikipedia/wikidata links, and band members from Relations", func(t *testing.T) {
 		svc := &fakeMusicBrainzSearchService{returnArtist: &ports.Artist{
 			ID: "artist-1", Name: "REO Speedwagon", Type: "Group",
 			ISNIs: []string{"0000000123456789"},
 			Relations: []ports.Relation{
 				{Type: "official homepage", URL: &ports.RelationURL{Resource: "http://www.speedwagon.com/"}},
 				{Type: "wikipedia", URL: &ports.RelationURL{Resource: "https://en.wikipedia.org/wiki/REO_Speedwagon"}},
+				{Type: "wikidata", URL: &ports.RelationURL{Resource: "https://www.wikidata.org/wiki/Q845084"}},
 				{Type: "allmusic", URL: &ports.RelationURL{Resource: "https://www.allmusic.com/artist/x"}},
 				{
 					Type: "member of band", Direction: "backward",
@@ -356,6 +358,9 @@ func TestMusicBrainzSearchHandler_GetArtist(t *testing.T) {
 		}
 		if res.Msg.GetWikipediaUrl() != "https://en.wikipedia.org/wiki/REO_Speedwagon" {
 			t.Errorf("WikipediaUrl = %q, want https://en.wikipedia.org/wiki/REO_Speedwagon", res.Msg.GetWikipediaUrl())
+		}
+		if res.Msg.GetWikidataUrl() != "https://www.wikidata.org/wiki/Q845084" {
+			t.Errorf("WikidataUrl = %q, want https://www.wikidata.org/wiki/Q845084", res.Msg.GetWikidataUrl())
 		}
 		if len(res.Msg.GetMembers()) != 1 {
 			t.Fatalf("Members = %d, want 1 (the malformed nil-Artist edge must be skipped)", len(res.Msg.GetMembers()))

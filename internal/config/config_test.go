@@ -753,6 +753,33 @@ func TestLoad_EnvOverridesFanartTVEnabledAndAPIKey(t *testing.T) {
 	}
 }
 
+func TestLoad_UsesDefaultWikidataDisabled(t *testing.T) {
+	unsetEnvForTest(t, "PURSER_SOURCES_WIKIDATA_ENABLED")
+
+	cfg, err := config.Load(viper.New(), "")
+	if err != nil {
+		t.Fatalf("Load returned error: %v", err)
+	}
+	if cfg.Sources.Wikidata.Enabled {
+		t.Fatal("Load returned Sources.Wikidata.Enabled=true by default, want false")
+	}
+}
+
+// PURSER_SOURCES_WIKIDATA_ENABLED is the key .env.example documents,
+// hence Config.Sources.Wikidata with mapstructure "wikidata" — see
+// config.Sources' own doc comment.
+func TestLoad_EnvOverridesWikidataEnabled(t *testing.T) {
+	t.Setenv("PURSER_SOURCES_WIKIDATA_ENABLED", "true")
+
+	cfg, err := config.Load(viper.New(), "")
+	if err != nil {
+		t.Fatalf("Load returned error: %v", err)
+	}
+	if !cfg.Sources.Wikidata.Enabled {
+		t.Fatal("Load returned Sources.Wikidata.Enabled=false, want true from env override")
+	}
+}
+
 func TestLoad_UsesDefaultProwlarrDisabledWithNoBaseURLOrAPIKey(t *testing.T) {
 	unsetEnvForTest(t, "PURSER_PROWLARR_ENABLED", "PURSER_PROWLARR_BASE_URL", "PURSER_PROWLARR_API_KEY")
 

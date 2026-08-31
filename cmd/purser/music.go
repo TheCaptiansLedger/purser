@@ -12,9 +12,10 @@ import "github.com/spf13/cobra"
 func newMusicCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "music",
-		Short: "Music module provider lookups (TheAudioDB, fanart.tv)",
+		Short: "Music module provider lookups (TheAudioDB, fanart.tv, Wikidata)",
 	}
 	cmd.AddCommand(newMusicTheAudioDBCmd())
 	cmd.AddCommand(newMusicFanartTVCmd())
+	cmd.AddCommand(newMusicWikidataCmd())
 	return cmd
 }

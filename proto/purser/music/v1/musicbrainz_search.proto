@@ -126,17 +126,21 @@ message MusicBrainzArtistMember {
 }
 
 // GetMusicBrainzArtistResponse's extra fields (isnis/official_url/
-// wikipedia_url/members) come from the same MusicBrainz relations data
-// SearchArtists' MusicBrainzArtist deliberately omits (see that message's
-// own doc comment) — GetArtist is the "caller already knows the exact
-// artist" lookup, the right place for the heavier per-artist detail
-// nothing else needs.
+// wikipedia_url/wikidata_url/members) come from the same MusicBrainz
+// relations data SearchArtists' MusicBrainzArtist deliberately omits (see
+// that message's own doc comment) — GetArtist is the "caller already
+// knows the exact artist" lookup, the right place for the heavier
+// per-artist detail nothing else needs. wikidata_url (a "wikidata"
+// url-rel, e.g. "https://www.wikidata.org/wiki/Q845084") is the join key
+// #703's WikidataService.LookupImage takes — extracted here rather than
+// making that RPC parse MusicBrainzArtistMember's relations itself.
 message GetMusicBrainzArtistResponse {
   MusicBrainzArtist artist = 1;
   repeated string isnis = 2;
   string official_url = 3;
   string wikipedia_url = 4;
   repeated MusicBrainzArtistMember members = 5;
+  string wikidata_url = 6;
 }
 
 // ListMusicBrainzReleasesRequest lists every known pressing/edition of one
