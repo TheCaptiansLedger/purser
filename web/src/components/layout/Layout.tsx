@@ -3,6 +3,7 @@ import { Menu } from 'lucide-react'
 import { Outlet, useLocation } from 'react-router-dom'
 import { Sidebar } from './Sidebar'
 import { PlayerProvider } from '../PlayerProvider'
+import { NowPlayingBar } from '../NowPlayingBar'
 
 const SIDEBAR_KEY = 'sidebar-collapsed'
 
@@ -63,7 +64,7 @@ export function Layout() {
 
         <main
           className="flex-1 min-h-screen overflow-y-auto transition-all duration-300"
-          style={{ marginLeft: 'var(--sidebar-width)' }}
+          style={{ marginLeft: 'var(--sidebar-width)', paddingBottom: 'var(--player-bar-height, 0px)' }}
         >
           <div className="sticky top-0 z-20 flex items-center h-12 px-4 border-b border-border bg-surface/95 backdrop-blur-xl md:hidden">
             <button
@@ -76,6 +77,8 @@ export function Layout() {
           </div>
           <Outlet />
         </main>
+
+        <NowPlayingBar />
       </div>
     </PlayerProvider>
   )
