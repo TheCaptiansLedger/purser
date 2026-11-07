@@ -10,9 +10,13 @@ import { MediaFileService } from '../gen/purser/domain/v1/media_file_pb'
 import { MusicBrainzService } from '../gen/purser/music/v1/musicbrainz_search_pb'
 import { MusicReleaseService } from '../gen/purser/music/v1/release_pb'
 import { Tracklist, type TracklistProps } from './Tracklist'
+import { PlayerProvider } from './PlayerProvider'
+import { usePlayer } from '../hooks/usePlayer'
 
 // ADR 0004: the API layer is tested against a mocked transport, never a
-// live backend.
+// live backend. Wrapped in PlayerProvider — Tracklist dispatches into it
+// (#751) — with a small state-reading consumer alongside so tests can
+// assert on the resulting player state without reaching into internals.
 function renderTracklist(props: Partial<TracklistProps>, mockTransport: ReturnType<typeof createRouterTransport>) {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   const refetch = vi.fn()
@@ -24,12 +28,23 @@ function renderTracklist(props: Partial<TracklistProps>, mockTransport: ReturnTy
     refetch,
     ...props,
   }
+
+  function PlayerStateProbe() {
+    const { state } = usePlayer()
+    return (
+      <div data-testid="player-probe" data-current={state.current?.title ?? ''} data-queue={state.queue.map(t => t.title).join(',')} />
+    )
+  }
+
   render(
-    <TransportProvider transport={mockTransport}>
-      <QueryClientProvider client={queryClient}>
-        <Tracklist {...fullProps} />
-      </QueryClientProvider>
-    </TransportProvider>,
+    <PlayerProvider>
+      <TransportProvider transport={mockTransport}>
+        <QueryClientProvider client={queryClient}>
+          <Tracklist {...fullProps} />
+        </QueryClientProvider>
+      </TransportProvider>
+      <PlayerStateProbe />
+    </PlayerProvider>,
   )
   return { refetch }
 }
@@ -45,10 +60,10 @@ describe('Tracklist', () => {
 
     expect(screen.getByText('Second Hand News')).toBeInTheDocument()
     expect(screen.getByText('Missing')).toBeInTheDocument()
-    expect(screen.queryByTitle('Playback coming soon')).not.toBeInTheDocument()
+    expect(screen.queryByLabelText('Play Second Hand News')).not.toBeInTheDocument()
   })
 
-  it('shows a disabled, aria-disabled play icon only for an imported track with a real MediaFile', async () => {
+  it('shows a play button only for an imported track with a real MediaFile', async () => {
     const mockTransport = createRouterTransport(router => {
       router.service(MediaFileService, {
         listMediaFiles: req => ({ mediaFiles: req.itemId === 'has-file' ? [{ id: 'mf-1' }] : [] }),
@@ -64,11 +79,35 @@ describe('Tracklist', () => {
       mockTransport,
     )
 
-    const playButton = await screen.findByTitle('Playback coming soon')
-    expect(playButton).toHaveAttribute('aria-disabled', 'true')
+    await screen.findByLabelText('Play Dreams')
+    // The imported track with no MediaFile gets no play button.
+    expect(screen.queryByLabelText('Play Songbird')).not.toBeInTheDocument()
+  })
 
-    // Only one play icon — the imported track with no MediaFile gets none.
-    expect(screen.getAllByTitle('Playback coming soon')).toHaveLength(1)
+  it('clicking Play queues the following playable tracks and plays the clicked one', async () => {
+    const mockTransport = createRouterTransport(router => {
+      router.service(MediaFileService, {
+        listMediaFiles: req => ({ mediaFiles: req.itemId === 'no-file' ? [] : [{ id: 'mf-1' }] }),
+      })
+    })
+    renderTracklist(
+      {
+        tracks: [
+          track({ id: 't1', sequence: '1', title: 'One', status: ItemStatus.IMPORTED }),
+          track({ id: 't2', sequence: '2', title: 'Two', status: ItemStatus.IMPORTED }),
+          track({ id: 'no-file', sequence: '3', title: 'Three', status: ItemStatus.IMPORTED }),
+          track({ id: 't4', sequence: '4', title: 'Four', status: ItemStatus.IMPORTED }),
+        ],
+      },
+      mockTransport,
+    )
+
+    fireEvent.click(await screen.findByLabelText('Play One'))
+
+    const probe = screen.getByTestId('player-probe')
+    expect(probe).toHaveAttribute('data-current', 'One')
+    // "Three" has no MediaFile and is skipped from the queued tail.
+    expect(probe).toHaveAttribute('data-queue', 'Two,Four')
   })
 
   it('"Populate from MusicBrainz" is absent when the edition has no mbid', () => {

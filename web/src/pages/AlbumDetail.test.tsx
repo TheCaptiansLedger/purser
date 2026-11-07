@@ -14,22 +14,26 @@ import { TagAssignmentService } from '../gen/purser/domain/v1/tag_assignment_pb'
 import { MusicBrainzService } from '../gen/purser/music/v1/musicbrainz_search_pb'
 import { MusicReleaseService, ReleaseStatus } from '../gen/purser/music/v1/release_pb'
 import { AlbumDetail } from './AlbumDetail'
+import { PlayerProvider } from '../components/PlayerProvider'
 
 // ADR 0004: the API layer is tested against a mocked transport, never a
 // live backend — same createRouterTransport pattern ArtistDetail.test.tsx
-// uses.
+// uses. Wrapped in PlayerProvider — this page's Tracklist dispatches into
+// it (#751) — the same way it's actually mounted under Layout in the app.
 function renderAlbumDetail(mockTransport: ReturnType<typeof createRouterTransport>, id = 'group-1') {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   render(
-    <TransportProvider transport={mockTransport}>
-      <QueryClientProvider client={queryClient}>
-        <MemoryRouter initialEntries={[`/music/albums/${id}`]}>
-          <Routes>
-            <Route path="/music/albums/:id" element={<AlbumDetail />} />
-          </Routes>
-        </MemoryRouter>
-      </QueryClientProvider>
-    </TransportProvider>,
+    <PlayerProvider>
+      <TransportProvider transport={mockTransport}>
+        <QueryClientProvider client={queryClient}>
+          <MemoryRouter initialEntries={[`/music/albums/${id}`]}>
+            <Routes>
+              <Route path="/music/albums/:id" element={<AlbumDetail />} />
+            </Routes>
+          </MemoryRouter>
+        </QueryClientProvider>
+      </TransportProvider>
+    </PlayerProvider>,
   )
 }
 

@@ -7,7 +7,9 @@ import type { Item } from '../gen/purser/domain/v1/item_pb'
 import { ItemStatus } from '../gen/purser/domain/v1/common_pb'
 import { itemStatusFromProto } from '../hooks/useReleaseTracks'
 import { useTrackMediaFilePresence } from '../hooks/useTrackMediaFilePresence'
+import { usePlayer } from '../hooks/usePlayer'
 import { formatRuntime } from '../lib/formatRuntime'
+import type { PlayerTrack } from '../lib/playerReducer'
 import { ItemStatusBadge } from './ItemStatusBadge'
 import { EmptyState } from './EmptyState'
 import { AddTrackDialog } from './AddTrackDialog'
@@ -47,12 +49,26 @@ function sortedTracks(tracks: Item[]): Item[] {
   return [...tracks].sort((a, b) => discNumberOf(a) - discNumberOf(b) || sequenceKeyOf(a) - sequenceKeyOf(b))
 }
 
+// toPlayerTrack maps a Track (Item) to the player's own queue-entry shape
+// (lib/playerReducer.ts). artist is left undefined — this page
+// (AlbumDetail) only has group.libraryEntryId (an id), not a resolved
+// artist display name, and adding a query just for that field isn't
+// worth it yet; NowPlayingBar already renders fine without it. Only this
+// call site needs the mapping so far, so it stays local rather than
+// moving to lib/ — same "extend when a second consumer needs it"
+// convention DragReorderList's own doc comment states.
+function toPlayerTrack(track: Item): PlayerTrack {
+  return { id: track.id, title: track.title, runtimeSeconds: track.runtimeSeconds || undefined }
+}
+
 // Tracklist is #676's per-edition track table: ItemStatusBadge (#659) per
-// row, a Play icon rendered only when Status=imported AND
-// MediaFileService.ListMediaFiles resolves a real file — visibly present,
-// functionally inert (playback itself is #643, not wired here) — and
-// Add track (manual + Populate from MusicBrainz) + Delete, the write path
-// this tab had none of before (#721/#720).
+// row, a Play button rendered only when Status=imported AND
+// MediaFileService.ListMediaFiles resolves a real file, wired to
+// PlayerContext (#749/#751) — clicking it queues every *other* playable
+// row that follows it and plays the clicked one, so playback continues
+// into the rest of the tracklist via the queue instead of stopping after
+// one track — and Add track (manual + Populate from MusicBrainz) +
+// Delete, the write path this tab had none of before (#721/#720).
 export function Tracklist({ releaseId, mbid, tracks, isPending, refetch }: TracklistProps) {
   const [addOpen, setAddOpen] = useState(false)
   const [deleteTarget, setDeleteTarget] = useState<Item | null>(null)
@@ -62,6 +78,7 @@ export function Tracklist({ releaseId, mbid, tracks, isPending, refetch }: Track
   const mediaFilePresence = useTrackMediaFilePresence(tracks)
   const createTrackMutation = useMutation(createMusicReleaseTrack)
   const releaseQuery = useQuery(getRelease, { mbid }, { enabled: false })
+  const { dispatch } = usePlayer()
 
   // The empty-tracklist gate: absent (not just disabled) once the
   // tracklist is non-empty, absent with no mbid. A fully-failed Populate
@@ -114,6 +131,22 @@ export function Tracklist({ releaseId, mbid, tracks, isPending, refetch }: Track
     refetch()
   }
 
+  function isPlayable(track: Item): boolean {
+    return track.status === ItemStatus.IMPORTED && mediaFilePresence.has(track.id)
+  }
+
+  // handlePlay queues every playable row after the clicked one (in display
+  // order), then plays the clicked track — so playback continues into the
+  // rest of the tracklist via PlayerProvider's onEnded→SKIP_NEXT instead of
+  // stopping after a single track. Unplayable rows (no status=imported
+  // MediaFile) are skipped rather than left in the queue to fail later.
+  function handlePlay(track: Item) {
+    const index = rows.findIndex(t => t.id === track.id)
+    const tail = rows.slice(index + 1).filter(isPlayable).map(toPlayerTrack)
+    dispatch({ type: 'SET_QUEUE', tracks: tail })
+    dispatch({ type: 'PLAY', track: toPlayerTrack(track) })
+  }
+
   const rows = sortedTracks(tracks)
   const populateDone = populateResult !== null && populateResult.added + populateResult.failed.length === populateResult.total
 
@@ -163,7 +196,7 @@ export function Tracklist({ releaseId, mbid, tracks, isPending, refetch }: Track
         <ul className="flex flex-col divide-y divide-border">
           {rows.map(track => {
             const status = itemStatusFromProto(track.status)
-            const showPlay = track.status === ItemStatus.IMPORTED && mediaFilePresence.has(track.id)
+            const showPlay = isPlayable(track)
             const runtime = formatRuntime(track.runtimeSeconds)
             return (
               <li key={track.id} className="flex items-center gap-3 py-2">
@@ -174,9 +207,10 @@ export function Tracklist({ releaseId, mbid, tracks, isPending, refetch }: Track
                 {showPlay && (
                   <button
                     type="button"
-                    aria-disabled="true"
-                    title="Playback coming soon"
-                    className="flex h-7 w-7 items-center justify-center rounded-lg text-text-secondary opacity-50 cursor-not-allowed"
+                    onClick={() => handlePlay(track)}
+                    aria-label={`Play ${track.title}`}
+                    title="Play"
+                    className="flex h-7 w-7 items-center justify-center rounded-lg text-text-secondary hover:bg-surface-raised hover:text-text"
                   >
                     <Play size={14} />
                   </button>

@@ -79,4 +79,41 @@ describe('NowPlayingBar', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Skip to previous track' }))
     expect(screen.getByText('Track A')).toBeInTheDocument()
   })
+
+  it('toggles the queue panel open and closed, and reflects queued tracks', () => {
+    renderBar()
+    fireEvent.click(screen.getByText('play a'))
+    fireEvent.click(screen.getByText('enqueue b'))
+
+    expect(screen.queryByText('Up next')).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Toggle queue' }))
+    expect(screen.getByText('Up next')).toBeInTheDocument()
+    expect(screen.getByText('Track B')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Toggle queue' }))
+    expect(screen.queryByText('Up next')).not.toBeInTheDocument()
+  })
+
+  it('removing a track from the queue panel updates player state', () => {
+    renderBar()
+    fireEvent.click(screen.getByText('play a'))
+    fireEvent.click(screen.getByText('enqueue b'))
+    fireEvent.click(screen.getByRole('button', { name: 'Toggle queue' }))
+
+    fireEvent.click(screen.getByRole('button', { name: 'Remove Track B from queue' }))
+
+    expect(screen.getByText('Queue is empty.')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Skip to next track' })).toBeDisabled()
+  })
+
+  it('closes the queue panel on outside click', () => {
+    renderBar()
+    fireEvent.click(screen.getByText('play a'))
+    fireEvent.click(screen.getByRole('button', { name: 'Toggle queue' }))
+    expect(screen.getByText('Up next')).toBeInTheDocument()
+
+    fireEvent.mouseDown(document.body)
+    expect(screen.queryByText('Up next')).not.toBeInTheDocument()
+  })
 })

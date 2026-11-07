@@ -1,7 +1,8 @@
-import { useEffect } from 'react'
-import { Pause, Play, SkipBack, SkipForward } from 'lucide-react'
+import { useEffect, useRef, useState } from 'react'
+import { ListMusic, Pause, Play, SkipBack, SkipForward } from 'lucide-react'
 import { usePlayer } from '../hooks/usePlayer'
 import { formatRuntime } from '../lib/formatRuntime'
+import { QueuePanel } from './QueuePanel'
 
 // PLAYER_BAR_HEIGHT mirrors Layout.tsx's own --sidebar-width convention:
 // a CSS custom property this component sets on <html> while visible, so
@@ -11,14 +12,15 @@ import { formatRuntime } from '../lib/formatRuntime'
 const PLAYER_BAR_HEIGHT = '4rem'
 const PLAYER_BAR_HEIGHT_VAR = '--player-bar-height'
 
-// NowPlayingBar is #750: a persistent play/pause/skip bar for the player
-// state PlayerProvider (#749) already tracks. Deliberately scoped to
-// exactly that — no seek bar, no volume control (#750's own scope note) —
-// those are separate future work if/when wanted, not silently folded in
-// here.
+// NowPlayingBar is #750/#751: a persistent play/pause/skip bar plus a
+// toggleable queue panel (#751) for the player state PlayerProvider (#749)
+// already tracks. #750 deliberately left out a seek bar/volume control —
+// still out of scope here too, this issue only adds the queue.
 export function NowPlayingBar() {
   const { state, dispatch } = usePlayer()
   const visible = state.current !== null
+  const [queueOpen, setQueueOpen] = useState(false)
+  const queueRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     document.documentElement.style.setProperty(PLAYER_BAR_HEIGHT_VAR, visible ? PLAYER_BAR_HEIGHT : '0px')
@@ -26,6 +28,28 @@ export function NowPlayingBar() {
       document.documentElement.style.setProperty(PLAYER_BAR_HEIGHT_VAR, '0px')
     }
   }, [visible])
+
+  // Same outside-click/Escape-to-close convention DropdownMenu already
+  // uses — this panel is hand-rolled rather than built on DropdownMenu
+  // itself, since DropdownMenu only supports a flat list of menu-item
+  // buttons, not QueuePanel's arbitrary (reorderable, removable) content.
+  useEffect(() => {
+    if (!queueOpen) return
+    function handlePointerDown(event: MouseEvent) {
+      if (queueRef.current && !queueRef.current.contains(event.target as Node)) {
+        setQueueOpen(false)
+      }
+    }
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === 'Escape') setQueueOpen(false)
+    }
+    document.addEventListener('mousedown', handlePointerDown)
+    document.addEventListener('keydown', handleKeyDown)
+    return () => {
+      document.removeEventListener('mousedown', handlePointerDown)
+      document.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [queueOpen])
 
   if (!state.current) {
     return null
@@ -78,6 +102,30 @@ export function NowPlayingBar() {
         >
           <SkipForward size={16} />
         </button>
+      </div>
+
+      <div ref={queueRef} className="relative shrink-0">
+        <button
+          type="button"
+          onClick={() => setQueueOpen(prev => !prev)}
+          aria-haspopup="dialog"
+          aria-expanded={queueOpen}
+          aria-label="Toggle queue"
+          title="Queue"
+          className="flex h-8 w-8 items-center justify-center rounded-lg text-text-secondary hover:bg-surface-raised hover:text-text"
+        >
+          <ListMusic size={16} />
+        </button>
+
+        {queueOpen && (
+          <div className="absolute bottom-full right-0 mb-2">
+            <QueuePanel
+              queue={state.queue}
+              onReorder={tracks => dispatch({ type: 'SET_QUEUE', tracks })}
+              onRemove={trackId => dispatch({ type: 'REMOVE_FROM_QUEUE', trackId })}
+            />
+          </div>
+        )}
       </div>
     </div>
   )
